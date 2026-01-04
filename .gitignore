@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Obrázky
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.eps
+
+# Pracovní soubory
+*_temp.py
+*_test.py
+scratch*.py
+
+# Vim
+*~
+*.swp
+*.swo
+*.swn

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eis-analysis"
+dynamic = ["version"]
+description = "Modular toolkit for electrochemical impedance spectroscopy analysis"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+    "matplotlib>=3.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+]
+
+[project.scripts]
+eis = "eis:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "eis_analysis.version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["eis_analysis*"]
