@@ -28,5 +28,8 @@ eis = "eis:main"
 [tool.setuptools.dynamic]
 version = {attr = "eis_analysis.version.__version__"}
 
+[tool.setuptools]
+py-modules = ["eis"]
+
 [tool.setuptools.packages.find]
 include = ["eis_analysis*"]

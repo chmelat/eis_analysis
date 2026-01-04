@@ -28,10 +28,12 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 ### Installation
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/chmelat/eis_analysis
 cd eis_analysis
 pip install -e .
 ```
+
+After installation, the `eis` command is available system-wide.
 
 For alternative installation methods, see [Installation options](#installation-options).
 
@@ -39,16 +41,16 @@ For alternative installation methods, see [Installation options](#installation-o
 
 ```bash
 # Basic analysis (KK validation + DRT)
-eis.py data.DTA
+eis data.DTA
 
 # With circuit fitting
-eis.py data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
+eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 
 # Save plots to files
-eis.py data.DTA --save results --format pdf
+eis data.DTA --save results --format pdf
 ```
 
-Run `eis.py --help` for all options.
+Run `eis --help` for all options.
 
 ---
 
@@ -58,7 +60,7 @@ Run `eis.py --help` for all options.
 
 ```bash
 # KK validation + DRT analysis (default)
-eis.py data.DTA
+eis data.DTA
 ```
 
 Output: Kramers-Kronig residuals, mu metric, DRT spectrum with detected peaks.
@@ -67,33 +69,33 @@ Output: Kramers-Kronig residuals, mu metric, DRT spectrum with detected peaks.
 
 ```bash
 # Fit equivalent circuit
-eis.py data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
+eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 
 # Use Differential Evolution for global optimization (default)
-eis.py data.DTA --circuit "R(100) - (R(5000) | Q(1e-6, 0.9))"
+eis data.DTA --circuit "R(100) - (R(5000) | Q(1e-6, 0.9))"
 
 # Use multi-start for local optimization
-eis.py data.DTA --circuit "..." --optimizer multistart --multistart 20
+eis data.DTA --circuit "..." --optimizer multistart --multistart 20
 ```
 
 ### Automatic circuit suggestion
 
 ```bash
 # Automatic Voigt chain fitting
-eis.py data.DTA --voigt-chain
+eis data.DTA --voigt-chain
 
 # With automatic element count optimization
-eis.py data.DTA --voigt-chain --voigt-auto-M
+eis data.DTA --voigt-chain --voigt-auto-M
 ```
 
 ### Oxide layer analysis
 
 ```bash
 # Thickness calculation from capacitance
-eis.py data.DTA --circuit "R(100) - (R(5000) | C(1e-6))" --analyze-oxide
+eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))" --analyze-oxide
 
 # With custom parameters
-eis.py data.DTA --circuit "..." --analyze-oxide --epsilon-r 22 --area 0.5
+eis data.DTA --circuit "..." --analyze-oxide --epsilon-r 22 --area 0.5
 ```
 
 ### Batch processing
@@ -101,7 +103,7 @@ eis.py data.DTA --circuit "..." --analyze-oxide --epsilon-r 22 --area 0.5
 ```bash
 # Process multiple files without interactive display
 for f in *.DTA; do
-    eis.py "$f" --save "${f%.DTA}" --no-show
+    eis "$f" --save "${f%.DTA}" --no-show
 done
 ```
 
@@ -115,13 +117,13 @@ Data quality verification using Lin-KK test. Validates causality, linearity, and
 
 ```bash
 # Default (included in standard analysis)
-eis.py data.DTA
+eis data.DTA
 
 # Skip KK validation
-eis.py data.DTA --no-kk
+eis data.DTA --no-kk
 
 # Custom mu threshold
-eis.py data.DTA --mu-threshold 0.80
+eis data.DTA --mu-threshold 0.80
 ```
 
 **Detailed documentation:** [doc/LinKK_analysis.md](doc/LinKK_analysis.md)
@@ -132,19 +134,19 @@ Distribution of Relaxation Times - model-free method for impedance data analysis
 
 ```bash
 # Default DRT with auto-lambda
-eis.py data.DTA
+eis data.DTA
 
 # Manual lambda selection
-eis.py data.DTA --lambda 1e-3
+eis data.DTA --lambda 1e-3
 
 # GMM peak detection (more robust)
-eis.py data.DTA --peak-method gmm
+eis data.DTA --peak-method gmm
 
 # Robust R_inf estimation for inductive data
-eis.py data.DTA --ri-fit
+eis data.DTA --ri-fit
 
 # Peak classification into physical processes
-eis.py data.DTA --peak-method gmm --classify-terms
+eis data.DTA --peak-method gmm --classify-terms
 ```
 
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md)
@@ -180,13 +182,13 @@ Always use parentheses around parallel combinations: `(R|C)`.
 
 ```bash
 # Voigt element
-eis.py data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
+eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 
 # Randles circuit with CPE
-eis.py data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
+eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 
 # With fixed parameter
-eis.py data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
+eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 ```
 
 **Detailed documentation:** [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md), [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md)
@@ -197,13 +199,13 @@ Automatic Voigt chain estimation using linear regression for initial guess, then
 
 ```bash
 # Basic Voigt chain
-eis.py data.DTA --voigt-chain
+eis data.DTA --voigt-chain
 
 # Automatic element count optimization
-eis.py data.DTA --voigt-chain --voigt-auto-M
+eis data.DTA --voigt-chain --voigt-auto-M
 
 # Custom density (elements per decade)
-eis.py data.DTA --voigt-chain --voigt-n-per-decade 5
+eis data.DTA --voigt-chain --voigt-n-per-decade 5
 ```
 
 **Detailed documentation:** [doc/VOIGT_CHAIN_MATH.md](doc/VOIGT_CHAIN_MATH.md)
@@ -216,10 +218,10 @@ Global optimization for finding global minimum.
 
 ```bash
 # Default DE
-eis.py data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
+eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 
 # Custom parameters
-eis.py data.DTA --circuit "..." --de-strategy 2 --de-popsize 20 --de-maxiter 500
+eis data.DTA --circuit "..." --de-strategy 2 --de-popsize 20 --de-maxiter 500
 ```
 
 **DE strategies:** 1=randtobest1bin (default), 2=best1bin, 3=rand1bin
@@ -232,10 +234,10 @@ Multiple starts from different initial points.
 
 ```bash
 # Multi-start with 20 restarts
-eis.py data.DTA --circuit "..." --optimizer multistart --multistart 20
+eis data.DTA --circuit "..." --optimizer multistart --multistart 20
 
 # With larger perturbation
-eis.py data.DTA --circuit "..." --optimizer multistart --multistart-scale 3.0
+eis data.DTA --circuit "..." --optimizer multistart --multistart-scale 3.0
 ```
 
 **Detailed documentation:** [doc/MULTISTART_OPTIMIZATION.md](doc/MULTISTART_OPTIMIZATION.md)
@@ -246,10 +248,10 @@ Oxide layer thickness calculation from capacitance.
 
 ```bash
 # Automatic analysis
-eis.py data.DTA --circuit "..." --analyze-oxide
+eis data.DTA --circuit "..." --analyze-oxide
 
 # Custom permittivity and area
-eis.py data.DTA --circuit "..." --analyze-oxide --epsilon-r 9 --area 0.5
+eis data.DTA --circuit "..." --analyze-oxide --epsilon-r 9 --area 0.5
 ```
 
 Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
@@ -355,24 +357,35 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Option 1: pip install (recommended)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/chmelat/eis_analysis
 cd eis_analysis
-pip install -e .    # Editable install
+pip install -e .    # Editable install (for development)
 # or
 pip install .       # Standard install
 ```
 
-### Option 2: Dependencies only
+After installation, the `eis` command is available globally:
 
 ```bash
-pip install -r requirements.txt
-python3 eis.py --help
+eis --help
+eis data.DTA
+```
+
+### Option 2: Run without installation
+
+If you prefer not to install the package, you can run the script directly:
+
+```bash
+pip install numpy scipy matplotlib   # Install dependencies
+python3 eis.py --help                 # Run script directly
+python3 eis data.DTA
 ```
 
 ### Option 3: System packages (Debian/Ubuntu)
 
 ```bash
 sudo apt install python3-numpy python3-scipy python3-matplotlib
+pip install -e .    # Then install the package
 ```
 
 ### Optional dependencies
@@ -381,17 +394,17 @@ sudo apt install python3-numpy python3-scipy python3-matplotlib
 # GMM peak detection
 pip install scikit-learn
 
-# Development tools
+# Development tools (ruff, mypy, pytest)
 pip install -e ".[dev]"
 ```
 
 ### Windows
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/chmelat/eis_analysis
 cd eis_analysis
 pip install -e .
-python eis.py data.DTA    # Use 'python' instead of 'python3'
+eis data.DTA
 ```
 
 ---

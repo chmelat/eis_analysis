@@ -16,14 +16,14 @@ Features:
 - Robust R_inf estimation (--ri-fit)
 
 Usage:
-    python eis.py                             # synthetic data demo
-    python eis.py data.DTA                    # Gamry file (auto-lambda default)
-    python eis.py data.DTA --lambda 0.5       # manual regularization
-    python eis.py data.DTA --peak-method gmm  # GMM peak detection
-    python eis.py data.DTA --ri-fit -v        # robust R_inf estimation
-    python eis.py data.DTA --voigt-chain --analyze-oxide  # oxide analysis
+    eis                             # synthetic data demo
+    eis data.DTA                    # Gamry file (auto-lambda default)
+    eis data.DTA --lambda 0.5       # manual regularization
+    eis data.DTA --peak-method gmm  # GMM peak detection
+    eis data.DTA --ri-fit -v        # robust R_inf estimation
+    eis data.DTA --voigt-chain --analyze-oxide  # oxide analysis
 
-    python eis.py --help                      # help
+    eis --help                      # help
 """
 
 import argparse
@@ -327,11 +327,11 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=OnePerLineHelpFormatter,
         epilog="""
 Examples:
-  ./eis.py                           Synthetic data demo
-  ./eis.py --ri-fit example_eis_data.csv      Analysis CSV data file
-                                     (generated from synthetic demo)
-  ./eis.py --circuit 'R()-(R()|Q())-(R()|Q())' example_eis_data.csv 
-                                     Fit equivalent circuit from data
+  eis                                Synthetic data demo
+  eis --ri-fit data.csv              Analyze CSV data file
+  eis data.DTA                       Analyze Gamry DTA file
+  eis data.DTA --circuit 'R()-(R()|Q())-(R()|Q())'
+                                     Fit equivalent circuit
         """
     )
 
