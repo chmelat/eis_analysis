@@ -294,7 +294,12 @@ class OnePerLineHelpFormatter(argparse.RawDescriptionHelpFormatter):
         if prefix is None:
             prefix = 'usage: '
 
-        # Build usage with one option per line
+        # If custom usage is provided, use it
+        if usage is not None:
+            usage = usage % dict(prog=self._prog)
+            return f'{prefix}{usage}\n\n'
+
+        # Otherwise build usage with one option per line
         prog = '%(prog)s' % dict(prog=self._prog)
         lines = [f'{prefix}{prog}']
 
@@ -325,6 +330,7 @@ def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description='EIS analysis with DRT',
+        usage='eis [input] [options]',
         formatter_class=OnePerLineHelpFormatter,
         epilog="""
 Examples:
