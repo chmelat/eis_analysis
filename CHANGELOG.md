@@ -4,7 +4,28 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.9.4 (2026-01-05)
+
+### Documentation
+
+- Added comprehensive time constant analysis report (`time_constant_analysis_report.md`)
+- Report compares DRT+GMM vs circuit fitting methods for parameter identification
+- Demonstrates effect of regularization parameter λ on DRT spectrum and peak detection
+- Provides practical recommendations for choosing analysis methods
+
+### Notes
+
+- Retroactive note: `--gmm-bic-threshold` parameter was added in v0.9.3 but not documented in changelog
+
+---
+
 ## Version 0.9.3 (2026-01-05)
+
+### New Features
+
+- Added `--gmm-bic-threshold` CLI parameter for tuning GMM peak detection sensitivity
+- Allows users to control BIC threshold for adding components (default: 10.0)
+- Lower values detect more peaks, higher values are more conservative
 
 ### Fixes
 
