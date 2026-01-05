@@ -52,7 +52,7 @@ from .drt import (
 # Fitting (new operator overloading approach)
 from .fitting import (
     # Circuit elements
-    R, C, Q, L, W, Wo,
+    R, C, Q, L, W, Wo, K,
     # Main functions
     fit_equivalent_circuit,
     fit_circuit_multistart,  # Multi-start optimization
@@ -100,7 +100,7 @@ __all__ = [
     'gmm_peak_detection',
     'GMM_AVAILABLE',
     # Fitting (circuit elements)
-    'R', 'C', 'Q', 'L', 'W', 'Wo',
+    'R', 'C', 'Q', 'L', 'W', 'Wo', 'K',
     # Fitting (main functions)
     'fit_equivalent_circuit',
     'fit_circuit_multistart',

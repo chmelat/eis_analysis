@@ -4,6 +4,15 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.9.3 (2026-01-05)
+
+### Fixes
+
+- Fixed missing K element export from `eis_analysis/__init__.py`
+- Added K to module imports and `__all__` list
+
+---
+
 ## Version 0.9.2 (2026-01-05)
 
 ### Fixes
