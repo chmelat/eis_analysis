@@ -55,7 +55,7 @@ from eis_analysis import (
     fit_equivalent_circuit,
     fit_circuit_multistart,  # Multi-start optimization
     fit_circuit_diffevo,  # Differential evolution optimization
-    R, C, Q, L, W, Wo,  # Circuit elements
+    R, C, Q, L, W, Wo, K,  # Circuit elements
     fit_voigt_chain_linear,  # Voigt chain linear fitting
     # Analysis
     analyze_oxide_layer,
@@ -215,6 +215,7 @@ def parse_circuit_expression(expr: str):
         'L': L,
         'W': W,
         'Wo': Wo,
+        'K': K,
     }
 
     try:

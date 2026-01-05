@@ -1,39 +1,39 @@
-# Parser ekvivalentnich obvodu
+# Equivalent Circuit Parser
 
-Tento dokument popisuje implementaci parseru pro definici ekvivalentnich obvodu
-v EIS Analysis Toolkit.
+This document describes the implementation of the equivalent circuit parser
+in the EIS Analysis Toolkit.
 
-## Architektura
+## Architecture
 
-Parser pouziva **operator overloading** pristup inspirovany knihovnou
-EISAnalysis.jl (Julia). Misto textoveho parseru se obvod definuje primo
-v Pythonu pomoci operatoru.
+The parser uses an **operator overloading** approach inspired by the
+EISAnalysis.jl library (Julia). Instead of a text parser, circuits are defined
+directly in Python using operators.
 
-### Klicove moduly
+### Key Modules
 
 ```
 eis_analysis/fitting/
-├── circuit_elements.py   # Zakladni elementy (R, C, Q, L, W, Wo, K)
-├── circuit_builder.py    # Kombinatory (Series, Parallel)
-└── circuit.py            # Fitting funkce
+├── circuit_elements.py   # Basic elements (R, C, Q, L, W, Wo, K)
+├── circuit_builder.py    # Combinators (Series, Parallel)
+└── circuit.py            # Fitting functions
 ```
 
-### Tridy
+### Classes
 
-**CircuitElement** (abstraktni bazova trida):
-- Reprezentuje jeden obvodovy prvek
-- Definuje operatory `-` (serie) a `|` (paralel)
-- Uchovava parametry a jejich fixed/free status
+**CircuitElement** (abstract base class):
+- Represents a single circuit element
+- Defines operators `-` (series) and `|` (parallel)
+- Stores parameters and their fixed/free status
 
-**Series** a **Parallel** (kompozitni obvody):
-- Reprezentuji seriove/paralelni spojeni
-- Rekurzivne obsahuji dalsi elementy nebo kompozity
-- Implementuji `impedance()`, `get_all_params()`, `update_params()`
+**Series** and **Parallel** (composite circuits):
+- Represent series/parallel connections
+- Recursively contain other elements or composites
+- Implement `impedance()`, `get_all_params()`, `update_params()`
 
 
-## Parsing pomoci eval()
+## Parsing with eval()
 
-Retezec obvodu se parsuje v `eis.py` funkci `parse_circuit_expression()`:
+Circuit strings are parsed in the `eis.py` file using the `parse_circuit_expression()` function:
 
 ```python
 def parse_circuit_expression(expr: str):
@@ -45,117 +45,117 @@ def parse_circuit_expression(expr: str):
     return circuit
 ```
 
-Pouziti `eval()` s omezenym namespace zajistuje:
-- Pristup pouze k definovanym elementum
-- Zadne built-in funkce (bezpecnost)
-- Plna syntaxe Pythonu pro vyrazy
+Using `eval()` with a restricted namespace ensures:
+- Access only to defined elements
+- No built-in functions (security)
+- Full Python syntax for expressions
 
 
-## Priorita operatoru
+## Operator Precedence
 
-**Kriticka informace:** Protoze se pouziva Pythonovy `eval()`, plati
-**Pythonova priorita operatoru**, ne intuitivni priorita pro elektricke obvody.
+**Critical information:** Because Python's `eval()` is used, **Python's operator precedence**
+applies, not the intuitive precedence for electrical circuits.
 
-### Pythonova priorita (od nejvyssi po nejnizsi)
+### Python Precedence (highest to lowest)
 
-| Priorita | Operator | Vyznam v obvodech |
-|----------|----------|-------------------|
-| 13       | `*`, `/` | Skalovani parametru |
-| 12       | `-`, `+` | **Seriove spojeni** |
-| 8        | `\|`     | **Paralelni spojeni** |
+| Precedence | Operator | Meaning in circuits |
+|------------|----------|-------------------|
+| 13         | `*`, `/` | Parameter scaling |
+| 12         | `-`, `+` | **Series connection** |
+| 8          | `|`      | **Parallel connection** |
 
-**Operator `-` ma VYSSI prioritu nez `|`!**
+**Operator `-` has HIGHER precedence than `|`!**
 
-### Dusledky
+### Consequences
 
-Bez zavorek se vyraz parsuje takto:
+Without parentheses, expressions are parsed as follows:
 
 ```python
-# Uzivatel napise:
+# User writes:
 R(1) - R(2)|C(3) - R(4)|C(5)
 
-# Python interpretuje (kvuli priorite - > |):
+# Python interprets (due to precedence - > |):
 R(1) - (R(2) | (C(3) - (R(4) | C(5))))
 
-# Vysledna struktura:
+# Resulting structure:
 #   R(1)
 #     │
-#   Serie
+#   Series
 #     │
 #   R(2) ══╗
 #          ║ Parallel
 #   C(3)   ║
 #     │    ║
-#   Serie  ║
+#   Series ║
 #     │    ║
 #   R(4) ══╬══╗
 #          ║  ║ Parallel
 #   C(5) ══╝══╝
 ```
 
-Toto NENI zamysleny obvod `R - (R||C) - (R||C)`!
+This is NOT the intended circuit `R - (R||C) - (R||C)`!
 
-### Spravny zapis
+### Correct Notation
 
-Vzdy pouzivejte explicitni zavorky kolem paralelnich kombinaci:
+Always use explicit parentheses around parallel combinations:
 
 ```python
-# Spravne:
+# Correct:
 R(1) - (R(2)|C(3)) - (R(4)|C(5))
 
-# Vysledna struktura:
+# Resulting structure:
 # R(1) - [R(2)||C(3)] - [R(4)||C(5)]
 ```
 
-### Doporuceni
+### Recommendations
 
-1. **Vzdy** pouzivejte zavorky kolem `(R|C)` kombinaci
-2. Nezapomente na zavorky i u slozitejsich paralelnich kombinaci
-3. Pri nejistote zkontrolujte strukturu pomoci `print(circuit)`
+1. **Always** use parentheses around `(R|C)` combinations
+2. Don't forget parentheses for complex parallel combinations
+3. When in doubt, check the structure using `print(circuit)`
 
 
-## Podporovane elementy
+## Supported Elements
 
-### R - Rezistor
+### R - Resistor
 
 ```python
 Z_R = R
 ```
 
-| Parametr | Jednotka | Default | Popis |
-|----------|----------|---------|-------|
-| R        | Ohm      | 100     | Odpor |
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| R         | Ohm  | 100     | Resistance  |
 
 ```python
-R(100)      # 100 Ohm, volny parametr
-R("100")    # 100 Ohm, fixovany parametr
+R(100)      # 100 Ohm, free parameter
+R("100")    # 100 Ohm, fixed parameter
 R()         # default 100 Ohm
 ```
 
-### C - Kapacitor
+### C - Capacitor
 
 ```python
 Z_C = 1 / (j * omega * C)
 ```
 
-| Parametr | Jednotka | Default | Popis |
-|----------|----------|---------|-------|
-| C        | F        | 1e-6    | Kapacita |
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| C         | F    | 1e-6    | Capacitance |
 
 ```python
 C(1e-6)     # 1 uF
-C("1e-6")   # fixovany
+C("1e-6")   # fixed
 ```
 
-### L - Induktor
+### L - Inductor
 
 ```python
 Z_L = j * omega * L
 ```
 
-| Parametr | Jednotka | Default | Popis |
-|----------|----------|---------|-------|
-| L        | H        | 1e-6    | Induktance |
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| L         | H    | 1e-6    | Inductance  |
 
 ```python
 L(1e-6)     # 1 uH
@@ -167,20 +167,20 @@ L(1e-6)     # 1 uH
 Z_Q = 1 / (Q * (j * omega)^n)
 ```
 
-| Parametr | Jednotka     | Default | Popis |
-|----------|--------------|---------|-------|
-| Q        | F * s^(n-1)  | 1e-4    | Q koeficient |
-| n        | -            | 0.8     | Q exponent (0-1) |
+| Parameter | Unit         | Default | Description  |
+|-----------|--------------|---------|--------------|
+| Q         | F * s^(n-1)  | 1e-4    | Q coefficient |
+| n         | -            | 0.8     | Q exponent (0-1) |
 
-Specialni pripady:
-- n = 1: idealny kapacitor
-- n = 0.5: Warburgova difuze
-- n = 0: idealny rezistor
+Special cases:
+- n = 1: ideal capacitor
+- n = 0.5: Warburg diffusion
+- n = 0: ideal resistor
 
 ```python
-Q(1e-4, 0.8)      # typicke Q
-Q(1e-4, "0.9")    # Q volny, n fixovany
-Q("1e-4", "0.9")  # oba fixovane
+Q(1e-4, 0.8)      # typical CPE
+Q(1e-4, "0.9")    # Q free, n fixed
+Q("1e-4", "0.9")  # both fixed
 ```
 
 ### W - Warburg (semi-infinite)
@@ -189,9 +189,9 @@ Q("1e-4", "0.9")  # oba fixovane
 Z_W = sigma / sqrt(omega) * (1 - j)
 ```
 
-| Parametr | Jednotka     | Default | Popis |
-|----------|--------------|---------|-------|
-| sigma    | Ohm*s^(-1/2) | 50      | Warburg koeficient |
+| Parameter | Unit         | Default | Description        |
+|-----------|--------------|---------|---------------------|
+| sigma     | Ohm*s^(-1/2) | 50      | Warburg coefficient |
 
 ```python
 W(50)       # sigma = 50
@@ -203,70 +203,71 @@ W(50)       # sigma = 50
 Z_Wo = R_W * tanh(sqrt(j*omega*tau)) / sqrt(j*omega*tau)
 ```
 
-| Parametr | Jednotka | Default | Popis |
-|----------|----------|---------|-------|
-| R_W      | Ohm      | 100     | Warburg odpor |
-| tau_W    | s        | 1.0     | Difuzni casova konstanta |
+| Parameter | Unit | Default | Description              |
+|-----------|------|---------|--------------------------|
+| R_W       | Ohm  | 100     | Warburg resistance       |
+| tau_W     | s    | 1.0     | Diffusion time constant  |
 
 ```python
 Wo(100, 1.0)    # R_W=100, tau=1s
 ```
 
-### K - Voigt element (R||C s tau parametrizaci)
+### K - Voigt element (R||C with tau parametrization)
 
 ```python
 Z_K = R / (1 + j*omega*tau)
 ```
 
-Ekvivalent (R || C) kde C = tau/R.
+Equivalent to (R || C) where C = tau/R.
 
-| Parametr | Jednotka | Default | Popis |
-|----------|----------|---------|-------|
-| R        | Ohm      | 1000    | Odpor |
-| tau      | s        | 1e-4    | Casova konstanta |
+| Parameter | Unit | Default | Description     |
+|-----------|------|---------|-----------------|
+| R         | Ohm  | 1000    | Resistance      |
+| tau       | s    | 1e-4    | Time constant   |
 
-Vyhody tau parametrizace:
-- tau primo urcuje charakteristickou frekvenci: f = 1/(2*pi*tau)
-- R a tau jsou nezavislejsi (lepsi numericka podminienost)
-- Konzistentni s DRT notaci
+Advantages of tau parametrization:
+- tau directly determines the characteristic frequency: f = 1/(2*pi*tau)
+- R and tau are more independent (better numerical conditioning)
+- Consistent with DRT notation
+- Used in Lin-KK test
 
 ```python
 K(1000, 1e-4)   # R=1k, tau=100us, f=1.59kHz, C=100nF
 ```
 
 
-## Fixovane parametry
+## Fixed Parameters
 
-Parametry predane jako **string** jsou automaticky fixovane pri fittingu:
+Parameters passed as **strings** are automatically fixed during fitting:
 
 ```python
-# Volne parametry (budou fitovany):
+# Free parameters (will be fitted):
 R(100)
 Q(1e-4, 0.8)
 
-# Fixovane parametry (nebudou fitovany):
-R("0.86")           # R_inf z predchoziho mereni
-Q("1e-4", 0.8)    # Q fixovane, n volne
-Q("1e-4", "0.9")  # oba fixovane
+# Fixed parameters (will not be fitted):
+R("0.86")           # R_inf from previous measurement
+Q("1e-4", 0.8)      # Q fixed, n free
+Q("1e-4", "0.9")    # both fixed
 ```
 
-Pouziti:
-- Fixovani R_inf z vysokofrekvencniho mereni
-- Fixovani geometrickych parametru
-- Postupny fitting (nejdriv cast, pak celek)
+Usage:
+- Fixing R_inf from high-frequency measurement
+- Fixing geometric parameters
+- Sequential fitting (first part, then whole)
 
 
-## Operatory
+## Operators
 
-### Serie (`-`)
+### Series (`-`)
 
 ```python
 Z_total = Z1 + Z2 + ... + Zn
 ```
 
 ```python
-R(100) - C(1e-6)                    # R a C v serii
-R(10) - (R(100)|C(1e-6))            # R seriove s Voigtem
+R(100) - C(1e-6)                    # R and C in series
+R(10) - (R(100)|C(1e-6))            # R in series with Voigt
 ```
 
 ### Parallel (`|`)
@@ -277,59 +278,59 @@ R(10) - (R(100)|C(1e-6))            # R seriove s Voigtem
 
 ```python
 R(1000) | C(1e-6)                   # Voigt element
-R(100) | Q(1e-4, 0.8)             # R||Q
+R(100) | Q(1e-4, 0.8)               # R||Q
 ```
 
-### Skalovani (`*`)
+### Scaling (`*`)
 
 ```python
 2 * R(100)      # = R(200)
 0.5 * C(1e-6)   # = C(5e-7)
 ```
 
-### Exponent (`**`) - pouze Q
+### Exponent (`**`) - Q only
 
 ```python
-Q(1e-4) ** 0.9    # zmeni n na 0.9
+Q(1e-4) ** 0.9    # changes n to 0.9
 ```
 
 
-## Priklady obvodu
+## Circuit Examples
 
-### Jednoduchy Voigt element
+### Simple Voigt Element
 
 ```python
 R(100) - (R(5000) | C(1e-6))
 ```
 
-Struktura: R_s - (R_p || C_p)
+Structure: R_s - (R_p || C_p)
 
-### Randles circuit
+### Randles Circuit
 
 ```python
 R(10) - ((R(100) - W(50)) | Q(1e-4, 0.8))
 ```
 
-Struktura: R_s - ((R_ct - W) || Q_dl)
+Structure: R_s - ((R_ct - W) || Q_dl)
 
-### Dva Voigt elementy (oxidova vrstva)
+### Two Voigt Elements (oxide layer)
 
 ```python
 R("1.69") - (R(4000) | Q(5e-8, 0.98)) - (R(1200) | Q(3e-8, 0.96))
 ```
 
-Struktura: R_s(fix) - (R1 || Q1) - (R2 || Q2)
+Structure: R_s(fix) - (R1 || Q1) - (R2 || Q2)
 
-### K element (alternativa k Voigt)
+### K Element (alternative to Voigt)
 
 ```python
 R(1) - K(1000, 1e-4) - K(500, 1e-3)
 ```
 
 
-## Interni reprezentace
+## Internal Representation
 
-Po parsovani vznikne stromova struktura:
+After parsing, a tree structure is created:
 
 ```python
 circuit = R(100) - (R(5000) | C(1e-6))
@@ -337,7 +338,7 @@ print(type(circuit))  # <class 'Series'>
 print(circuit)        # R(100) - (R(5000) | C(1e-6))
 ```
 
-Interni struktura:
+Internal structure:
 ```
 Series
 ├── R(100)
@@ -346,78 +347,78 @@ Series
     └── C(1e-6)
 ```
 
-### Metody
+### Methods
 
 ```python
-# Vsechny parametry (pro fitting)
+# All parameters (for fitting)
 circuit.get_all_params()        # [100, 5000, 1e-6]
 
-# Ktere jsou fixovane
+# Which are fixed
 circuit.get_all_fixed_params()  # [False, False, False]
 
-# Nazvy parametru
+# Parameter names
 circuit.get_param_labels()      # ['R', 'R', 'C']
 
-# Vypocet impedance
+# Calculate impedance
 Z = circuit.impedance(frequencies, params)
 
-# Update po fittingu
+# Update after fitting
 circuit.update_params(fitted_params)
 ```
 
 
-## Omezeni soucasne implementace
+## Limitations of Current Implementation
 
-### 1. Priorita operatoru
+### 1. Operator Precedence
 
-Jak je popsano vyse, `-` ma vyssi prioritu nez `|`. Reseni: pouzivat zavorky.
+As described above, `-` has higher precedence than `|`. Solution: use parentheses.
 
-### 2. Zadne bounds v syntaxi
+### 2. No Bounds in Syntax
 
-Bounds pro parametry se nedaji specifikovat v circuit stringu.
-Pouzivaji se defaultni bounds podle typu elementu.
+Bounds for parameters cannot be specified in the circuit string.
+Default bounds are used based on element type.
 
-### 3. Zadna validace struktury
+### 3. No Structure Validation
 
-Parser nevaliduje, zda je obvod fyzikalne smysluplny.
-Napriklad `C(1e-6) | C(1e-6)` je syntakticky spravne, ale nesmyslne.
+Parser does not validate if circuit is physically meaningful.
+For example, `C(1e-6) | C(1e-6)` is syntactically correct but meaningless.
 
-### 4. Zalezitost na poradi
+### 4. Order Dependency
 
-Poradi parametru v `get_all_params()` zavisi na poradi elementu
-ve vyrazu. Pri zmene struktury se meni i indexy parametru.
+Parameter order in `get_all_params()` depends on element order
+in the expression. Changing structure changes parameter indices.
 
 
-## Bezpecnost
+## Security
 
-Parser pouziva `eval()` s omezenym namespace:
+Parser uses `eval()` with restricted namespace:
 
 ```python
 eval(expr, {"__builtins__": {}}, safe_namespace)
 ```
 
-- `__builtins__: {}` - zadne built-in funkce
-- `safe_namespace` - pouze obvodove elementy
+- `__builtins__: {}` - no built-in functions
+- `safe_namespace` - only circuit elements
 
-Toto zabranuje:
-- Spusteni libovolneho kodu
-- Pristupu k souborovemu systemu
-- Import modulu
+This prevents:
+- Execution of arbitrary code
+- Access to file system
+- Module imports
 
-Presto se doporucuje pouzivat pouze duveryhodne vstupy.
+Nevertheless, it is recommended to use only trusted inputs.
 
 
-## Mozna budouci rozsireni
+## Possible Future Extensions
 
-### Vlastni parser
+### Custom Parser
 
-Implementace rekurzivniho sestupoveho parseru by umoznila:
-- Spravnou prioritu operatoru (| > -)
-- Validaci struktury
-- Lepsí chybove hlasky
-- Bounds v syntaxi: `R(100, bounds=(10, 1000))`
+Implementing a recursive descent parser would enable:
+- Correct operator precedence (| > -)
+- Structure validation
+- Better error messages
+- Bounds in syntax: `R(100, bounds=(10, 1000))`
 
-Gramatika:
+Grammar:
 ```
 expr   := term ('-' term)*
 term   := factor ('|' factor)*
@@ -425,21 +426,21 @@ factor := element | '(' expr ')'
 element := R(...) | C(...) | Q(...) | ...
 ```
 
-Odhadovana slozitost: ~100 radku kodu.
+Estimated complexity: ~100 lines of code.
 
-### Alternativni operatory
+### Alternative Operators
 
-Zmena operatoru na ty s opacnou prioritou v Pythonu:
+Changing operators to those with opposite precedence in Python:
 
-| Novy | Stary | Priorita |
-|------|-------|----------|
-| `*`  | `\|`  | 13 (vyssi) |
-| `+`  | `-`   | 12 (nizsi) |
+| New | Old | Precedence |
+|-----|-----|------------|
+| `*` | `|` | 13 (higher) |
+| `+` | `-` | 12 (lower)  |
 
-Breaking change pro uzivatele.
+Breaking change for users.
 
 
-## Reference
+## References
 
 - Schonleber, M. et al. "A Method for Improving the Robustness of linear
   Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20-27 (2014)

@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.9.2 (2026-01-05)
+
+### Fixes
+
+- Fixed missing K element in circuit parser - K element was implemented but not available in CLI parser
+- Added K to circuit element imports in `eis.py`
+- Added K to `parse_circuit_expression()` safe namespace
+
+### Documentation
+
+- Translated CIRCUIT_PARSER.md to English (was in Czech)
+- Updated CIRCUIT_PARSER.md to include K element documentation
+- Condensed VERSION_MANAGEMENT.md (from 155 to 56 lines, -64%)
+- Removed unnecessary note about impedance package from PYTHON_API.md
+- Updated pyproject.toml documentation in VERSION_MANAGEMENT.md
+
+---
+
 ## Version 0.9.1 (2026-01-04)
 
 ### Fixes

@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.9.0
+**Current version:** v0.9.2
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -13,8 +13,6 @@ sudo apt install python3-numpy python3-scipy python3-matplotlib
 # Python packages (for GMM peak detection)
 pip install scikit-learn --break-system-packages
 ```
-
-**Note:** The `impedance` package is not required - the project has its own implementation of circuit elements and Kramers-Kronig validation.
 
 ## Basic Workflow
 
