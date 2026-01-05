@@ -642,7 +642,8 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
 # =============================================================================
 
 def _detect_peaks(tau: NDArray, gamma: NDArray,
-                  peak_method: str) -> Tuple[Optional[List[Dict]], Optional[List[float]]]:
+                  peak_method: str,
+                  gmm_bic_threshold: float = 10.0) -> Tuple[Optional[List[Dict]], Optional[List[float]]]:
     """
     Detect peaks in DRT spectrum.
 
@@ -670,7 +671,10 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
     logger.info("="*60)
 
     if use_gmm:
-        peaks_result, gmm_model, bic_scores = gmm_peak_detection(tau, gamma)
+        peaks_result, gmm_model, bic_scores = gmm_peak_detection(
+            tau, gamma,
+            bic_threshold=gmm_bic_threshold
+        )
 
         if len(peaks_result) == 0 or gmm_model is None:
             logger.warning("GMM detection failed, using scipy fallback")
@@ -705,7 +709,8 @@ def calculate_drt(
     use_rl_fit: bool = False,
     use_voigt_fit: bool = False,
     peak_method: str = 'scipy',
-    r_inf_preset: Optional[float] = None
+    r_inf_preset: Optional[float] = None,
+    gmm_bic_threshold: float = 10.0
 ) -> Tuple[
     Optional[NDArray[np.float64]],
     Optional[NDArray[np.float64]],
@@ -801,7 +806,7 @@ def calculate_drt(
             normalize_rpol = False
 
     # === Step 7: Peak Detection ===
-    peaks_result, bic_scores = _detect_peaks(matrices.tau, gamma, peak_method)
+    peaks_result, bic_scores = _detect_peaks(matrices.tau, gamma, peak_method, gmm_bic_threshold)
 
     # === Step 8: Reconstruction & Error ===
     gamma_for_recon = gamma_original if normalize_rpol else gamma

@@ -201,7 +201,8 @@ tau, gamma, fig_drt, peaks_info, fig_rinf = calculate_drt(
     use_rl_fit=False,      # R+L fit for R_inf (deprecated)
     use_voigt_fit=False,   # Voigt fit for R_inf
     peak_method='scipy',   # Peak detection: 'scipy' or 'gmm'
-    r_inf_preset=None      # Preset R_inf value (optional)
+    r_inf_preset=None,     # Preset R_inf value (optional)
+    gmm_bic_threshold=10.0 # BIC threshold for GMM (default: 10.0)
 )
 
 # tau: Time constant axis [s]
@@ -248,6 +249,13 @@ if GMM_AVAILABLE:
 
     # Or use gmm_peak_detection directly
     peaks = gmm_peak_detection(tau, gamma, n_components_max=5)
+
+# Tune GMM sensitivity with BIC threshold
+tau, gamma, fig, peaks, _ = calculate_drt(
+    frequencies, Z,
+    peak_method='gmm',
+    gmm_bic_threshold=5.0  # More sensitive (lower = more peaks)
+)
 ```
 
 ### eis_analysis.fitting

@@ -401,7 +401,13 @@ Examples:
     parser.add_argument('--peak-method', type=str, default='scipy',
                         choices=['scipy', 'gmm'],
                         help='Peak detection method: scipy (fast) or gmm (robust). Default: scipy')
-    
+    parser.add_argument('--gmm-bic-threshold',
+                        type=float,
+                        default=10.0,
+                        metavar='THRESHOLD',
+                        help='BIC threshold for GMM peak detection. Lower values detect more peaks. '
+                             'Typical range: 2-20. Default: 10.0 (conservative)')
+
     # KK options
     parser.add_argument('--mu-threshold', type=float, default=0.85,
                         help='μ metric threshold for Lin-KK test (default: 0.85)')
@@ -708,7 +714,8 @@ def run_drt_analysis(
         peak_method=peak_method,
         use_rl_fit=False,
         use_voigt_fit=args.ri_fit,
-        r_inf_preset=R_inf_computed
+        r_inf_preset=R_inf_computed,
+        gmm_bic_threshold=args.gmm_bic_threshold
     )
 
     save_figure(fig_drt, args.save, 'drt', args.format)
