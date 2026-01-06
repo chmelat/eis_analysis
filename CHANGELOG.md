@@ -4,6 +4,15 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Documentation
+
+- Added virtual environment (venv) installation guide with Linux/macOS and Windows examples
+- Installation section now recommends venv as the primary approach for isolated environments
+
+---
+
 ## Version 0.9.4 (2026-01-05)
 
 ### Documentation

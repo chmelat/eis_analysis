@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.9.3 (2026-01-05)
+**Version:** v0.9.4 (2026-01-05)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -357,6 +357,50 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 
 ### Option 1: pip install (recommended)
 
+For an isolated environment, we recommend using a virtual environment (venv). This prevents dependency conflicts with other projects and does not affect your system Python installation. If you prefer not to use venv, skip to the direct installation below.
+
+**With virtual environment (recommended):**
+
+Linux/macOS:
+
+```bash
+# Create virtual environment
+python3 -m venv eis_env
+
+# Activate environment
+source eis_env/bin/activate
+
+# Install (now in isolated environment)
+git clone https://github.com/chmelat/eis_analysis
+cd eis_analysis
+pip install -e .    # Editable install (for development)
+# or
+pip install .       # Standard install
+```
+
+Windows:
+
+```powershell
+# Create virtual environment
+python -m venv eis_env
+
+# Activate environment (may require execution policy, see below)
+eis_env\Scripts\Activate.ps1
+
+# Install
+git clone https://github.com/chmelat/eis_analysis
+cd eis_analysis
+pip install -e .
+```
+
+For Windows, you may need to set the execution policy:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**Without virtual environment (direct installation):**
+
 ```bash
 git clone https://github.com/chmelat/eis_analysis
 cd eis_analysis
@@ -365,7 +409,7 @@ pip install -e .    # Editable install (for development)
 pip install .       # Standard install
 ```
 
-After installation, the `eis` command is available globally:
+After installation, the `eis` command is available (in activated environment if using venv):
 
 ```bash
 eis --help
