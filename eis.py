@@ -329,7 +329,7 @@ class OnePerLineHelpFormatter(argparse.RawDescriptionHelpFormatter):
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='EIS analysis with DRT',
+        description=f'EIS analysis with DRT ({get_version_string()})',
         usage='eis [input] [options]',
         formatter_class=OnePerLineHelpFormatter,
         epilog="""
@@ -341,6 +341,10 @@ Examples:
                                      Fit equivalent circuit
         """
     )
+
+    # Version
+    parser.add_argument('--version', action='version',
+                        version=f'%(prog)s {get_version_string()}')
 
     # Input
     parser.add_argument('input', nargs='?', default=None,
