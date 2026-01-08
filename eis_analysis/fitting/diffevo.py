@@ -118,7 +118,7 @@ def fit_circuit_diffevo(
     maxiter: int = 1000,
     tol: float = 0.01,
     workers: int = 1,
-    weighting: str = 'modulus',
+    weighting: str = 'proportional',
     verbose: bool = True,
     use_analytic_jacobian: bool = True
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128], any]:

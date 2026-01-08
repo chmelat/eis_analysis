@@ -4,6 +4,16 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.10.1 (2026-01-08)
+
+### Fixes
+
+- Changed default weighting from `modulus` to `proportional` for circuit fitting
+- Testing showed `modulus` (1/|Z|^2) leads to poor parameter estimation for large resistances
+- `proportional` (1/|Z|) provides more consistent results across multiple runs
+
+---
+
 ## Version 0.10.0 (2026-01-08)
 
 ### New Features
@@ -27,7 +37,7 @@ Complete change history for all project versions.
 ### Breaking Changes
 
 - Weighting option `square` renamed to `modulus` (w=1/|Z|^2)
-- Default weighting for circuit fitting changed from `sqrt` to `modulus`
+- Default weighting for circuit fitting changed from `sqrt` to `proportional`
 - `kramers_kronig_validation()` now returns `KKResult` dataclass instead of tuple
 - KKResult provides named access to all validation results: M, mu, Z_fit, residuals, pseudo_chisqr, noise_estimate, inductance, figure
 - KKResult includes convenience properties: `mean_residual_real`, `mean_residual_imag`, `is_valid`

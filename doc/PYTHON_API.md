@@ -81,7 +81,7 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 ms_result, Z_fit, fig = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=10,
-    weighting='modulus'
+    weighting='proportional'
 )
 print(f"Improvement: {ms_result.improvement:.1f}%")
 
@@ -348,7 +348,7 @@ result, Z_fit, fig = fit_equivalent_circuit(
     frequencies,
     Z,
     circuit,
-    weighting='modulus',           # 'uniform', 'sqrt', 'proportional', 'modulus'
+    weighting='proportional',      # 'uniform', 'sqrt', 'proportional', 'modulus'
     use_analytic_jacobian=True     # Analytic Jacobian (default, faster)
 )
 
@@ -383,7 +383,7 @@ ms_result, Z_fit, fig = fit_circuit_multistart(
     Z,
     n_restarts=10,               # Number of restarts
     scale=2.0,                   # Perturbation = 2 sigma
-    weighting='modulus',
+    weighting='proportional',
     parallel=True,               # Parallel execution
     max_workers=4,
     use_analytic_jacobian=True   # Analytic Jacobian (default)
@@ -411,7 +411,7 @@ de_result, Z_fit, fig = fit_circuit_diffevo(
     maxiter=1000,                # Max generations
     tol=0.01,                    # Convergence tolerance
     workers=1,                   # Parallelization (-1 = all CPUs)
-    weighting='modulus',
+    weighting='proportional',
     use_analytic_jacobian=True   # Analytic Jacobian for refinement
 )
 
@@ -442,7 +442,7 @@ circuit, params = fit_voigt_chain_linear(
     auto_optimize_M=False,    # Auto-optimize M elements using mu metric
     mu_threshold=0.85,        # mu threshold for auto_optimize_M
     max_M=50,                 # Maximum M elements for auto_optimize_M
-    weighting='modulus'          # Weighting type
+    weighting='proportional'     # Weighting type
 )
 
 # circuit: Circuit object with fitted parameters
@@ -771,7 +771,7 @@ de_result, Z_fit, fig = fit_circuit_diffevo(
     popsize=15,                  # Population size multiplier
     maxiter=1000,                # Max generations
     workers=-1,                  # Use all CPUs
-    weighting='modulus',
+    weighting='proportional',
     use_analytic_jacobian=True   # Analytic Jacobian for refinement
 )
 
@@ -790,7 +790,7 @@ print(f"Quality: {result.quality}")
 ms_result, Z_fit_ms, fig_ms = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=20,
-    weighting='modulus'
+    weighting='proportional'
 )
 
 print(f"\nMulti-start error: {ms_result.best_result.fit_error_rel:.3f}%")

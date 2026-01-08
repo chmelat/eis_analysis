@@ -217,7 +217,7 @@ def fit_circuit_multistart(
     Z: NDArray[np.complex128],
     n_restarts: int = 10,
     scale: float = 2.0,
-    weighting: str = 'modulus',
+    weighting: str = 'proportional',
     parallel: bool = False,
     max_workers: int = 4,
     verbose: bool = True,

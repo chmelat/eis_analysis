@@ -361,9 +361,9 @@ Examples:
     parser.add_argument('--circuit', '-c', type=str, default=None,
                         help='Equivalent circuit for fitting. '
                              'Syntax: R(100) - (R(5000) | C(1e-6))  [- = series, | = parallel].')
-    parser.add_argument('--weighting', type=str, default='modulus',
+    parser.add_argument('--weighting', type=str, default='proportional',
                         choices=['uniform', 'sqrt', 'proportional', 'modulus'],
-                        help='Weighting type for fitting (default: modulus)')
+                        help='Weighting type for fitting (default: proportional)')
 
     # Multi-start
     parser.add_argument('--multistart', type=int, default=0, metavar='N',

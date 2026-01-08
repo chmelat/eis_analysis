@@ -252,7 +252,7 @@ def fit_equivalent_circuit(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     circuit: Circuit,
-    weighting: str = 'modulus',
+    weighting: str = 'proportional',
     initial_guess: Optional[List[float]] = None,
     plot: bool = True,
     verbose: bool = True,

@@ -24,3 +24,4 @@ scratch*.py
 *.swp
 *.swo
 *.swn
+.mypy_cache/

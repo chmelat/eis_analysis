@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.10.0 (2026-01-08)
+**Version:** v0.10.1 (2026-01-08)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -292,7 +292,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Circuit fitting
 
 - `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K.
-- `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (all points equal), `sqrt` (square root of 1/|Z|), `proportional` (1/|Z|), `modulus` (1/|Z|^2).
+- `--weighting` (default: proportional) - Weighting type for fitting: `uniform` (all points equal), `sqrt` (square root of 1/|Z|), `proportional` (1/|Z|), `modulus` (1/|Z|^2).
 - `--no-fit` - Skip circuit fitting.
 
 ### Optimizer selection
