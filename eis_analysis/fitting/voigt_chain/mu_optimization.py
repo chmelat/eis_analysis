@@ -139,9 +139,16 @@ def find_optimal_M_mu(
     # Validate inputs
     validate_eis_data(frequencies, Z, context="find_optimal_M_mu")
 
+    weighting_labels = {
+        'uniform': 'uniform (w=1)',
+        'sqrt': 'sqrt (w=1/sqrt|Z|)',
+        'proportional': 'proportional (w=1/|Z|)',
+        'modulus': 'modulus (w=1/|Z|^2)'
+    }
     logger.info(f"  mu threshold: {mu_threshold}")
     logger.info(f"  Max M: {max_M}")
     logger.info(f"  Fit type: {fit_type}")
+    logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
     logger.info(f"  Include L: {include_L}")
     logger.info(f"  Allow negative R_i: {allow_negative}")
     if not allow_negative:

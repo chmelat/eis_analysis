@@ -280,12 +280,19 @@ def fit_circuit_multistart(
     >>> print(f"Improvement: {result.improvement:.1f}%")
     """
     if verbose:
+        weighting_labels = {
+            'uniform': 'uniform (w=1)',
+            'sqrt': 'sqrt (w=1/sqrt|Z|)',
+            'proportional': 'proportional (w=1/|Z|)',
+            'modulus': 'modulus (w=1/|Z|^2)'
+        }
         _log_separator()
         logger.info("Multi-start optimization")
         _log_separator()
         jac_type = "analytic" if use_analytic_jacobian else "numeric"
         logger.info(f"  Restarts: {n_restarts}, scale: {scale} sigma")
         logger.info(f"  Jacobian: {jac_type}")
+        logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
 
     all_results = []
     all_errors = []  # For condensed progress display

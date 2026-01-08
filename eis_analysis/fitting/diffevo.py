@@ -187,6 +187,12 @@ def fit_circuit_diffevo(
     strategy_name = DE_STRATEGIES.get(strategy, 'randtobest1bin')
 
     if verbose:
+        weighting_labels = {
+            'uniform': 'uniform (w=1)',
+            'sqrt': 'sqrt (w=1/sqrt|Z|)',
+            'proportional': 'proportional (w=1/|Z|)',
+            'modulus': 'modulus (w=1/|Z|^2)'
+        }
         _log_separator()
         logger.info("Differential Evolution optimization")
         _log_separator()
@@ -195,7 +201,7 @@ def fit_circuit_diffevo(
         logger.info(f"  Max iterations: {maxiter}")
         logger.info(f"  Tolerance: {tol}")
         logger.info(f"  Workers: {workers}")
-        logger.info(f"  Weighting: {weighting}")
+        logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
 
     # Get initial guess from circuit definition
     initial_guess_full = list(circuit.get_all_params())
