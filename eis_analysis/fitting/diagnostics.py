@@ -26,7 +26,7 @@ def compute_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.flo
     Z : ndarray of complex
         Impedance data
     weighting : str
-        Type of weighting: 'uniform', 'sqrt', 'proportional', or 'square'
+        Type of weighting: 'uniform', 'sqrt', 'proportional', or 'modulus'
 
     Returns
     -------
@@ -42,8 +42,8 @@ def compute_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.flo
         weights = 1.0 / np.sqrt(Z_mag_safe)
     elif weighting == 'proportional':
         weights = 1.0 / Z_mag_safe
-    elif weighting == 'square':
-        weights = Z_mag ** 2
+    elif weighting == 'modulus':
+        weights = 1.0 / (Z_mag_safe ** 2)
     else:
         weights = np.ones_like(Z_mag)
 

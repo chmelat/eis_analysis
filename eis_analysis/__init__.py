@@ -7,7 +7,7 @@ with focus on Distribution of Relaxation Times (DRT).
 
 Modules:
 - io: Data loading and synthetic data generation
-- validation: Kramers-Kronig validation
+- validation: Kramers-Kronig and Z-HIT validation
 - rinf_estimation: R_inf estimation with inductance compensation
 - drt: Distribution of Relaxation Times analysis
 - fitting: Equivalent circuit fitting with operator overloading
@@ -33,6 +33,7 @@ from .io import (
 # Validation
 from .validation import (
     kramers_kronig_validation,
+    zhit_validation,
 )
 
 # R_inf estimation (shared utility for DRT and circuit fitting)
@@ -92,6 +93,7 @@ __all__ = [
     'generate_synthetic_data',
     # Validation
     'kramers_kronig_validation',
+    'zhit_validation',
     # DRT
     'calculate_drt',
     'compute_gcv_score',

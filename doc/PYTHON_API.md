@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.9.3
+**Current version:** v0.9.4+
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -25,6 +25,7 @@ from eis_analysis import (
     generate_synthetic_data,
     # Validation
     kramers_kronig_validation,
+    zhit_validation,
     # R_inf estimation
     estimate_rinf_with_inductance,
     # DRT
@@ -33,7 +34,6 @@ from eis_analysis import (
     fit_equivalent_circuit,
     fit_circuit_multistart,  # Multi-start optimization
     fit_circuit_diffevo,     # Differential evolution (global optimization)
-    fit_voigt_chain_linear,  # Voigt chain linear fitting
     FitResult,               # Dataclass with fit results
     MultistartResult,        # Dataclass with multi-start results
     DiffEvoResult,           # Dataclass with DE results
@@ -49,8 +49,13 @@ from eis_analysis import (
 # 1. Load data
 frequencies, Z = load_data('data.DTA')
 
-# 2. Kramers-Kronig validation
-M, mu, Z_kk, residuals, fig = kramers_kronig_validation(frequencies, Z)
+# 2. Kramers-Kronig validation (Lin-KK)
+kk_result = kramers_kronig_validation(frequencies, Z)
+print(f"Lin-KK: M={kk_result.M}, μ={kk_result.mu:.3f}, noise~{kk_result.noise_estimate:.1f}%")
+
+# 2b. Z-HIT validation (non-parametric, faster)
+zhit_result = zhit_validation(frequencies, Z)
+print(f"Z-HIT: residuals={zhit_result.mean_residual_mag:.2f}%, noise<={zhit_result.noise_estimate:.1f}%")
 
 # 3. DRT analysis with auto-lambda and GMM
 tau, gamma, fig_drt, peaks_gmm, fig_rinf = calculate_drt(
@@ -76,7 +81,7 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 ms_result, Z_fit, fig = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=10,
-    weighting='sqrt'
+    weighting='modulus'
 )
 print(f"Improvement: {ms_result.improvement:.1f}%")
 
@@ -137,23 +142,79 @@ frequencies, Z = generate_synthetic_data(
 
 ### eis_analysis.validation
 
-**Kramers-Kronig validation:**
+**Kramers-Kronig validation (Lin-KK):**
 
 ```python
-from eis_analysis.validation import kramers_kronig_validation
+from eis_analysis.validation import kramers_kronig_validation, KKResult
 
-M, mu, Z_kk, residuals, fig = kramers_kronig_validation(
+result = kramers_kronig_validation(
     frequencies,
     Z,
-    mu_threshold=0.85    # mu metric threshold (default)
+    mu_threshold=0.85,       # mu metric threshold (default)
+    include_L=True,          # Include series inductance
+    allow_negative=True      # Allow negative R_i (Lin-KK style)
 )
 
-# M: number of RC elements used in model
-# mu: quality metric (>0.85 = good)
-# Z_kk: Reconstructed impedance from KK relations
-# residuals: Residuals (Z - Z_kk) / |Z| [%]
-# fig: matplotlib Figure with diagnostic plots
+# result: KKResult dataclass
+result.M                   # Number of Voigt elements used
+result.mu                  # Quality metric (>0.85 = good)
+result.Z_fit               # Reconstructed impedance
+result.residuals_real      # Real part residuals (fraction)
+result.residuals_imag      # Imaginary part residuals (fraction)
+result.pseudo_chisqr       # Pseudo chi-squared (Boukamp 1995)
+result.noise_estimate      # Estimated noise [%] (Yrjana & Bobacka 2024)
+result.inductance          # Fitted inductance [H] (if include_L=True)
+result.figure              # matplotlib Figure
+
+# Convenience properties
+result.mean_residual_real  # Mean |res_real| [%]
+result.mean_residual_imag  # Mean |res_imag| [%]
+result.is_valid            # True if residuals < 5%
 ```
+
+**Z-HIT validation (non-parametric):**
+
+```python
+from eis_analysis.validation import zhit_validation, ZHITResult
+
+result = zhit_validation(
+    frequencies,
+    Z,
+    ref_freq=None,           # Reference frequency [Hz] (default: geometric mean)
+    quality_threshold=5.0,   # Threshold for quality metric [%]
+    optimize_offset=False    # Use weighted offset optimization
+)
+
+# result: ZHITResult dataclass
+result.Z_mag_reconstructed  # Reconstructed |Z| [Ohm]
+result.Z_fit                # Reconstructed complex impedance
+result.residuals_mag        # Magnitude residuals [%]
+result.residuals_real       # Real part residuals (fraction)
+result.residuals_imag       # Imaginary part residuals (fraction)
+result.pseudo_chisqr        # Pseudo chi-squared
+result.noise_estimate       # Upper bound noise estimate [%]
+result.quality              # Quality metric (0-1)
+result.ref_freq             # Reference frequency used [Hz]
+result.figure               # matplotlib Figure
+
+# Convenience properties
+result.mean_residual_real   # Mean |res_real| [%]
+result.mean_residual_imag   # Mean |res_imag| [%]
+result.mean_residual_mag    # Mean |res_mag| [%]
+result.is_valid             # True if mean_residual_mag < 5%
+```
+
+**Comparison: Lin-KK vs Z-HIT:**
+
+| Aspect | Lin-KK | Z-HIT |
+|--------|--------|-------|
+| Method | Parametric (Voigt chain fitting) | Non-parametric (numerical integration) |
+| Speed | Slower (iterative optimization) | Faster (single pass) |
+| Output | M, mu, inductance | Quality metric, ref_freq |
+| Noise estimate | Accurate | Upper bound |
+
+Both methods are complementary. Z-HIT is faster and model-free, Lin-KK provides
+more detailed diagnostics (M, mu, inductance).
 
 ### eis_analysis.rinf_estimation
 
@@ -287,7 +348,7 @@ result, Z_fit, fig = fit_equivalent_circuit(
     frequencies,
     Z,
     circuit,
-    weighting='sqrt',              # 'uniform', 'sqrt', 'proportional', 'square'
+    weighting='modulus',           # 'uniform', 'sqrt', 'proportional', 'modulus'
     use_analytic_jacobian=True     # Analytic Jacobian (default, faster)
 )
 
@@ -322,7 +383,7 @@ ms_result, Z_fit, fig = fit_circuit_multistart(
     Z,
     n_restarts=10,               # Number of restarts
     scale=2.0,                   # Perturbation = 2 sigma
-    weighting='sqrt',
+    weighting='modulus',
     parallel=True,               # Parallel execution
     max_workers=4,
     use_analytic_jacobian=True   # Analytic Jacobian (default)
@@ -350,7 +411,7 @@ de_result, Z_fit, fig = fit_circuit_diffevo(
     maxiter=1000,                # Max generations
     tol=0.01,                    # Convergence tolerance
     workers=1,                   # Parallelization (-1 = all CPUs)
-    weighting='sqrt',
+    weighting='modulus',
     use_analytic_jacobian=True   # Analytic Jacobian for refinement
 )
 
@@ -381,7 +442,7 @@ circuit, params = fit_voigt_chain_linear(
     auto_optimize_M=False,    # Auto-optimize M elements using mu metric
     mu_threshold=0.85,        # mu threshold for auto_optimize_M
     max_M=50,                 # Maximum M elements for auto_optimize_M
-    weighting='sqrt'          # Weighting type
+    weighting='modulus'          # Weighting type
 )
 
 # circuit: Circuit object with fitted parameters
@@ -577,6 +638,7 @@ plt.show()
 from eis_analysis import (
     load_data,
     kramers_kronig_validation,
+    zhit_validation,
     calculate_drt,
     analyze_voigt_elements,
     format_voigt_report,
@@ -586,7 +648,17 @@ from eis_analysis import (
 
 # Load and validate
 frequencies, Z = load_data('data.DTA')
-M, mu, Z_kk, residuals, fig_kk = kramers_kronig_validation(frequencies, Z)
+
+# Kramers-Kronig validation (Lin-KK)
+kk_result = kramers_kronig_validation(frequencies, Z)
+print(f"Lin-KK: M={kk_result.M}, μ={kk_result.mu:.3f}")
+print(f"  Noise estimate: {kk_result.noise_estimate:.1f}%")
+print(f"  Valid: {kk_result.is_valid}")
+
+# Z-HIT validation (faster, non-parametric)
+zhit_result = zhit_validation(frequencies, Z)
+print(f"Z-HIT: residuals={zhit_result.mean_residual_mag:.2f}%")
+print(f"  Noise upper bound: {zhit_result.noise_estimate:.1f}%")
 
 # DRT with GMM
 tau, gamma, fig_drt, peaks_gmm, _ = calculate_drt(
@@ -699,7 +771,7 @@ de_result, Z_fit, fig = fit_circuit_diffevo(
     popsize=15,                  # Population size multiplier
     maxiter=1000,                # Max generations
     workers=-1,                  # Use all CPUs
-    weighting='sqrt',
+    weighting='modulus',
     use_analytic_jacobian=True   # Analytic Jacobian for refinement
 )
 
@@ -718,7 +790,7 @@ print(f"Quality: {result.quality}")
 ms_result, Z_fit_ms, fig_ms = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=20,
-    weighting='sqrt'
+    weighting='modulus'
 )
 
 print(f"\nMulti-start error: {ms_result.best_result.fit_error_rel:.3f}%")

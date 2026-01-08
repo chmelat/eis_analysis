@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 Circuit = Union[CircuitElement, Series, Parallel]
 
 # Valid weighting types
-VALID_WEIGHTINGS = ['uniform', 'sqrt', 'proportional', 'square']
+VALID_WEIGHTINGS = ['uniform', 'sqrt', 'proportional', 'modulus']
 
 
 @dataclass
@@ -177,7 +177,7 @@ def _prepare_optimization(circuit: Circuit, weighting: str, verbose: bool = True
             'uniform': 'uniform (w = 1)',
             'sqrt': 'square root (w = 1/sqrt|Z|)',
             'proportional': 'proportional (w = 1/|Z|)',
-            'square': 'square (w = |Z|^2)'
+            'modulus': 'modulus (w = 1/|Z|^2)'
         }
         logger.info(f"Weighting: {weighting_labels[weighting]}")
 
@@ -252,7 +252,7 @@ def fit_equivalent_circuit(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     circuit: Circuit,
-    weighting: str = 'uniform',
+    weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
     plot: bool = True,
     verbose: bool = True,

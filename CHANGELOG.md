@@ -4,12 +4,47 @@ Complete change history for all project versions.
 
 ---
 
-## Unreleased
+## Version 0.10.0 (2026-01-08)
+
+### New Features
+
+- Added Z-HIT (Z-Hilbert Impedance Transform) validation as default data quality test
+- Z-HIT provides non-parametric K-K validation using numerical integration (faster than Lin-KK)
+- Z-HIT runs by default alongside Lin-KK; disable with `--no-zhit`
+- New functions: `zhit_validation()`, `zhit_reconstruct_magnitude()`
+- Implementation inspired by pyimpspec library, uses direct integration instead of FFT-based Hilbert transform
+- Added pseudo chi-squared metric to Lin-KK validation (Boukamp 1995)
+- Added noise estimation from pseudo chi-squared (Yrjana & Bobacka 2024)
+- Z-HIT noise estimate shown as upper bound (includes integration approximation error)
+- New helper functions: `compute_pseudo_chisqr()`, `estimate_noise_percent()`
+- Added automatic extend_decades optimization for KK validation (`--auto-extend` flag)
+- Added `--extend-decades-max` CLI parameter to control search range for `--auto-extend` (default: 1.0)
+- New functions: `find_optimal_extend_decades()`, `reconstruct_impedance()`
+- Added weighted offset optimization for Z-HIT validation (`--zhit-optimize-offset` flag)
+- New Z-HIT parameters: `optimize_offset`, `offset_center`, `offset_width`
+- New weighting option `modulus` (w=1/|Z|^2) for circuit fitting
+
+### Breaking Changes
+
+- Weighting option `square` renamed to `modulus` (w=1/|Z|^2)
+- Default weighting for circuit fitting changed from `sqrt` to `modulus`
+- `kramers_kronig_validation()` now returns `KKResult` dataclass instead of tuple
+- KKResult provides named access to all validation results: M, mu, Z_fit, residuals, pseudo_chisqr, noise_estimate, inductance, figure
+- KKResult includes convenience properties: `mean_residual_real`, `mean_residual_imag`, `is_valid`
+- `zhit_validation()` now returns `ZHITResult` dataclass instead of tuple
+- ZHITResult provides: Z_mag_reconstructed, Z_fit, residuals_mag, residuals_real, residuals_imag, pseudo_chisqr, noise_estimate, quality, ref_freq, figure
+- ZHITResult includes convenience properties: `mean_residual_real`, `mean_residual_imag`, `mean_residual_mag`, `is_valid`
+- Z-HIT now computes complex residuals (Re/Im) for better diagnostics alongside magnitude residuals
 
 ### Documentation
 
 - Added virtual environment (venv) installation guide with Linux/macOS and Windows examples
 - Installation section now recommends venv as the primary approach for isolated environments
+- Updated Z-HIT implementation specification (`doc/ZHIT_IMPLEMENTATION_SPEC.md`)
+  - Documents design decision: numerical integration vs FFT-based Hilbert transform
+  - Includes comparison with pyimpspec implementation
+  - Explains noise estimation caveat (upper bound)
+- Added weighting explanation to Lin-KK documentation (`doc/LinKK_analysis.md`)
 
 ---
 

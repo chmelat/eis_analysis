@@ -5,12 +5,15 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.9.4'
-__version_info__ = (0, 9, 4)
-__release_date__ = '2026-01-05'
+__version__ = '0.10.0'
+__version_info__ = (0, 10, 0)
+__release_date__ = '2026-01-08'
 
 # Breaking changes in this version
-__breaking_changes__ = []
+__breaking_changes__ = [
+    "Weighting option 'square' renamed to 'modulus' (w=1/|Z|^2)",
+    "Default weighting changed from 'sqrt' to 'modulus'",
+]
 
 # Human-readable version string
 def get_version_string():

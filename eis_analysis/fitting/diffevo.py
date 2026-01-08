@@ -118,7 +118,7 @@ def fit_circuit_diffevo(
     maxiter: int = 1000,
     tol: float = 0.01,
     workers: int = 1,
-    weighting: str = 'sqrt',
+    weighting: str = 'modulus',
     verbose: bool = True,
     use_analytic_jacobian: bool = True
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128], any]:
@@ -149,7 +149,7 @@ def fit_circuit_diffevo(
     workers : int, optional
         Number of parallel workers (default: 1, use -1 for all CPUs)
     weighting : str, optional
-        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'square'
+        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'modulus'
     verbose : bool, optional
         Log progress (default: True)
     use_analytic_jacobian : bool, optional

@@ -69,7 +69,7 @@ def estimate_R_linear(
         - 'uniform': all points equal weight (w = 1)
         - 'sqrt': compromise weighting (w = 1/sqrt|Z|)
         - 'proportional': Lin-KK standard (w = 1/|Z|) - DEFAULT
-        - 'square': emphasize high-Z points (w = |Z|^2)
+        - 'modulus': strong low-Z emphasis (w = 1/|Z|^2)
 
     Returns
     -------
@@ -97,7 +97,7 @@ def estimate_R_linear(
     validate_tau(tau, context="estimate_R_linear")
 
     # Validate weighting parameter
-    valid_weightings = ['uniform', 'sqrt', 'proportional', 'square']
+    valid_weightings = ['uniform', 'sqrt', 'proportional', 'modulus']
     if weighting not in valid_weightings:
         raise ValueError(
             f"estimate_R_linear: weighting must be one of {valid_weightings}, "
@@ -121,8 +121,8 @@ def estimate_R_linear(
         weights = 1.0 / np.sqrt(Z_mag_safe)
     elif weighting == 'proportional':
         weights = 1.0 / Z_mag_safe  # Lin-KK standard
-    elif weighting == 'square':
-        weights = Z_mag ** 2
+    elif weighting == 'modulus':
+        weights = 1.0 / (Z_mag_safe ** 2)
     else:
         weights = 1.0 / Z_mag_safe  # Fallback to proportional
 
@@ -415,7 +415,7 @@ def fit_voigt_chain_linear(
             'uniform': 'uniform (w=1)',
             'sqrt': 'sqrt (w=1/sqrt|Z|)',
             'proportional': 'proportional (w=1/|Z|, Lin-KK standard)',
-            'square': 'square (w=|Z|^2)'
+            'modulus': 'modulus (w=1/|Z|^2)'
         }
         logger.info(f"Step 2: Linear regression (method: {method_str}, fit_type: {fit_type})")
         logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")

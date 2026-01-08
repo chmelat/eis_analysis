@@ -6,7 +6,7 @@ echo "Srovnání weighting typů na problematických datech EIS_ZRY-3d-1.dta"
 echo "======================================================================="
 echo ""
 
-for wtype in uniform sqrt proportional square; do
+for wtype in uniform sqrt proportional modulus; do
     echo "-----------------------------------------------------------------------"
     echo "Testing: $wtype"
     echo "-----------------------------------------------------------------------"

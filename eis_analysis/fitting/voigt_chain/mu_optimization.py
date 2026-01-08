@@ -141,7 +141,6 @@ def find_optimal_M_mu(
 
     logger.info(f"  mu threshold: {mu_threshold}")
     logger.info(f"  Max M: {max_M}")
-    logger.info(f"  Extend decades: {extend_decades}")
     logger.info(f"  Fit type: {fit_type}")
     logger.info(f"  Include L: {include_L}")
     logger.info(f"  Allow negative R_i: {allow_negative}")
@@ -204,9 +203,6 @@ def find_optimal_M_mu(
     if n_negative > 0:
         logger.info(f"  Negative R_i: {n_negative}/{len(R_i)} "
                    f"({n_negative/len(R_i)*100:.1f}%)")
-
-    if include_L and L_value is not None:
-        logger.info(f"  Inductance: L = {L_value:.3e} H")
 
     logger.info("="*60)
 

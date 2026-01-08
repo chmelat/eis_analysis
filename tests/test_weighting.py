@@ -15,8 +15,8 @@ freq, Z = load_data('real_gamry_example.DTA')
 # Simple Voigt circuit for testing
 circuit = R(100) - (R(5000) | C(1e-6))
 
-# Test all weighting types (including new 'square')
-weighting_types = ['uniform', 'sqrt', 'proportional', 'square']
+# Test all weighting types
+weighting_types = ['uniform', 'sqrt', 'proportional', 'modulus']
 results = {}
 
 print("\n" + "="*70)

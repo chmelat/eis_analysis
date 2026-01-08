@@ -79,7 +79,7 @@ This file provides guidance for Claude Code (claude.ai/code) when working on thi
 - Examples of programmatic usage
 - **WITHOUT** CLI documentation (-> README.md)
 
-**Specialized guides (feature-specific MD):**
+**Specialized guides (`./doc/` directory):**
 - In-depth documentation of one function/module
 - Mathematical background, algorithms
 - Usage examples, interpretation
@@ -265,6 +265,10 @@ DejaVu Serif font (used by pandoc for PDF) doesn't support emoji. Every emoji ca
 7. Update CHANGELOG.md
 
 ## Notes for AI Assistant
+
+### Environment
+
+- Use `python3` command (not `python`) - system has no `python` symlink
 
 ### When User Requests a Change
 

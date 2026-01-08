@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.9.4 (2026-01-05)
+**Version:** v0.10.0 (2026-01-08)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -127,6 +127,23 @@ eis data.DTA --mu-threshold 0.80
 ```
 
 **Detailed documentation:** [doc/LinKK_analysis.md](doc/LinKK_analysis.md)
+
+### Z-HIT validation
+
+Non-parametric K-K validation using Hilbert transform. Runs by default alongside Lin-KK. Faster and provides complementary assessment.
+
+```bash
+# Both Lin-KK and Z-HIT run by default
+eis data.DTA
+
+# Disable Z-HIT (use only Lin-KK)
+eis data.DTA --no-zhit
+
+# Disable Lin-KK (use only Z-HIT)
+eis data.DTA --no-kk
+```
+
+**Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 
 ### DRT analysis
 
@@ -275,7 +292,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Circuit fitting
 
 - `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K.
-- `--weighting` (default: sqrt) - Weighting type for fitting: `uniform` (all points equal), `sqrt` (square root of 1/|Z|), `proportional` (1/|Z|), `square` (1/|Z|^2).
+- `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (all points equal), `sqrt` (square root of 1/|Z|), `proportional` (1/|Z|), `modulus` (1/|Z|^2).
 - `--no-fit` - Skip circuit fitting.
 
 ### Optimizer selection
@@ -310,7 +327,14 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 
 - `--no-kk` - Skip Kramers-Kronig validation. KK test verifies causality, linearity, and stability of data.
 - `--mu-threshold` (default: 0.85) - Threshold value of mu metric for Lin-KK test. Values below threshold indicate problematic data.
+- `--auto-extend` - Automatically optimize extend_decades for KK validation (minimizes pseudo chi-squared).
+- `--extend-decades-max` (default: 1.0) - Maximum extend_decades for `--auto-extend` search range.
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
+
+### Z-HIT validation
+
+- `--no-zhit` - Disable Z-HIT validation (runs by default alongside Lin-KK).
+- `--zhit-optimize-offset` - Use weighted least-squares offset optimization instead of fixed reference point.
 
 ### Voigt chain (automatic circuit)
 
@@ -468,6 +492,7 @@ eis data.DTA
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
+| [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md) | Z-HIT validation |
 | [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md) | GCV technical documentation |
 | [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md) | GMM peak detection |
 | [doc/DRT_METHOD_ANALYSIS.md](doc/DRT_METHOD_ANALYSIS.md) | DRT method analysis |

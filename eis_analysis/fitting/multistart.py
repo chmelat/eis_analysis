@@ -217,7 +217,7 @@ def fit_circuit_multistart(
     Z: NDArray[np.complex128],
     n_restarts: int = 10,
     scale: float = 2.0,
-    weighting: str = 'sqrt',
+    weighting: str = 'modulus',
     parallel: bool = False,
     max_workers: int = 4,
     verbose: bool = True,
@@ -245,7 +245,7 @@ def fit_circuit_multistart(
     scale : float, optional
         Perturbation scale in units of sigma (default: 2.0)
     weighting : str, optional
-        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'square'
+        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'modulus'
     parallel : bool, optional
         Use parallel execution (default: False)
     max_workers : int, optional

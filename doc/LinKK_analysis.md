@@ -1,435 +1,378 @@
-# Analýza metody Lin-KK v knihovně impedance.py
+# Lin-KK implementace v eis_analysis
 
-## Přehled
+## Prehled
 
-Lin-KK test (Linear Kramers-Kronig) z knihovny `impedance.py` používá lineární regresi pro validaci EIS dat. Tato analýza je založena na zdrojovém kódu verze nainstalované v systému.
+Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Lin-KK testu (Linear Kramers-Kronig) pro validaci kvality EIS dat. Implementace je zalozena na metode Schonleber et al. (2014) a nevyzaduje externi zavislosti.
 
 **Reference:**
-Schönleber, M. et al. "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20–27 (2014)
-doi: 10.1016/j.electacta.2014.01.034
+- Schonleber, M. et al. "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20-27 (2014)
+- Boukamp, B.A. "A Linear Kronig-Kramers Transform Test for Immittance Data Validation." J. Electrochem. Soc. 142, 1885-1894 (1995)
+- Yrjana, V. and Bobacka, J. "Implementing Kramers-Kronig validity testing using pyimpspec." Electrochim. Acta 504, 144951 (2024)
 
 ---
 
-## 1. Model ekvivalentního obvodu
+## 1. Teoreticky zaklad
 
-Lin-KK test fituje data pomocí následujícího modelu:
+Lin-KK test fituje impedancni data pomoci rady Voigtovych elementu s pevnymi casovymi konstantami:
 
 ```
-Z_fit = R_0 + L + Σ(k=1..M) [R_k / (1 + jωτ_k)]
+Z_fit(w) = R_s + sum_{k=1}^{M} R_k / (1 + jw*tau_k) + jw*L
 ```
 
 Kde:
-- `R_0` = seriový odpor (ohmic resistance)
-- `L` = seriová indukčnost (zachycuje měřicí artefakty)
-- `M` = počet RC elementů
-- `R_k` = odpor k-tého RC elementu (fitovaný parametr)
-- `τ_k` = časová konstanta k-tého RC elementu (PEVNÁ, nefitovaná)
+- `R_s` = seriovy odpor [Ohm]
+- `R_k` = odpor k-teho Voigtova elementu [Ohm]
+- `tau_k` = casova konstanta (fixni, logaritmicky rozlozena) [s]
+- `L` = seriova induktance [H]
+- `M` = pocet elementu (optimalizovan pomoci mu metriky)
 
-**KLÍČOVÉ:** Časové konstanty τ_k jsou fixní a logaritmicky distribuované. Fitují se pouze odpory R_k a seriové komponenty.
-
----
-
-## 2. Distribuce časových konstant
-
-### Implementace (validation.py:112-124)
-
-```python
-def get_tc_distribution(f, M):
-    """ Returns the distribution of time constants for the linKK method """
-
-    t_max = 1/(2 * np.pi * np.min(f))
-    t_min = 1/(2 * np.pi * np.max(f))
-    ts = np.zeros(shape=(M,))
-    ts[0] = t_min
-    ts[-1] = t_max
-    if M > 1:
-        for k in range(2, M):
-            ts[k-1] = 10**(np.log10(t_min) +
-                           ((k-1)/(M-1))*np.log10(t_max/t_min))
-    return ts
-```
-
-### Matematický vzorec
-
-```
-τ_1 = 1 / (2π * f_max)           (nejrychlejší proces)
-τ_M = 1 / (2π * f_min)           (nejpomalejší proces)
-
-Pro k = 2, 3, ..., M-1:
-τ_k = 10^[log₁₀(τ_min) + (k-1)/(M-1) * log₁₀(τ_max/τ_min)]
-```
-
-**Vlastnosti:**
-- Logaritmické rozložení v intervalu [τ_min, τ_max]
-- Pokrývá přesně měřený frekvenční rozsah (žádné rozšíření!)
-- Rovnoměrné rozložení v log(τ) prostoru
-- M časových konstant → M RC elementů
-
-**Rozdíl od --voigt-chain:**
-- LinKK: **žádné** rozšíření rozsahu (extend_decades = 0)
-- Voigt chain: rozšíření o +1 dekádu směrem k nízkým frekvencím
+**Klicove:** Casove konstanty tau_k jsou fixni. Fitovany jsou pouze odpory R_k a seriove komponenty (R_s, L).
 
 ---
 
-## 3. Určení počtu RC elementů M
+## 2. Distribuce casovych konstant
 
-### Iterativní algoritmus (validation.py:91-98)
-
-```python
-if c is not None:
-    M = 0
-    mu = 1
-    while mu > c and M < max_M:
-        M += 1
-        ts = get_tc_distribution(f, M)
-        elements, mu = fit_linKK(f, ts, M, Z, fit_type, add_cap)
-
-        if M % 10 == 0:
-            print(M, mu, rmse(eval_linKK(elements, ts, f), Z))
-```
-
-### Metrika kvality: μ (mu)
+### Zakladni rozsah
 
 ```python
-def calc_mu(Rs):
-    """ Calculates mu for use in LinKK """
-
-    neg_sum = sum(abs(x) for x in Rs if x < 0)
-    pos_sum = sum(abs(x) for x in Rs if x >= 0)
-
-    return 1 - neg_sum/pos_sum
+tau_min = 1 / (2*pi*f_max)
+tau_max = 1 / (2*pi*f_min)
 ```
 
-**Matematicky:**
+Casove konstanty jsou logaritmicky rozlozeny v intervalu [tau_min, tau_max]:
+
 ```
-μ = 1 - (Σ|R_k| pro R_k < 0) / (Σ|R_k| pro R_k ≥ 0)
+tau_k = 10^[log10(tau_min) + (k-1)/(M-1) * log10(tau_max/tau_min)]
+```
+
+### Rozsireni rozsahu (extend_decades)
+
+Parametr `extend_decades` umoznuje rozsirit rozsah tau o zadany pocet dekad:
+
+```python
+tau_min_extended = tau_min * 10^(-extend_decades)
+tau_max_extended = tau_max * 10^(+extend_decades)
+```
+
+- `extend_decades = 0.0`: zadne rozsireni (standardni Lin-KK)
+- `extend_decades = 0.4`: rozsireni o 0.4 dekady na kazde strane
+- `extend_decades = 1.0`: rozsireni o 1 dekadu na kazde strane
+
+---
+
+## 3. Mu metrika a volba poctu elementu
+
+### Algoritmus
+
+1. Zacni s M=3 Voigtovymi elementy
+2. Fituj pomoci pseudoinverze (povol zaporne R_k)
+3. Vypocitej mu metriku
+4. Pokud mu > threshold, zvys M a opakuj
+5. Kdyz mu <= threshold, optimalni M nalezeno
+
+### Mu metrika (Schonleber 2014)
+
+```
+mu = 1 - (sum|R_k| pro R_k < 0) / (sum|R_k| pro R_k >= 0)
 ```
 
 **Interpretace:**
-- μ → 1: Všechny R_k kladné → dobrý fit, fyzikálně korektní
-- μ → 0: Velká záporná masa → overfit (příliš mnoho parametrů)
-- μ < 0: Dominance záporných R_k → špatný fit
+- mu -> 1: Vsechny R_k kladne, dobry fit
+- mu -> 0.85: Prah pro zastaveni (vychozi hodnota)
+- mu < 0.85: Prilis mnoho zapornych R_k, overfit
 
-**Stop podmínka:**
-- μ < c (výchozí c = 0.85)
-- Když μ klesne pod práh, ukončí se iterace
-- Výsledek: M = nejmenší počet RC elementů s přijatelným μ
-
-**Proč záporné R_k znamenají overfit?**
-- Fyzikálně by měly být všechny R_k ≥ 0 (odpor nemůže být záporný)
-- Záporné R_k vznikají, když model má příliš mnoho volnosti
-- Overfit: model fituje šum místo skutečného signálu
+**Proc zaporne R_k znamenaji overfit?**
+- Fyzikalne by mely byt vsechny R_k >= 0 (odpor nemuze byt zaporny)
+- Zaporne R_k vznikaji, kdyz model ma prilis mnoho volnosti
+- Model zacina fitovat sum misto skutecneho signalu
 
 ---
 
-## 4. Lineární regrese
+## 4. Metriky kvality
 
-### Formulace problému (validation.py:127-263)
+### Pseudo chi-squared (Boukamp 1995)
 
-Lin-KK převádí nelineární problém na **lineární** tím, že fixuje τ_k a fituje pouze R_k.
-
-**Normalizace:**
 ```
-Z_norm = Z / |Z|
-```
-Všechna data jsou normalizována impedancí, aby se snížil vliv různých řádů velikosti.
-
-### Design matice A
-
-Pro fit_type = 'real' (výchozí):
-
-```python
-a_re = np.zeros((N_freq, M+2))
-
-# První sloupec: R_0 (seriový odpor)
-a_re[:, 0] = 1 / np.abs(Z)
-
-# Sloupce 1..M: RC elementy
-for i, tau in enumerate(ts):
-    Z_RC = K([1, tau], f)  # R=1, τ=tau
-    a_re[:, i+1] = Z_RC.real / np.abs(Z)
-
-# Poslední sloupec: L (indukčnost) - pouze v imaginární části
+chi2_ps = sum_i w_i * [(Z'_exp - Z'_fit)^2 + (Z''_exp - Z''_fit)^2]
 ```
 
-**Element K (RC element):**
-```python
-def K(p, f):
-    omega = 2 * np.pi * np.array(f)
-    R, tau_k = p[0], p[1]
-    Z = R / (1 + 1j * omega * tau_k)
-    return Z
+kde `w_i = 1/|Z_i|^2` je Boukampova vaha.
+
+### Odhad sumu (Yrjana & Bobacka 2024)
+
+```
+noise_estimate = sqrt(chi2_ps * 5000 / N) [%]
 ```
 
-Pro R=1:
+kde N je pocet bodu.
+
+### Rezidua
+
 ```
-Z_RC(ω, τ_k) = 1 / (1 + jωτ_k)
-Z_RC.real = 1 / (1 + (ωτ_k)²)
-Z_RC.imag = -ωτ_k / (1 + (ωτ_k)²)
-```
-
-### Řešení pomocí pseudoinverze
-
-**Reálná část (fit_type = 'real'):**
-```python
-elements = np.linalg.pinv(a_re).dot(Z.real / np.abs(Z))
-```
-
-**Matematicky:**
-```
-A_re @ x = b_re
-x = (A_re)^+ @ b_re
-
-Kde:
-- A_re[k, 0] = 1/|Z_k|                          (pro R_0)
-- A_re[k, i] = Re[1/(1+jω_k*τ_i)] / |Z_k|      (pro R_i, i=1..M)
-- b_re[k] = Z_k.real / |Z_k|
-- x = [R_0, R_1, R_2, ..., R_M]
-```
-
-**Pseudoinverze:**
-```
-A^+ = (A^T @ A)^(-1) @ A^T    (pro overdetermined systém, N > M+2)
-```
-
-**Po fitu reálné části:**
-Dopočítá se L (indukčnost) z imaginární části:
-```python
-Z_fit_re = eval_linKK(elements, ts, f)
-coefs = np.linalg.pinv(a_im).dot((Z.imag - Z_fit_re.imag) / np.abs(Z))
-elements[-1] = coefs[-1]  # L
-```
-
----
-
-## 5. Tři režimy fittingu
-
-### fit_type = 'real' (výchozí, validation.py:213-230)
-
-1. Fituje pouze Re(Z/|Z|) → získá [R_0, R_1, ..., R_M]
-2. Vypočítá Z_fit z těchto R_k
-3. Fituje residuum Im(Z - Z_fit) → získá L (a volitelně C)
-
-**Výhody:**
-- Reálná část je obvykle méně zašuměná
-- Rychlejší konvergence
-- Stabilnější výsledky
-
-### fit_type = 'imag' (validation.py:231-246)
-
-1. Fituje pouze Im(Z/|Z|) → získá [R_1, ..., R_M, L]
-2. Vypočítá Z_fit z RC elementů (bez R_0)
-3. Fituje R_0 pomocí váhované regrese (Boukamp et al. 1995)
-
-```python
-ws = 1 / (Z.real**2 + Z.imag**2)  # Váhy
-R_0 = Σ(w_i * (Z_i.real - Z_fit_i.real)) / Σ(w_i)
-```
-
-### fit_type = 'complex' (validation.py:247-253)
-
-Fituje Re(Z) a Im(Z) současně pomocí kombinované least squares:
-
-```python
-# Minimalizuje: ||A_re @ x - b_re||² + ||A_im @ x - b_im||²
-x = (A_re^T @ A_re + A_im^T @ A_im)^(-1) @
-    (A_re^T @ b_re + A_im^T @ b_im)
-```
-
-**Matematicky (Eq 14 Schönleber):**
-```
-r = ||A' @ x - b'||² + ||A'' @ x - b''||²
-
-∂r/∂x = 0  →  x = [(A')^T @ A' + (A'')^T @ A'']^(-1) @
-                   [(A')^T @ b' + (A'')^T @ b'']
-```
-
-Kde ' = reálná část, '' = imaginární část.
-
----
-
-## 6. Evaluace a rezidua
-
-### Výpočet Z_fit (validation.py:266-280)
-
-```python
-def eval_linKK(elements, ts, f):
-    """ Builds a circuit of RC elements to be used in LinKK """
-    circuit_string = 's([R({},{}),'.format([elements[0]], f.tolist())
-
-    for (Rk, tk) in zip(elements[1:], ts):
-        circuit_string += f'K({[Rk, tk]},{f.tolist()}),'
-
-    circuit_string += 'L({},{}),'.format([elements[-1]], f.tolist())
-    if elements.size == (ts.size + 3):
-        circuit_string += 'C({},{}),'.format([1/elements[-2]], f.tolist())
-
-    circuit_string = circuit_string.strip(',')
-    circuit_string += '])'
-
-    return eval(circuit_string, circuit_elements)
-```
-
-Vytvoří circuit string: `s([R(R_0), K([R_1, τ_1]), ..., K([R_M, τ_M]), L(L)])`
-
-### Výpočet reziduí (validation.py:283-297)
-
-```python
-def residuals_linKK(elements, ts, Z, f, residuals='real'):
-    """ Calculates the residual between the data and a LinKK fit """
-
-    err = (Z - eval_linKK(elements, ts, f))/np.abs(Z)
-
-    if residuals == 'real':
-        return err.real
-    elif residuals == 'imag':
-        return err.imag
-```
-
-**Matematicky:**
-```
-res_real = Re(Z - Z_fit) / |Z| × 100%
-res_imag = Im(Z - Z_fit) / |Z| × 100%
+res_real = (Z'_exp - Z'_fit) / |Z_exp|
+res_imag = (Z''_exp - Z''_fit) / |Z_exp|
 ```
 
 **Interpretace:**
-- |res| < 1% → data jsou KK-compliant, kvalitní
-- |res| ≥ 1% → možné artefakty, nelinearita, nestabilita
+- |res| < 1%: Vynikajici kvalita dat
+- |res| < 5%: Prijatelna kvalita
+- |res| >= 5%: Mozne artefakty, nelinearita, nestabilita
+
+### Vazeni pri fittingu
+
+Pouzivame `proportional` vazeni (w = 1/|Z|) podle Schonleber (2014), nikoli `modulus` (w = 1/|Z|^2) podle Boukamp (1995):
+
+- **1/|Z|** - vyrovnane relativni vazeni pres cele spektrum
+- **1/|Z|^2** - silny duraz na vysoke frekvence (nizke |Z|), nizkofrekvencni oblast ma maly vliv
+
+Pro typicka EIS data je 1/|Z| vhodnejsi, protoze nizkofrekvencni oblast casto obsahuje klicove elektrochemicke informace (prenos naboje, difuze) a bezne artefakty (drift, nestacionarita).
+
+**Pozn.:** Pseudo chi^2 se pocita s vahou 1/|Z|^2 podle Boukampa - rozdil je pouze ve fittingu, ne ve vysledne metrice.
 
 ---
 
-## 7. Porovnání s --voigt-chain
+## 5. Automaticka optimalizace extend_decades
 
-| Aspekt | Lin-KK (impedance.py) | --voigt-chain (eis_analysis) |
-|--------|----------------------|------------------------------|
-| **Distribuce τ** | Logaritmická, f_min → f_max | Logaritmická, f_min/10 → f_max |
-| **Rozšíření rozsahu** | **Ne** (přesně měřený rozsah) | **Ano** (+1 dekáda k nízkým f) |
-| **Počet τ** | Určen iterativně (μ < 0.85) | Určen vzorcem (n_per_decade × dekády) |
-| **Fit metoda** | Pseudoinverze (pinv) | NNLS (non-negative LS) |
-| **Constraint R_i ≥ 0** | **Ne** (záporné R_i používá pro detekci overfitu) | **Ano** (fyzikální constraint) |
-| **Normalizace** | Z/\|Z\| (proporcionální váhy) | Volitelné (uniform/sqrt/proportional/square) |
-| **Seriové elementy** | R_0 + L (+ volitelně C) | Pouze R_s |
-| **Fit co?** | real/imag/complex | Pouze real (Z') |
-| **Pruning** | **Ne** (všechny RC elementy použity) | **Ano** (threshold = 1% max) |
-| **Primární účel** | **Validace kvality dat** | **Automatický návrh obvodu** |
+### Motivace
+
+Optimalni rozsah casovych konstant zavisi na datech. Prilis uzky rozsah muze vest k vysokym reziduum na okrajich frekvencniho spektra, zatimco prilis siroky rozsah zvysuje pocet parametru.
+
+### Implementace
+
+Funkce `find_optimal_extend_decades()` pouziva grid search:
+
+```python
+def find_optimal_extend_decades(
+    frequencies, Z, M,
+    search_range=(-1.0, 1.0),
+    n_evaluations=11
+):
+    """
+    Hleda optimalni extend_decades minimalizaci pseudo chi^2.
+
+    Algoritmus:
+    1. Vytvor mrizku hodnot v search_range
+    2. Pro kazdy bod: spocitej fit a chi^2
+    3. Vrat hodnotu s minimalnim chi^2
+    """
+```
+
+### CLI pouziti
+
+```bash
+eis data.dta --auto-extend
+```
+
+Vystup:
+```
+Optimizing extend_decades in range (-1.0, 1.0)...
+Optimal extend_decades: 0.400
+Lin-KK native: M=36, mu=0.8377
+  extend_decades: 0.400
+  Mean |res_real|: 0.03%
+  Mean |res_imag|: 4.81%
+  Pseudo chi^2: 3.79e-01
+  Estimated noise: 4.40%
+```
 
 ---
 
-## 8. Klíčové rozdíly v přístupu
+## 6. API reference
 
-### Lin-KK (impedance.py)
+### KKResult dataclass
 
-**Filozofie:**
-- Minimalistický rozsah τ (přesně f_min → f_max)
-- Záporné R_k jsou **diagnostický nástroj** (ne chyba!)
-- Iterativní hledání optimálního M pomocí μ metriky
--Fit imaginární části zachycuje indukčnost (měřicí artefakty)
+```python
+@dataclass
+class KKResult:
+    M: int                           # Pocet Voigtovych elementu
+    mu: float                        # Mu metrika
+    Z_fit: NDArray[np.complex128]    # Fitovana impedance
+    residuals_real: NDArray          # Rezidua realne casti
+    residuals_imag: NDArray          # Rezidua imaginarni casti
+    pseudo_chisqr: float             # Pseudo chi^2 (Boukamp 1995)
+    noise_estimate: float            # Odhad sumu [%]
+    extend_decades: float            # Pouzite rozsireni tau
+    inductance: Optional[float]      # Induktance [H]
+    figure: Optional[plt.Figure]     # Vizualizace
 
-**Výhody:**
-+ Automatické určení optimálního M
-+ Robustní detekce overfitu (μ metrika)
-+ Zachycuje měřicí artefakty (L, C)
-+ Dokumentovaná metoda (Schönleber 2014)
+    # Convenience properties
+    @property
+    def mean_residual_real(self) -> float: ...  # Prumer |res_real| [%]
+    @property
+    def mean_residual_imag(self) -> float: ...  # Prumer |res_imag| [%]
+    @property
+    def is_valid(self) -> bool: ...             # True pokud rezidua < 5%
+```
 
-**Nevýhody:**
-- Může vrátit záporné R_k (není to bug, ale feature!)
-- Nepodporuje různé váhování
-- Neprune malé příspěvky
+### kramers_kronig_validation()
 
-### --voigt-chain (eis_analysis)
+```python
+def kramers_kronig_validation(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complex128],
+    mu_threshold: float = 0.85,
+    max_M: int = 50,
+    auto_extend_decades: bool = False
+) -> Optional[KKResult]:
+    """
+    Provede KK validaci EIS dat.
 
-**Filozofie:**
-- Rozšířený rozsah τ (zachycuje pomalé procesy mimo měřený rozsah)
-- Fyzikální constraint R_i ≥ 0 (NNLS)
-- Pruning malých příspěvků (zjednodušení modelu)
-- Fit pouze Z' (stabilnější než Z'')
+    Parameters
+    ----------
+    frequencies : array
+        Merene frekvence [Hz]
+    Z : array
+        Komplexni impedance [Ohm]
+    mu_threshold : float
+        Prah pro mu metriku (default: 0.85)
+    max_M : int
+        Maximalni pocet Voigtovych elementu (default: 50)
+    auto_extend_decades : bool
+        Automaticka optimalizace extend_decades (default: False)
 
-**Výhody:**
-+ Fyzikálně korektní (R_i ≥ 0)
-+ Flexibilní váhování
-+ Automatické zjednodušení (pruning)
-+ Rozšíření rozsahu → lepší zachycení pomalých procesů
+    Returns
+    -------
+    KKResult nebo None pri chybe
+    """
+```
 
-**Nevýhody:**
-- Fixní počet τ (není automaticky optimalizován)
-- Může mít příliš mnoho parametrů (před pruningem)
-- Nedetekuje měřicí artefakty (L)
+### lin_kk_native()
+
+```python
+def lin_kk_native(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complex128],
+    mu_threshold: float = 0.85,
+    max_M: int = 50,
+    include_L: bool = True,
+    fit_type: str = 'real',
+    weighting: str = 'proportional',
+    auto_extend_decades: bool = False,
+    extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
+) -> Tuple[int, float, NDArray, NDArray, NDArray, Optional[float], float, float]:
+    """
+    Nativni Lin-KK implementace s plnou kontrolou parametru.
+
+    Returns
+    -------
+    M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, extend_decades
+    """
+```
+
+### Pomocne funkce
+
+```python
+def compute_pseudo_chisqr(Z_exp, Z_fit) -> float:
+    """Vypocet pseudo chi^2 (Boukamp 1995)."""
+
+def estimate_noise_percent(chi2_ps, n_points) -> float:
+    """Odhad sumu z pseudo chi^2 (Yrjana & Bobacka 2024)."""
+
+def reconstruct_impedance(frequencies, elements, tau, L_value, include_L) -> NDArray:
+    """Rekonstrukce impedance z Voigtovych elementu."""
+
+def find_optimal_extend_decades(frequencies, Z, M, ...) -> Tuple[...]:
+    """Nalezeni optimalniho extend_decades grid search."""
+```
 
 ---
 
-## 9. Numerická ilustrace
+## 7. Priklady pouziti
 
-### Příklad: 5 dekád frekvencí (10 kHz → 0.1 Hz)
+### Python API
 
-**Lin-KK:**
-```
-f_min = 0.1 Hz,  f_max = 10000 Hz
-τ_min = 1/(2π×10000) ≈ 1.59e-5 s
-τ_max = 1/(2π×0.1) ≈ 1.59 s
+```python
+from eis_analysis.validation import kramers_kronig_validation
 
-Iterace:
-M=1: μ = 0.95 > 0.85 → pokračuj
-M=2: μ = 0.92 > 0.85 → pokračuj
-M=3: μ = 0.89 > 0.85 → pokračuj
-M=4: μ = 0.86 > 0.85 → pokračuj
-M=5: μ = 0.83 < 0.85 → STOP
+# Zakladni validace
+result = kramers_kronig_validation(frequencies, Z)
+print(f"M = {result.M}, mu = {result.mu:.3f}")
+print(f"Pseudo chi^2: {result.pseudo_chisqr:.2e}")
+print(f"Estimated noise: {result.noise_estimate:.1f}%")
+print(f"Valid: {result.is_valid}")
 
-Výsledek: M = 5 RC elementů
-
-τ distribuce:
-τ_1 = 1.59e-5 s  (f = 10 kHz)
-τ_2 = 1.59e-4 s  (f = 1 kHz)
-τ_3 = 1.59e-3 s  (f = 100 Hz)
-τ_4 = 1.59e-2 s  (f = 10 Hz)
-τ_5 = 1.59e-1 s  (f = 1 Hz)
-(Poznámka: τ_max by bylo 1.59 s pro 0.1 Hz, ale M=5 stop před tím)
+# S automatickou optimalizaci extend_decades
+result = kramers_kronig_validation(
+    frequencies, Z,
+    auto_extend_decades=True
+)
+print(f"Optimal extend_decades: {result.extend_decades:.3f}")
 ```
 
-**--voigt-chain:**
+### CLI
+
+```bash
+# Zakladni KK validace
+eis data.dta --no-drt --no-fit
+
+# S automatickou optimalizaci extend_decades
+eis data.dta --no-drt --no-fit --auto-extend
+
+# Pouze KK validace (bez vizualizace)
+eis data.dta --no-show --no-drt --no-fit --auto-extend
 ```
-f_min_extended = 0.1 / 10^1 = 0.01 Hz  (rozšíření!)
-τ_min = 1/(2π×10000) ≈ 1.59e-5 s
-τ_max = 1/(2π×0.01) ≈ 15.9 s  (větší!)
-
-n_decades = log₁₀(15.9 / 1.59e-5) = 6
-n_tau = ceil(6 × 3) + 1 = 19 bodů
-
-Po NNLS fit:
-R_i rozsah: [0.01, 5000] Ω  (některé malé)
-
-Po pruning (1%):
-Odstraněno: 11 elementů
-Zachováno: 8 elementů
-
-Výsledek: 8 Voigt elementů (po pruningu)
-```
-
-**Porovnání:**
-- Lin-KK: **5 RC elementů** (iterativně určeno)
-- Voigt chain: **8 Voigt elementů** (19 → 8 po pruningu)
-- Voigt chain má širší pokrytí (0.01 Hz vs 0.1 Hz)
 
 ---
 
-## 10. Závěr
+## 8. Porovnani metod fitu
 
-**Lin-KK metoda je elegantní implementace Schönleber et al. (2014):**
+### fit_type = 'real' (vychozi)
 
-1. **Distribuce τ:** Logaritmická v rozsahu měřených frekvencí
-2. **Počet M:** Iterativně určen pomocí μ metriky (poměr záporné/kladné masy)
-3. **Řešení:** Lineární regrese s pseudoinverzí (numpy.linalg.pinv)
-4. **Normalizace:** Z/|Z| pro vyvážení různých řádů velikosti
-5. **Fit typy:** real/imag/complex (různé strategie pro robustnost)
-6. **Měřicí artefakty:** Automaticky zachycuje L (a volitelně C)
+1. Fituje pouze Re(Z/|Z|) -> ziska [R_s, R_1, ..., R_M]
+2. Vypocita Z_fit z techto parametru
+3. Fituje residuum Im(Z - Z_fit) -> ziska L
 
-**Hlavní rozdíl od --voigt-chain:**
-- Lin-KK: **detekce kvality** → minimalistický, iterativní, diagnostický
-- Voigt chain: **návrh obvodu** → extensivní, fyzikálně constrained, prunovaný
+**Vyhody pro validaci:**
+- Realna cast je obvykle mene zasumena
+- Imaginarni rezidua slouzi jako diagnostika KK compliance
+- Pokud data splnuji KK relace, imaginarni cast by mela automaticky sedet
 
-Obě metody používají lineární regresi, ale s různými cíli a filosofií!
+### fit_type = 'complex'
 
-**Co dělá empirický vzorec M ≈ log₁₀(Δf)/0.85?**
-- To je **heuristika** z literatury, ne přímý vzorec z kódu!
-- Kód skutečně určuje M iterativně pomocí μ metriky
-- Vzorec je dobrá aproximace výsledku iterace (pro typická data)
-- c = 0.85 je práh pro μ, ne dělitel v počtu dekád
+Fituje Re(Z) a Im(Z) soucasne. **Nedoporuceno pro validaci** - muze maskovat KK nekonzistence.
+
+---
+
+## 9. Interpretace vysledku
+
+### Priklad: Dobra data
+
+```
+Lin-KK native: M=36, mu=0.8377
+  extend_decades: 0.400
+  Mean |res_real|: 0.03%
+  Mean |res_imag|: 4.81%
+  Pseudo chi^2: 3.79e-01
+  Estimated noise: 4.40%
+Data quality is good (residuals < 5%)
+```
+
+- Nizke rezidua v realne casti (0.03%) - vynikajici shoda
+- Vyssi rezidua v imaginarni casti (4.81%) - prijatelne, pod prahem 5%
+- Odhadovany sum 4.40% - odpovida ocekavani pro typicka EIS data
+
+### Priklad: Problematicka data
+
+```
+Lin-KK native: M=32, mu=0.8436
+  extend_decades: 0.400
+  Mean |res_real|: 0.18%
+  Mean |res_imag|: 13.34%
+  Pseudo chi^2: 2.44e+00
+  Estimated noise: 11.17%
+! Data may contain artifacts (residuals >= 5%)
+```
+
+- Vysoke rezidua v imaginarni casti (13.34%) - nad prahem 5%
+- Vysoky odhadovany sum (11.17%)
+- Mozne priciny: nestacionarita, artefakty, nelinearita
+
+---
+
+## 10. Literatura
+
+1. Schonleber, M., Klotz, D., and Ivers-Tiffee, E. (2014). A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests. Electrochim. Acta, 131, 20-27.
+
+2. Boukamp, B.A. (1995). A Linear Kronig-Kramers Transform Test for Immittance Data Validation. J. Electrochem. Soc., 142, 1885-1894.
+
+3. Yrjana, V. and Bobacka, J. (2024). Implementing Kramers-Kronig validity testing using pyimpspec. Electrochim. Acta, 504, 144951.

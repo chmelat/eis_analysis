@@ -49,6 +49,7 @@ from eis_analysis import (
     generate_synthetic_data,
     # Validation
     kramers_kronig_validation,
+    zhit_validation,
     # DRT
     calculate_drt,
     # Fitting (new operator overloading approach v2.2.0)
@@ -360,9 +361,9 @@ Examples:
     parser.add_argument('--circuit', '-c', type=str, default=None,
                         help='Equivalent circuit for fitting. '
                              'Syntax: R(100) - (R(5000) | C(1e-6))  [- = series, | = parallel].')
-    parser.add_argument('--weighting', type=str, default='sqrt',
-                        choices=['uniform', 'sqrt', 'proportional', 'square'],
-                        help='Weighting type for fitting (default: sqrt)')
+    parser.add_argument('--weighting', type=str, default='modulus',
+                        choices=['uniform', 'sqrt', 'proportional', 'modulus'],
+                        help='Weighting type for fitting (default: modulus)')
 
     # Multi-start
     parser.add_argument('--multistart', type=int, default=0, metavar='N',
@@ -415,10 +416,23 @@ Examples:
     # KK options
     parser.add_argument('--mu-threshold', type=float, default=0.85,
                         help='μ metric threshold for Lin-KK test (default: 0.85)')
+    parser.add_argument('--auto-extend', action='store_true',
+                        help='Automatically optimize extend_decades for KK validation '
+                             '(minimizes pseudo chi-squared)')
+    parser.add_argument('--extend-decades-max', type=float, default=1.0,
+                        help='Maximum extend_decades for --auto-extend search range '
+                             '(searches from -max to +max, default: 1.0)')
+
+    # Z-HIT options
+    parser.add_argument('--zhit-optimize-offset', action='store_true',
+                        help='Optimize Z-HIT offset using weighted least-squares '
+                             '(default: fixed reference point)')
 
     # Skip options
     parser.add_argument('--no-kk', action='store_true',
                         help='Skip Kramers-Kronig validation')
+    parser.add_argument('--no-zhit', action='store_true',
+                        help='Skip Z-HIT validation')
     parser.add_argument('--no-drt', action='store_true',
                         help='Skip DRT analysis')
     parser.add_argument('--no-fit', action='store_true',
@@ -613,12 +627,42 @@ def run_kk_validation(
     if args.no_kk:
         return None
 
-    M, mu, Z_kk, residuals, fig = kramers_kronig_validation(
+    result = kramers_kronig_validation(
         frequencies, Z,
-        mu_threshold=args.mu_threshold
+        mu_threshold=args.mu_threshold,
+        auto_extend_decades=args.auto_extend,
+        extend_decades_range=(-args.extend_decades_max, args.extend_decades_max)
     )
-    save_figure(fig, args.save, 'kk', args.format)
-    return fig
+    if result is None:
+        return None
+
+    save_figure(result.figure, args.save, 'kk', args.format)
+    return result.figure
+
+
+def run_zhit_validation(
+    frequencies: NDArray,
+    Z: NDArray,
+    args: argparse.Namespace
+) -> Optional[plt.Figure]:
+    """
+    Run Z-HIT validation.
+
+    Returns
+    -------
+    fig : Figure or None
+        Z-HIT validation figure
+    """
+    if args.no_zhit:
+        return None
+
+    result = zhit_validation(
+        frequencies, Z,
+        optimize_offset=args.zhit_optimize_offset
+    )
+
+    save_figure(result.figure, args.save, 'zhit', args.format)
+    return result.figure
 
 
 def run_rinf_estimation(
@@ -1026,6 +1070,9 @@ def _run_analysis(args: argparse.Namespace) -> None:
 
     # Kramers-Kronig validation
     run_kk_validation(data.frequencies, data.Z, args)
+
+    # Z-HIT validation (optional)
+    run_zhit_validation(data.frequencies, data.Z, args)
 
     # R_inf estimation
     R_inf_computed, _ = run_rinf_estimation(data.frequencies, data.Z, args)
