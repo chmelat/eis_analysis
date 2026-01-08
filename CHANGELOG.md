@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.10.2 (2026-01-08)
+
+### Fixes
+
+- Fixed smooth curve plotting for `--voigt-chain` option (was displaying as broken line instead of smooth curve)
+- Fixed smooth curve plotting for KK validation Nyquist plot
+- Both fixes use 300 interpolated frequency points for smooth fitted curve display
+
+### Documentation
+
+- Added `doc/WEIGHTING_AND_STATISTICS.md` - comprehensive guide to weighting types and statistical metrics
+- Covers: weighting types (uniform, sqrt, proportional, modulus), pseudo chi-squared, noise estimation, residuals, fit error, standard errors, confidence intervals
+- Includes practical recommendations and troubleshooting guide
+
+---
+
 ## Version 0.10.1 (2026-01-08)
 
 ### Fixes

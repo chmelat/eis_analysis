@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.10.1 (2026-01-08)
+**Version:** v0.10.2 (2026-01-08)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -292,7 +292,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Circuit fitting
 
 - `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K.
-- `--weighting` (default: proportional) - Weighting type for fitting: `uniform` (all points equal), `sqrt` (square root of 1/|Z|), `proportional` (1/|Z|), `modulus` (1/|Z|^2).
+- `--weighting` (default: proportional) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `proportional` (w=1/|Z|, balances relative errors), `modulus` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 
 ### Optimizer selection
@@ -489,6 +489,7 @@ eis data.DTA
 | Document | Description |
 |----------|-------------|
 | [doc/PYTHON_API.md](doc/PYTHON_API.md) | Complete Python API reference |
+| [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) | Weighting types and statistical metrics |
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
@@ -508,7 +509,9 @@ eis data.DTA
 ## References
 
 - Orazem, M.E., Tribollet, B.: *Electrochemical Impedance Spectroscopy* (2008)
+- Boukamp, B.A.: "A Linear Kronig-Kramers Transform Test for Immittance Data Validation", *J. Electrochem. Soc.* 142 (1995)
 - Schonleber, M. et al.: "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests", *Electrochimica Acta* 131 (2014)
+- Yrjana, V., Bobacka, J.: "Implementing Kramers-Kronig validity testing using pyimpspec", *Electrochim. Acta* 504 (2024)
 - Wahba, G.: "A comparison of GCV and GML", *Annals of Statistics* 13 (1985)
 - Saccoccio, M. et al.: "Optimal regularization in DRT", *Electrochimica Acta* 147 (2014)
 

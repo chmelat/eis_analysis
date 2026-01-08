@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.9.4+
+**Current version:** v0.10.2
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -351,6 +351,13 @@ result, Z_fit, fig = fit_equivalent_circuit(
     weighting='proportional',      # 'uniform', 'sqrt', 'proportional', 'modulus'
     use_analytic_jacobian=True     # Analytic Jacobian (default, faster)
 )
+
+# Weighting types:
+#   'uniform':     w = 1          - equal weight for all points
+#   'sqrt':        w = 1/sqrt|Z|  - compromise
+#   'proportional': w = 1/|Z|     - default, balances relative errors
+#   'modulus':     w = 1/|Z|^2    - emphasizes low-impedance region
+# See WEIGHTING_AND_STATISTICS.md for detailed guide
 
 # result: FitResult dataclass
 # Z_fit: Fitted impedance
@@ -842,3 +849,4 @@ Or use an IDE with docstring support (VS Code, PyCharm, etc.).
 
 + [README.md](../README.md) - Main documentation (CLI)
 + [CHANGELOG.md](../CHANGELOG.md) - Change history
++ [WEIGHTING_AND_STATISTICS.md](WEIGHTING_AND_STATISTICS.md) - Weighting types and statistical metrics guide

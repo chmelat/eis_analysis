@@ -908,10 +908,15 @@ def _fit_voigt_chain(
         _n_data=len(frequencies)
     )
 
+    # Generate interpolated frequencies for smooth curve
+    f_min, f_max = frequencies.min(), frequencies.max()
+    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
+    Z_fit_plot = circuit.impedance(freq_plot, initial_params)
+
     # Create figure
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(Z.real, -Z.imag, 'o', label='Data', markersize=6, alpha=0.7)
-    ax.plot(Z_fit.real, -Z_fit.imag, '-', label='Linear fit', linewidth=2)
+    ax.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='Linear fit', linewidth=2)
     ax.set_xlabel("Z' [Ohm]")
     ax.set_ylabel("-Z'' [Ohm]")
     ax.set_title(f"Voigt chain - Linear fit (error: {fit_error_rel:.2f}%)")

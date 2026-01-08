@@ -250,7 +250,7 @@ def lin_kk_native(
     weighting: str = 'proportional',
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
-) -> Tuple[int, float, NDArray[np.complex128], NDArray[np.float64], NDArray[np.float64], Optional[float], float, float]:
+) -> Tuple[int, float, NDArray[np.complex128], NDArray[np.float64], NDArray[np.float64], Optional[float], float, float, NDArray[np.float64], NDArray[np.float64]]:
     """
     Native Lin-KK implementation using Voigt chain fitting.
 
@@ -299,6 +299,10 @@ def lin_kk_native(
         Pseudo chi-squared (Boukamp 1995)
     extend_decades : float
         Used extend_decades value (0.0 if not auto-optimized)
+    elements : ndarray of float
+        Fitted elements [R_s, R_1, ..., R_M]
+    tau : ndarray of float
+        Time constants [s]
 
     Notes
     -----
@@ -369,7 +373,7 @@ def lin_kk_native(
     logger.info(f"  Pseudo chi^2: {chi2_ps:.2e}")
     logger.info(f"  Estimated noise: {noise_est:.2f}%")
 
-    return M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, extend_decades
+    return M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, extend_decades, elements, tau
 
 
 def kramers_kronig_validation(
@@ -435,7 +439,7 @@ def kramers_kronig_validation(
         #
         # Note: Pseudo chi-squared is still computed with 1/|Z|^2 per Boukamp (1995).
         # The difference only affects fitting, not the final chi^2 metric.
-        M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, ext_dec = lin_kk_native(
+        M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, ext_dec, elements, tau = lin_kk_native(
             frequencies, Z,
             mu_threshold=mu_threshold,
             max_M=max_M,
@@ -461,13 +465,18 @@ def kramers_kronig_validation(
     mean_res_real = np.mean(np.abs(res_real)) * 100
     mean_res_imag = np.mean(np.abs(res_imag)) * 100
 
+    # Generate interpolated frequencies for smooth curve
+    f_min, f_max = frequencies.min(), frequencies.max()
+    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
+    Z_fit_plot = reconstruct_impedance(freq_plot, elements, tau, L_value, include_L=True)
+
     # Visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     # Fit comparison (Nyquist plot)
     ax1 = axes[0]
     ax1.plot(Z.real, -Z.imag, 'o', label='Data', markersize=4)
-    ax1.plot(Z_fit.real, -Z_fit.imag, '-', label='KK fit', linewidth=2)
+    ax1.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='KK fit', linewidth=2)
     ax1.set_xlabel("Z' [Ω]")
     ax1.set_ylabel("-Z'' [Ω]")
     ax1.set_title(f"Kramers-Kronig fit in real domain (M={M})")
