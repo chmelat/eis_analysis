@@ -339,7 +339,7 @@ def fit_rlk_model(
         include_L=include_L,
         fit_type='complex',
         allow_negative=False,  # NNLS: R_s, R_k ≥ 0
-        weighting='proportional'
+        weighting='modulus'
     )
 
     # Extract parameters

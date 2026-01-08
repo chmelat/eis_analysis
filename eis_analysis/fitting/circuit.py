@@ -176,8 +176,8 @@ def _prepare_optimization(circuit: Circuit, weighting: str, verbose: bool = True
         weighting_labels = {
             'uniform': 'uniform (w = 1)',
             'sqrt': 'square root (w = 1/sqrt|Z|)',
-            'proportional': 'proportional (w = 1/|Z|)',
-            'modulus': 'modulus (w = 1/|Z|^2)'
+            'modulus': 'modulus (w = 1/|Z|)',
+            'proportional': 'proportional (w = 1/|Z|^2)'
         }
         logger.info(f"Weighting: {weighting_labels[weighting]}")
 
@@ -252,7 +252,7 @@ def fit_equivalent_circuit(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     circuit: Circuit,
-    weighting: str = 'proportional',
+    weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
     plot: bool = True,
     verbose: bool = True,
@@ -272,12 +272,13 @@ def fit_equivalent_circuit(
         Values in circuit serve as INITIAL GUESS for fitting.
     weighting : str, optional
         Weighting type for optimization. Options:
-        - 'uniform' (default): all points equally important (w = 1)
+        - 'uniform': all points equally important (w = 1)
         - 'sqrt': compromise weighting (w = 1/sqrt|Z|)
-        - 'proportional': inverse weighting (w = 1/|Z|)
+        - 'modulus' (default): inverse weighting (w = 1/|Z|)
+        - 'proportional': strong low-Z emphasis (w = 1/|Z|^2)
         Weighting affects which frequencies have more influence on fit.
         Uniform favors low frequencies (large |Z|),
-        proportional equalizes importance across all frequencies.
+        modulus equalizes importance across all frequencies.
     initial_guess : list of float, optional
         Override initial guess for parameters. If None (default), uses
         values from circuit object. Useful for multi-start optimization.

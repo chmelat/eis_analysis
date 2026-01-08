@@ -31,7 +31,7 @@ def estimate_R_linear(
     include_L: bool = True,
     fit_type: str = 'complex',
     allow_negative: bool = False,
-    weighting: str = 'proportional'
+    weighting: str = 'modulus'
 ) -> Tuple[NDArray[np.float64], float, Optional[float]]:
     """
     Estimate R_i values using least squares (Lin-KK compatible).
@@ -65,11 +65,11 @@ def estimate_R_linear(
         If False (default), use NNLS to enforce R_i >= 0 (physical constraint)
         If True, use pseudoinverse (allows negative R_i like Lin-KK test)
     weighting : str, optional
-        Point weighting scheme (default: 'proportional' = Lin-KK standard):
+        Point weighting scheme (default: 'modulus' = Lin-KK standard):
         - 'uniform': all points equal weight (w = 1)
         - 'sqrt': compromise weighting (w = 1/sqrt|Z|)
-        - 'proportional': Lin-KK standard (w = 1/|Z|) - DEFAULT
-        - 'modulus': strong low-Z emphasis (w = 1/|Z|^2)
+        - 'modulus': Lin-KK standard (w = 1/|Z|) - DEFAULT
+        - 'proportional': strong low-Z emphasis (w = 1/|Z|^2)
 
     Returns
     -------
@@ -83,7 +83,7 @@ def estimate_R_linear(
 
     Notes
     -----
-    The default 'proportional' weighting (1/|Z|) is the Lin-KK standard.
+    The default 'modulus' weighting (1/|Z|) is the Lin-KK standard.
     This ensures equal relative weighting across the frequency range,
     which is critical for wide dynamic range EIS data.
 
@@ -119,12 +119,12 @@ def estimate_R_linear(
         weights = np.ones_like(Z_mag)
     elif weighting == 'sqrt':
         weights = 1.0 / np.sqrt(Z_mag_safe)
-    elif weighting == 'proportional':
-        weights = 1.0 / Z_mag_safe  # Lin-KK standard
     elif weighting == 'modulus':
+        weights = 1.0 / Z_mag_safe  # Lin-KK standard
+    elif weighting == 'proportional':
         weights = 1.0 / (Z_mag_safe ** 2)
     else:
-        weights = 1.0 / Z_mag_safe  # Fallback to proportional
+        weights = 1.0 / Z_mag_safe  # Fallback to modulus
 
     # Normalize weights so mean = 1 (for numerical stability)
     weights = weights / np.mean(weights)
@@ -294,7 +294,7 @@ def fit_voigt_chain_linear(
     mu_threshold: float = 0.85,
     max_M: int = 50,
     refit_positive: bool = False,
-    weighting: str = 'proportional'
+    weighting: str = 'modulus'
 ) -> Tuple[VoigtChain, List[float]]:
     """
     Fit Voigt chain to EIS data using linear regression (Lin-KK method).
@@ -335,7 +335,7 @@ def fit_voigt_chain_linear(
     refit_positive : bool, optional
         Unused parameter for backward compatibility
     weighting : str, optional
-        Point weighting scheme (default: 'proportional' = Lin-KK standard)
+        Point weighting scheme (default: 'modulus' = Lin-KK standard)
 
     Returns
     -------
@@ -414,8 +414,8 @@ def fit_voigt_chain_linear(
         weighting_labels = {
             'uniform': 'uniform (w=1)',
             'sqrt': 'sqrt (w=1/sqrt|Z|)',
-            'proportional': 'proportional (w=1/|Z|, Lin-KK standard)',
-            'modulus': 'modulus (w=1/|Z|^2)'
+            'modulus': 'modulus (w=1/|Z|, Lin-KK standard)',
+            'proportional': 'proportional (w=1/|Z|^2)'
         }
         logger.info(f"Step 2: Linear regression (method: {method_str}, fit_type: {fit_type})")
         logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")

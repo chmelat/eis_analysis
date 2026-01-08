@@ -120,7 +120,7 @@ res_imag = (Z''_exp - Z''_fit) / |Z_exp|
 
 ### Vazeni pri fittingu
 
-Pouzivame `proportional` vazeni (w = 1/|Z|) podle Schonleber (2014), nikoli `modulus` (w = 1/|Z|^2) podle Boukamp (1995):
+Pouzivame `modulus` vazeni (w = 1/|Z|) podle Schonleber (2014), nikoli `proportional` (w = 1/|Z|^2) podle Boukamp (1995):
 
 - **1/|Z|** - vyrovnane relativni vazeni pres cele spektrum
 - **1/|Z|^2** - silny duraz na vysoke frekvence (nizke |Z|), nizkofrekvencni oblast ma maly vliv
@@ -246,7 +246,7 @@ def lin_kk_native(
     max_M: int = 50,
     include_L: bool = True,
     fit_type: str = 'real',
-    weighting: str = 'proportional',
+    weighting: str = 'modulus',
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
 ) -> Tuple[int, float, NDArray, NDArray, NDArray, Optional[float], float, float]:

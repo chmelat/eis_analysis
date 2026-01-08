@@ -178,7 +178,7 @@ def find_optimal_extend_decades(
     n_evaluations: int = 11,
     include_L: bool = True,
     fit_type: str = 'real',
-    weighting: str = 'proportional'
+    weighting: str = 'modulus'
 ) -> Tuple[float, float, NDArray[np.float64], NDArray[np.float64], Optional[float]]:
     """
     Find optimal extend_decades that minimizes pseudo chi-squared.
@@ -247,7 +247,7 @@ def lin_kk_native(
     max_M: int = 50,
     include_L: bool = True,
     fit_type: str = 'real',
-    weighting: str = 'proportional',
+    weighting: str = 'modulus',
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
 ) -> Tuple[int, float, NDArray[np.complex128], NDArray[np.float64], NDArray[np.float64], Optional[float], float, float, NDArray[np.float64], NDArray[np.float64]]:
@@ -427,10 +427,10 @@ def kramers_kronig_validation(
     logger.info("="*60)
 
     try:
-        # Weighting choice: 'proportional' (1/|Z|) vs 'modulus' (1/|Z|^2)
+        # Weighting choice: 'modulus' (1/|Z|) vs 'proportional' (1/|Z|^2)
         #
-        # We use 'proportional' (Lin-KK standard, Schönleber 2014) rather than
-        # 'modulus' (Boukamp 1995 pseudo chi-squared weighting) because:
+        # We use 'modulus' (Lin-KK standard, Schönleber 2014) rather than
+        # 'proportional' (Boukamp 1995 pseudo chi-squared weighting) because:
         # - Provides balanced relative weighting across entire spectrum
         # - Low-frequency region (high |Z|) often contains key electrochemical
         #   information (charge transfer, diffusion) that should not be de-emphasized
@@ -445,7 +445,7 @@ def kramers_kronig_validation(
             max_M=max_M,
             include_L=True,
             fit_type='real',
-            weighting='proportional',
+            weighting='modulus',
             auto_extend_decades=auto_extend_decades,
             extend_decades_range=extend_decades_range
         )

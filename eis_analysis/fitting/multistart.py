@@ -217,7 +217,7 @@ def fit_circuit_multistart(
     Z: NDArray[np.complex128],
     n_restarts: int = 10,
     scale: float = 2.0,
-    weighting: str = 'proportional',
+    weighting: str = 'modulus',
     parallel: bool = False,
     max_workers: int = 4,
     verbose: bool = True,
@@ -283,8 +283,8 @@ def fit_circuit_multistart(
         weighting_labels = {
             'uniform': 'uniform (w=1)',
             'sqrt': 'sqrt (w=1/sqrt|Z|)',
-            'proportional': 'proportional (w=1/|Z|)',
-            'modulus': 'modulus (w=1/|Z|^2)'
+            'modulus': 'modulus (w=1/|Z|)',
+            'proportional': 'proportional (w=1/|Z|^2)'
         }
         _log_separator()
         logger.info("Multi-start optimization")

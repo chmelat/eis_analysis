@@ -60,7 +60,7 @@ w = 1 / sqrt(|Z|)
 
 ---
 
-### 2.3 Proportional - DEFAULT
+### 2.3 Modulus - DEFAULT
 
 ```
 w = 1 / |Z|
@@ -77,11 +77,11 @@ w = 1 / |Z|
 - When constant relative measurement error is expected
 - Recommended as default choice
 
-**CLI:** `--weighting proportional` (default)
+**CLI:** `--weighting modulus` (default)
 
 ---
 
-### 2.4 Modulus
+### 2.4 Proportional
 
 ```
 w = 1 / |Z|^2
@@ -97,7 +97,7 @@ w = 1 / |Z|^2
 - When low-frequency data contains artifacts
 - Historical compatibility with some tools
 
-**CLI:** `--weighting modulus`
+**CLI:** `--weighting proportional`
 
 ---
 
@@ -107,12 +107,12 @@ w = 1 / |Z|^2
 |-----------|---------|------------|-------------|
 | uniform | w = 1 | High \|Z\| | Diagnostics, constant abs. error |
 | sqrt | w = 1/sqrt(\|Z\|) | Slightly high \|Z\| | Compromise |
-| **proportional** | w = 1/\|Z\| | **Balanced** | **Default, most data** |
-| modulus | w = 1/\|Z\|^2 | Low \|Z\| | High-frequency analysis |
+| **modulus** | w = 1/\|Z\| | **Balanced** | **Default, most data** |
+| proportional | w = 1/\|Z\|^2 | Low \|Z\| | High-frequency analysis |
 
 **Recommended workflow:**
-1. Start with `proportional` (default)
-2. If fit is poor at high frequencies, try `modulus`
+1. Start with `modulus` (default)
+2. If fit is poor at high frequencies, try `proportional`
 3. If fit is poor at low frequencies, try `uniform` or `sqrt`
 4. Compare results and choose best compromise
 
@@ -344,7 +344,7 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
    - If not satisfied, data may contain artifacts
 
 2. **Circuit fitting**
-   - Use `--weighting proportional` (default)
+   - Use `--weighting modulus` (default)
    - Check fit error < 10%
    - Check residuals (should not show systematic trends)
 

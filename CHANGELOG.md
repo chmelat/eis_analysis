@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.11.0 (2026-01-08)
+
+### Breaking Changes
+
+- **Weighting names swapped to match common EIS terminology:**
+  - `modulus` now means w = 1/|Z| (previously called `proportional`)
+  - `proportional` now means w = 1/|Z|^2 (previously called `modulus`)
+- Default weighting is now `modulus` (w = 1/|Z|, Lin-KK standard)
+- **WARNING:** Existing scripts using `--weighting proportional` or `--weighting modulus` will get DIFFERENT behavior!
+
+### Migration Guide
+
+If you were using:
+- `--weighting proportional` (old: 1/|Z|) -> use `--weighting modulus` (new: 1/|Z|)
+- `--weighting modulus` (old: 1/|Z|^2) -> use `--weighting proportional` (new: 1/|Z|^2)
+
+The default behavior (1/|Z| weighting) is unchanged, only the name changed from `proportional` to `modulus`.
+
+---
+
 ## Version 0.10.2 (2026-01-08)
 
 ### Fixes

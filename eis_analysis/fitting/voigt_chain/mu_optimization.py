@@ -75,7 +75,7 @@ def find_optimal_M_mu(
     include_L: bool = True,
     fit_type: str = 'complex',
     allow_negative: bool = True,
-    weighting: str = 'proportional'
+    weighting: str = 'modulus'
 ) -> Tuple[int, float, NDArray[np.float64], NDArray[np.float64], Optional[float]]:
     """
     Find optimal number of Voigt elements using mu metric (Lin-KK style).
@@ -106,7 +106,7 @@ def find_optimal_M_mu(
         Note: mu metric is designed for pseudoinverse (allow_negative=True).
         With NNLS (allow_negative=False), all R_i >= 0, so mu ~ 1 always.
     weighting : str, optional
-        Point weighting scheme (default: 'proportional' = Lin-KK standard)
+        Point weighting scheme (default: 'modulus' = Lin-KK standard)
 
     Returns
     -------
@@ -142,8 +142,8 @@ def find_optimal_M_mu(
     weighting_labels = {
         'uniform': 'uniform (w=1)',
         'sqrt': 'sqrt (w=1/sqrt|Z|)',
-        'proportional': 'proportional (w=1/|Z|)',
-        'modulus': 'modulus (w=1/|Z|^2)'
+        'modulus': 'modulus (w=1/|Z|)',
+        'proportional': 'proportional (w=1/|Z|^2)'
     }
     logger.info(f"  mu threshold: {mu_threshold}")
     logger.info(f"  Max M: {max_M}")

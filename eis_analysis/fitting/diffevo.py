@@ -118,7 +118,7 @@ def fit_circuit_diffevo(
     maxiter: int = 1000,
     tol: float = 0.01,
     workers: int = 1,
-    weighting: str = 'proportional',
+    weighting: str = 'modulus',
     verbose: bool = True,
     use_analytic_jacobian: bool = True
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128], any]:
@@ -190,8 +190,8 @@ def fit_circuit_diffevo(
         weighting_labels = {
             'uniform': 'uniform (w=1)',
             'sqrt': 'sqrt (w=1/sqrt|Z|)',
-            'proportional': 'proportional (w=1/|Z|)',
-            'modulus': 'modulus (w=1/|Z|^2)'
+            'modulus': 'modulus (w=1/|Z|)',
+            'proportional': 'proportional (w=1/|Z|^2)'
         }
         _log_separator()
         logger.info("Differential Evolution optimization")

@@ -64,7 +64,7 @@ num_K_elements = circuit_str.count('K(')
 print(f"Number of K elements: {num_K_elements}")
 
 # Fit
-result1, Z_fit1, fig1 = fit_equivalent_circuit(freq, Z_noisy, circuit1, weighting='proportional')
+result1, Z_fit1, fig1 = fit_equivalent_circuit(freq, Z_noisy, circuit1, weighting='modulus')
 print(f"Fit error: {result1.fit_error_rel:.2f}% (rel), {result1.fit_error_abs:.2f} Ω (abs)")
 print()
 plt.close(fig1)
@@ -96,7 +96,7 @@ num_K_elements2 = str(circuit2).count('K(')
 print(f"Number of K elements: {num_K_elements2}")
 
 # Fit
-result2, Z_fit2, fig2 = fit_equivalent_circuit(freq, Z_noisy, circuit2, weighting='proportional')
+result2, Z_fit2, fig2 = fit_equivalent_circuit(freq, Z_noisy, circuit2, weighting='modulus')
 print(f"Fit error: {result2.fit_error_rel:.2f}% (rel), {result2.fit_error_abs:.2f} Ω (abs)")
 print()
 plt.close(fig2)
@@ -128,7 +128,7 @@ num_K_elements3 = str(circuit3).count('K(')
 print(f"Number of K elements: {num_K_elements3}")
 
 # Fit
-result3, Z_fit3, fig3 = fit_equivalent_circuit(freq, Z_noisy, circuit3, weighting='proportional')
+result3, Z_fit3, fig3 = fit_equivalent_circuit(freq, Z_noisy, circuit3, weighting='modulus')
 print(f"Fit error: {result3.fit_error_rel:.2f}% (rel), {result3.fit_error_abs:.2f} Ω (abs)")
 print()
 plt.close(fig3)
@@ -165,7 +165,7 @@ negative_R = R_params[R_params < 0]
 print(f"Number of negative R_i: {len(negative_R)}")
 
 # Fit
-result4, Z_fit4, fig4 = fit_equivalent_circuit(freq, Z_noisy, circuit4, weighting='proportional')
+result4, Z_fit4, fig4 = fit_equivalent_circuit(freq, Z_noisy, circuit4, weighting='modulus')
 print(f"Fit error: {result4.fit_error_rel:.2f}% (rel), {result4.fit_error_abs:.2f} Ω (abs)")
 print()
 plt.close(fig4)

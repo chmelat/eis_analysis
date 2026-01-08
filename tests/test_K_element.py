@@ -117,7 +117,7 @@ Z_noisy = Z_true + noise
 
 # Fit with K element
 circuit_fit = R(90) - K(900, 1.5e-4)  # Initial guess (slightly off)
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z_noisy, circuit_fit, weighting='proportional')
+result, Z_fit, fig = fit_equivalent_circuit(freq, Z_noisy, circuit_fit, weighting='modulus')
 
 print(f"  True parameters: R_s={R_s_true}, R={R_true}, τ={tau_true:.3e}")
 print(f"  Fitted parameters: {result.params_opt}")

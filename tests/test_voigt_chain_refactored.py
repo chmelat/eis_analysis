@@ -60,7 +60,7 @@ print(f"Parameters: {len(params1)}")
 print()
 
 # Fit
-result1, Z_fit1, fig1 = fit_equivalent_circuit(freq, Z_noisy, circuit1, weighting='proportional')
+result1, Z_fit1, fig1 = fit_equivalent_circuit(freq, Z_noisy, circuit1, weighting='modulus')
 print(f"Fit error: {result1.fit_error_rel:.2f}% (rel), {result1.fit_error_abs:.2f} Ω (abs)")
 
 # Check if K elements are used
@@ -152,12 +152,12 @@ print("Test 4: Fit quality comparison")
 print("-"*70)
 
 # Fit test 2 circuit
-result2, Z_fit2, fig2 = fit_equivalent_circuit(freq, Z_noisy, circuit2, weighting='proportional')
+result2, Z_fit2, fig2 = fit_equivalent_circuit(freq, Z_noisy, circuit2, weighting='modulus')
 print(f"Test 1 (default):       {result1.fit_error_rel:.2f}%")
 print(f"Test 2 (allow_negative): {result2.fit_error_rel:.2f}%")
 
 # Fit test 3 circuit
-result3, Z_fit3, fig3 = fit_equivalent_circuit(freq, Z_noisy, circuit3, weighting='proportional')
+result3, Z_fit3, fig3 = fit_equivalent_circuit(freq, Z_noisy, circuit3, weighting='modulus')
 print(f"Test 3 (include_L): {result3.fit_error_rel:.2f}%")
 
 print()
