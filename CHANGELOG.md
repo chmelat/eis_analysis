@@ -4,6 +4,48 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.12.0 (2026-01-09)
+
+### Refactoring
+
+- **Major CLI refactoring:** Monolithic `eis.py` (1107 lines) split into modular structure
+  - Main `eis.py` reduced to 146 lines (87% reduction)
+  - New `eis_analysis/cli/` subpackage with 6 focused modules:
+    - `logging.py` - Custom log formatters and setup (131 lines)
+    - `parser.py` - Argument parsing with logical grouping (260 lines)
+    - `data_handling.py` - Data loading and filtering (181 lines)
+    - `handlers.py` - Analysis workflow handlers (602 lines)
+    - `utils.py` - Helper functions and dataclasses (174 lines)
+    - `__init__.py` - Public API exports (57 lines)
+
+### Improvements
+
+- CLI `--help` now displays arguments in logical groups:
+  - Input/Output
+  - DRT Analysis
+  - Kramers-Kronig Validation
+  - Z-HIT Validation
+  - Circuit Fitting
+  - Voigt Chain Fitting
+  - Oxide Layer Analysis
+  - Visualization
+
+### For Developers
+
+- CLI components can now be imported from `eis_analysis.cli`:
+  ```python
+  from eis_analysis.cli import (
+      parse_arguments,
+      setup_logging,
+      run_drt_analysis,
+      EISAnalysisError,
+  )
+  ```
+- Each CLI module can be tested independently
+- Better separation of concerns improves maintainability
+
+---
+
 ## Version 0.11.3 (2026-01-09)
 
 ### Improvements
