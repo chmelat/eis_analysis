@@ -4,6 +4,17 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.11.3 (2026-01-09)
+
+### Improvements
+
+- `lin_kk_native()` now returns `LinKKResult` dataclass instead of 10-element tuple
+  - Named access: `result.mu` instead of `result[1]`
+  - Properties: `mean_residual_real`, `mean_residual_imag`, `is_valid`
+  - Backward incompatible but improves API consistency
+
+---
+
 ## Version 0.11.2 (2026-01-09)
 
 ### Improvements

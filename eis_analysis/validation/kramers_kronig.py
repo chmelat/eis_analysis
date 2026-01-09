@@ -70,6 +70,63 @@ class KKResult:
         return self.mean_residual_real < 5 and self.mean_residual_imag < 5
 
 
+@dataclass
+class LinKKResult:
+    """Result of Lin-KK native fitting.
+
+    Attributes
+    ----------
+    M : int
+        Number of Voigt elements used
+    mu : float
+        Mu metric value (1.0 = no overfit, <0.85 = overfit)
+    Z_fit : NDArray[np.complex128]
+        Fitted impedance
+    residuals_real : NDArray[np.float64]
+        Real part residuals (normalized by |Z|)
+    residuals_imag : NDArray[np.float64]
+        Imaginary part residuals (normalized by |Z|)
+    pseudo_chisqr : float
+        Pseudo chi-squared (Boukamp 1995)
+    noise_estimate : float
+        Estimated noise in percent
+    extend_decades : float
+        Tau range extension in decades
+    inductance : Optional[float]
+        Fitted series inductance [H]
+    elements : NDArray[np.float64]
+        Fitted elements [R_s, R_1, ..., R_M]
+    tau : NDArray[np.float64]
+        Time constants [s]
+    """
+    M: int
+    mu: float
+    Z_fit: NDArray[np.complex128]
+    residuals_real: NDArray[np.float64]
+    residuals_imag: NDArray[np.float64]
+    pseudo_chisqr: float
+    noise_estimate: float
+    extend_decades: float
+    inductance: Optional[float]
+    elements: NDArray[np.float64]
+    tau: NDArray[np.float64]
+
+    @property
+    def mean_residual_real(self) -> float:
+        """Mean absolute real residual in percent."""
+        return float(np.mean(np.abs(self.residuals_real)) * 100)
+
+    @property
+    def mean_residual_imag(self) -> float:
+        """Mean absolute imaginary residual in percent."""
+        return float(np.mean(np.abs(self.residuals_imag)) * 100)
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if data passes KK validation (residuals < 5%)."""
+        return self.mean_residual_real < 5 and self.mean_residual_imag < 5
+
+
 def compute_pseudo_chisqr(
     Z_exp: NDArray[np.complex128],
     Z_fit: NDArray[np.complex128]
@@ -260,7 +317,7 @@ def lin_kk_native(
     weighting: str = 'modulus',
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (0.0, 1.0)
-) -> Tuple[int, float, NDArray[np.complex128], NDArray[np.float64], NDArray[np.float64], Optional[float], float, float, NDArray[np.float64], NDArray[np.float64]]:
+) -> LinKKResult:
     """
     Native Lin-KK implementation using Voigt chain fitting.
 
@@ -293,26 +350,9 @@ def lin_kk_native(
 
     Returns
     -------
-    M : int
-        Optimal number of Voigt elements
-    mu : float
-        Final μ metric value (1.0 = no overfit, <0.85 = stop criterion reached)
-    Z_fit : ndarray of complex
-        Fitted impedance [Ω]
-    res_real : ndarray of float
-        Real part residuals normalized by |Z| (fractional, not %)
-    res_imag : ndarray of float
-        Imaginary part residuals normalized by |Z| (fractional, not %)
-    L_value : float or None
-        Fitted inductance [H] if include_L=True
-    chi2_ps : float
-        Pseudo chi-squared (Boukamp 1995)
-    extend_decades : float
-        Used extend_decades value (0.0 if not auto-optimized)
-    elements : ndarray of float
-        Fitted elements [R_s, R_1, ..., R_M]
-    tau : ndarray of float
-        Time constants [s]
+    LinKKResult
+        Dataclass containing M, mu, Z_fit, residuals, pseudo_chisqr,
+        noise_estimate, extend_decades, inductance, elements, tau.
 
     Notes
     -----
@@ -383,7 +423,19 @@ def lin_kk_native(
     logger.info(f"  Pseudo chi^2: {chi2_ps:.2e}")
     logger.info(f"  Estimated noise: {noise_est:.2f}%")
 
-    return M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, extend_decades, elements, tau
+    return LinKKResult(
+        M=M,
+        mu=mu,
+        Z_fit=Z_fit,
+        residuals_real=res_real,
+        residuals_imag=res_imag,
+        pseudo_chisqr=chi2_ps,
+        noise_estimate=noise_est,
+        extend_decades=extend_decades,
+        inductance=L_value,
+        elements=elements,
+        tau=tau
+    )
 
 
 def kramers_kronig_validation(
@@ -449,7 +501,7 @@ def kramers_kronig_validation(
         #
         # Note: Pseudo chi-squared is still computed with 1/|Z|^2 per Boukamp (1995).
         # The difference only affects fitting, not the final chi^2 metric.
-        M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, ext_dec, elements, tau = lin_kk_native(
+        lkk = lin_kk_native(
             frequencies, Z,
             mu_threshold=mu_threshold,
             max_M=max_M,
@@ -459,26 +511,23 @@ def kramers_kronig_validation(
             auto_extend_decades=auto_extend_decades,
             extend_decades_range=extend_decades_range
         )
-        if L_value is not None:
-            logger.info(f"  Inductance L: {L_value:.3e} H")
+        if lkk.inductance is not None:
+            logger.info(f"  Inductance L: {lkk.inductance:.3e} H")
     except Exception as e:
         logger.error(f"KK validation error: {e}", exc_info=True)
         return None
 
-    if Z_fit is None:
+    if lkk.Z_fit is None:
         return None
 
-    # Compute noise estimate from pseudo chi-squared
-    noise_est = estimate_noise_percent(chi2_ps, len(Z))
-
     # Residuals are normalized by |Z| (fractions), convert to % for evaluation
-    mean_res_real = np.mean(np.abs(res_real)) * 100
-    mean_res_imag = np.mean(np.abs(res_imag)) * 100
+    mean_res_real = lkk.mean_residual_real
+    mean_res_imag = lkk.mean_residual_imag
 
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()
     freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = reconstruct_impedance(freq_plot, elements, tau, L_value, include_L=True)
+    Z_fit_plot = reconstruct_impedance(freq_plot, lkk.elements, lkk.tau, lkk.inductance, include_L=True)
 
     # Visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -489,41 +538,41 @@ def kramers_kronig_validation(
     ax1.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='KK fit', linewidth=2)
     ax1.set_xlabel("Z' [Ω]")
     ax1.set_ylabel("-Z'' [Ω]")
-    ax1.set_title(f"Kramers-Kronig fit in real domain (M={M})")
+    ax1.set_title(f"Kramers-Kronig fit in real domain (M={lkk.M})")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.set_aspect('equal', adjustable='datalim')
 
     # Residuals plot (res_real/res_imag are fractions, convert to %)
     ax2 = axes[1]
-    ax2.semilogx(frequencies, res_real * 100, 'o', label='Real', markersize=4)
-    ax2.semilogx(frequencies, res_imag * 100, 's', label='Imaginary', markersize=4)
+    ax2.semilogx(frequencies, lkk.residuals_real * 100, 'o', label='Real', markersize=4)
+    ax2.semilogx(frequencies, lkk.residuals_imag * 100, 's', label='Imaginary', markersize=4)
     ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
     ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5)
     ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
     ax2.set_xlabel("Frequency [Hz]")
     ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"KK residuals (μ={mu:.3f}, χ²={chi2_ps:.2e}, noise~{noise_est:.1f}%)")
+    ax2.set_title(f"KK residuals (μ={lkk.mu:.3f}, χ²={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
     # Quality assessment
-    if mean_res_real < 5 and mean_res_imag < 5:
+    if lkk.is_valid:
         logger.info("Data quality is good (residuals < 5%)")
     else:
         logger.warning("Data may contain artifacts (residuals >= 5%)")
 
     return KKResult(
-        M=M,
-        mu=mu,
-        Z_fit=Z_fit,
-        residuals_real=res_real,
-        residuals_imag=res_imag,
-        pseudo_chisqr=chi2_ps,
-        noise_estimate=noise_est,
-        extend_decades=ext_dec,
-        inductance=L_value,
+        M=lkk.M,
+        mu=lkk.mu,
+        Z_fit=lkk.Z_fit,
+        residuals_real=lkk.residuals_real,
+        residuals_imag=lkk.residuals_imag,
+        pseudo_chisqr=lkk.pseudo_chisqr,
+        noise_estimate=lkk.noise_estimate,
+        extend_decades=lkk.extend_decades,
+        inductance=lkk.inductance,
         figure=fig
     )
