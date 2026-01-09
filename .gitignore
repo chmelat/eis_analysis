@@ -25,3 +25,15 @@ scratch*.py
 *.swo
 *.swn
 .mypy_cache/
+
+# Output files
+*.pdf
+out*.txt
+test*.txt
+z*.txt
+
+# Test scripts
+mod*.sh
+
+# Symlinks to data in root
+/EIS_*.dta

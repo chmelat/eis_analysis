@@ -4,6 +4,17 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.11.2 (2026-01-09)
+
+### Improvements
+
+- Simplified Z-HIT phase derivative calculation
+  - Replaced 9-line manual central differences with `np.gradient()`
+  - Cleaner code, same numerical behavior
+  - Correctly handles non-equidistant frequency data
+
+---
+
 ## Version 0.11.1 (2026-01-09)
 
 ### Fixes

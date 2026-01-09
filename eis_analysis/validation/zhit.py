@@ -231,17 +231,9 @@ def zhit_reconstruct_magnitude(
     if not use_second_order:
         return ln_Z_first_order
 
-    # Second order correction: subtract weighted derivative of phase
-    # d(phi)/d(ln omega) computed via central differences
-    d_phi_d_ln_omega = np.zeros(n)
-
-    # Central differences for interior points
-    for i in range(1, n - 1):
-        d_phi_d_ln_omega[i] = (phi[i + 1] - phi[i - 1]) / (ln_omega[i + 1] - ln_omega[i - 1])
-
-    # Forward/backward differences at boundaries
-    d_phi_d_ln_omega[0] = (phi[1] - phi[0]) / (ln_omega[1] - ln_omega[0])
-    d_phi_d_ln_omega[-1] = (phi[-1] - phi[-2]) / (ln_omega[-1] - ln_omega[-2])
+    # Second order correction: derivative of phase
+    # np.gradient handles non-equidistant data correctly
+    d_phi_d_ln_omega = np.gradient(phi, ln_omega)
 
     # Second-order correction coefficient gamma = -pi/6
     # Derived from Taylor expansion of the Hilbert transform kernel in log-omega space.
