@@ -128,7 +128,7 @@ w = 1 / |Z|^2
 chi^2_ps = SUM[ w_i * ((Z'_exp - Z'_fit)^2 + (Z''_exp - Z''_fit)^2) ]
 
 where:
-  w_i = 1 / (Z'_i^2 + Z''_i^2)  ... modulus weighting
+  w_i = 1 / (Z'_i^2 + Z''_i^2)  ... proportional weighting (1/|Z|^2)
   Z' = real part of impedance
   Z'' = imaginary part of impedance
 ```
@@ -158,12 +158,38 @@ noise [%] = sqrt(chi^2_ps * 5000 / N)
 where:
   chi^2_ps = pseudo chi-squared
   N = number of data points
-  5000 = empirical constant from literature
+  5000 = 100^2 / 2 (theoretical constant, see derivation below)
 ```
+
+**Derivation:**
+
+Assuming residuals are caused by noise with standard deviation sigma (as fraction of |Z|):
+```
+Z'_exp - Z'_fit ~ sigma * |Z|
+Z''_exp - Z''_fit ~ sigma * |Z|
+```
+
+Substituting into chi^2_ps with w_i = 1/|Z|^2:
+```
+chi^2_ps = SUM[ 1/|Z|^2 * (sigma^2*|Z|^2 + sigma^2*|Z|^2) ]
+         = SUM[ 2 * sigma^2 ]
+         = 2 * N * sigma^2
+```
+
+Solving for sigma and converting to percentage:
+```
+sigma = sqrt(chi^2_ps / (2*N))
+noise [%] = 100 * sigma = sqrt(chi^2_ps * 100^2 / (2*N))
+          = sqrt(chi^2_ps * 5000 / N)
+```
+
+The constant 5000 = 100^2 / 2 comes from:
+- 100^2: conversion from fraction to percentage
+- 2: factor for real + imaginary components
 
 **Interpretation:**
 - Estimates noise standard deviation as percentage of |Z|
-- Assumes deviations from KK fit are caused by noise
+- Assumes deviations from KK fit are caused by random noise
 
 **Typical values:**
 - noise < 1%: High quality data

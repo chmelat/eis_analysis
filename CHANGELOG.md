@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.11.1 (2026-01-09)
+
+### Fixes
+
+- Fixed `--auto-extend` optimization searching unnecessary negative range
+  - `extend_decades` works in TIME DOMAIN (extends tau_max toward higher values / lower frequencies)
+  - Negative values have no effect (cannot extend toward higher frequencies)
+  - Search range changed from `(-max, +max)` to `(0, +max)`
+- Fixed optimizer returning boundary value (-4.0) when chi-squared is flat
+  - Now prefers values closer to 0 when multiple values have same chi-squared
+- Fixed `extend_decades` parameter documentation to clarify time domain behavior
+
+### Documentation
+
+- Added `doc/VALIDATION_METHOD_COMPARISON.md` - comprehensive comparison of Lin-KK vs Z-HIT validation methods
+  - Explains when Lin-KK fails (capacitive/inductive data with phase near +/-90 degrees)
+  - Documents structural limitations of Voigt chain model
+  - Provides recommendations for choosing validation method
+- Updated `doc/WEIGHTING_AND_STATISTICS.md`:
+  - Fixed incorrect "modulus weighting" comment in chi-squared definition (should be "proportional")
+  - Added theoretical derivation for noise estimation formula (constant 5000 = 100^2/2)
+- Updated `doc/CODE_ANALYSIS_REPORT.md` to version 0.11.0
+
+---
+
 ## Version 0.11.0 (2026-01-08)
 
 ### Breaking Changes

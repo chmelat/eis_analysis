@@ -174,7 +174,7 @@ def find_optimal_extend_decades(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     M: int,
-    search_range: Tuple[float, float] = (-1.0, 1.0),
+    search_range: Tuple[float, float] = (0.0, 1.0),
     n_evaluations: int = 11,
     include_L: bool = True,
     fit_type: str = 'real',
@@ -185,6 +185,10 @@ def find_optimal_extend_decades(
 
     Uses grid search over the specified range.
 
+    Note: extend_decades works in TIME DOMAIN - it extends tau_max toward
+    higher values (i.e., toward lower frequencies). Negative values are
+    clipped to 0 since extension toward higher frequencies is not supported.
+
     Parameters
     ----------
     frequencies : array
@@ -194,7 +198,8 @@ def find_optimal_extend_decades(
     M : int
         Number of Voigt elements (from mu optimization)
     search_range : tuple
-        Min and max extend_decades to search (default: -1.0 to 1.0)
+        Min and max extend_decades to search (default: 0.0 to 1.0).
+        Values are clipped to >= 0.
     n_evaluations : int
         Number of grid points (default: 11)
     include_L : bool
@@ -236,7 +241,12 @@ def find_optimal_extend_decades(
         results.append((ext_dec, chi2, tau, elements, L_value))
 
     # Find minimum chi^2
-    best = min(results, key=lambda x: x[1])
+    # When there are ties (or near-ties within 0.1%), prefer extend_decades closer to 0
+    min_chi2 = min(r[1] for r in results)
+    tolerance = 0.001 * min_chi2  # 0.1% tolerance
+    near_optimal = [r for r in results if r[1] <= min_chi2 + tolerance]
+    # Among near-optimal, choose the one closest to extend_decades=0
+    best = min(near_optimal, key=lambda x: abs(x[0]))
     return best[0], best[1], best[2], best[3], best[4]
 
 
@@ -249,7 +259,7 @@ def lin_kk_native(
     fit_type: str = 'real',
     weighting: str = 'modulus',
     auto_extend_decades: bool = False,
-    extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
+    extend_decades_range: Tuple[float, float] = (0.0, 1.0)
 ) -> Tuple[int, float, NDArray[np.complex128], NDArray[np.float64], NDArray[np.float64], Optional[float], float, float, NDArray[np.float64], NDArray[np.float64]]:
     """
     Native Lin-KK implementation using Voigt chain fitting.
@@ -382,7 +392,7 @@ def kramers_kronig_validation(
     mu_threshold: float = 0.85,
     max_M: int = 50,
     auto_extend_decades: bool = False,
-    extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
+    extend_decades_range: Tuple[float, float] = (0.0, 1.0)
 ) -> Optional[KKResult]:
     """
     Perform Kramers-Kronig validation test on EIS data.

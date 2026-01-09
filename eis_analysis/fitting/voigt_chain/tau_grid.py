@@ -32,8 +32,10 @@ def generate_tau_grid(
         Number of tau values per decade (default: 3)
         Higher values -> better resolution, more parameters
     extend_decades : float, optional
-        Extend tau range toward lower frequencies (default: 0.0 for Lin-KK compatibility)
-        Set to >0 to capture slow processes beyond measured range
+        Extend tau range in TIME DOMAIN toward higher tau values, i.e., toward
+        lower frequencies (default: 0.0 for Lin-KK compatibility).
+        Set to >0 to capture slow processes beyond measured range.
+        Negative values are treated as 0 (no extension toward higher frequencies)
 
     Returns
     -------
@@ -61,6 +63,8 @@ def generate_tau_grid(
 
     # Extend toward LOWER frequencies (higher tau) if requested
     # tau = 1/(2*pi*f), so lower f -> higher tau
+    # Negative values are clipped to 0 (no extension toward higher frequencies)
+    extend_decades = max(0.0, extend_decades)
     if extend_decades > 0:
         f_min_extended = f_min / (10 ** extend_decades)
     else:
@@ -109,7 +113,9 @@ def generate_tau_grid_fixed_M(
     M : int
         Exact number of time constants to generate
     extend_decades : float, optional
-        Extend tau range toward lower frequencies (default: 0.0 for Lin-KK compatibility)
+        Extend tau range in TIME DOMAIN toward higher tau values, i.e., toward
+        lower frequencies (default: 0.0 for Lin-KK compatibility).
+        Negative values are treated as 0 (no extension toward higher frequencies)
 
     Returns
     -------
@@ -133,6 +139,8 @@ def generate_tau_grid_fixed_M(
     f_max = frequencies.max()
 
     # Extend toward LOWER frequencies (higher tau) if requested
+    # Negative values are clipped to 0 (no extension toward higher frequencies)
+    extend_decades = max(0.0, extend_decades)
     if extend_decades > 0:
         f_min_extended = f_min / (10 ** extend_decades)
     else:

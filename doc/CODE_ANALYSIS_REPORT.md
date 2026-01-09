@@ -1,7 +1,7 @@
 # EIS Analysis Toolkit - Code Analysis Report
 
-**Date:** 2026-01-04
-**Version:** 0.9.0
+**Date:** 2026-01-09
+**Version:** 0.11.0
 **Analyzed:** Project structure, modular architecture, API design
 
 ---
@@ -14,10 +14,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Python files in package | 42 |
-| Total lines of code (package) | 10,211 |
-| CLI script (eis.py) | 1,037 lines |
-| Largest module | `drt/core.py` (832 lines) |
+| Python files in package | 43 |
+| Total lines of code (package) | 11,011 |
+| CLI script (eis.py) | 1,107 lines |
+| Largest module | `drt/core.py` (837 lines) |
 
 ---
 
@@ -27,50 +27,51 @@
 
 ```
 eis_analysis/
-├── __init__.py             (121 lines)  Public API exports
-├── version.py              (23 lines)   Version management
+├── __init__.py             (122 lines)  Public API exports
+├── version.py              (24 lines)   Version management
 │
 ├── io/                     (750 lines)
 │   ├── __init__.py         (23 lines)   Exports
 │   ├── data_loading.py     (650 lines)  Gamry DTA, CSV parser, metadata
 │   └── synthetic.py        (77 lines)   Test data generation (Rs-RQ-RQ)
 │
-├── validation/             (242 lines)
-│   ├── __init__.py         (12 lines)   Exports
-│   └── kramers_kronig.py   (230 lines)  Lin-KK validation
+├── validation/             (1,013 lines)
+│   ├── __init__.py         (31 lines)   Exports
+│   ├── kramers_kronig.py   (519 lines)  Lin-KK validation
+│   └── zhit.py             (463 lines)  Z-HIT validation
 │
 ├── rinf_estimation/        (735 lines)
 │   ├── __init__.py         (25 lines)   Exports
 │   ├── rlk_fit.py          (612 lines)  R-L-K() fitting + polynomial extrapolation
 │   └── data_selection.py   (98 lines)   HF data selection
 │
-├── drt/                    (1,709 lines)
+├── drt/                    (1,714 lines)
 │   ├── __init__.py         (26 lines)   Exports
-│   ├── core.py             (832 lines)  Main DRT orchestration
+│   ├── core.py             (837 lines)  Main DRT orchestration
 │   ├── gcv.py              (416 lines)  Lambda selection (GCV, L-curve)
 │   ├── peaks.py            (224 lines)  Peak detection (scipy, GMM)
 │   └── term_classification.py (211 lines)  Peak classification
 │
-├── fitting/                (5,617 lines total)
+├── fitting/                (5,636 lines total)
 │   ├── __init__.py         (141 lines)  Public API
 │   ├── circuit_elements.py (556 lines)  R, C, Q, L, W, Wo, K
 │   ├── circuit_builder.py  (313 lines)  Series, Parallel operators
-│   ├── circuit.py          (538 lines)  fit_equivalent_circuit()
+│   ├── circuit.py          (539 lines)  fit_equivalent_circuit()
 │   ├── auto_suggest.py     (528 lines)  DRT -> Voigt analysis
 │   ├── covariance.py       (265 lines)  Uncertainty quantification
-│   ├── diagnostics.py      (238 lines)  Fit quality assessment
+│   ├── diagnostics.py      (240 lines)  Fit quality assessment
 │   ├── bounds.py           (170 lines)  Parameter bounds
 │   ├── config.py           (193 lines)  Constants
 │   ├── jacobian.py         (389 lines)  Analytic Jacobian
-│   ├── multistart.py       (483 lines)  Multi-start optimization
-│   ├── diffevo.py          (516 lines)  Differential Evolution
+│   ├── multistart.py       (490 lines)  Multi-start optimization
+│   ├── diffevo.py          (522 lines)  Differential Evolution
 │   │
-│   └── voigt_chain/        (1,287 lines)
+│   └── voigt_chain/        (1,290 lines)
 │       ├── __init__.py     (88 lines)   Public API
 │       ├── fitting.py      (532 lines)  fit_voigt_chain_linear()
 │       ├── tau_grid.py     (156 lines)  Tau grid generation
 │       ├── solvers.py      (192 lines)  NNLS, design matrix
-│       ├── mu_optimization.py (216 lines)  Mu metric
+│       ├── mu_optimization.py (219 lines)  Mu metric
 │       └── validation.py   (103 lines)  Input validation
 │
 ├── analysis/               (395 lines)
@@ -103,7 +104,26 @@ eis_analysis/
 
 ## 3. Module Details
 
-### 3.1 rinf_estimation (735 lines)
+### 3.1 validation (1,013 lines)
+
+**Purpose:** Data validation using Kramers-Kronig and Z-HIT algorithms.
+
+**Files:**
+| File | Lines | Purpose |
+|------|-------|---------|
+| `kramers_kronig.py` | 519 | Lin-KK validation |
+| `zhit.py` | 463 | Z-HIT validation |
+| `__init__.py` | 31 | Exports |
+
+**Key functions:**
+- `kramers_kronig_validation()` - Lin-KK validation with auto-M optimization
+- `zhit_validation()` - Z-HIT validation using phase reconstruction
+
+**Result classes:**
+- `KKResult` - Kramers-Kronig validation result
+- `ZHITResult` - Z-HIT validation result
+
+### 3.2 rinf_estimation (735 lines)
 
 **Purpose:** High-frequency R_inf estimation with inductance compensation.
 
@@ -128,7 +148,7 @@ eis_analysis/
 - `method`: 'zero_crossing', 'polynomial', 'hf_fallback', 'zero_fallback', 'rlk_linear'
 - `n_points_used`, `R_squared`, `rel_error`
 
-### 3.2 fitting/voigt_chain (1,287 lines)
+### 3.3 fitting/voigt_chain (1,290 lines)
 
 **Purpose:** Lin-KK compatible Voigt chain fitting using linear regression.
 
@@ -145,7 +165,7 @@ from eis_analysis.fitting.voigt_chain import (
 )
 ```
 
-### 3.3 drt (1,709 lines)
+### 3.4 drt (1,714 lines)
 
 **Purpose:** Distribution of Relaxation Times analysis.
 
@@ -156,7 +176,7 @@ from eis_analysis.fitting.voigt_chain import (
 - `gmm_peak_detection()` - Gaussian Mixture Model peaks
 - `compute_gcv_score()` - GCV score for specific lambda
 
-### 3.4 fitting (5,617 lines total)
+### 3.5 fitting (5,636 lines total)
 
 **Circuit elements:** R, C, Q, L, W, Wo, K
 
@@ -171,7 +191,7 @@ from eis_analysis.fitting.voigt_chain import (
 | `fit_voigt_chain_linear()` | voigt_chain/ | Linear Voigt chain |
 | `make_jacobian_function()` | jacobian.py | Analytic Jacobian factory |
 
-### 3.5 io (750 lines)
+### 3.6 io (750 lines)
 
 **Purpose:** Data loading and synthetic data generation.
 
@@ -185,7 +205,7 @@ from eis_analysis.fitting.voigt_chain import (
 | `log_metadata()` | Log metadata to console |
 | `generate_synthetic_data()` | Rs-(R0||Q0)-(R1||Q1) circuit |
 
-### 3.6 visualization (440 lines)
+### 3.7 visualization (440 lines)
 
 **Purpose:** Plotting functions.
 
@@ -258,15 +278,17 @@ All checks passed!
 
 | File | Lines | Status |
 |------|-------|--------|
-| `drt/core.py` | 832 | OK (well-structured) |
+| `drt/core.py` | 837 | OK (well-structured) |
 | `io/data_loading.py` | 650 | OK |
 | `rinf_estimation/rlk_fit.py` | 612 | OK (polynomial extrapolation added) |
 | `fitting/circuit_elements.py` | 556 | OK |
-| `fitting/circuit.py` | 538 | OK |
+| `fitting/circuit.py` | 539 | OK |
 | `fitting/voigt_chain/fitting.py` | 532 | OK |
 | `fitting/auto_suggest.py` | 528 | OK |
-| `fitting/diffevo.py` | 516 | OK |
-| `fitting/multistart.py` | 483 | OK |
+| `fitting/diffevo.py` | 522 | OK |
+| `validation/kramers_kronig.py` | 519 | OK |
+| `fitting/multistart.py` | 490 | OK |
+| `validation/zhit.py` | 463 | OK (new in v0.10.0) |
 
 All files under 1,000 lines.
 
@@ -285,6 +307,7 @@ from eis_analysis import (
 
     # Validation
     kramers_kronig_validation,
+    zhit_validation,
 
     # R_inf estimation
     estimate_rinf_with_inductance,
@@ -294,7 +317,7 @@ from eis_analysis import (
     gmm_peak_detection, GMM_AVAILABLE,
 
     # Circuit elements
-    R, C, Q, L, W, Wo,
+    R, C, Q, L, W, Wo, K,
 
     # Fitting - single fit
     fit_equivalent_circuit, FitResult,
@@ -372,4 +395,4 @@ usage: eis.py
 ---
 
 *Report generated by code analysis using Claude Code.*
-*Last updated: 2026-01-04*
+*Last updated: 2026-01-09*

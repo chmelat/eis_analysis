@@ -631,7 +631,7 @@ def run_kk_validation(
         frequencies, Z,
         mu_threshold=args.mu_threshold,
         auto_extend_decades=args.auto_extend,
-        extend_decades_range=(-args.extend_decades_max, args.extend_decades_max)
+        extend_decades_range=(0.0, args.extend_decades_max)
     )
     if result is None:
         return None
