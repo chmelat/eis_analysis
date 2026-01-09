@@ -4,6 +4,19 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.12.1 (2026-01-09)
+
+### Improvements
+
+- **Unified DRTResult dataclass:** Removed duplicate `CLIDRTResult` from CLI module
+  - Single source of truth: `eis_analysis.drt.DRTResult`
+  - Re-exported from `eis_analysis.cli` for convenience
+  - Consistent field names: `figure`, `peaks`, `figure_rinf`
+  - Added diagnostic fields: `R_inf`, `R_pol`, `lambda_used`, `reconstruction_error`
+  - Added `success` property and `as_tuple()` method for backward compatibility
+
+---
+
 ## Version 0.12.0 (2026-01-09)
 
 ### Refactoring

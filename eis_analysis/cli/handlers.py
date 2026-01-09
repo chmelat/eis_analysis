@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
 from .logging import log_separator
-from .utils import EISAnalysisError, CLIDRTResult, save_figure, parse_circuit_expression
+from .utils import EISAnalysisError, save_figure, parse_circuit_expression
 from ..validation import kramers_kronig_validation, zhit_validation
-from ..drt import calculate_drt
+from ..drt import calculate_drt, DRTResult
 from ..fitting import (
     fit_equivalent_circuit,
     fit_circuit_multistart,
@@ -211,7 +211,7 @@ def run_drt_analysis(
     args: argparse.Namespace,
     R_inf_computed: Optional[float],
     peak_method: str
-) -> CLIDRTResult:
+) -> DRTResult:
     """
     Run DRT analysis.
 
@@ -231,17 +231,15 @@ def run_drt_analysis(
 
     Returns
     -------
-    CLIDRTResult
+    DRTResult
         Container with tau, gamma, peaks, and figures
     """
     if args.no_drt:
-        return CLIDRTResult(
-            tau=None, gamma=None, peaks_gmm=None, fig_drt=None, fig_rinf=None
-        )
+        return DRTResult()
 
     use_auto_lambda = args.lambda_reg is None
 
-    tau, gamma, fig_drt, peaks_gmm, fig_rinf = calculate_drt(
+    tau, gamma, fig_drt, peaks, fig_rinf = calculate_drt(
         frequencies, Z,
         n_tau=args.n_tau,
         lambda_reg=args.lambda_reg,
@@ -260,12 +258,12 @@ def run_drt_analysis(
     if not args.ri_fit:
         save_figure(fig_rinf, args.save, 'ri_fit', args.format)
 
-    return CLIDRTResult(
+    return DRTResult(
         tau=tau,
         gamma=gamma,
-        peaks_gmm=peaks_gmm,
-        fig_drt=fig_drt,
-        fig_rinf=fig_rinf
+        figure=fig_drt,
+        peaks=peaks,
+        figure_rinf=fig_rinf
     )
 
 
@@ -274,7 +272,7 @@ def run_drt_analysis(
 # =============================================================================
 
 def run_voigt_analysis(
-    drt_result: CLIDRTResult,
+    drt_result: DRTResult,
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace
@@ -284,7 +282,7 @@ def run_voigt_analysis(
 
     Parameters
     ----------
-    drt_result : CLIDRTResult
+    drt_result : DRTResult
         DRT analysis results
     frequencies : ndarray
         Frequency array [Hz]
@@ -301,7 +299,7 @@ def run_voigt_analysis(
     try:
         voigt_info = analyze_voigt_elements(
             drt_result.tau, drt_result.gamma, frequencies, Z,
-            peaks_gmm=drt_result.peaks_gmm,
+            peaks_gmm=drt_result.peaks,
             classify_terms=args.classify_terms
         )
         report = format_voigt_report(voigt_info)

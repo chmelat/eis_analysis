@@ -2,7 +2,7 @@
 DRT (Distribution of Relaxation Times) analysis module.
 """
 
-from .core import calculate_drt
+from .core import calculate_drt, DRTResult
 from .gcv import (
     compute_gcv_score,
     find_optimal_lambda_gcv,
@@ -15,6 +15,7 @@ from .peaks import gmm_peak_detection, GMM_AVAILABLE
 
 __all__ = [
     'calculate_drt',
+    'DRTResult',
     'compute_gcv_score',
     'find_optimal_lambda_gcv',
     'find_optimal_lambda_hybrid',

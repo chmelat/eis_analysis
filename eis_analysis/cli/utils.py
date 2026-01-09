@@ -58,34 +58,6 @@ class LoadedData:
     ocv_data: Optional[dict] = None
 
 
-@dataclass
-class CLIDRTResult:
-    """
-    Container for DRT analysis results in CLI context.
-
-    This is a simplified wrapper for CLI use. For full DRT results,
-    use eis_analysis.drt.DRTResult directly.
-
-    Attributes
-    ----------
-    tau : ndarray or None
-        Time constants [s]
-    gamma : ndarray or None
-        DRT spectrum [Ohm]
-    peaks_gmm : list or None
-        GMM-detected peaks
-    fig_drt : Figure or None
-        DRT plot figure
-    fig_rinf : Figure or None
-        R_inf estimation figure
-    """
-    tau: Optional[NDArray]
-    gamma: Optional[NDArray]
-    peaks_gmm: Optional[list]
-    fig_drt: Optional[plt.Figure]
-    fig_rinf: Optional[plt.Figure]
-
-
 # =============================================================================
 # Helper Functions
 # =============================================================================

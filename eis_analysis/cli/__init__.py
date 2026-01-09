@@ -26,10 +26,11 @@ from .handlers import (
 from .utils import (
     EISAnalysisError,
     LoadedData,
-    CLIDRTResult,
     save_figure,
     parse_circuit_expression,
 )
+# Re-export DRTResult from drt module (single source of truth)
+from ..drt import DRTResult
 
 __all__ = [
     # Logging
@@ -51,7 +52,7 @@ __all__ = [
     # Utils
     'EISAnalysisError',
     'LoadedData',
-    'CLIDRTResult',
+    'DRTResult',
     'save_figure',
     'parse_circuit_expression',
 ]
