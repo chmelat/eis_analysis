@@ -6,13 +6,16 @@ __pycache__/
 venv/
 .venv/
 
-# Obrázky
+# Obrázky (výstupní soubory)
 *.png
 *.jpg
 *.jpeg
 *.gif
 *.svg
 *.eps
+
+# Výjimka: dokumentační obrázky
+!doc/images/*.png
 
 # Pracovní soubory
 *_temp.py
