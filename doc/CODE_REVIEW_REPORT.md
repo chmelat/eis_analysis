@@ -1,10 +1,10 @@
 # Code Review Report: EIS Analysis Toolkit
 
 **Datum:** 2026-01-09
-**Verze:** 0.12.1
+**Verze:** 0.13.1
 **Reviewer:** Claude Code (Opus 4.5)
 **Rozsah:** Kritická analýza z hlediska čistoty designu a jasnosti zápisu
-**Poslední aktualizace:** 2026-01-09 (po refactoringu)
+**Poslední aktualizace:** 2026-01-10
 
 ---
 
@@ -12,16 +12,17 @@
 
 EIS Analysis Toolkit je **dobře strukturovaný** vědecký software s jasnou modulární architekturou. Kód je převážně čitelný a dobře dokumentovaný.
 
-**Stav po refactoringu v0.12.0-0.12.1:**
+**Stav po refactoringu v0.12.0-0.13.1:**
 
 | Problém | Stav | Verze |
 |---------|------|-------|
 | Přerostlý CLI soubor (1107 řádků) | VYŘEŠENO | v0.12.0 |
 | Duplicitní datové struktury | VYŘEŠENO | v0.12.1 |
 | Nestrukturované CLI argumenty | VYŘEŠENO | v0.12.0 |
-| Verbose logging v core modulech | Otevřeno | - |
+| Verbose logging v core modulech | VYŘEŠENO | v0.13.0 |
+| Nekonzistentní error handling | VYŘEŠENO | v0.13.1 |
 
-Celkové hodnocení: **A-** (velmi dobré)
+Celkové hodnocení: **A** (výborné)
 
 ---
 
@@ -141,28 +142,25 @@ class DRTResult:
 
 ---
 
-### 3.3 STŘEDNÍ: Verbose logging v core modulech
+### 3.3 ~~STŘEDNÍ: Verbose logging v core modulech~~ VYŘEŠENO v0.13.0
 
-**Lokace:** `drt/core.py:181-261` (funkce `_estimate_r_inf`)
+**Řešení implementováno:**
 
-**Popis:** Core algoritmy obsahují rozsáhlý logging místo čistého vrácení dat.
+- Core moduly nyní vrací strukturovaná data (dataclasses) místo logging
+- Veškerý uživatelský výstup řídí CLI vrstva
+- Čisté použití jako knihovna bez side effects
 
-**Stav:** OTEVŘENO - nižší priorita po vyřešení kritických problémů
+**Refaktorované moduly:**
+- `drt/core.py` - odstraněno 97 logger volání, přidány strukturované diagnostiky
+- `rinf_estimation/rlk_fit.py` - odstraněno 48 logger volání
+- `fitting/circuit.py` - odstraněno 26 logger volání
+- `fitting/diffevo.py` - odstraněno 33 logger volání
+- `fitting/multistart.py` - odstraněno 17 logger volání
+- `validation/kramers_kronig.py` - odstraněno ~20 logger volání
 
-**Doporučené řešení:**
-```python
-# Core funkce vrací data
-def _estimate_r_inf(...) -> RinfResult:
-    result = RinfResult(R_inf=..., diagnostics=...)
-    return result
-
-# CLI vrstva loguje
-def run_rinf_estimation(...):
-    result = _estimate_r_inf(...)
-    logger.info(f"R_inf = {result.R_inf:.3f} Ω")
-```
-
-**Priorita:** STŘEDNÍ
+**Nové diagnostické dataclasses:**
+- `DRTDiagnostics`, `RinfEstimate`, `LambdaSelection`
+- `FitDiagnostics`, `MultistartDiagnostics`, `DiffEvoDiagnostics`
 
 ---
 
@@ -324,16 +322,19 @@ NumPy-style dokumentace s Parameters, Returns, Examples.
 
 ## 7. Závěr
 
-EIS Analysis Toolkit je **kvalitní vědecký software** s dobrou architekturou.
+EIS Analysis Toolkit je **kvalitní vědecký software** s výbornou architekturou.
 
-**Po refactoringu v0.12.0-0.12.1:**
+**Po refactoringu v0.12.0-0.13.1:**
 - CLI vrstva je nyní čistě oddělena a modulární
 - Duplicitní datové struktury byly sjednoceny
+- Verbose logging přesunut z core do CLI vrstvy
+- Error handling sjednocen napříč moduly
 - Kód je lépe testovatelný a udržovatelný
 
-**Zbývající práce:**
-- Dokumentovat konstanty v drt/core.py (nízká priorita)
-- Vyčistit zastaralé komentáře (nízká priorita)
+**Zbývající práce (nízká priorita):**
+- Dokumentovat konstanty v drt/core.py
+- Vyčistit zastaralé komentáře
+- Přesunout inline importy na začátek souborů
 
 ---
 
