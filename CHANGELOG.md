@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.1 (2026-01-10)
+
+### Improvements
+
+- **Unified error handling pattern across modules:**
+  - `KKResult` dataclass extended with `error` field and `success` property
+  - `kramers_kronig_validation()` returns `KKResult(error=...)` instead of `None`
+  - `MultistartDiagnostics` extended with `failed_errors` field for tracking failed fits
+  - Silent exception swallowing in `multistart.py` replaced with DEBUG logging
+
+### Usage
+
+```python
+# New pattern for KK validation
+result = kramers_kronig_validation(freq, Z)
+if not result.success:
+    print(f"Validation failed: {result.error}")
+
+# Access multistart failure diagnostics
+if ms_result.diagnostics.failed_errors:
+    print(f"Failed fits: {ms_result.diagnostics.failed_errors}")
+```
+
+---
+
 ## Version 0.13.0 (2026-01-10)
 
 ### Breaking Changes

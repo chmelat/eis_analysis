@@ -40,6 +40,7 @@ class MultistartDiagnostics:
     perturbation_method: str  # 'covariance', 'stderr', 'log_uniform'
 
     warnings: List[str] = field(default_factory=list)
+    failed_errors: List[str] = field(default_factory=list)  # Exception messages from failed fits
 
 
 @dataclass
@@ -204,6 +205,7 @@ def fit_circuit_multistart(
     all_errors = []
     n_successful = 0
     diag_warnings = []
+    failed_errors = []  # Track exceptions from failed fits
     perturbation_method = 'covariance'
 
     jacobian_type = 'analytic' if use_analytic_jacobian else 'numeric'
@@ -245,7 +247,9 @@ def fit_circuit_multistart(
                 use_analytic_jacobian=use_analytic_jacobian
             )
             return result
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Multistart fit #{start_idx} failed: {e}")
+            failed_errors.append(f"Start #{start_idx}: {e}")
             return None
 
     # Generate all perturbations
@@ -318,7 +322,8 @@ def fit_circuit_multistart(
         best_start_index=best_idx,
         all_errors=all_errors,
         perturbation_method=perturbation_method,
-        warnings=diag_warnings
+        warnings=diag_warnings,
+        failed_errors=failed_errors
     )
 
     # Create visualization for best result

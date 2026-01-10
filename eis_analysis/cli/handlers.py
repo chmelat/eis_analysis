@@ -79,7 +79,8 @@ def run_kk_validation(
         auto_extend_decades=args.auto_extend,
         extend_decades_range=(0.0, args.extend_decades_max)
     )
-    if result is None:
+    if not result.success:
+        logger.warning(f"KK validation failed: {result.error}")
         return None
 
     save_figure(result.figure, args.save, 'kk', args.format)

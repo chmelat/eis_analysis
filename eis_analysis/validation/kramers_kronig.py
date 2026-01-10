@@ -25,14 +25,14 @@ class KKResult:
     Attributes
     ----------
     M : int
-        Number of Voigt elements used
+        Number of Voigt elements used (0 if failed)
     mu : float
         Mu metric value (1.0 = no overfit, <0.85 = overfit)
-    Z_fit : NDArray[np.complex128]
+    Z_fit : NDArray[np.complex128] or None
         Fitted impedance
-    residuals_real : NDArray[np.float64]
+    residuals_real : NDArray[np.float64] or None
         Real part residuals (normalized by |Z|)
-    residuals_imag : NDArray[np.float64]
+    residuals_imag : NDArray[np.float64] or None
         Imaginary part residuals (normalized by |Z|)
     pseudo_chisqr : float
         Pseudo chi-squared (Boukamp 1995)
@@ -44,32 +44,48 @@ class KKResult:
         Fitted series inductance [H]
     figure : Optional[plt.Figure]
         Visualization figure
+    warnings : List[str]
+        Warning messages
+    error : Optional[str]
+        Error message if validation failed
     """
-    M: int
-    mu: float
-    Z_fit: NDArray[np.complex128]
-    residuals_real: NDArray[np.float64]
-    residuals_imag: NDArray[np.float64]
-    pseudo_chisqr: float
-    noise_estimate: float
+    M: int = 0
+    mu: float = 0.0
+    Z_fit: Optional[NDArray[np.complex128]] = None
+    residuals_real: Optional[NDArray[np.float64]] = None
+    residuals_imag: Optional[NDArray[np.float64]] = None
+    pseudo_chisqr: float = 0.0
+    noise_estimate: float = 0.0
     extend_decades: float = 0.0
     inductance: Optional[float] = None
     figure: Optional[plt.Figure] = None
     warnings: List[str] = field(default_factory=list)
+    error: Optional[str] = None
+
+    @property
+    def success(self) -> bool:
+        """Check if KK validation completed successfully."""
+        return self.Z_fit is not None and self.residuals_real is not None
 
     @property
     def mean_residual_real(self) -> float:
         """Mean absolute real residual in percent."""
+        if self.residuals_real is None:
+            return float('inf')
         return float(np.mean(np.abs(self.residuals_real)) * 100)
 
     @property
     def mean_residual_imag(self) -> float:
         """Mean absolute imaginary residual in percent."""
+        if self.residuals_imag is None:
+            return float('inf')
         return float(np.mean(np.abs(self.residuals_imag)) * 100)
 
     @property
     def is_valid(self) -> bool:
         """Check if data passes KK validation (residuals < 5%)."""
+        if not self.success:
+            return False
         return self.mean_residual_real < 5 and self.mean_residual_imag < 5
 
 
@@ -443,8 +459,9 @@ def kramers_kronig_validation(
 
     Returns
     -------
-    KKResult or None
-        Result object with all diagnostics, or None if validation fails.
+    KKResult
+        Result object with all diagnostics. Check result.success to verify
+        validation completed successfully.
     """
     warnings = []
 
@@ -460,11 +477,11 @@ def kramers_kronig_validation(
             extend_decades_range=extend_decades_range
         )
     except Exception as e:
-        logger.error(f"KK validation error: {e}")
-        return None
+        logger.debug(f"KK validation error: {e}")
+        return KKResult(error=str(e))
 
     if lkk.Z_fit is None:
-        return None
+        return KKResult(error="KK fitting failed - could not fit Voigt chain")
 
     # Quality assessment
     if not lkk.is_valid:
