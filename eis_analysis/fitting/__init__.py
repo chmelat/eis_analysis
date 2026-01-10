@@ -20,7 +20,8 @@ Circuit Elements:
 - L: Inductor
 - W: Warburg semi-infinite diffusion
 - Wo: Warburg bounded diffusion
-- K: Voigt element with tau parametrization (R, τ)
+- K: Voigt element with tau parametrization (R, tau)
+- G: Gerischer element for reaction-diffusion (sigma, tau)
 
 Main Functions:
 - fit_equivalent_circuit: Fit circuit to impedance data
@@ -62,7 +63,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, W, Wo, K, CircuitElement
+from .circuit_elements import R, C, Q, L, W, Wo, K, G, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -110,6 +111,7 @@ __all__ = [
     'W',
     'Wo',
     'K',
+    'G',
     'CircuitElement',
 
     # Circuit builders

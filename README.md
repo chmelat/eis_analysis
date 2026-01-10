@@ -187,6 +187,7 @@ Elegant operator overloading syntax for circuit definition.
 | `W(sigma)` | Warburg (semi-infinite) | `W(50)` |
 | `Wo(R_W, tau)` | Warburg (bounded) | `Wo(100, 1.0)` |
 | `K(R, tau)` | Voigt with tau parametrization | `K(1000, 1e-4)` |
+| `G(sigma, tau)` | Gerischer (reaction-diffusion) | `G(100, 1e-3)` |
 
 Values in parentheses serve as initial guesses for the nonlinear fitting algorithm.
 Values in quotes (e.g., `R("100")`) are treated as fixed constants and will not be fitted.

@@ -553,4 +553,95 @@ class K(CircuitElement):
         return 1.0 / (2 * np.pi * self.tau)
 
 
-__all__ = ['R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'CircuitElement']
+# ============================================================================
+# Gerischer Element (coupled reaction-diffusion)
+# ============================================================================
+
+class G(CircuitElement):
+    """
+    Gerischer element for coupled reaction-diffusion processes.
+
+    Z_G = sigma / sqrt(1 + j*omega*tau)
+
+    Models systems where diffusion is coupled with a first-order chemical
+    reaction, such as:
+    - SOFC cathodes (oxygen reduction)
+    - Porous electrodes with surface reactions
+    - Mixed ionic-electronic conductors (MIECs)
+
+    Parameters
+    ----------
+    sigma : float or str, optional
+        Pre-factor [Ohm*s^(1/2)] (default: 100.0)
+        Related to the diffusion-reaction resistance.
+        If passed as string, the parameter is fixed during fitting.
+    tau : float or str, optional
+        Reaction time constant [s] (default: 1e-3)
+        If passed as string, the parameter is fixed during fitting.
+
+    Notes
+    -----
+    Limiting behavior:
+    - omega -> 0: Z -> sigma (real resistance)
+    - omega -> inf: Z -> 0 (Warburg-like decay)
+
+    Nyquist plot shows an asymmetric arc with a characteristic
+    "tail" toward low frequencies, distinct from a symmetric
+    RC semicircle.
+
+    The Gerischer element differs from Warburg:
+    - Warburg: pure diffusion (Z ~ 1/sqrt(omega))
+    - Gerischer: diffusion + reaction (Z ~ 1/sqrt(1 + j*omega*tau))
+
+    Examples
+    --------
+    >>> g = G(100, 1e-3)       # sigma=100, tau=1ms, both free
+    >>> g = G()                # default values (both free)
+    >>> g = G("100", 1e-3)     # sigma fixed, tau free
+    >>> g = G("100", "1e-3")   # Both parameters fixed
+
+    Typical circuit: R_s - G (series resistance + Gerischer)
+    >>> circuit = R(10) - G(100, 1e-3)
+
+    References
+    ----------
+    Gerischer, H. "Wechselstrompolarisation von Elektroden mit einem
+    potentialbestimmenden Schritt beim Gleichgewichtspotential I"
+    Zeitschrift fur Physikalische Chemie, 198, 286-313 (1951)
+    """
+
+    def __init__(self, sigma: Union[float, str] = 100.0,
+                 tau: Union[float, str] = 1e-3):
+        super().__init__(sigma, tau)
+        self.sigma = self.params[0]
+        self.tau = self.params[1]
+
+    def impedance(self, freq: NDArray[np.float64],
+                  params: List[float]) -> NDArray[np.complex128]:
+        sigma_val, tau_val = params[0], params[1]
+        omega = 2 * np.pi * freq
+        return sigma_val / np.sqrt(1 + 1j * omega * tau_val)
+
+    def _scale(self, scalar: float) -> 'G':
+        """Scale sigma while preserving tau"""
+        new_sigma = scalar * self.sigma
+        # Preserve fixed status
+        sigma_arg = f'"{new_sigma}"' if self.fixed_params[0] else new_sigma
+        tau_arg = f'"{self.tau}"' if self.fixed_params[1] else self.tau
+        return G(sigma_arg, tau_arg)
+
+    def get_param_labels(self) -> List[str]:
+        return ['σ_G', 'τ_G']
+
+    def __repr__(self) -> str:
+        sigma_str = f'"{self.sigma:.4g}"' if self.fixed_params[0] else f"{self.sigma:.4g}"
+        tau_str = f'"{self.tau:.4g}"' if self.fixed_params[1] else f"{self.tau:.4g}"
+        return f"G(σ={sigma_str}, τ={tau_str})"
+
+    @property
+    def characteristic_freq(self) -> float:
+        """Get characteristic frequency f = 1/(2*pi*tau) [Hz]"""
+        return 1.0 / (2 * np.pi * self.tau)
+
+
+__all__ = ['R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'G', 'CircuitElement']

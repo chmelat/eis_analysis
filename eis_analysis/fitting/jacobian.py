@@ -27,6 +27,7 @@ Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
 W:   Z = s(1-j)/sqrt(w) -> dZ/ds = Z/s
 Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = Z/Rw, dZ/dtau = complex formula
 K:   Z = R/(1+jwt)   -> dZ/dR = Z/R, dZ/dtau = -jw*Z^2/R
+G:   Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
 
 Circuit Composition
 -------------------
@@ -40,7 +41,7 @@ import numpy as np
 from typing import List, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, Q, W, Wo, K, CircuitElement
+from .circuit_elements import R, C, L, Q, W, Wo, K, G, CircuitElement
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -55,7 +56,7 @@ def element_jacobian(
     Parameters
     ----------
     element : CircuitElement
-        Circuit element (R, C, L, Q, W, Wo, K)
+        Circuit element (R, C, L, Q, W, Wo, K, G)
     freq : ndarray of float
         Frequencies [Hz]
     params : list of float
@@ -156,6 +157,21 @@ def element_jacobian(
         dZ_dtau = -1j * omega * Z**2 / R_val
 
         dZ = np.column_stack([dZ_dR, dZ_dtau])
+        return Z, dZ
+
+    # Gerischer element: Z = sigma / sqrt(1 + jw*tau)
+    if isinstance(element, G):
+        sigma_val, tau_val = params[0], params[1]
+        sqrt_term = np.sqrt(1 + 1j * omega * tau_val)
+        Z = sigma_val / sqrt_term
+
+        # dZ/dsigma = 1/sqrt(1 + jw*tau)
+        dZ_dsigma = 1.0 / sqrt_term
+
+        # dZ/dtau = -sigma * jw / (2 * (1 + jw*tau)^(3/2))
+        dZ_dtau = -sigma_val * 1j * omega / (2 * (1 + 1j * omega * tau_val) ** 1.5)
+
+        dZ = np.column_stack([dZ_dsigma, dZ_dtau])
         return Z, dZ
 
     raise NotImplementedError(

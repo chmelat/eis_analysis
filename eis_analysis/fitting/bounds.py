@@ -42,6 +42,12 @@ PARAMETER_BOUNDS = {
 
     # Warburg bounded - diffusion time
     'τ_W': (1e-6, 1e4),
+
+    # Gerischer element - pre-factor (similar to Warburg)
+    'σ_G': (1e-2, 1e8),
+
+    # Gerischer element - reaction time constant
+    'τ_G': (1e-9, 1e4),
 }
 
 DEFAULT_BOUNDS = (1e-15, 1e15)
@@ -63,6 +69,7 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - sigma (Warburg): 0.01 - 100000 Ohm*s^(-1/2)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
     - R_W, tau_W (Warburg bounded): similar to R, tau
+    - sigma_G, tau_G (Gerischer): similar to sigma, tau
 
     Parameters
     ----------

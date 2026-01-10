@@ -4,6 +4,54 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.2 (2026-01-10)
+
+### New Features
+
+- **Gerischer element (G) for reaction-diffusion processes:**
+  - Impedance: `Z = sigma / sqrt(1 + j*omega*tau)`
+  - Models coupled diffusion with first-order chemical reaction
+  - Applications: SOFC cathodes, porous electrodes, MIECs
+  - Full support: operator overloading, analytic Jacobian, bounds
+
+### Usage
+
+```python
+from eis_analysis.fitting import R, G, fit_equivalent_circuit
+
+# Gerischer element with sigma=100, tau=1ms
+g = G(100, 1e-3)
+
+# Circuit: series resistance + Gerischer
+circuit = R(10) - G(100, 1e-3)
+
+# Fixed sigma (won't be fitted)
+circuit = R(10) - G("100", 1e-3)
+
+# Fit to data
+result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+```
+
+### CLI
+
+```bash
+# SOFC cathode model
+eis data.DTA --circuit "R(10) - G(100, 1e-3)"
+
+# With fixed Gerischer pre-factor
+eis data.DTA --circuit 'R(10) - G("100", 1e-3)'
+```
+
+### Files Modified
+
+- `fitting/circuit_elements.py` - Added `G` class
+- `fitting/jacobian.py` - Added analytic Jacobian for G
+- `fitting/bounds.py` - Added bounds for sigma_G, tau_G
+- `fitting/__init__.py` - Export G element
+- `tests/test_G_element.py` - Comprehensive tests
+
+---
+
 ## Version 0.13.1 (2026-01-10)
 
 ### Improvements

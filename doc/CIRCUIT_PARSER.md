@@ -13,7 +13,7 @@ directly in Python using operators.
 
 ```
 eis_analysis/fitting/
-├── circuit_elements.py   # Basic elements (R, C, Q, L, W, Wo, K)
+├── circuit_elements.py   # Basic elements (R, C, Q, L, W, Wo, K, G)
 ├── circuit_builder.py    # Combinators (Series, Parallel)
 └── circuit.py            # Fitting functions
 ```
@@ -38,8 +38,8 @@ Circuit strings are parsed in the `eis.py` file using the `parse_circuit_express
 ```python
 def parse_circuit_expression(expr: str):
     safe_namespace = {
-        'R': R, 'C': C, 'Q': Q,
-        'L': L, 'W': W, 'Wo': Wo, 'K': K
+        'R': R, 'C': C, 'Q': Q, 'L': L,
+        'W': W, 'Wo': Wo, 'K': K, 'G': G
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -235,6 +235,35 @@ Advantages of tau parametrization:
 K(1000, 1e-4)   # R=1k, tau=100us, f=1.59kHz, C=100nF
 ```
 
+### G - Gerischer Element (reaction-diffusion)
+
+```python
+Z_G = sigma / sqrt(1 + j*omega*tau)
+```
+
+Models coupled diffusion with first-order chemical reaction.
+
+| Parameter | Unit         | Default | Description              |
+|-----------|--------------|---------|--------------------------|
+| sigma     | Ohm*s^(1/2)  | 100     | Pre-factor (DC limit)    |
+| tau       | s            | 1e-3    | Reaction time constant   |
+
+Applications:
+- SOFC cathodes (oxygen reduction reaction)
+- Porous electrodes with surface reactions
+- Mixed ionic-electronic conductors (MIECs)
+
+Key differences from other elements:
+- Unlike Warburg: has finite DC resistance (Z(0) = sigma)
+- Unlike Voigt (K): asymmetric arc in Nyquist plot
+- Characteristic frequency: f = 1/(2*pi*tau)
+
+```python
+G(100, 1e-3)        # sigma=100, tau=1ms
+G("100", 1e-3)      # sigma fixed, tau free
+G("100", "1e-3")    # both fixed
+```
+
 
 ## Fixed Parameters
 
@@ -326,6 +355,22 @@ Structure: R_s(fix) - (R1 || Q1) - (R2 || Q2)
 ```python
 R(1) - K(1000, 1e-4) - K(500, 1e-3)
 ```
+
+### Gerischer Element (SOFC cathode)
+
+```python
+R(10) - G(100, 1e-3)
+```
+
+Structure: R_s - G (series resistance + Gerischer reaction-diffusion)
+
+### Mixed Voigt + Gerischer
+
+```python
+R(1) - K(500, 1e-4) - G(100, 1e-3)
+```
+
+Structure: R_s - (R||C) - G (electrolyte + charge transfer + reaction-diffusion)
 
 
 ## Internal Representation
