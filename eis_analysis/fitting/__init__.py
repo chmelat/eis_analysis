@@ -68,7 +68,7 @@ from .circuit_elements import R, C, Q, L, W, Wo, K, CircuitElement
 from .circuit_builder import Series, Parallel, Circuit
 
 # Import main fitting function
-from .circuit import fit_equivalent_circuit, FitResult
+from .circuit import fit_equivalent_circuit, FitResult, FitDiagnostics
 
 # Import covariance for advanced users
 from .covariance import CovarianceResult
@@ -88,6 +88,7 @@ from .voigt_chain import (
 from .multistart import (
     fit_circuit_multistart,
     MultistartResult,
+    MultistartDiagnostics,
     perturb_from_covariance,
     perturb_from_stderr,
 )
@@ -96,6 +97,7 @@ from .multistart import (
 from .diffevo import (
     fit_circuit_diffevo,
     DiffEvoResult,
+    DiffEvoDiagnostics,
     DE_STRATEGIES,
 )
 
@@ -118,6 +120,7 @@ __all__ = [
     # Main API
     'fit_equivalent_circuit',
     'FitResult',
+    'FitDiagnostics',
     'CovarianceResult',
     'analyze_voigt_elements',
     'format_voigt_report',
@@ -131,11 +134,13 @@ __all__ = [
     # Multi-start optimization
     'fit_circuit_multistart',
     'MultistartResult',
+    'MultistartDiagnostics',
     'perturb_from_covariance',
     'perturb_from_stderr',
 
     # Differential evolution optimization
     'fit_circuit_diffevo',
     'DiffEvoResult',
+    'DiffEvoDiagnostics',
     'DE_STRATEGIES',
 ]

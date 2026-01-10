@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.11.1 (2026-01-09)
+**Version:** v0.13.0 (2026-01-10)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -9,6 +9,10 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 - **Reproducibility** - Objective, data-driven parameter selection
 - **Modularity** - Usable as CLI and Python library
 - **Advanced optimization** - Multi-start, Differential Evolution
+
+**Example output:**
+
+![CLI output example](doc/images/cli_output.png)
 
 **Supported data formats:**
 

@@ -1,8 +1,8 @@
 """
 Equivalent circuit fitting module for EIS analysis using operator overloading.
 
-This module provides the main fitting function for equivalent circuits.
-Circuit building uses operator overloading inspired by EISAnalysis.jl (Julia).
+Clean design: No logging in core functions, all diagnostics returned as data.
+CLI layer is responsible for user output.
 
 Usage:
     from eis_analysis.fitting.circuit_elements import R, C, Q, W
@@ -13,8 +13,6 @@ Usage:
 
     # Fit to data
     result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
-
-Author: EIS Analysis Toolkit
 """
 
 import numpy as np
@@ -24,13 +22,13 @@ import warnings
 from typing import Tuple, Union, List, Optional
 from numpy.typing import NDArray
 from scipy.optimize import least_squares, OptimizeWarning
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
 from .bounds import generate_simple_bounds, check_bounds_proximity
-from .diagnostics import compute_weights, check_parameter_diagnostics, compute_fit_metrics, log_fit_results
+from .diagnostics import compute_weights, check_parameter_diagnostics, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
 logger = logging.getLogger(__name__)
@@ -40,6 +38,32 @@ Circuit = Union[CircuitElement, Series, Parallel]
 
 # Valid weighting types
 VALID_WEIGHTINGS = ['uniform', 'sqrt', 'proportional', 'modulus']
+
+
+@dataclass
+class FitDiagnostics:
+    """Diagnostics from circuit fitting."""
+    # Optimization info
+    optimizer_status: int
+    optimizer_message: str
+    optimizer_success: bool
+    n_function_evals: int
+    jacobian_type: str  # 'analytic' or 'numeric'
+
+    # Covariance info
+    condition_number: float
+    covariance_rank: int
+    covariance_warning: Optional[str] = None
+
+    # Bounds info
+    params_at_bounds: List[int] = field(default_factory=list)
+    bounds_warnings: List[str] = field(default_factory=list)
+
+    # Parameter diagnostics
+    param_warnings: List[str] = field(default_factory=list)
+
+    # General warnings
+    warnings: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -67,6 +91,8 @@ class FitResult:
         True if condition number < 1e10 (covariance reliable)
     cov : ndarray of float or None
         Covariance matrix of parameters (None if computation failed)
+    diagnostics : FitDiagnostics or None
+        Detailed diagnostics
     _n_data : int
         Number of data points (internal, for CI computation)
     """
@@ -74,23 +100,18 @@ class FitResult:
     params_opt: NDArray[np.float64]
     params_stderr: NDArray[np.float64]
     fit_error_rel: float
-    fit_error_abs: float
-    quality: str
+    fit_error_abs: float = 0.0
+    quality: str = "unknown"
     condition_number: float = 1.0
     is_well_conditioned: bool = True
     cov: Optional[NDArray[np.float64]] = None
+    diagnostics: Optional[FitDiagnostics] = None
+    param_labels: Optional[List[str]] = None
     _n_data: int = 0
 
     @property
     def params_ci_95(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """
-        95% confidence intervals for parameters.
-
-        Returns
-        -------
-        ci_low, ci_high : tuple of ndarray
-            Lower and upper bounds of 95% CI
-        """
+        """95% confidence intervals for parameters."""
         if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
             return (
                 np.full_like(self.params_opt, -np.inf),
@@ -102,14 +123,7 @@ class FitResult:
 
     @property
     def params_ci_99(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """
-        99% confidence intervals for parameters.
-
-        Returns
-        -------
-        ci_low, ci_high : tuple of ndarray
-            Lower and upper bounds of 99% CI
-        """
+        """99% confidence intervals for parameters."""
         if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
             return (
                 np.full_like(self.params_opt, -np.inf),
@@ -118,6 +132,19 @@ class FitResult:
         return compute_confidence_interval(
             self.params_opt, self.params_stderr, self._n_data, 0.99
         )
+
+    @property
+    def all_warnings(self) -> List[str]:
+        """Collect all warnings from diagnostics."""
+        if self.diagnostics is None:
+            return []
+        warnings = []
+        warnings.extend(self.diagnostics.warnings)
+        warnings.extend(self.diagnostics.bounds_warnings)
+        warnings.extend(self.diagnostics.param_warnings)
+        if self.diagnostics.covariance_warning:
+            warnings.append(self.diagnostics.covariance_warning)
+        return warnings
 
     def __repr__(self) -> str:
         lines = []
@@ -145,41 +172,16 @@ class OptimizationSetup:
     fixed_params: Optional[List[bool]]
     param_labels: Optional[List[str]]
     param_labels_indexed: Optional[List[str]]
+    clipped_params: List[int] = field(default_factory=list)
 
 
-def _prepare_optimization(circuit: Circuit, weighting: str, verbose: bool = True) -> OptimizationSetup:
+def _prepare_optimization(circuit: Circuit, weighting: str) -> OptimizationSetup:
     """
     Prepare optimization setup: extract parameters, labels, bounds.
 
-    Parameters
-    ----------
-    circuit : Circuit
-        Circuit object with initial guess values
-    weighting : str
-        Weighting type for logging
-    verbose : bool
-        Whether to log detailed progress
-
-    Returns
-    -------
-    setup : OptimizationSetup
-        Prepared optimization configuration
+    Returns OptimizationSetup with all necessary configuration.
     """
-    initial_guess = circuit.get_all_params()
-
-    if verbose:
-        logger.info("=" * 50)
-        logger.info("Equivalent circuit fitting")
-        logger.info("=" * 50)
-        logger.info(f"Circuit: {circuit}")
-
-        weighting_labels = {
-            'uniform': 'uniform (w = 1)',
-            'sqrt': 'square root (w = 1/sqrt|Z|)',
-            'modulus': 'modulus (w = 1/|Z|)',
-            'proportional': 'proportional (w = 1/|Z|^2)'
-        }
-        logger.info(f"Weighting: {weighting_labels[weighting]}")
+    initial_guess = list(circuit.get_all_params())
 
     # Get parameter labels
     param_labels_raw = None
@@ -194,48 +196,31 @@ def _prepare_optimization(circuit: Circuit, weighting: str, verbose: bool = True
             else:
                 label_counts[label] = 0
             param_labels_indexed.append(f"{label}{label_counts[label]}")
-        if verbose:
-            logger.info(f"Parameters: {param_labels_indexed}")
-
-    logger.debug(f"Initial guess: {initial_guess}")
-    logger.debug(f"Number of parameters: {len(initial_guess)}")
 
     # Get fixed parameters
     fixed_params = None
     if hasattr(circuit, 'get_all_fixed_params'):
         fixed_params = circuit.get_all_fixed_params()
-        n_fixed = sum(fixed_params)
-        if n_fixed > 0 and verbose:
-            logger.info(f"Fixed parameters: {n_fixed} of {len(fixed_params)}")
-            for i, (is_fixed, val) in enumerate(zip(fixed_params, initial_guess)):
-                if is_fixed:
-                    label = param_labels_indexed[i] if param_labels_indexed else f"p{i}"
-                    logger.info(f"  {label} = {val:.4g} (fixed)")
 
     # Generate bounds
     lower_bounds, upper_bounds = None, None
+    clipped_params = []
     if param_labels_raw is not None:
         lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
-        if verbose:
-            logger.info("Bounds: physically constrained (R: 0.1mOhm-10GOhm, C: 1fF-100mF, n: 0.3-1.0)")
 
         # Clip initial guess to bounds
         initial_guess_clipped = []
-        clipped_any = False
         for i, (ig, lb, ub) in enumerate(zip(initial_guess, lower_bounds, upper_bounds)):
             if ig < lb:
                 initial_guess_clipped.append(lb)
-                clipped_any = True
-                logger.warning(f"  Parameter {i} ({param_labels_raw[i]}): initial guess {ig:.2e} < lower bound {lb:.2e}")
+                clipped_params.append(i)
             elif ig > ub:
                 initial_guess_clipped.append(ub)
-                clipped_any = True
-                logger.warning(f"  Parameter {i} ({param_labels_raw[i]}): initial guess {ig:.2e} > upper bound {ub:.2e}")
+                clipped_params.append(i)
             else:
                 initial_guess_clipped.append(ig)
 
-        if clipped_any:
-            logger.warning("Initial guess was adjusted to fit within bounds")
+        if clipped_params:
             initial_guess = initial_guess_clipped
 
     return OptimizationSetup(
@@ -244,7 +229,8 @@ def _prepare_optimization(circuit: Circuit, weighting: str, verbose: bool = True
         upper_bounds=upper_bounds,
         fixed_params=fixed_params,
         param_labels=param_labels_raw,
-        param_labels_indexed=param_labels_indexed
+        param_labels_indexed=param_labels_indexed,
+        clipped_params=clipped_params
     )
 
 
@@ -255,7 +241,7 @@ def fit_equivalent_circuit(
     weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
     plot: bool = True,
-    verbose: bool = True,
+    verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True
 ) -> Tuple[FitResult, NDArray[np.complex128], Optional[plt.Figure]]:
     """
@@ -264,82 +250,42 @@ def fit_equivalent_circuit(
     Parameters
     ----------
     frequencies : ndarray of float
-        Measurement frequencies [Hz] (N points)
+        Measurement frequencies [Hz]
     Z : ndarray of complex
-        Complex impedance [Ohm] (N points)
+        Complex impedance [Ohm]
     circuit : Circuit
-        Circuit built using operator overloading.
-        Values in circuit serve as INITIAL GUESS for fitting.
+        Circuit built using operator overloading
     weighting : str, optional
-        Weighting type for optimization. Options:
-        - 'uniform': all points equally important (w = 1)
-        - 'sqrt': compromise weighting (w = 1/sqrt|Z|)
-        - 'modulus' (default): inverse weighting (w = 1/|Z|)
-        - 'proportional': strong low-Z emphasis (w = 1/|Z|^2)
-        Weighting affects which frequencies have more influence on fit.
-        Uniform favors low frequencies (large |Z|),
-        modulus equalizes importance across all frequencies.
+        Weighting type: 'uniform', 'sqrt', 'modulus' (default), 'proportional'
     initial_guess : list of float, optional
-        Override initial guess for parameters. If None (default), uses
-        values from circuit object. Useful for multi-start optimization.
+        Override initial guess for parameters
     plot : bool, optional
-        Whether to create visualization plot (default: True).
-        Set to False for multi-start optimization to avoid creating
-        many unnecessary figures.
+        Create visualization plot (default: True)
     verbose : bool, optional
-        Whether to log detailed progress and results (default: True).
-        Set to False for multi-start optimization to reduce output.
+        Ignored (kept for backward compatibility)
     use_analytic_jacobian : bool, optional
-        Use analytic Jacobian for least_squares optimization (default: True).
-        More accurate and faster than numeric approximation.
+        Use analytic Jacobian (default: True)
 
     Returns
     -------
     result : FitResult
-        Fitting results (optimal parameters, errors, quality)
+        Fitting results with all diagnostics
     Z_fit : ndarray of complex
-        Predicted impedance from fit [Ohm]
+        Predicted impedance from fit
     fig : matplotlib.figure.Figure or None
-        Nyquist plot with data and fit (None if plot=False)
-
-    Examples
-    --------
-    >>> from eis_analysis.fitting.circuit_elements import R, C
-    >>> # Voigt element
-    >>> circuit = R(100) - (R(5000) | C(1e-6))
-    >>> result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
-    >>> print(result.params_opt)
-    [98.5, 4823.2, 8.7e-7]
-
-    >>> # Randles circuit
-    >>> from eis_analysis.fitting.circuit_elements import Q, W
-    >>> circuit = R(10) - (R(100) - W(50)) | Q(1e-4, 0.8)
-    >>> result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
-
-    Notes
-    -----
-    Operators:
-    - `-` : series connection (Z = Z1 + Z2)
-    - `|` : parallel connection (1/Z = 1/Z1 + 1/Z2)
-    - `*` : parameter scaling (2*R(100) = R(200))
-    - `**`: exponent for Q/CPE (Q()**0.9)
-
-    See Also
-    --------
-    circuit_elements : Definition of all circuit elements
-    circuit_builder : Series and Parallel combinators
+        Nyquist plot (None if plot=False)
     """
     # Validate weighting parameter
     if weighting not in VALID_WEIGHTINGS:
         raise ValueError(f"weighting must be one of {VALID_WEIGHTINGS}, got '{weighting}'")
 
     # Step 1: Prepare optimization
-    setup = _prepare_optimization(circuit, weighting, verbose)
+    setup = _prepare_optimization(circuit, weighting)
 
     # Save original circuit values for fixed parameters
     circuit_values = list(circuit.get_all_params())
 
-    # Override initial guess if provided (only for FREE parameters)
+    # Override initial guess if provided
     if initial_guess is not None:
         if len(initial_guess) != len(setup.initial_guess):
             raise ValueError(
@@ -357,24 +303,26 @@ def fit_equivalent_circuit(
             upper_bounds=setup.upper_bounds,
             fixed_params=setup.fixed_params,
             param_labels=setup.param_labels,
-            param_labels_indexed=setup.param_labels_indexed
+            param_labels_indexed=setup.param_labels_indexed,
+            clipped_params=setup.clipped_params
         )
-    initial_guess = setup.initial_guess
+
+    initial_guess_list = setup.initial_guess
     lower_bounds = setup.lower_bounds
     upper_bounds = setup.upper_bounds
     fixed_params = setup.fixed_params
     param_labels = setup.param_labels_indexed
 
     # Step 2: Create residual function
-    initial_guess_for_opt = initial_guess
+    initial_guess_for_opt = initial_guess_list
     bounds_for_opt = lower_bounds, upper_bounds
-    initial_guess_full = list(initial_guess)
+    initial_guess_full = list(initial_guess_list)
 
-    # Precompute weights (used by both residual and Jacobian)
+    # Precompute weights
     weights = compute_weights(Z, weighting)
 
     if fixed_params is not None and any(fixed_params):
-        initial_guess_for_opt = [v for v, f in zip(initial_guess, fixed_params) if not f]
+        initial_guess_for_opt = [v for v, f in zip(initial_guess_list, fixed_params) if not f]
         if lower_bounds is not None:
             bounds_for_opt = (
                 [lb for lb, f in zip(lower_bounds, fixed_params) if not f],
@@ -404,7 +352,8 @@ def fit_equivalent_circuit(
                 (Z.imag - Z_pred.imag) * weights
             ])
 
-    # Create Jacobian function if using analytic
+    # Create Jacobian function
+    jacobian_type = 'analytic'
     if use_analytic_jacobian:
         try:
             jac_func = make_jacobian_function(
@@ -412,14 +361,16 @@ def fit_equivalent_circuit(
                 fixed_params=fixed_params,
                 full_initial_guess=initial_guess_full
             )
-        except NotImplementedError as e:
-            if verbose:
-                logger.warning(f"Analytic Jacobian failed: {e}, using numeric")
+        except NotImplementedError:
             jac_func = '2-point'
+            jacobian_type = 'numeric'
     else:
         jac_func = '2-point'
+        jacobian_type = 'numeric'
 
     # Step 3: Run optimization
+    diag_warnings = []
+
     try:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always", OptimizeWarning)
@@ -444,52 +395,68 @@ def fit_equivalent_circuit(
             else:
                 params_opt = params_opt_free
 
-            # Log optimizer status
-            if verbose:
-                logger.info(f"Optimizer status: {opt_result.status} - {opt_result.message}")
             if not opt_result.success:
-                logger.warning("WARNING: Optimizer did not converge!")
-
-            # Step 4: Check bounds proximity
-            if bounds_for_opt[0] is not None:
-                check_bounds_proximity(
-                    params_opt, params_opt_free,
-                    bounds_for_opt[0], bounds_for_opt[1],
-                    fixed_params
-                )
-
-            # Step 5: Compute covariance matrix
-            n_params_total = len(fixed_params) if fixed_params is not None else len(params_opt)
-            cov_result = compute_covariance_matrix(
-                jacobian=opt_result.jac,
-                residuals=opt_result.fun,
-                n_params=n_params_total,
-                fixed_params=fixed_params
-            )
-            params_stderr = cov_result.stderr
-
-            if verbose:
-                logger.info(f"Covariance: cond={cov_result.condition_number:.2e}, rank={cov_result.rank}/{len(params_opt_free)}")
-            if cov_result.warning_message:
-                logger.warning(f"WARNING: {cov_result.warning_message}")
+                diag_warnings.append(f"Optimizer did not converge: {opt_result.message}")
 
             # Check optimizer warnings
             for warning in w:
                 if issubclass(warning.category, OptimizeWarning):
-                    logger.warning(f"Optimizer warning: {warning.message}")
+                    diag_warnings.append(f"Optimizer warning: {warning.message}")
 
-        # Step 6: Run diagnostics (warnings are always shown)
-        if verbose:
-            check_parameter_diagnostics(params_opt, params_stderr, cov_result.cov, param_labels)
+        # Step 4: Check bounds proximity
+        bounds_warnings = []
+        params_at_bounds = []
+        if bounds_for_opt[0] is not None:
+            # Check which parameters are at bounds (silent check)
+            for i, (p, lb, ub) in enumerate(zip(params_opt_free, bounds_for_opt[0], bounds_for_opt[1])):
+                if abs(p - lb) / max(abs(lb), 1e-10) < 0.01:
+                    params_at_bounds.append(i)
+                    bounds_warnings.append(f"Parameter {i} at lower bound")
+                elif abs(p - ub) / max(abs(ub), 1e-10) < 0.01:
+                    params_at_bounds.append(i)
+                    bounds_warnings.append(f"Parameter {i} at upper bound")
+
+        # Step 5: Compute covariance matrix
+        n_params_total = len(fixed_params) if fixed_params is not None else len(params_opt)
+        cov_result = compute_covariance_matrix(
+            jacobian=opt_result.jac,
+            residuals=opt_result.fun,
+            n_params=n_params_total,
+            fixed_params=fixed_params
+        )
+        params_stderr = cov_result.stderr
+
+        # Step 6: Parameter diagnostics (silent check)
+        param_warnings = []
+        for i, (p, s) in enumerate(zip(params_opt, params_stderr)):
+            if np.isinf(s) or np.isnan(s):
+                param_warnings.append(f"Parameter {i}: undefined uncertainty")
+            elif s > abs(p) * 2:
+                param_warnings.append(f"Parameter {i}: very high relative uncertainty ({s/abs(p)*100:.0f}%)")
 
         # Step 7: Compute fit metrics
         Z_fit = circuit.impedance(frequencies, list(params_opt))
         fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
 
         # Step 8: Update circuit with fitted parameters
-        # This ensures circuit.params contains fitted values (not initial guesses)
         if hasattr(circuit, 'update_params'):
             circuit.update_params(list(params_opt))
+
+        # Build diagnostics
+        diagnostics = FitDiagnostics(
+            optimizer_status=opt_result.status,
+            optimizer_message=opt_result.message,
+            optimizer_success=opt_result.success,
+            n_function_evals=opt_result.nfev,
+            jacobian_type=jacobian_type,
+            condition_number=cov_result.condition_number,
+            covariance_rank=cov_result.rank,
+            covariance_warning=cov_result.warning_message,
+            params_at_bounds=params_at_bounds,
+            bounds_warnings=bounds_warnings,
+            param_warnings=param_warnings,
+            warnings=diag_warnings
+        )
 
         # Step 9: Create result object
         n_data = len(frequencies)
@@ -503,22 +470,16 @@ def fit_equivalent_circuit(
             condition_number=cov_result.condition_number,
             is_well_conditioned=cov_result.is_well_conditioned,
             cov=cov_result.cov,
+            diagnostics=diagnostics,
+            param_labels=param_labels,
             _n_data=n_data
         )
-
-        # Step 10: Log results
-        if verbose:
-            ci_low, ci_high = result.params_ci_95
-            log_fit_results(
-                params_opt, params_stderr, ci_low, ci_high,
-                fit_error_rel, fit_error_abs, quality, param_labels
-            )
 
     except Exception as e:
         logger.error(f"Fit failed: {type(e).__name__}: {e}")
         raise RuntimeError(f"Circuit fitting failed: {e}") from e
 
-    # Step 11: Create visualization (only if requested)
+    # Step 10: Create visualization (only if requested)
     fig = None
     if plot:
         from ..visualization.plots import plot_circuit_fit
@@ -526,7 +487,6 @@ def fit_equivalent_circuit(
         f_min, f_max = frequencies.min(), frequencies.max()
         freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
         Z_fit_plot = circuit.impedance(freq_plot, list(params_opt))
-        # Pass Z_fit (at original frequencies) for residuals calculation
         fig = plot_circuit_fit(frequencies, Z, Z_fit_plot, circuit, Z_fit_at_data=Z_fit)
 
     return result, Z_fit, fig
@@ -535,5 +495,6 @@ def fit_equivalent_circuit(
 __all__ = [
     'fit_equivalent_circuit',
     'FitResult',
+    'FitDiagnostics',
     'Circuit',
 ]

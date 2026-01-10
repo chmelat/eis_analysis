@@ -48,6 +48,8 @@ from .drt import (
     find_optimal_lambda_gcv,
     gmm_peak_detection,
     GMM_AVAILABLE,
+    DRTResult,
+    DRTDiagnostics,
 )
 
 # Fitting (new operator overloading approach)
@@ -60,9 +62,13 @@ from .fitting import (
     fit_circuit_diffevo,  # Differential evolution optimization
     analyze_voigt_elements,
     format_voigt_report,
+    # Result dataclasses
     FitResult,
+    FitDiagnostics,
     MultistartResult,
+    MultistartDiagnostics,
     DiffEvoResult,
+    DiffEvoDiagnostics,
     # Voigt chain linear fitting
     fit_voigt_chain_linear,
 )
@@ -101,6 +107,8 @@ __all__ = [
     'estimate_rinf_with_inductance',
     'gmm_peak_detection',
     'GMM_AVAILABLE',
+    'DRTResult',
+    'DRTDiagnostics',
     # Fitting (circuit elements)
     'R', 'C', 'Q', 'L', 'W', 'Wo', 'K',
     # Fitting (main functions)
@@ -110,8 +118,11 @@ __all__ = [
     'analyze_voigt_elements',
     'format_voigt_report',
     'FitResult',
+    'FitDiagnostics',
     'MultistartResult',
+    'MultistartDiagnostics',
     'DiffEvoResult',
+    'DiffEvoDiagnostics',
     'fit_voigt_chain_linear',
     # Analysis
     'analyze_oxide_layer',

@@ -31,6 +31,11 @@ from ..fitting import (
     analyze_voigt_elements,
     format_voigt_report,
     FitResult,
+    FitDiagnostics,
+    MultistartResult,
+    MultistartDiagnostics,
+    DiffEvoResult,
+    DiffEvoDiagnostics,
 )
 from ..fitting.diagnostics import compute_fit_metrics
 from ..analysis import analyze_oxide_layer
@@ -205,6 +210,235 @@ def run_rinf_estimation(
 # DRT Analysis
 # =============================================================================
 
+def _log_drt_diagnostics(result: DRTResult) -> None:
+    """Log DRT analysis results from diagnostics."""
+    diag = result.diagnostics
+    if diag is None:
+        return
+
+    # R_inf estimation
+    log_separator()
+    logger.info("R_inf estimation (high-frequency resistance)")
+    log_separator()
+
+    rinf = diag.rinf
+    method_names = {
+        'preset': 'Preset value',
+        'median': 'Median of HF points',
+        'rl_fit': 'R-L fit (auto-detection)',
+        'voigt_fit': 'Voigt fit'
+    }
+    logger.info(f"Method: {method_names.get(rinf.method, rinf.method)}")
+
+    if rinf.behavior:
+        logger.info(f"  Detected: {rinf.behavior.capitalize()} behavior")
+
+    if rinf.n_points_used:
+        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
+    else:
+        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm")
+
+    if rinf.R_squared and rinf.R_squared > 0:
+        logger.info(f"  Quality: R^2 = {rinf.R_squared:.4f}")
+    if rinf.L_nH and rinf.L_nH > 0:
+        logger.info(f"  Inductance: L = {rinf.L_nH:.2f} nH")
+    if rinf.R_ct and rinf.C_nF:
+        logger.info(f"  Voigt params: R_ct = {rinf.R_ct:.2f} Ohm, C = {rinf.C_nF:.2f} nF")
+        if rinf.f_characteristic:
+            logger.info(f"  Characteristic freq: f_char = {rinf.f_characteristic/1e6:.3f} MHz")
+
+    if rinf.R_inf_median and rinf.method != 'median':
+        diff_abs = rinf.R_inf - rinf.R_inf_median
+        diff_pct = (diff_abs / rinf.R_inf_median * 100) if rinf.R_inf_median != 0 else 0
+        logger.info(f"  Comparison: median = {rinf.R_inf_median:.3f} Ohm "
+                    f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
+
+    for warning in rinf.warnings:
+        logger.warning(f"  {warning}")
+
+    # DRT Analysis
+    log_separator()
+    logger.info("DRT Analysis")
+    log_separator()
+    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm")
+
+    # Lambda selection
+    lambda_sel = diag.lambda_sel
+    lambda_method_names = {
+        'user': 'User-specified',
+        'default': 'Default',
+        'gcv': 'GCV (automatic)',
+        'hybrid': 'Hybrid GCV + L-curve',
+        'fallback': 'Fallback (GCV failed)'
+    }
+    logger.info(f"Lambda: {lambda_method_names.get(lambda_sel.method, lambda_sel.method)}")
+    if lambda_sel.method == 'hybrid' and lambda_sel.lambda_gcv:
+        logger.info(f"  L-curve correction: lambda_gcv={lambda_sel.lambda_gcv:.2e} -> "
+                    f"lambda={lambda_sel.lambda_value:.2e}")
+    else:
+        logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}")
+
+    # Matrix condition
+    if diag.condition_number > 1e15:
+        logger.warning(f"Matrix A is ill-conditioned ({diag.condition_number:.2e})")
+    elif diag.condition_number > 1e12:
+        logger.info(f"Matrix A has high condition number ({diag.condition_number:.2e})")
+
+    # R_pol
+    logger.info(f"R_pol (from data) = {diag.R_pol_from_data:.2f} Ohm")
+    logger.info(f"R_pol (from DRT integral) = {diag.R_pol_from_gamma:.2f} Ohm")
+    if diag.normalized:
+        logger.info("gamma(tau) normalized by R_pol")
+
+    # Reconstruction error
+    logger.info(f"Mean relative reconstruction error: {diag.reconstruction_error_rel:.1f}%")
+
+    # NNLS warnings
+    for warning in diag.nnls.warnings:
+        logger.warning(f"  {warning}")
+
+    # Peak detection
+    log_separator()
+    logger.info("Peak detection in DRT spectrum")
+    log_separator()
+    method_str = "GMM" if diag.peak_method == 'gmm' else "scipy.signal.find_peaks"
+    logger.info(f"Method: {method_str}")
+    logger.info(f"Found {diag.n_peaks} peaks")
+
+    if diag.scipy_peaks:
+        for i, peak in enumerate(diag.scipy_peaks):
+            logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
+                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
+
+    log_separator()
+
+
+# =============================================================================
+# Fitting Diagnostics Logging
+# =============================================================================
+
+def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
+    """Log Differential Evolution optimization diagnostics."""
+    diag = diffevo_result.diagnostics
+    if diag is None:
+        return
+
+    log_separator("=", 50)
+    logger.info("Differential Evolution optimization")
+    log_separator("=", 50)
+
+    # Settings - map strategy name to option number
+    strategy_to_option = {'randtobest1bin': 1, 'best1bin': 2, 'rand1bin': 3}
+    option_num = strategy_to_option.get(diag.strategy, 1)
+    logger.info(f"  Strategy: {diag.strategy} (option {option_num})")
+    logger.info(f"  Population: {diag.popsize} * n_params")
+    logger.info(f"  Max iterations: {diag.maxiter}")
+    logger.info(f"  Tolerance: {diag.tol}")
+    logger.info(f"  Workers: {diag.workers}")
+    logger.info(f"  Weighting: {diag.weighting} (w=1/|Z|)")
+
+    # Get params info from best_result
+    result = diffevo_result.best_result
+    n_free = len(result.params_opt) - diag.n_fixed_params
+    logger.info(f"  Parameters: {n_free} (free)")
+
+    # Initial guess from circuit
+    initial_guess = result.circuit.get_all_params()
+    logger.info(f"  Initial guess: {np.array(initial_guess)}")
+    logger.info("")
+
+    # DE progress
+    logger.info("Running differential evolution...")
+    logger.info(f"  DE converged: {diag.de_converged}")
+    logger.info(f"  DE iterations: {diag.de_iterations}")
+    logger.info(f"  DE evaluations: {diag.de_evaluations}")
+    logger.info(f"  DE error: {diag.de_error:.3f}%")
+    logger.info("")
+
+    # Refinement
+    jac_type = "analytic" if diag.jacobian_type == "analytic" else "numeric"
+    logger.info(f"Refining with least_squares ({jac_type} Jacobian)...")
+    logger.info(f"  Refined error: {diag.refined_error:.3f}%")
+    improvement = (diag.de_error - diag.refined_error) / diag.de_error * 100 if diag.de_error > 0 else 0
+    logger.info(f"  Improvement: {improvement:+.1f}%")
+    logger.info("")
+
+    # Summary
+    log_separator("=", 50)
+    logger.info("Differential Evolution results")
+    log_separator("=", 50)
+    logger.info(f"  Strategy: {diag.strategy}")
+    logger.info(f"  Total evaluations: {diag.total_evaluations}")
+    logger.info(f"  DE error: {diag.de_error:.3f}% -> Refined: {diag.refined_error:.3f}%")
+    logger.info("")
+
+
+def _log_multistart_diagnostics(multistart_result: MultistartResult) -> None:
+    """Log Multi-start optimization diagnostics."""
+    diag = multistart_result.diagnostics
+    if diag is None:
+        return
+
+    log_separator("=", 50)
+    logger.info("Multi-start optimization")
+    log_separator("=", 50)
+
+    # Settings
+    logger.info(f"  Restarts: {diag.n_restarts}")
+    logger.info(f"  Perturbation scale: {diag.scale} sigma")
+    logger.info(f"  Perturbation method: {diag.perturbation_method}")
+    logger.info(f"  Weighting: {diag.weighting}")
+    logger.info(f"  Jacobian: {diag.jacobian_type}")
+    logger.info(f"  Parallel: {diag.parallel}")
+    logger.info("")
+
+    # Results
+    logger.info(f"Running {diag.n_restarts} optimization starts...")
+    logger.info(f"  Successful: {diag.n_successful}/{diag.n_restarts}")
+    logger.info(f"  Initial error: {diag.initial_error:.3f}%")
+    logger.info(f"  Best error: {diag.best_error:.3f}%")
+    logger.info(f"  Best start: #{diag.best_start_index}")
+    logger.info(f"  Improvement: {multistart_result.improvement:+.1f}%")
+    logger.info("")
+
+    # Warnings
+    for warning in diag.warnings:
+        logger.warning(f"  {warning}")
+
+
+def _log_fit_result(result: FitResult) -> None:
+    """Log fit result with parameters and confidence intervals."""
+    logger.info("")
+    logger.info("Fit results:")
+    logger.info("  Parameters:")
+
+    # Get param labels
+    labels = result.param_labels
+    if labels is None:
+        labels = [f"p{i}" for i in range(len(result.params_opt))]
+
+    # Get 95% confidence intervals
+    ci_low, ci_high = result.params_ci_95
+
+    # Print each parameter
+    for i, (label, val, stderr) in enumerate(zip(labels, result.params_opt, result.params_stderr)):
+        if np.isinf(stderr) or np.isnan(stderr):
+            logger.info(f"    {label:5s} = {val:.2e} +/- inf")
+        else:
+            low, high = ci_low[i], ci_high[i]
+            logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  [95% CI: {low:.2e}, {high:.2e}]")
+
+    # Fit quality
+    logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")
+    logger.info(f"  Quality: {result.quality.capitalize()} (<10.0%)")
+
+    # Warnings
+    for warning in result.all_warnings:
+        logger.warning(f"  {warning}")
+
+    log_separator("=", 50)
+
+
 def run_drt_analysis(
     frequencies: NDArray,
     Z: NDArray,
@@ -239,7 +473,7 @@ def run_drt_analysis(
 
     use_auto_lambda = args.lambda_reg is None
 
-    tau, gamma, fig_drt, peaks, fig_rinf = calculate_drt(
+    result = calculate_drt(
         frequencies, Z,
         n_tau=args.n_tau,
         lambda_reg=args.lambda_reg,
@@ -252,19 +486,16 @@ def run_drt_analysis(
         gmm_bic_threshold=args.gmm_bic_threshold
     )
 
-    save_figure(fig_drt, args.save, 'drt', args.format)
+    # Log diagnostics
+    _log_drt_diagnostics(result)
+
+    save_figure(result.figure, args.save, 'drt', args.format)
 
     # Save R_inf figure from DRT only if not already saved via --ri-fit
     if not args.ri_fit:
-        save_figure(fig_rinf, args.save, 'ri_fit', args.format)
+        save_figure(result.figure_rinf, args.save, 'ri_fit', args.format)
 
-    return DRTResult(
-        tau=tau,
-        gamma=gamma,
-        figure=fig_drt,
-        peaks=peaks,
-        figure_rinf=fig_rinf
-    )
+    return result
 
 
 # =============================================================================
@@ -520,6 +751,10 @@ def _fit_standard_circuit(
                 use_analytic_jacobian=not args.numeric_jacobian
             )
             result = diffevo_result.best_result
+
+            # Log DE diagnostics
+            _log_diffevo_diagnostics(diffevo_result)
+
         elif args.optimizer == 'multistart':
             # Multi-start optimization
             n_restarts = args.multistart if args.multistart > 0 else 16
@@ -533,6 +768,10 @@ def _fit_standard_circuit(
                 use_analytic_jacobian=not args.numeric_jacobian
             )
             result = multistart_result.best_result
+
+            # Log multistart diagnostics
+            _log_multistart_diagnostics(multistart_result)
+
         else:
             # Single fit (args.optimizer == 'single')
             result, Z_fit, fig = fit_equivalent_circuit(
@@ -541,6 +780,9 @@ def _fit_standard_circuit(
                 weighting=args.weighting,
                 use_analytic_jacobian=not args.numeric_jacobian
             )
+
+        # Log fit results
+        _log_fit_result(result)
 
         save_figure(fig, args.save, 'fit', args.format)
         return result, fig

@@ -4,6 +4,54 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.0 (2026-01-10)
+
+### Breaking Changes
+
+- **`calculate_drt()` now returns `DRTResult` dataclass** instead of 5-element tuple
+  - Before: `tau, gamma, fig, peaks, fig_rinf = calculate_drt(...)`
+  - After: `result = calculate_drt(...)`
+  - Access via: `result.tau`, `result.gamma`, `result.figure`, `result.peaks`, `result.figure_rinf`
+  - Additional fields: `result.R_inf`, `result.R_pol`, `result.lambda_reg`, `result.diagnostics`
+
+### Refactoring
+
+- **Major refactoring: Verbose logging moved from core to CLI**
+  - Core modules now return structured data (dataclasses) instead of logging
+  - All user output handled by CLI layer
+  - Clean library usage without side effects
+
+- **New diagnostics dataclasses:**
+  - `DRTDiagnostics` - DRT analysis details (condition number, lambda selection, NNLS solution)
+  - `RinfEstimate` - R_inf estimation details (method, R_squared, inductance)
+  - `LambdaSelection` - Lambda selection details (GCV, L-curve, hybrid)
+  - `FitDiagnostics` - Circuit fitting details (optimizer status, covariance info)
+  - `MultistartDiagnostics` - Multi-start optimization details
+  - `DiffEvoDiagnostics` - Differential evolution details
+
+- **Modules refactored:**
+  - `drt/core.py` - Removed 97 logger calls, added structured diagnostics
+  - `rinf_estimation/rlk_fit.py` - Removed 48 logger calls
+  - `fitting/circuit.py` - Removed 26 logger calls
+  - `fitting/diffevo.py` - Removed 33 logger calls
+  - `fitting/multistart.py` - Removed 17 logger calls
+  - `validation/kramers_kronig.py` - Removed ~20 logger calls
+
+### Improvements
+
+- **CLI output preserved:** All diagnostic output from CLI remains unchanged
+  - DE/multistart optimization progress now logged from CLI handlers
+  - Fit results with parameters, stderr, and 95% CI displayed correctly
+- **New exports from `eis_analysis`:**
+  - `DRTResult`, `DRTDiagnostics`
+  - `FitDiagnostics`, `MultistartDiagnostics`, `DiffEvoDiagnostics`
+
+### Documentation
+
+- Updated `doc/PYTHON_API.md` with new dataclass API
+
+---
+
 ## Version 0.12.1 (2026-01-09)
 
 ### Improvements

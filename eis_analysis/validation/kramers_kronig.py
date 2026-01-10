@@ -1,6 +1,8 @@
 """
 Kramers-Kronig validation for EIS data quality assessment.
 
+Clean design: No logging in core functions, all diagnostics returned as data.
+
 Provides two implementations:
 1. lin_kk_native() - Native implementation using Voigt chain (no external dependencies)
 2. kramers_kronig_validation() - High-level wrapper with visualization
@@ -9,8 +11,8 @@ Provides two implementations:
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-from dataclasses import dataclass
-from typing import Tuple, Optional
+from dataclasses import dataclass, field
+from typing import Tuple, Optional, List
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class KKResult:
     extend_decades: float = 0.0
     inductance: Optional[float] = None
     figure: Optional[plt.Figure] = None
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def mean_residual_real(self) -> float:
@@ -98,6 +101,8 @@ class LinKKResult:
         Fitted elements [R_s, R_1, ..., R_M]
     tau : NDArray[np.float64]
         Time constants [s]
+    weighting : str
+        Weighting scheme used
     """
     M: int
     mu: float
@@ -110,6 +115,7 @@ class LinKKResult:
     inductance: Optional[float]
     elements: NDArray[np.float64]
     tau: NDArray[np.float64]
+    weighting: str = 'modulus'
 
     @property
     def mean_residual_real(self) -> float:
@@ -242,10 +248,6 @@ def find_optimal_extend_decades(
 
     Uses grid search over the specified range.
 
-    Note: extend_decades works in TIME DOMAIN - it extends tau_max toward
-    higher values (i.e., toward lower frequencies). Negative values are
-    clipped to 0 since extension toward higher frequencies is not supported.
-
     Parameters
     ----------
     frequencies : array
@@ -253,12 +255,11 @@ def find_optimal_extend_decades(
     Z : array
         Measured impedance
     M : int
-        Number of Voigt elements (from mu optimization)
+        Number of Voigt elements
     search_range : tuple
-        Min and max extend_decades to search (default: 0.0 to 1.0).
-        Values are clipped to >= 0.
+        Min and max extend_decades to search
     n_evaluations : int
-        Number of grid points (default: 11)
+        Number of grid points
     include_L : bool
         Include series inductance
     fit_type : str
@@ -298,11 +299,9 @@ def find_optimal_extend_decades(
         results.append((ext_dec, chi2, tau, elements, L_value))
 
     # Find minimum chi^2
-    # When there are ties (or near-ties within 0.1%), prefer extend_decades closer to 0
     min_chi2 = min(r[1] for r in results)
-    tolerance = 0.001 * min_chi2  # 0.1% tolerance
+    tolerance = 0.001 * min_chi2
     near_optimal = [r for r in results if r[1] <= min_chi2 + tolerance]
-    # Among near-optimal, choose the one closest to extend_decades=0
     best = min(near_optimal, key=lambda x: abs(x[0]))
     return best[0], best[1], best[2], best[3], best[4]
 
@@ -322,31 +321,28 @@ def lin_kk_native(
     Native Lin-KK implementation using Voigt chain fitting.
 
     Implements the linear Kramers-Kronig test from Schönleber et al. (2014)
-    without external dependencies (replaces impedance.py linKK).
+    without external dependencies.
 
     Parameters
     ----------
     frequencies : ndarray of float
         Measured frequencies [Hz]
     Z : ndarray of complex
-        Measured impedance [Ω]
+        Measured impedance [Ohm]
     mu_threshold : float, optional
-        Threshold for μ metric (default: 0.85)
-        Lower values → more conservative (fewer elements)
+        Threshold for mu metric (default: 0.85)
     max_M : int, optional
         Maximum number of Voigt elements to try (default: 50)
     include_L : bool, optional
         Include series inductance L (default: True)
     fit_type : str, optional
-        Fit type: 'real' (default, impedance.py compatible), 'imag', or 'complex'
+        Fit type: 'real', 'imag', or 'complex'
     weighting : str, optional
-        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'square'
-        Default: 'proportional' (Lin-KK standard, w=1/|Z|)
+        Weighting scheme: 'uniform', 'sqrt', 'proportional', 'modulus'
     auto_extend_decades : bool, optional
-        If True, automatically optimize extend_decades to minimize chi^2
-        (default: False)
+        Automatically optimize extend_decades (default: False)
     extend_decades_range : tuple, optional
-        Search range for extend_decades optimization (default: (-1.0, 1.0))
+        Search range for extend_decades optimization
 
     Returns
     -------
@@ -354,43 +350,30 @@ def lin_kk_native(
         Dataclass containing M, mu, Z_fit, residuals, pseudo_chisqr,
         noise_estimate, extend_decades, inductance, elements, tau.
 
-    Notes
-    -----
-    Algorithm:
-    1. Start with M=3 Voigt elements
-    2. Fit using pseudoinverse (allows negative R for overfit detection)
-    3. Calculate μ = 1 - Σ|R_negative|/Σ|R_positive|
-    4. If μ > threshold, increase M and repeat
-    5. When μ ≤ threshold, optimal M found
-
     References
     ----------
     Schönleber, M. et al. "A Method for Improving the Robustness of linear
-    Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20–27 (2014)
+    Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20-27 (2014)
     """
-    from ..fitting.voigt_chain import (
-        find_optimal_M_mu
-    )
+    from ..fitting.voigt_chain import find_optimal_M_mu
 
-    # Find optimal M using μ metric (with extend_decades=0.0)
+    # Find optimal M using mu metric
     M, mu, tau, elements, L_value = find_optimal_M_mu(
         frequencies, Z,
         mu_threshold=mu_threshold,
         max_M=max_M,
-        extend_decades=0.0,  # Lin-KK standard: no extension
+        extend_decades=0.0,
         include_Rs=True,
         include_L=include_L,
         fit_type=fit_type,
-        allow_negative=True,  # Required for μ metric
+        allow_negative=True,
         weighting=weighting
     )
 
-    # Track extend_decades value
     extend_decades = 0.0
 
     # Optionally optimize extend_decades
     if auto_extend_decades:
-        logger.info(f"  Optimizing extend_decades in range {extend_decades_range}...")
         extend_decades, chi2_opt, tau, elements, L_value = find_optimal_extend_decades(
             frequencies, Z, M,
             search_range=extend_decades_range,
@@ -399,12 +382,11 @@ def lin_kk_native(
             fit_type=fit_type,
             weighting=weighting
         )
-        logger.info(f"  Optimal extend_decades: {extend_decades:.3f}")
 
     # Reconstruct Z_fit from fitted parameters
     Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L)
 
-    # Calculate residuals normalized by |Z| (Lin-KK standard)
+    # Calculate residuals normalized by |Z|
     Z_mag = np.abs(Z)
     Z_mag_safe = np.maximum(Z_mag, 1e-15)
 
@@ -414,14 +396,6 @@ def lin_kk_native(
     # Compute pseudo chi-squared (Boukamp 1995)
     chi2_ps = compute_pseudo_chisqr(Z, Z_fit)
     noise_est = estimate_noise_percent(chi2_ps, len(Z))
-
-    logger.info(f"Lin-KK native: M={M}, μ={mu:.4f}")
-    logger.info(f"  Weighting: {weighting} (w=1/|Z|)")
-    logger.info(f"  extend_decades: {extend_decades:.3f}")
-    logger.info(f"  Mean |res_real|: {np.mean(np.abs(res_real))*100:.2f}%")
-    logger.info(f"  Mean |res_imag|: {np.mean(np.abs(res_imag))*100:.2f}%")
-    logger.info(f"  Pseudo chi^2: {chi2_ps:.2e}")
-    logger.info(f"  Estimated noise: {noise_est:.2f}%")
 
     return LinKKResult(
         M=M,
@@ -434,7 +408,8 @@ def lin_kk_native(
         extend_decades=extend_decades,
         inductance=L_value,
         elements=elements,
-        tau=tau
+        tau=tau,
+        weighting=weighting
     )
 
 
@@ -456,51 +431,24 @@ def kramers_kronig_validation(
     frequencies : ndarray of float
         Measured frequencies [Hz]
     Z : ndarray of complex
-        Complex impedance [Ω]
+        Complex impedance [Ohm]
     mu_threshold : float, optional
-        Threshold for μ metric (default: 0.85)
+        Threshold for mu metric (default: 0.85)
     max_M : int, optional
         Maximum number of Voigt elements (default: 50)
     auto_extend_decades : bool, optional
-        If True, automatically optimize extend_decades to minimize chi^2
-        (default: False)
+        Automatically optimize extend_decades (default: False)
     extend_decades_range : tuple of float, optional
-        Search range for extend_decades optimization as (min, max).
-        Only used when auto_extend_decades=True. Default: (-1.0, 1.0)
+        Search range for extend_decades optimization
 
     Returns
     -------
     KKResult or None
-        Result object containing:
-        - M: Number of Voigt elements
-        - mu: μ metric value
-        - Z_fit: Fitted impedance
-        - residuals_real, residuals_imag: Residuals (fractions)
-        - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
-        - noise_estimate: Estimated noise in percent
-        - extend_decades: Used tau range extension
-        - inductance: Fitted inductance [H]
-        - figure: Visualization figure
-
-        Returns None if validation fails.
+        Result object with all diagnostics, or None if validation fails.
     """
-    logger.info("="*60)
-    logger.info("Kramers-Kronig validation")
-    logger.info("="*60)
+    warnings = []
 
     try:
-        # Weighting choice: 'modulus' (1/|Z|) vs 'proportional' (1/|Z|^2)
-        #
-        # We use 'modulus' (Lin-KK standard, Schönleber 2014) rather than
-        # 'proportional' (Boukamp 1995 pseudo chi-squared weighting) because:
-        # - Provides balanced relative weighting across entire spectrum
-        # - Low-frequency region (high |Z|) often contains key electrochemical
-        #   information (charge transfer, diffusion) that should not be de-emphasized
-        # - Common artifacts (drift, non-stationarity) appear at low frequencies
-        #   and would be masked with 1/|Z|^2 weighting
-        #
-        # Note: Pseudo chi-squared is still computed with 1/|Z|^2 per Boukamp (1995).
-        # The difference only affects fitting, not the final chi^2 metric.
         lkk = lin_kk_native(
             frequencies, Z,
             mu_threshold=mu_threshold,
@@ -511,18 +459,16 @@ def kramers_kronig_validation(
             auto_extend_decades=auto_extend_decades,
             extend_decades_range=extend_decades_range
         )
-        if lkk.inductance is not None:
-            logger.info(f"  Inductance L: {lkk.inductance:.3e} H")
     except Exception as e:
-        logger.error(f"KK validation error: {e}", exc_info=True)
+        logger.error(f"KK validation error: {e}")
         return None
 
     if lkk.Z_fit is None:
         return None
 
-    # Residuals are normalized by |Z| (fractions), convert to % for evaluation
-    mean_res_real = lkk.mean_residual_real
-    mean_res_imag = lkk.mean_residual_imag
+    # Quality assessment
+    if not lkk.is_valid:
+        warnings.append("Data may contain artifacts (residuals >= 5%)")
 
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()
@@ -536,14 +482,14 @@ def kramers_kronig_validation(
     ax1 = axes[0]
     ax1.plot(Z.real, -Z.imag, 'o', label='Data', markersize=4)
     ax1.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='KK fit', linewidth=2)
-    ax1.set_xlabel("Z' [Ω]")
-    ax1.set_ylabel("-Z'' [Ω]")
+    ax1.set_xlabel("Z' [Ohm]")
+    ax1.set_ylabel("-Z'' [Ohm]")
     ax1.set_title(f"Kramers-Kronig fit in real domain (M={lkk.M})")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.set_aspect('equal', adjustable='datalim')
 
-    # Residuals plot (res_real/res_imag are fractions, convert to %)
+    # Residuals plot
     ax2 = axes[1]
     ax2.semilogx(frequencies, lkk.residuals_real * 100, 'o', label='Real', markersize=4)
     ax2.semilogx(frequencies, lkk.residuals_imag * 100, 's', label='Imaginary', markersize=4)
@@ -552,17 +498,11 @@ def kramers_kronig_validation(
     ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
     ax2.set_xlabel("Frequency [Hz]")
     ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"KK residuals (μ={lkk.mu:.3f}, χ²={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
+    ax2.set_title(f"KK residuals (mu={lkk.mu:.3f}, chi^2={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-
-    # Quality assessment
-    if lkk.is_valid:
-        logger.info("Data quality is good (residuals < 5%)")
-    else:
-        logger.warning("Data may contain artifacts (residuals >= 5%)")
 
     return KKResult(
         M=lkk.M,
@@ -574,5 +514,6 @@ def kramers_kronig_validation(
         noise_estimate=lkk.noise_estimate,
         extend_decades=lkk.extend_decades,
         inductance=lkk.inductance,
-        figure=fig
+        figure=fig,
+        warnings=warnings
     )

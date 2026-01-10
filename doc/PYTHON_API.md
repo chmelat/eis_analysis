@@ -1,8 +1,10 @@
 # Python API
 
-**Current version:** v0.10.2
+**Current version:** v0.13.0
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
+
+**Design principle:** Core modules return structured data (dataclasses) without logging. All user output is handled by CLI layer. This makes library usage clean and predictable.
 
 ## Installation
 
@@ -30,13 +32,18 @@ from eis_analysis import (
     estimate_rinf_with_inductance,
     # DRT
     calculate_drt,
+    DRTResult,               # Dataclass with DRT results
+    DRTDiagnostics,          # Dataclass with DRT diagnostics
     # Fitting
     fit_equivalent_circuit,
     fit_circuit_multistart,  # Multi-start optimization
     fit_circuit_diffevo,     # Differential evolution (global optimization)
     FitResult,               # Dataclass with fit results
+    FitDiagnostics,          # Dataclass with fit diagnostics
     MultistartResult,        # Dataclass with multi-start results
+    MultistartDiagnostics,   # Dataclass with multi-start diagnostics
     DiffEvoResult,           # Dataclass with DE results
+    DiffEvoDiagnostics,      # Dataclass with DE diagnostics
     # Voigt analysis
     analyze_voigt_elements,
     format_voigt_report,
@@ -58,11 +65,13 @@ zhit_result = zhit_validation(frequencies, Z)
 print(f"Z-HIT: residuals={zhit_result.mean_residual_mag:.2f}%, noise<={zhit_result.noise_estimate:.1f}%")
 
 # 3. DRT analysis with auto-lambda and GMM
-tau, gamma, fig_drt, peaks_gmm, fig_rinf = calculate_drt(
+drt_result = calculate_drt(
     frequencies, Z,
     auto_lambda=True,
     peak_method='gmm'
 )
+tau, gamma = drt_result.tau, drt_result.gamma
+peaks_gmm = drt_result.peaks
 
 # 4. Voigt element analysis
 voigt_info = analyze_voigt_elements(
@@ -250,9 +259,9 @@ R_inf, L, circuit, diagnostics, fig = estimate_rinf_with_inductance(
 **DRT analysis:**
 
 ```python
-from eis_analysis.drt import calculate_drt
+from eis_analysis.drt import calculate_drt, DRTResult, DRTDiagnostics
 
-tau, gamma, fig_drt, peaks_info, fig_rinf = calculate_drt(
+result = calculate_drt(
     frequencies,
     Z,
     n_tau=100,             # Number of points on tau axis
@@ -266,11 +275,27 @@ tau, gamma, fig_drt, peaks_info, fig_rinf = calculate_drt(
     gmm_bic_threshold=10.0 # BIC threshold for GMM (default: 10.0)
 )
 
-# tau: Time constant axis [s]
-# gamma: Distribution function gamma(tau) [Ohm]
-# fig_drt: matplotlib Figure with DRT spectrum
-# peaks_info: List of dicts with peak information
-# fig_rinf: matplotlib Figure with R_inf fit (if use_voigt_fit=True)
+# result: DRTResult dataclass
+result.tau                 # Time constant axis [s]
+result.gamma               # Distribution function gamma(tau) [Ohm]
+result.peaks               # List of dicts with peak information
+result.figure              # matplotlib Figure with DRT spectrum
+result.figure_rinf         # matplotlib Figure with R_inf fit
+result.R_inf               # High-frequency resistance [Ohm]
+result.R_pol               # Polarization resistance [Ohm]
+result.lambda_reg          # Regularization parameter used
+result.diagnostics         # DRTDiagnostics with detailed info
+
+# DRTDiagnostics contains:
+result.diagnostics.freq_min           # Minimum frequency [Hz]
+result.diagnostics.freq_max           # Maximum frequency [Hz]
+result.diagnostics.n_points           # Number of data points
+result.diagnostics.n_tau              # Number of tau points
+result.diagnostics.condition_number   # Matrix condition number
+result.diagnostics.reconstruction_error_rel  # Reconstruction error [%]
+result.diagnostics.rinf               # RinfEstimate dataclass
+result.diagnostics.lambda_sel         # LambdaSelection dataclass
+result.diagnostics.nnls               # NNLSSolution dataclass
 ```
 
 **GCV automatic lambda selection:**
@@ -296,10 +321,11 @@ from eis_analysis.drt import calculate_drt, gmm_peak_detection, GMM_AVAILABLE
 
 # Check if GMM is available (requires scikit-learn)
 if GMM_AVAILABLE:
-    tau, gamma, fig, peaks_gmm, _ = calculate_drt(
+    result = calculate_drt(
         frequencies, Z,
         peak_method='gmm'
     )
+    peaks_gmm = result.peaks
 
     # peaks_gmm is a list of dicts, each containing:
     # - 'tau': peak position [s]
@@ -309,10 +335,10 @@ if GMM_AVAILABLE:
     # - 'std': peak width (sigma)
 
     # Or use gmm_peak_detection directly
-    peaks = gmm_peak_detection(tau, gamma, n_components_max=5)
+    peaks = gmm_peak_detection(result.tau, result.gamma, n_components_max=5)
 
 # Tune GMM sensitivity with BIC threshold
-tau, gamma, fig, peaks, _ = calculate_drt(
+result = calculate_drt(
     frequencies, Z,
     peak_method='gmm',
     gmm_bic_threshold=5.0  # More sensitive (lower = more peaks)
@@ -371,12 +397,27 @@ result.params_opt      # Optimal parameters (ndarray)
 result.params_stderr   # Standard errors of parameters (ndarray)
 result.params_ci_95    # 95% confidence intervals (tuple of ndarray)
 result.params_ci_99    # 99% confidence intervals (tuple of ndarray)
+result.param_labels    # Parameter labels ['R0', 'R1', 'Q0', 'n0', ...]
 result.fit_error_rel   # Relative fit error [%]
 result.fit_error_abs   # Absolute fit error [Ohm]
 result.quality         # 'excellent', 'good', 'acceptable', 'poor'
 result.condition_number # Condition number of Jacobian
 result.is_well_conditioned # True if cond < 1e10
 result.cov             # Covariance matrix (ndarray or None)
+result.diagnostics     # FitDiagnostics dataclass
+result.all_warnings    # List of all warnings (convenience property)
+
+# FitDiagnostics contains:
+result.diagnostics.optimizer_status    # Optimizer exit status
+result.diagnostics.optimizer_message   # Optimizer message
+result.diagnostics.optimizer_success   # True if converged
+result.diagnostics.n_function_evals    # Number of function evaluations
+result.diagnostics.jacobian_type       # 'analytic' or 'numeric'
+result.diagnostics.condition_number    # Jacobian condition number
+result.diagnostics.covariance_rank     # Rank of covariance matrix
+result.diagnostics.covariance_warning  # Warning if ill-conditioned
+result.diagnostics.params_at_bounds    # List of param indices at bounds
+result.diagnostics.warnings            # List of general warnings
 ```
 
 **Multi-start optimization (for more robust fit):**
@@ -402,6 +443,19 @@ ms_result.all_results   # All FitResult objects
 ms_result.n_starts      # Number of starts
 ms_result.n_successful  # Number of successful fits
 ms_result.improvement   # Improvement over initial fit [%]
+ms_result.diagnostics   # MultistartDiagnostics dataclass
+
+# MultistartDiagnostics contains:
+ms_result.diagnostics.n_restarts          # Total restarts
+ms_result.diagnostics.n_successful        # Successful fits
+ms_result.diagnostics.scale               # Perturbation scale (sigma)
+ms_result.diagnostics.perturbation_method # 'covariance', 'stderr', 'log_uniform'
+ms_result.diagnostics.weighting           # Weighting type used
+ms_result.diagnostics.jacobian_type       # 'analytic' or 'numeric'
+ms_result.diagnostics.initial_error       # Initial fit error [%]
+ms_result.diagnostics.best_error          # Best fit error [%]
+ms_result.diagnostics.best_start_index    # Index of best start
+ms_result.diagnostics.all_errors          # List of all errors
 ```
 
 **Differential Evolution (global optimization):**
@@ -430,6 +484,23 @@ de_result.final_error    # Error after refinement [%]
 de_result.n_evaluations  # Total number of evaluations
 de_result.strategy       # Strategy used
 de_result.improvement    # Improvement DE -> refinement [%]
+de_result.diagnostics    # DiffEvoDiagnostics dataclass
+
+# DiffEvoDiagnostics contains:
+de_result.diagnostics.strategy           # Strategy name
+de_result.diagnostics.popsize            # Population size multiplier
+de_result.diagnostics.maxiter            # Max iterations
+de_result.diagnostics.tol                # Convergence tolerance
+de_result.diagnostics.workers            # Number of workers
+de_result.diagnostics.weighting          # Weighting type
+de_result.diagnostics.jacobian_type      # 'analytic' or 'numeric'
+de_result.diagnostics.de_converged       # True if DE converged
+de_result.diagnostics.de_iterations      # DE iterations
+de_result.diagnostics.de_evaluations     # DE function evaluations
+de_result.diagnostics.de_error           # Error after DE [%]
+de_result.diagnostics.refined_error      # Error after refinement [%]
+de_result.diagnostics.refinement_improved # True if refinement helped
+de_result.diagnostics.total_evaluations  # Total evaluations
 ```
 
 **Voigt chain linear fitting:**
@@ -631,11 +702,18 @@ import matplotlib.pyplot as plt
 frequencies, Z = load_data('my_data.DTA')
 
 # DRT with automatic lambda
-tau, gamma, fig, peaks, _ = calculate_drt(
+result = calculate_drt(
     frequencies, Z,
     auto_lambda=True
 )
 
+# Access results
+print(f"R_inf = {result.R_inf:.2f} Ohm")
+print(f"R_pol = {result.R_pol:.2f} Ohm")
+print(f"lambda = {result.lambda_reg:.2e}")
+print(f"Found {len(result.peaks)} peaks")
+
+# Show figure
 plt.show()
 ```
 
@@ -668,7 +746,7 @@ print(f"Z-HIT: residuals={zhit_result.mean_residual_mag:.2f}%")
 print(f"  Noise upper bound: {zhit_result.noise_estimate:.1f}%")
 
 # DRT with GMM
-tau, gamma, fig_drt, peaks_gmm, _ = calculate_drt(
+drt_result = calculate_drt(
     frequencies, Z,
     auto_lambda=True,
     peak_method='gmm'
@@ -676,7 +754,8 @@ tau, gamma, fig_drt, peaks_gmm, _ = calculate_drt(
 
 # Voigt analysis
 voigt_info = analyze_voigt_elements(
-    tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm
+    drt_result.tau, drt_result.gamma, frequencies, Z,
+    peaks_gmm=drt_result.peaks
 )
 
 # Display report
@@ -684,7 +763,7 @@ print(format_voigt_report(voigt_info))
 
 # Build circuit manually based on analysis
 # For example for 2 detected elements:
-circuit = R(voigt_info['R_inf'])
+circuit = R(drt_result.R_inf)
 for elem in voigt_info['elements']:
     circuit = circuit - (R(elem['R']) | C(elem['C']))
 
@@ -711,15 +790,18 @@ for dta_file in data_dir.glob('*.DTA'):
 
     # Analysis
     frequencies, Z = load_data(dta_file)
-    tau, gamma, fig, peaks, _ = calculate_drt(
+    result = calculate_drt(
         frequencies, Z,
         auto_lambda=True,
         peak_method='gmm'
     )
 
-    # Save
-    fig.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
-    plt.close(fig)
+    # Save figure
+    result.figure.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
+    plt.close(result.figure)
+
+    # Print summary
+    print(f"  R_inf={result.R_inf:.1f} Ohm, {len(result.peaks)} peaks")
 ```
 
 ### Example 4: Oxide Layer Analysis
