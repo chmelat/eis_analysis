@@ -193,20 +193,24 @@ def fit_rlk_model(
                     warnings=warnings
                 )
 
-    # For purely capacitive data: polynomial extrapolation
+    # For purely capacitive data: polynomial extrapolation from Nyquist
+    # Fit Re = f(Im), extrapolate to Im = 0
     if is_purely_capacitive:
         im_hf = Z_high.imag
         re_hf = Z_high.real
-        coeffs = np.polyfit(im_hf, re_hf, 2)
-        R_inf_poly = coeffs[2]
+
+        # Fit Re = f(Im), constant term is Re at Im=0
+        coeffs = np.polyfit(im_hf, re_hf, 2)  # Re = a*Im² + b*Im + c
+        R_inf_poly = coeffs[2]  # Re at Im = 0
 
         idx_max = np.argmax(f_high)
         R_inf_hf = float(Z_high[idx_max].real)
 
         if R_inf_poly <= 0:
-            R_inf = 0.0
-            extrap_method = "zero_fallback"
+            R_inf = 1.0
+            extrap_method = "near_zero_fallback"
         elif R_inf_poly > R_inf_hf:
+            # Extrapolation overshoots - use HF value
             R_inf = R_inf_hf
             extrap_method = "hf_fallback"
         else:
