@@ -4,6 +4,36 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.3 (2026-01-11)
+
+### Code Quality Improvements
+
+- **Refactored numerical algorithms to use scipy/numpy library functions:**
+  - `zhit.py`: Replaced manual cumulative integration loops with `scipy.integrate.cumulative_trapezoid()` (10 lines -> 4 lines)
+  - `gcv.py`: Replaced manual curvature calculation with `np.gradient()` and vectorized operations (17 lines -> 8 lines)
+  - `core.py`: Replaced loop-based regularization matrix construction with `np.fill_diagonal()`
+  - `solvers.py`: Replaced Voigt matrix loop with NumPy broadcasting
+
+- **Added comprehensive CLI integration tests:**
+  - New `tests/test_cli_integration.py` with 16 end-to-end tests
+  - Tests cover: synthetic data, KK validation, DRT analysis, circuit fitting, Voigt chain, file I/O, error handling
+  - Improves test coverage for complete analysis workflows
+
+### Files Modified
+
+- `validation/zhit.py` - Refactored cumulative integration
+- `drt/gcv.py` - Refactored curvature calculation
+- `drt/core.py` - Refactored regularization matrix construction
+- `fitting/voigt_chain/solvers.py` - Vectorized Voigt matrix computation
+- `tests/test_cli_integration.py` - New integration test suite
+
+### Documentation
+
+- `doc/CODE_DESIGN_ANALYSIS.md` - Code design review report
+- `doc/SCIPY_NUMPY_OPTIMIZATION_REPORT.md` - Library optimization analysis
+
+---
+
 ## Version 0.13.2 (2026-01-10)
 
 ### New Features

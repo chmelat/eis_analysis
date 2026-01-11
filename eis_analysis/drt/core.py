@@ -333,12 +333,12 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
 
     b = np.concatenate([Z.real - R_inf, Z.imag])
 
-    # Regularization matrix (2nd derivative)
+    # Regularization matrix (2nd derivative) - tridiagonal [1, -2, 1]
+    # Shape: (n_tau - 2, n_tau) for second derivative operator
     L = np.zeros((n_tau - 2, n_tau))
-    for i in range(n_tau - 2):
-        L[i, i] = 1
-        L[i, i + 1] = -2
-        L[i, i + 2] = 1
+    np.fill_diagonal(L, 1)           # Main diagonal at offset 0
+    np.fill_diagonal(L[:, 1:], -2)   # Diagonal at offset 1
+    np.fill_diagonal(L[:, 2:], 1)    # Diagonal at offset 2
 
     return DRTMatrices(
         A=A, A_re=A_re, A_im=A_im, b=b, L=L,

@@ -40,6 +40,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
+from scipy.integrate import cumulative_trapezoid
 
 from .kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
 
@@ -208,25 +209,15 @@ def zhit_reconstruct_magnitude(
 
     where gamma is a weighting factor (typically ~0.2-0.5).
     """
-    n = len(phi)
     ln_omega = np.log(2 * np.pi * frequencies)
 
     # First order: cumulative integration of phase
-    # Use cumulative trapezoidal integration
-    ln_Z_first_order = np.zeros(n)
-    ln_Z_first_order[ref_idx] = ln_Z_ref
+    # Uses scipy cumulative_trapezoid for clean vectorized implementation
+    integrand = (2.0 / np.pi) * phi
+    integral_from_start = cumulative_trapezoid(integrand, ln_omega, initial=0)
 
-    # Integrate forward from reference point (ref_idx to end)
-    for i in range(ref_idx + 1, n):
-        d_ln_omega = ln_omega[i] - ln_omega[i - 1]
-        phi_avg = 0.5 * (phi[i] + phi[i - 1])
-        ln_Z_first_order[i] = ln_Z_first_order[i - 1] + (2.0 / np.pi) * phi_avg * d_ln_omega
-
-    # Integrate backward from reference point (ref_idx to start)
-    for i in range(ref_idx - 1, -1, -1):
-        d_ln_omega = ln_omega[i + 1] - ln_omega[i]
-        phi_avg = 0.5 * (phi[i] + phi[i + 1])
-        ln_Z_first_order[i] = ln_Z_first_order[i + 1] - (2.0 / np.pi) * phi_avg * d_ln_omega
+    # Shift integral so it equals ln_Z_ref at the reference point
+    ln_Z_first_order = ln_Z_ref + (integral_from_start - integral_from_start[ref_idx])
 
     if not use_second_order:
         return ln_Z_first_order

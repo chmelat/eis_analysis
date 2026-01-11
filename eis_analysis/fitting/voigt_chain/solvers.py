@@ -178,13 +178,13 @@ def compute_voigt_matrix(
     if include_Rs:
         A[:, 0] = 1.0
 
-    # Remaining columns: Voigt elements
+    # Remaining columns: Voigt elements (vectorized using broadcasting)
     # For Voigt element: Z_i = R_i / (1 + j*omega*tau_i)
     # Real part: Z'_i = R_i / (1 + (omega*tau_i)^2)
     # So: h_i(omega, tau_i) = 1 / (1 + (omega*tau_i)^2)
-    for i, tau_i in enumerate(tau):
-        tau_omega_sq = (tau_i * omega) ** 2
-        A[:, col_offset + i] = 1.0 / (1 + tau_omega_sq)
+    # Broadcasting: tau (n_tau,) x omega (n_freq,) -> (n_tau, n_freq)
+    tau_omega_sq = (tau[:, np.newaxis] * omega[np.newaxis, :]) ** 2
+    A[:, col_offset:col_offset + n_tau] = (1.0 / (1 + tau_omega_sq)).T
 
     return A
 

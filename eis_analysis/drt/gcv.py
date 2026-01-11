@@ -145,39 +145,33 @@ def compute_lcurve_curvature(rho: NDArray[np.float64],
 
     kde ρ = log||Ax-b||, η = log||Lx||
 
-    Používá centrální diference pro numerickou derivaci.
+    Používá np.gradient() pro numerickou derivaci (vektorizováno).
 
     Parametry:
     - rho: log||Ax - b|| pro různé λ
     - eta: log||Lx|| pro různé λ
 
     Vrací:
-    - curvature: křivost v každém bodě (kromě krajních)
+    - curvature: křivost v každém bodě
     """
     n = len(rho)
     if n < 3:
         return np.zeros(n)
 
-    curvature = np.zeros(n)
+    # První derivace pomocí np.gradient (centrální diference)
+    d_rho = np.gradient(rho)
+    d_eta = np.gradient(eta)
 
-    # Centrální diference pro první a druhou derivaci
-    for i in range(1, n - 1):
-        # První derivace (centrální)
-        d_rho = (rho[i + 1] - rho[i - 1]) / 2
-        d_eta = (eta[i + 1] - eta[i - 1]) / 2
+    # Druhá derivace
+    dd_rho = np.gradient(d_rho)
+    dd_eta = np.gradient(d_eta)
 
-        # Druhá derivace (centrální)
-        dd_rho = rho[i + 1] - 2 * rho[i] + rho[i - 1]
-        dd_eta = eta[i + 1] - 2 * eta[i] + eta[i - 1]
+    # Křivost (vektorizovaně)
+    numerator = d_rho * dd_eta - dd_rho * d_eta
+    denominator = (d_rho**2 + d_eta**2)**1.5
 
-        # Křivost
-        numerator = d_rho * dd_eta - dd_rho * d_eta
-        denominator = (d_rho**2 + d_eta**2)**1.5
-
-        if abs(denominator) > 1e-15:
-            curvature[i] = numerator / denominator
-        else:
-            curvature[i] = 0.0
+    # Podmíněné přiřazení pomocí np.where
+    curvature = np.where(np.abs(denominator) > 1e-15, numerator / denominator, 0.0)
 
     return curvature
 
