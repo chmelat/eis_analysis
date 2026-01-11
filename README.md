@@ -44,7 +44,7 @@ For alternative installation methods, see [Installation options](#installation-o
 ### Basic usage
 
 ```bash
-# Basic analysis (KK validation + DRT)
+# Basic analysis (KK + Z-HIT validation + DRT)
 eis data.DTA
 
 # With circuit fitting
@@ -63,11 +63,11 @@ Run `eis --help` for all options.
 ### Data quality check
 
 ```bash
-# KK validation + DRT analysis (default)
+# KK + Z-HIT validation + DRT analysis (default)
 eis data.DTA
 ```
 
-Output: Kramers-Kronig residuals, mu metric, DRT spectrum with detected peaks.
+Output: Kramers-Kronig residuals, mu metric, Z-HIT reconstruction, DRT spectrum with detected peaks.
 
 ### Circuit fitting
 
@@ -197,7 +197,7 @@ Values in quotes (e.g., `R("100")`) are treated as fixed constants and will not 
 | Operator | Meaning | Example |
 |----------|---------|---------|
 | `-` | Series connection | `R(100) - C(1e-6)` |
-| `|` | Parallel connection | `R(1000) | C(1e-6)` |
+| `\|` | Parallel connection | `R(1000) \| C(1e-6)` |
 
 **Operator precedence:** `-` has HIGHER precedence than `|` (Python rules).
 Always use parentheses around parallel combinations: `(R|C)`.
