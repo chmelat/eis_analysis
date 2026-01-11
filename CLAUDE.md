@@ -2,6 +2,69 @@
 
 This file provides guidance for Claude Code (claude.ai/code) when working on this project.
 
+## Quick Reference
+
+### Environment
+
+- **Use `python3` command** (not `python`) - system has no `python` symlink
+- Python version: >=3.9
+- Package manager: pip with pyproject.toml
+
+### Project Structure
+
+```
+eis_analysis/              # Core package
+  __init__.py              # Public API exports
+  version.py               # Single source of truth for version
+  cli/                     # CLI modules
+  drt/                     # DRT analysis algorithms
+  fitting/                 # Circuit fitting
+  io/                      # Data loading (Gamry, CSV)
+  validation/              # Kramers-Kronig validation
+  visualization/           # Plotting functions
+  analysis/                # Domain-specific analysis (oxide)
+  rinf_estimation/         # R_inf estimation algorithms
+  utils/                   # Shared utilities
+
+eis.py                     # Main CLI entry point
+tests/                     # Test suite (pytest)
+doc/                       # Specialized documentation
+example/                   # Example data files
+```
+
+### Common Commands
+
+```bash
+# Run CLI
+python3 eis.py --help                    # Show help
+python3 eis.py                           # Demo with synthetic data
+python3 eis.py data.DTA                  # Analyze Gamry file
+python3 eis.py data.DTA --lambda 0.5     # Manual regularization
+python3 eis.py data.DTA --peak-method gmm  # GMM peak detection
+
+# Testing
+python3 -m pytest tests/                 # Run all tests
+python3 -m pytest tests/test_drt.py -v   # Run specific test
+
+# Code quality
+ruff check eis_analysis/                 # Lint code
+mypy eis_analysis/                       # Type check
+```
+
+### Input Data Formats
+
+- **Gamry .DTA files** - Native format, auto-detected
+- **CSV files** - Columns: `freq`, `Z_re`, `Z_im` (or `Zreal`, `Zimag`)
+- **European CSV** - Semicolon separator, comma decimal (auto-detected)
+
+### Dependencies
+
+Core: `numpy>=1.20`, `scipy>=1.7`, `matplotlib>=3.4`
+
+Dev: `ruff`, `mypy`, `pytest` (install with `pip install -e ".[dev]"`)
+
+---
+
 ## Project Philosophy
 
 ### Goals
@@ -16,31 +79,14 @@ This file provides guidance for Claude Code (claude.ai/code) when working on thi
 
 ### Design Principles
 
-**Key principles:**
-- **Modularity** - Each module has clearly defined responsibility
-- **Single Responsibility** - One module = one functionality
-- **DRY (Don't Repeat Yourself)** - Code is not duplicated
-- **Testability** - Modules testable independently
-- **Documentation** - Every function has docstring, every module has documentation
+Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-specific rules:
 
-**Anti-patterns to avoid:**
-- Monolithic files (>1000 lines)
-- God objects (classes doing too much)
-- Duplicate code between modules
-- Hardcoded constants without explanation
-- Magic numbers without documentation
+- **Monolithic files** - Keep under 500 lines, split if larger
+- **Magic numbers** - All constants must be documented (why this value?)
+- **Scientific accuracy over performance** - Correct first, fast second
+- **Edge cases** - Always consider: empty data, NaN, single point, negative values
 
-## Code Organization
-
-**Modular architecture:**
-- **Core package** - Main package with analytical functions
-  - I/O modules - Data loading, synthetic data
-  - Validation - Data quality (KK validation)
-  - Algorithms - Core scientific computations (DRT, GCV, fitting)
-  - Visualization - Plots and diagnostics
-  - Domain logic - Specific analyses (e.g., oxide layers)
-- **CLI script** - User interface, workflow orchestration
-- **Utility scripts** - Standalone tools for data generation
+### Code Organization
 
 **Separation rules:**
 - CLI code separated from core logic (enables use as library)
@@ -48,165 +94,142 @@ This file provides guidance for Claude Code (claude.ai/code) when working on thi
 - Visualization separated from algorithms (headless use)
 - Domain logic isolated (extensibility for other domains)
 
+---
+
+## Testing
+
+### Running Tests
+
+```bash
+python3 -m pytest tests/                 # All tests
+python3 -m pytest tests/ -v              # Verbose output
+python3 -m pytest tests/test_K_element.py  # Specific file
+python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
+```
+
+### Writing Tests
+
+- Place tests in `tests/` directory
+- Name files `test_*.py`
+- Use synthetic data for reproducibility
+- Test edge cases (empty, NaN, single point)
+- Quantify correctness: `assert error < 0.05` (not "looks correct")
+
+### Test Categories
+
+- **Unit tests** - Individual functions
+- **Integration tests** - Full workflow (`test_cli_integration.py`)
+- **Regression tests** - Bug fixes (prevent recurrence)
+
+---
+
+## Code Quality
+
+### Linting and Type Checking
+
+```bash
+ruff check eis_analysis/                 # Static analysis
+ruff check eis_analysis/ --fix           # Auto-fix issues
+mypy eis_analysis/                       # Type checking
+```
+
+### Code Style
+
+- **Python:** PEP 8 (longer lines OK if more readable)
+- **Docstrings:** NumPy style
+- **Type hints:** Yes, but not dogmatically
+- **Comments:** Explain "why", not "what"
+- **Naming:** Descriptive (avoid abbreviations except: freq, Z, R, C, L)
+
+---
+
 ## Documentation Organization
 
 ### Document Types
 
-**Main documentation (README.md):**
-- Structured by chapters according to functionalities:
-  - Introduction and quick start
-  - Kramers-Kronig validation (theory + usage)
-  - DRT analysis (main chapter with theory, implementation, interpretation)
-  - Circuit fitting (theory, auto-suggestion, usage)
-  - Oxide analysis (domain-specific)
-  - CLI reference, synthetic data, troubleshooting
-  - Installation (at the end)
-- Each chapter: brief theory -> implementation -> usage -> examples
-- **WITHOUT** change history (-> CHANGELOG.md)
-- **WITHOUT** Python API (-> PYTHON_API.md)
-- **WITHOUT** emoji (due to PDF export)
+| Document | Content |
+|----------|---------|
+| README.md | User guide, theory, CLI reference, examples |
+| CHANGELOG.md | Version history, migration guides |
+| PYTHON_API.md | Python API reference for library usage |
+| doc/*.md | Specialized guides (algorithms, math) |
+| CLAUDE.md | Development guide (this file) |
 
-**Change history (CHANGELOG.md):**
-- Complete history of all versions
-- Breaking changes, new features, bugfixes
-- Migration guides between versions
-- Chronologically from newest
+### Single Source of Truth
 
-**Python API documentation (PYTHON_API.md):**
-- Complete Python API reference
-- Usage as library (import)
-- Documentation of all functions and parameters
-- Examples of programmatic usage
-- **WITHOUT** CLI documentation (-> README.md)
-
-**Specialized guides (`./doc/` directory):**
-- In-depth documentation of one function/module
-- Mathematical background, algorithms
-- Usage examples, interpretation
-- Literature references
-
-**Development guide (CLAUDE.md - this file):**
-- Project philosophy
-- Design principles
-- Code style guidelines
-- Development workflow
-- **WITHOUT** implementation details (-> README.md)
-- **WITHOUT** specific versions (general rules)
-
-### Documentation Separation Rules
-
-**Single source of truth principle:**
-- Each piece of information has one primary location
-- Other documents reference it, don't duplicate it
-- Change in one place = change everywhere
-
-**What belongs where:**
-- Version history -> CHANGELOG.md (not README)
-- Implementation details of current version -> README.md
-- Mathematical theory of specific method -> specialized MD
+- Version history -> CHANGELOG.md only
+- Implementation details -> README.md only
 - API reference -> docstrings in code
-- Philosophy and design -> CLAUDE.md (this file)
+- Each piece of information has ONE primary location
 
-**Consistency across documents:**
-- Unified terminology
-- Consistent formatting (especially for PDF export)
-- Cross-references between documents (markdown links)
+### PDF Export Rules
 
-### Characters for PDF Export
+**No emoji in documents** - DejaVu Serif font doesn't support them.
 
-**CRITICAL RULE: NO EMOJI in documents intended for PDF!**
+**Safe characters:** Standard ASCII, Greek letters (alpha, beta, lambda, omega), basic Unicode (x, +-, <=, >=, ->, deg, inf)
 
-DejaVu Serif font (used by pandoc for PDF) doesn't support emoji. Every emoji causes PDF warning.
+**Unsafe:** All emoji, box drawing characters, fancy quotes
 
-**USE (PDF-safe):**
-- Standard ASCII characters and Markdown: `#`, `##`, `**bold**`, `*italic*`, `` `code` ``
-- Tables: `|`, `-`
-- Lists: `-`, `+`, `*`, `1.`
-- Code blocks: ` ```python `
-- Math in code: `` `Z = R + jωL` ``
-- Basic Unicode: ×, ±, ≈, ≤, ≥, →, °, ∞
-- Greek letters: α, β, γ, λ, τ, ω, σ, φ, μ (or in words: alpha, beta, lambda, tau, omega)
-
-**NEVER (causes PDF warnings):**
-- Emoji: all emoji (sparkles, charts, warnings, checkmarks, tools, folders, etc.)
-- Box drawing characters: ┌ ─ └ │ ┐ ┘ ├ ┤
-- Fancy quotes: „" '' (use standard " ')
-
-**Rules for README.md:**
-- README.md intended for PDF -> no emoji
-- For emphasis use `**bold text**` or `## Headings`
-- Advantage lists: use `+` instead of emoji checkmarks
-- Section headings: without emoji (they're unnecessary, heading is descriptive enough)
-
-**Examples:**
-```markdown
-# GOOD (PDF compatible)
-## Key Features
-
-**Advantages:**
-+ Objective, reproducible results
-+ Eliminates manual experimentation
-
-## Parameters
-- Parameter λ (lambda) for regularization
-- Impedance Z = R + jωL [Ω]
-- Phase φ = -45° for Warburg
-
-# BAD (PDF warnings)
-## 📋 Key Features
-
-**Advantages:**
-- ✅ Objective results
-- ✅ Eliminates manual work
-
-## 🔧 Parameters
-- Parameter λ 🔧 for regularization
-```
+---
 
 ## Version Management
 
-**Single Source of Truth:** Version is defined in `eis_analysis/version.py` - all other files import from there or synchronize manually.
+**Single Source of Truth:** `eis_analysis/version.py`
 
-**When changing version:** Always start from `version.py`, then update CHANGELOG.md and documentation.
+**When releasing:**
+1. Update `version.py`
+2. Update CHANGELOG.md
+3. Update documentation if needed
 
-**Details:** See `VERSION_MANAGEMENT.md`
+Details: See `VERSION_MANAGEMENT.md`
+
+---
 
 ## Development Workflow
 
 ### Adding a New Feature
 
-1. **Planning**
-   - Is it backward compatible?
-   - Does it need a new module or extension of existing one?
-   - What tests are needed?
+1. **Plan**
+   - Backward compatible?
+   - New module or extension?
+   - Which layer? (I/O, algorithms, visualization, domain)
 
-2. **Implementation**
-   - Choose the correct module in core package
+2. **Implement**
+   - Choose correct module in core package
    - Follow existing API conventions
    - Add docstrings (NumPy style)
    - Add type hints
 
-3. **Testing**
-   - Test with synthetic data
-   - Test with real data (if available)
-   - Test edge cases
+3. **Test**
+   - Synthetic data (reproducible)
+   - Real data (if available)
+   - Edge cases
 
-4. **Documentation**
-   - Update README.md (if user-facing)
+4. **Document**
+   - Docstring (always)
+   - README.md (if user-facing)
+   - Specialized doc/*.md (if complex algorithm)
+
+5. **Integrate**
+   - Update CLI if user-facing
+   - Update `__init__.py` exports
    - Update CHANGELOG.md
-   - Create specialized MD (if complex)
+   - Test end-to-end workflow
 
-5. **Integration**
-   - Update CLI script if needed
-   - Update package exports (`__init__.py`)
-   - Test entire workflow end-to-end
+### Bug Fix
+
+1. Identify root cause
+2. Write regression test (reproduces the bug)
+3. Fix in appropriate module
+4. Verify all tests pass
+5. Update CHANGELOG.md
+6. Commit: `fix(module): brief description`
 
 ### Git Workflow
 
 **NEVER:**
 - Commit to main without testing
 - Force push to main
-- Commit without message
 - Commit large binary files
 
 **ALWAYS:**
@@ -215,117 +238,56 @@ DejaVu Serif font (used by pandoc for PDF) doesn't support emoji. Every emoji ca
 - Update CHANGELOG.md
 - One commit = one logical change
 
-### Code Style
-
-- **Python:** PEP 8 (but not strictly - longer lines OK if more readable)
-- **Docstrings:** NumPy style
-- **Type hints:** Yes, but not dogmatically
-- **Comments:** Explain "why", not "what"
-- **Naming:** Descriptive names (avoid abbreviations except common ones: freq, Z, R, C)
-- **Linting:** `ruff check` for static analysis (unused imports, PEP 8, potential bugs)
-- **Type checking:** `mypy` for type annotation checking
-
-## Types of Development Tasks
-
-### Adding a New Feature
-
-**Consider:**
-- Which architecture layer is appropriate? (I/O, algorithms, visualization, domain logic)
-- Is a new module needed or extension of existing one?
-- How does the feature fit into CLI workflow?
-- Does it need specialized documentation?
-
-**Proceed:**
-1. Implement in appropriate module
-2. Add to package exports if public API
-3. Integrate into CLI if user-facing
-4. Test with synthetic and real data
-5. Document (docstring + README/specialized MD)
-6. Update CHANGELOG.md
-
-### Bug Fix
-
-**Proceed:**
-1. Identify root cause
-2. Write test reproducing the bug (regression test)
-3. Fix in appropriate module
-4. Verify all tests pass
-5. Update CHANGELOG.md (Bugfixes section)
-6. Commit message: `fix(module): brief description`
-
-### Adding Utility Script (data generators, etc.)
-
-**Proceed:**
-1. Standalone script at root level (not in package)
-2. Argparse CLI interface
-3. Export to standard formats
-4. Optional `--plot` flag for quick preview
-5. Create specialized MD documentation
-6. Reference from README.md
-7. Update CHANGELOG.md
+---
 
 ## Notes for AI Assistant
-
-### Environment
-
-- Use `python3` command (not `python`) - system has no `python` symlink
 
 ### When User Requests a Change
 
 1. **Determine scope:**
-   - Is it a bugfix, feature, or refactoring?
-   - Which modules will it affect?
-   - Is it a breaking change?
+   - Bugfix, feature, or refactoring?
+   - Which modules affected?
+   - Breaking change?
 
 2. **Propose solution:**
-   - Where exactly to change code
+   - Where to change code
    - What tests to add
-   - What to update in docs
+   - What docs to update
 
-3. **Implement gradually:**
-   - First core logic
-   - Then integration
-   - Then documentation
-   - Then tests
+3. **Implement:**
+   - Core logic first
+   - Integration second
+   - Documentation third
+   - Tests throughout
 
 4. **Verify:**
-   - Run script on synthetic data
+   - Run tests: `python3 -m pytest tests/`
    - Check backward compatibility
-   - Verify docs are up to date
+   - Verify docs are current
 
 ### Prioritization
 
-**High priority:**
-- Bugfixes affecting results
-- Missing/incorrect documentation
-- Breaking API changes (requires major version bump)
-
-**Medium priority:**
-- Performance improvements
-- New features (if user request)
-- Code refactoring
-
-**Low priority:**
-- Cosmetic changes
-- Alternative implementations (if current one works)
+| Priority | Type |
+|----------|------|
+| High | Bugfixes affecting results, incorrect documentation |
+| Medium | Performance improvements, new features |
+| Low | Cosmetic changes, alternative implementations |
 
 ### Anti-patterns to Avoid
 
 **Code:**
-- Adding features "just in case" -> YAGNI (You Ain't Gonna Need It)
-- Premature optimization -> first correct, then fast
-- Ignoring edge cases -> always think about min/max/empty/NaN
+- Features "just in case" -> only what's requested
+- Premature optimization -> correct first
+- Ignoring edge cases -> test min/max/empty/NaN
 
 **Documentation:**
-- Copying docstring to README -> reference the module
 - Duplicating information -> single source of truth
-- Writing documentation-for-documentation-sake -> every section must have purpose
+- Documentation without purpose -> every section must be useful
 
 **Testing:**
-- "It looks correct" -> always quantify (error < X%)
-- Test only happy path -> test edge cases
-- Manual testing -> prefer automated
+- "Looks correct" -> quantify (error < X%)
+- Happy path only -> test edge cases
 
 ---
 
-**This document defines development philosophy and principles. For implementation details see README.md and other documentation.**
+**For implementation details see README.md. For API reference see docstrings and PYTHON_API.md.**
