@@ -483,6 +483,20 @@ eis data.DTA
 
 ---
 
+## Testing
+
+Run the test suite with pytest:
+
+```bash
+python3 -m pytest tests/           # All tests
+python3 -m pytest tests/ -v        # Verbose output
+python3 -m pytest tests/ -q        # Quiet mode
+python3 -m pytest tests/test_drt.py   # Single file
+python3 -m pytest tests/ -k "voigt"   # Tests matching pattern
+```
+
+---
+
 ## Python API
 
 **Complete Python API:** [doc/PYTHON_API.md](doc/PYTHON_API.md)

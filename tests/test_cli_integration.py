@@ -183,7 +183,6 @@ def test_synthetic_data_basic():
     print(f"  |Z| range: [{np.abs(data.Z).min():.2e}, {np.abs(data.Z).max():.2e}] Ohm")
     print("  [OK] Synthetic data loaded successfully")
 
-    return True
 
 
 # =============================================================================
@@ -211,7 +210,6 @@ def test_kk_validation():
     print(f"  Validated {len(frequencies)} data points")
     print("  [OK] KK validation completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -247,7 +245,6 @@ def test_drt_analysis():
 
     print("  [OK] DRT analysis completed successfully")
 
-    return True
 
 
 def test_drt_with_gmm():
@@ -261,8 +258,7 @@ def test_drt_with_gmm():
     except ImportError:
         has_sklearn = False
         print("  [SKIP] scikit-learn not available")
-        return True
-
+    
     from eis_analysis.cli import run_drt_analysis
 
     frequencies, Z = get_synthetic_data()
@@ -279,7 +275,6 @@ def test_drt_with_gmm():
     plt.close('all')
     print("  [OK] DRT with GMM completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -310,7 +305,6 @@ def test_rinf_estimation():
 
     print("  [OK] R_inf estimation completed")
 
-    return True
 
 
 # =============================================================================
@@ -352,7 +346,6 @@ def test_circuit_fitting_single():
 
     print("  [OK] Circuit fitting (single) completed successfully")
 
-    return True
 
 
 def test_circuit_fitting_multistart():
@@ -382,7 +375,6 @@ def test_circuit_fitting_multistart():
 
     print("  [OK] Circuit fitting (multistart) completed successfully")
 
-    return True
 
 
 def test_circuit_fitting_de():
@@ -414,7 +406,6 @@ def test_circuit_fitting_de():
 
     print("  [OK] Circuit fitting (DE) completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -457,7 +448,6 @@ def test_voigt_chain():
 
     print("  [OK] Voigt chain fitting completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -482,7 +472,6 @@ def test_zhit_validation():
 
     print("  [OK] Z-HIT validation completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -501,8 +490,7 @@ def test_csv_input():
 
     if not os.path.exists(csv_path):
         print(f"  [SKIP] CSV file not found: {csv_path}")
-        return True
-
+    
     from eis_analysis.cli import load_eis_data, run_kk_validation
 
     args = create_test_args(input=csv_path)
@@ -523,7 +511,6 @@ def test_csv_input():
 
     print("  [OK] CSV file processing completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -542,8 +529,7 @@ def test_dta_input():
 
     if not os.path.exists(dta_path):
         print(f"  [SKIP] DTA file not found: {dta_path}")
-        return True
-
+    
     from eis_analysis.cli import load_eis_data
 
     args = create_test_args(input=dta_path)
@@ -563,7 +549,6 @@ def test_dta_input():
 
     print("  [OK] DTA file processing completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -598,7 +583,6 @@ def test_frequency_filtering():
 
     print("  [OK] Frequency filtering completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -648,7 +632,6 @@ def test_combined_workflow():
 
     print("  [OK] Combined workflow completed successfully")
 
-    return True
 
 
 # =============================================================================
@@ -685,7 +668,6 @@ def test_save_output():
 
     print("  [OK] Save output test completed")
 
-    return True
 
 
 # =============================================================================
@@ -724,7 +706,6 @@ def test_error_handling():
 
     print("  [OK] Error handling works correctly")
 
-    return True
 
 
 # =============================================================================
@@ -758,9 +739,8 @@ def run_all_tests():
 
     for name, test_func in tests:
         try:
-            result = test_func()
-            if result:
-                passed += 1
+            test_func()
+            passed += 1
         except AssertionError as e:
             print(f"\n  [FAIL] {name}: {e}")
             failed += 1

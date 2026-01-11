@@ -1,65 +1,57 @@
 #!/usr/bin/env python3
-"""
-Test script to compare different weighting types for circuit fitting.
-"""
+"""Test weighting types for circuit fitting."""
 
-import matplotlib.pyplot as plt
-from eis_analysis.io.data_loading import load_data
+import numpy as np
+import pytest
 from eis_analysis.fitting.circuit_elements import R, C
 from eis_analysis.fitting import fit_equivalent_circuit
 
-# Load test data
-print("Loading test data...")
-freq, Z = load_data('real_gamry_example.DTA')
 
-# Simple Voigt circuit for testing
-circuit = R(100) - (R(5000) | C(1e-6))
+@pytest.fixture
+def synthetic_voigt_data():
+    """Generate synthetic Voigt circuit data: R_s + (R || C)."""
+    freq = np.logspace(4, -1, 50)  # 10 kHz to 0.1 Hz
+    omega = 2 * np.pi * freq
 
-# Test all weighting types
-weighting_types = ['uniform', 'sqrt', 'proportional', 'modulus']
-results = {}
+    # True parameters
+    R_s, R1, C1 = 100.0, 5000.0, 1e-6
+    Z = R_s + R1 / (1 + 1j * omega * R1 * C1)
 
-print("\n" + "="*70)
-print("Testing different weighting types")
-print("="*70)
+    # Add 1% noise (reproducible)
+    np.random.seed(42)
+    noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
 
-for wtype in weighting_types:
-    print(f"\n{'='*70}")
-    print(f"Testing: {wtype}")
-    print(f"{'='*70}")
+    return freq, Z + noise, (R_s, R1, C1)
+
+
+@pytest.mark.parametrize("weighting", ['uniform', 'sqrt', 'proportional', 'modulus'])
+def test_weighting_produces_valid_fit(synthetic_voigt_data, weighting):
+    """Test that each weighting type produces a valid fit."""
+    freq, Z, true_params = synthetic_voigt_data
+    circuit = R(100) - (R(5000) | C(1e-6))
 
     result, Z_fit, fig = fit_equivalent_circuit(
-        freq, Z, circuit, weighting=wtype
+        freq, Z, circuit, weighting=weighting, plot=False
     )
 
-    results[wtype] = {
-        'params': result.params_opt,
-        'error_rel': result.fit_error_rel,
-        'error_abs': result.fit_error_abs,
-        'quality': result.quality
-    }
+    assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
+    assert len(result.params_opt) == 3, "Should have 3 parameters"
 
-    plt.close(fig)  # Close individual figures
 
-# Summary comparison
-print("\n" + "="*70)
-print("COMPARISON SUMMARY")
-print("="*70)
+@pytest.mark.parametrize("weighting", ['uniform', 'sqrt', 'proportional', 'modulus'])
+def test_weighting_recovers_parameters(synthetic_voigt_data, weighting):
+    """Test that fitted parameters are close to true values."""
+    freq, Z, true_params = synthetic_voigt_data
+    R_s_true, R1_true, C1_true = true_params
+    circuit = R(100) - (R(5000) | C(1e-6))
 
-print("\nParameters:")
-print(f"{'Type':<15} {'R0 [Ω]':<15} {'R1 [Ω]':<15} {'C [F]':<15}")
-print("-"*70)
-for wtype in weighting_types:
-    params = results[wtype]['params']
-    print(f"{wtype:<15} {params[0]:<15.2e} {params[1]:<15.2e} {params[2]:<15.2e}")
+    result, _, _ = fit_equivalent_circuit(
+        freq, Z, circuit, weighting=weighting, plot=False
+    )
 
-print("\nFit Quality:")
-print(f"{'Type':<15} {'Rel Error [%]':<20} {'Abs Error [Ω]':<20} {'Quality':<15}")
-print("-"*70)
-for wtype in weighting_types:
-    r = results[wtype]
-    print(f"{wtype:<15} {r['error_rel']:<20.4f} {r['error_abs']:<20.4f} {r['quality']:<15}")
+    R_s_fit, R1_fit, C1_fit = result.params_opt
 
-print("\n" + "="*70)
-print("Test completed successfully!")
-print("="*70)
+    # Allow 15% tolerance due to noise
+    assert abs(R_s_fit - R_s_true) / R_s_true < 0.15, f"R_s error too high"
+    assert abs(R1_fit - R1_true) / R1_true < 0.15, f"R1 error too high"
+    assert abs(C1_fit - C1_true) / C1_true < 0.15, f"C1 error too high"
