@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.4 (2026-02-07)
+
+### Code Quality
+
+- **Fixed 7 lint errors** (unused imports and variables) left over from previous refactoring
+  - Removed unused imports: `FitDiagnostics`, `MultistartDiagnostics`, `DiffEvoDiagnostics`, `check_bounds_proximity`, `check_parameter_diagnostics`
+  - Removed unused variables: `freq_warnings` in `drt/core.py`, `n_params` in `fitting/diffevo.py`
+
+### Infrastructure
+
+- **Added GitHub Actions CI pipeline** (`.github/workflows/ci.yml`)
+  - Lint job: ruff check on every push/PR
+  - Test job: pytest on Python 3.9 and 3.12
+
+### Documentation
+
+- Added comprehensive code review report (`doc/CODE_REVIEW_2026.md`)
+
+---
+
 ## Version 0.13.3 (2026-01-11)
 
 ### Code Quality Improvements

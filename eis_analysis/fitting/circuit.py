@@ -27,8 +27,8 @@ from dataclasses import dataclass, field
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
-from .bounds import generate_simple_bounds, check_bounds_proximity
-from .diagnostics import compute_weights, check_parameter_diagnostics, compute_fit_metrics
+from .bounds import generate_simple_bounds
+from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
 logger = logging.getLogger(__name__)

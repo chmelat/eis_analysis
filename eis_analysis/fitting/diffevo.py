@@ -216,7 +216,6 @@ def fit_circuit_diffevo(
 
     initial_guess = np.array(initial_guess)
     bounds = list(zip(lower_bounds, upper_bounds))
-    n_params = len(bounds)
 
     # Clip initial guess to bounds
     initial_guess = np.clip(initial_guess, lower_bounds, upper_bounds)

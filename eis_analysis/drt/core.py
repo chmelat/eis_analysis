@@ -672,7 +672,7 @@ def calculate_drt(
 
     # === Step 1: Validate frequencies ===
     try:
-        freq_warnings = _validate_frequencies(frequencies)
+        _validate_frequencies(frequencies)
     except ValueError as e:
         logger.error(str(e))
         return DRTResult()

@@ -31,11 +31,8 @@ from ..fitting import (
     analyze_voigt_elements,
     format_voigt_report,
     FitResult,
-    FitDiagnostics,
     MultistartResult,
-    MultistartDiagnostics,
     DiffEvoResult,
-    DiffEvoDiagnostics,
 )
 from ..fitting.diagnostics import compute_fit_metrics
 from ..analysis import analyze_oxide_layer
