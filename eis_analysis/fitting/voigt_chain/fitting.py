@@ -210,7 +210,7 @@ def estimate_R_linear(
             b_L = (Z_imag - Z_fit_imag) * weights
 
             L_value = np.linalg.pinv(a_L.reshape(-1, 1)) @ b_L
-            L_value = float(L_value)
+            L_value = float(L_value.item())
 
             # Add L to elements
             elements = np.append(elements, L_value)
