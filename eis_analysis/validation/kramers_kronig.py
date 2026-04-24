@@ -436,7 +436,7 @@ def kramers_kronig_validation(
     max_M: int = 50,
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (0.0, 1.0)
-) -> Optional[KKResult]:
+) -> KKResult:
     """
     Perform Kramers-Kronig validation test on EIS data.
 

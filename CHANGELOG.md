@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.5 (2026-04-24)
+
+### Bug Fixes
+
+- **Fixed swapped arguments in `log_separator` calls** (`cli/handlers.py`)
+  - 7 call sites used `log_separator("=", 50)` instead of `log_separator(50, "=")`.
+  - Latent bug: output was correct thanks to Python's commutative `str * int`,
+    but would break on any future refactor using `length` as an integer.
+- **Fixed incorrect `Optional[KKResult]` return type** in `validation/kramers_kronig.py`
+  - Function always returns a `KKResult` (with `error` set on failure), never `None`.
+  - Callers accessing `result.success` directly were type-unsafe per the old annotation.
+- **Added `None`-narrowing in DRT visualization** (`drt/core.py`)
+  - `peaks_result` access inside `if use_gmm:` guarded with explicit assert.
+
+### Infrastructure
+
+- **Added mypy job to CI** (`.github/workflows/ci.yml`)
+  - Runs on Python 3.12, `continue-on-error: true` (reports without blocking).
+- **Added `[tool.mypy]` section to `pyproject.toml`** with `ignore_missing_imports = true`
+  - Silences 43 noisy stub-missing errors from matplotlib/scipy.
+
+### Cleanup
+
+- Removed stale artifacts from repository root (all previously untracked):
+  `out*.txt`, `test_G_element.png`, `zry-3d_*.pdf`, `mod2c.sh~`,
+  `doc/CODE_REVIEW_REPORT.md~`.
+
+### Documentation
+
+- Added project audit (`doc/AUDIT_2026-04-24.md`) with priorities and remediation plan.
+
+---
+
 ## Version 0.13.4 (2026-02-07)
 
 ### Code Quality

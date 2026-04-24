@@ -321,9 +321,9 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     if diag is None:
         return
 
-    log_separator("=", 50)
+    log_separator()
     logger.info("Differential Evolution optimization")
-    log_separator("=", 50)
+    log_separator()
 
     # Settings - map strategy name to option number
     strategy_to_option = {'randtobest1bin': 1, 'best1bin': 2, 'rand1bin': 3}
@@ -362,9 +362,9 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     logger.info("")
 
     # Summary
-    log_separator("=", 50)
+    log_separator()
     logger.info("Differential Evolution results")
-    log_separator("=", 50)
+    log_separator()
     logger.info(f"  Strategy: {diag.strategy}")
     logger.info(f"  Total evaluations: {diag.total_evaluations}")
     logger.info(f"  DE error: {diag.de_error:.3f}% -> Refined: {diag.refined_error:.3f}%")
@@ -377,9 +377,9 @@ def _log_multistart_diagnostics(multistart_result: MultistartResult) -> None:
     if diag is None:
         return
 
-    log_separator("=", 50)
+    log_separator()
     logger.info("Multi-start optimization")
-    log_separator("=", 50)
+    log_separator()
 
     # Settings
     logger.info(f"  Restarts: {diag.n_restarts}")
@@ -434,7 +434,7 @@ def _log_fit_result(result: FitResult) -> None:
     for warning in result.all_warnings:
         logger.warning(f"  {warning}")
 
-    log_separator("=", 50)
+    log_separator()
 
 
 def run_drt_analysis(

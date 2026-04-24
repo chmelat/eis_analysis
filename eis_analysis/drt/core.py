@@ -526,6 +526,7 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
 
     # === GMM Visualization ===
     if use_gmm:
+        assert peaks_result is not None  # guaranteed by use_gmm
         log_tau = np.log10(tau)
         ax3.semilogx(tau, gamma, 'b-', linewidth=2, label='DRT gamma(tau)', alpha=0.7)
 
