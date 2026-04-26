@@ -340,9 +340,10 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     n_free = len(result.params_opt) - diag.n_fixed_params
     logger.info(f"  Parameters: {n_free} (free)")
 
-    # Initial guess from circuit
-    initial_guess = result.circuit.get_all_params()
-    logger.info(f"  Initial guess: {np.array(initial_guess)}")
+    # Initial guess captured before DE ran (circuit.update_params overwrote
+    # circuit.get_all_params() with the final fit, so we read the snapshot
+    # stored in diagnostics instead).
+    logger.info(f"  Initial guess: {np.array(diag.initial_guess)}")
     logger.info("")
 
     # DE progress

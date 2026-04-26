@@ -93,6 +93,11 @@ class DiffEvoDiagnostics:
     n_fixed_params: int = 0
     fixed_param_indices: List[int] = field(default_factory=list)
 
+    # Initial guess passed to DE (full parameter vector, including fixed).
+    # Captured before the optimizer runs so it survives circuit.update_params()
+    # at the end of fit_circuit_diffevo.
+    initial_guess: List[float] = field(default_factory=list)
+
     # Warnings
     warnings: List[str] = field(default_factory=list)
 
@@ -429,6 +434,7 @@ def fit_circuit_diffevo(
         total_evaluations=de_result.nfev + (ls_result.nfev if hasattr(ls_result, 'nfev') else 0),
         n_fixed_params=len(fixed_param_indices),
         fixed_param_indices=fixed_param_indices,
+        initial_guess=list(initial_guess_full),
         warnings=diag_warnings
     )
 

@@ -4,6 +4,23 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.7 (2026-04-26)
+
+### Bug Fixes
+
+- **Fixed misleading "Initial guess" log line in DE optimizer**
+  (`cli/handlers.py`, `fitting/diffevo.py`)
+  - `_log_diffevo_diagnostics` read `result.circuit.get_all_params()` after
+    `fit_circuit_diffevo` had already called `circuit.update_params(...)`,
+    so the line printed the **final fit values** disguised as the initial
+    guess (the two were always identical, regardless of how far DE moved).
+  - `DiffEvoDiagnostics` now carries an `initial_guess` field captured
+    before DE runs; the handler reads from there.
+  - For a default `R()-(R()|Q())-(R()|Q())` circuit the line now correctly
+    shows `[100, 100, 1e-4, 0.8, 100, 1e-4, 0.8]` (constructor defaults).
+
+---
+
 ## Version 0.13.6 (2026-04-26)
 
 ### Bug Fixes (Z-HIT validation)
