@@ -4,6 +4,28 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.8 (2026-04-26)
+
+### Improvements
+
+- **Suppress meaningless CIs for parameters at bounds** (`fitting/bounds.py`,
+  `fitting/circuit.py`, `fitting/diffevo.py`, `cli/handlers.py`)
+  - When a fit pushes a parameter to its lower or upper bound, the
+    Jacobian-based confidence interval is invalid (the local quadratic
+    approximation assumes an interior optimum). Previously the CLI still
+    printed the numerical CI, sometimes spanning negative values for a
+    resistance, masking that the parameter was unidentified.
+  - New helper `classify_bound_status(value, lower, upper)` in
+    `fitting/bounds.py` (same threshold as `check_bounds_proximity`:
+    1 decade on log scale, 1% of range on linear scale).
+  - `FitResult` carries a new `bound_status: Optional[List[str]]` field
+    (per-parameter: '', 'lower', 'upper', or 'fixed').
+  - `_log_fit_result` replaces the CI line with
+    `[at <lower|upper> bound — CI not meaningful]` for bound-hit parameters
+    and `[fixed]` for fixed parameters.
+
+---
+
 ## Version 0.13.7 (2026-04-26)
 
 ### Bug Fixes

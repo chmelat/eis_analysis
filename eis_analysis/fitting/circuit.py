@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
-from .bounds import generate_simple_bounds
+from .bounds import generate_simple_bounds, classify_bound_status
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
@@ -107,6 +107,9 @@ class FitResult:
     cov: Optional[NDArray[np.float64]] = None
     diagnostics: Optional[FitDiagnostics] = None
     param_labels: Optional[List[str]] = None
+    # Per-parameter bound status: '' (interior), 'lower', 'upper', or 'fixed'.
+    # Aligned with params_opt; None means caller did not supply bound info.
+    bound_status: Optional[List[str]] = None
     _n_data: int = 0
 
     @property
@@ -458,6 +461,18 @@ def fit_equivalent_circuit(
             warnings=diag_warnings
         )
 
+        # Per-parameter bound status (full vector, with 'fixed' for fixed params).
+        bound_status = []
+        for i, value in enumerate(params_opt):
+            if fixed_params is not None and i < len(fixed_params) and fixed_params[i]:
+                bound_status.append('fixed')
+            elif lower_bounds is not None and upper_bounds is not None:
+                bound_status.append(classify_bound_status(
+                    float(value), lower_bounds[i], upper_bounds[i]
+                ))
+            else:
+                bound_status.append('')
+
         # Step 9: Create result object
         n_data = len(frequencies)
         result = FitResult(
@@ -472,6 +487,7 @@ def fit_equivalent_circuit(
             cov=cov_result.cov,
             diagnostics=diagnostics,
             param_labels=param_labels,
+            bound_status=bound_status,
             _n_data=n_data
         )
 

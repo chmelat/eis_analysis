@@ -104,6 +104,38 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     return lower_bounds, upper_bounds
 
 
+def classify_bound_status(
+    value: float,
+    lower: float,
+    upper: float
+) -> str:
+    """Return 'lower', 'upper', or '' depending on whether `value` sits at a bound.
+
+    Uses the same threshold as `check_bounds_proximity`: 1 decade on log scale
+    (when bounds span >6 decades) or 1% of the range on linear scale.
+    """
+    if not (np.isfinite(lower) and np.isfinite(upper)):
+        return ''
+    if lower > 0 and upper / lower > 1e6:
+        if value <= 0:
+            return 'lower'
+        log_val = np.log10(value)
+        log_lo, log_hi = np.log10(lower), np.log10(upper)
+        if log_val - log_lo < 1.0:
+            return 'lower'
+        if log_hi - log_val < 1.0:
+            return 'upper'
+    else:
+        rng = upper - lower
+        if not np.isfinite(rng) or rng <= 0:
+            return ''
+        if value - lower < 0.01 * rng:
+            return 'lower'
+        if upper - value < 0.01 * rng:
+            return 'upper'
+    return ''
+
+
 def check_bounds_proximity(
     params_opt: NDArray[np.float64],
     params_opt_free: NDArray[np.float64],
@@ -173,5 +205,6 @@ def check_bounds_proximity(
 __all__ = [
     'generate_simple_bounds',
     'check_bounds_proximity',
+    'classify_bound_status',
     'PARAMETER_BOUNDS',
 ]

@@ -419,9 +419,17 @@ def _log_fit_result(result: FitResult) -> None:
     # Get 95% confidence intervals
     ci_low, ci_high = result.params_ci_95
 
-    # Print each parameter
+    # Print each parameter. If a parameter sits at a bound or is fixed, the
+    # Jacobian-based CI is not meaningful (locally non-quadratic surface), so
+    # we suppress it and tag the line instead.
+    bound_status = result.bound_status or [''] * len(result.params_opt)
     for i, (label, val, stderr) in enumerate(zip(labels, result.params_opt, result.params_stderr)):
-        if np.isinf(stderr) or np.isnan(stderr):
+        status = bound_status[i] if i < len(bound_status) else ''
+        if status == 'lower' or status == 'upper':
+            logger.info(f"    {label:5s} = {val:.2e}  [at {status} bound — CI not meaningful]")
+        elif status == 'fixed':
+            logger.info(f"    {label:5s} = {val:.2e}  [fixed]")
+        elif np.isinf(stderr) or np.isnan(stderr):
             logger.info(f"    {label:5s} = {val:.2e} +/- inf")
         else:
             low, high = ci_low[i], ci_high[i]

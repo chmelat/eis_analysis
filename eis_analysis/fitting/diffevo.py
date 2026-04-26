@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
-from .bounds import generate_simple_bounds
+from .bounds import generate_simple_bounds, classify_bound_status
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
@@ -399,6 +399,16 @@ def fit_circuit_diffevo(
         warnings=diag_warnings
     )
 
+    # Per-parameter bound status (full vector, with 'fixed' for fixed params).
+    bound_status = []
+    for i, value in enumerate(params_opt):
+        if fixed_params is not None and i < len(fixed_params) and fixed_params[i]:
+            bound_status.append('fixed')
+        else:
+            bound_status.append(classify_bound_status(
+                float(value), lower_bounds_full[i], upper_bounds_full[i]
+            ))
+
     # Step 5: Create FitResult
     n_data = len(frequencies)
     fit_result = FitResult(
@@ -413,6 +423,7 @@ def fit_circuit_diffevo(
         cov=cov,
         diagnostics=fit_diagnostics,
         param_labels=param_labels_indexed,
+        bound_status=bound_status,
         _n_data=n_data
     )
 
