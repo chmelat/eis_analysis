@@ -47,6 +47,19 @@ from .kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
 logger = logging.getLogger(__name__)
 
 
+def _quality_label(mean_abs_residual_mag: float) -> str:
+    """Stratified label for KK/Z-HIT magnitude residuals (in percent)."""
+    if mean_abs_residual_mag < 0.5:
+        return "excellent"
+    if mean_abs_residual_mag < 1.0:
+        return "good"
+    if mean_abs_residual_mag < 2.5:
+        return "acceptable"
+    if mean_abs_residual_mag < 5.0:
+        return "marginal (check for drift/nonlinearity)"
+    return "poor"
+
+
 @dataclass
 class ZHITResult:
     """Result of Z-HIT validation.
@@ -71,6 +84,8 @@ class ZHITResult:
         Quality metric (0-1 scale, based on magnitude residuals)
     ref_freq : float
         Reference frequency used [Hz]
+    quality_threshold : float
+        Pass/fail threshold for `is_valid` and the `quality` metric [%].
     figure : Optional[plt.Figure]
         Visualization figure
     """
@@ -83,6 +98,7 @@ class ZHITResult:
     noise_estimate: float
     quality: float
     ref_freq: float
+    quality_threshold: float = 5.0
     figure: Optional[plt.Figure] = None
 
     @property
@@ -102,22 +118,31 @@ class ZHITResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if data passes validation (magnitude residuals < 5%)."""
-        return self.mean_residual_mag < 5.0
+        """Check if data passes validation (mean |residual_mag| < quality_threshold)."""
+        return self.mean_residual_mag < self.quality_threshold
+
+    @property
+    def quality_label(self) -> str:
+        """Stratified label for the magnitude residuals.
+
+        Absolute scale calibrated for KK/Z-HIT residuals: clean reference cells
+        typically sit in the 0.1-0.5% band, while >=5% indicates likely drift,
+        nonlinearity, or other K-K violations.
+        """
+        return _quality_label(self.mean_residual_mag)
 
 
 def _calculate_offset_weighted(
     ln_Z_fit: NDArray[np.float64],
     ln_Z_exp: NDArray[np.float64],
     frequencies: NDArray[np.float64],
-    center: float = 1.5,
+    center: Optional[float] = None,
     width: float = 3.0
 ) -> float:
     """
     Calculate optimal offset using weighted least-squares.
 
-    Uses a Gaussian window in log-frequency space to weight the fit,
-    focusing on a specific frequency range (default: 1-1000 Hz).
+    Uses a Gaussian window in log-frequency space to weight the fit.
 
     Parameters
     ----------
@@ -127,8 +152,10 @@ def _calculate_offset_weighted(
         Experimental ln|Z|
     frequencies : array
         Frequencies [Hz]
-    center : float
-        Center of weight window on log10(f) scale (default: 1.5 → ~31.6 Hz)
+    center : float, optional
+        Center of weight window on log10(f) scale.
+        If None (default), uses the median of log10(frequencies) so the window
+        always overlaps the measured spectrum regardless of frequency range.
     width : float
         Width of weight window in decades (default: 3.0)
 
@@ -138,6 +165,12 @@ def _calculate_offset_weighted(
         Optimal offset to add to ln_Z_fit
     """
     log_f = np.log10(frequencies)
+
+    # Default to median(log10 f) so the window is centered inside the measured
+    # range; a fixed center can fall outside the data (e.g. mHz corrosion scans)
+    # and starve the Gaussian of weight.
+    if center is None:
+        center = float(np.median(log_f))
 
     # Gaussian window: ~95% of weight within 'width' decades
     sigma = width / 4
@@ -161,7 +194,7 @@ def zhit_reconstruct_magnitude(
     use_second_order: bool = True,
     optimize_offset: bool = False,
     ln_Z_exp: Optional[NDArray[np.float64]] = None,
-    offset_center: float = 1.5,
+    offset_center: Optional[float] = None,
     offset_width: float = 3.0
 ) -> NDArray[np.float64]:
     """
@@ -188,7 +221,8 @@ def zhit_reconstruct_magnitude(
     ln_Z_exp : array, optional
         Experimental ln|Z| values, required if optimize_offset=True
     offset_center : float, optional
-        Center of weight window on log10(f) scale (default: 1.5 → ~31.6 Hz)
+        Center of weight window on log10(f) scale.
+        If None (default), uses the median of log10(frequencies).
     offset_width : float, optional
         Width of weight window in decades (default: 3.0)
 
@@ -256,7 +290,7 @@ def zhit_validation(
     ref_freq: Optional[float] = None,
     quality_threshold: float = 5.0,
     optimize_offset: bool = False,
-    offset_center: float = 1.5,
+    offset_center: Optional[float] = None,
     offset_width: float = 3.0
 ) -> ZHITResult:
     """
@@ -281,7 +315,8 @@ def zhit_validation(
         Use weighted least-squares offset optimization instead of fixed reference
         point. Default: False
     offset_center : float, optional
-        Center of weight window on log10(f) scale (default: 1.5 → ~31.6 Hz)
+        Center of weight window on log10(f) scale.
+        If None (default), uses the median of log10(frequencies).
     offset_width : float, optional
         Width of weight window in decades (default: 3.0)
 
@@ -323,14 +358,18 @@ def zhit_validation(
     logger.info("Z-HIT validation")
     logger.info("=" * 60)
 
-    # Ensure data is sorted by ascending frequency
+    # Sort by ascending frequency for the integration; remember inverse
+    # permutation so output arrays match the user's original order.
     sort_idx = np.argsort(frequencies)
+    inv_idx = np.argsort(sort_idx)
     frequencies = frequencies[sort_idx]
     Z = Z[sort_idx]
 
-    # Extract magnitude and phase
+    # Extract magnitude and phase. np.unwrap removes 2*pi jumps from arctan2
+    # at the [-pi, pi] boundary (relevant for inductive systems or noisy data
+    # near the wrap point), which would otherwise spike np.gradient below.
     Z_mag = np.abs(Z)
-    phi = np.arctan2(Z.imag, Z.real)  # Phase in radians
+    phi = np.unwrap(np.arctan2(Z.imag, Z.real))
 
     # Select reference frequency (geometric mean by default)
     if ref_freq is None:
@@ -365,6 +404,7 @@ def zhit_validation(
             noise_estimate=0.0,
             quality=0.0,
             ref_freq=actual_ref_freq,
+            quality_threshold=quality_threshold,
             figure=None
         )
 
@@ -394,11 +434,9 @@ def zhit_validation(
     logger.info(f"  Pseudo chi^2: {pseudo_chisqr:.2e}")
     logger.info(f"  Estimated noise (upper bound): {noise_estimate:.2f}%")
 
-    # Quality assessment
-    if mean_abs_residual_mag < 5.0:
-        logger.info("Data quality is good (residuals < 5%)")
-    else:
-        logger.warning("Data may contain artifacts (residuals >= 5%)")
+    log_fn = logger.info if mean_abs_residual_mag < quality_threshold else logger.warning
+    log_fn(f"Data quality: {_quality_label(mean_abs_residual_mag)} "
+           f"(mean |res_mag|={mean_abs_residual_mag:.2f}%, threshold={quality_threshold:.1f}%)")
 
     # Visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -432,15 +470,18 @@ def zhit_validation(
 
     plt.tight_layout()
 
+    # Restore the user's original frequency ordering on output arrays so they
+    # pair element-wise with the input `frequencies` / `Z`.
     return ZHITResult(
-        Z_mag_reconstructed=Z_mag_reconstructed,
-        Z_fit=Z_fit,
-        residuals_mag=residuals_mag,
-        residuals_real=residuals_real,
-        residuals_imag=residuals_imag,
+        Z_mag_reconstructed=Z_mag_reconstructed[inv_idx],
+        Z_fit=Z_fit[inv_idx],
+        residuals_mag=residuals_mag[inv_idx],
+        residuals_real=residuals_real[inv_idx],
+        residuals_imag=residuals_imag[inv_idx],
         pseudo_chisqr=pseudo_chisqr,
         noise_estimate=noise_estimate,
         quality=quality,
         ref_freq=actual_ref_freq,
+        quality_threshold=quality_threshold,
         figure=fig
     )

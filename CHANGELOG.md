@@ -4,6 +4,48 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.6 (2026-04-26)
+
+### Bug Fixes (Z-HIT validation)
+
+Based on external code review of `validation/zhit.py` (see
+`doc/ZHIT_AUDIT_2026-04-26.md`):
+
+- **Output arrays now match user input order** (`validation/zhit.py`)
+  - `zhit_validation` previously returned arrays sorted by ascending frequency
+    regardless of input order, causing element-wise mismatch when users plotted
+    residuals against their own (often descending) frequency arrays.
+  - Inverse permutation now applied to `Z_mag_reconstructed`, `Z_fit`,
+    `residuals_mag`, `residuals_real`, `residuals_imag` before returning.
+- **Phase unwrap added** (`validation/zhit.py`)
+  - `np.unwrap` on `np.arctan2` output prevents 2*pi jumps at the [-pi, pi]
+    boundary from spiking the `np.gradient` derivative used in the second-order
+    correction. Relevant for inductive systems and noisy data near the wrap point.
+
+### Improvements (Z-HIT validation)
+
+- **Stratified quality labels** (`validation/zhit.py`)
+  - New `ZHITResult.quality_label` property: excellent (<0.5%), good (<1.0%),
+    acceptable (<2.5%), marginal (<5.0%), poor (>=5.0%).
+  - Replaces the binary "good / may contain artifacts" log message that called
+    5% residuals "good" — misleading given KK-clean data sits at 0.1-0.5%.
+- **`ZHITResult.is_valid` honors `quality_threshold`** (`validation/zhit.py`)
+  - Previously hardcoded `< 5.0` regardless of the user-supplied
+    `quality_threshold`. New `quality_threshold` field stores the value.
+- **Data-driven default for offset window center** (`validation/zhit.py`)
+  - `_calculate_offset_weighted` / `zhit_reconstruct_magnitude` /
+    `zhit_validation` now accept `offset_center=None` (new default), in which
+    case the Gaussian window is centered at `median(log10(frequencies))`.
+  - Old fixed default of `1.5` (~31.6 Hz) fell outside the spectrum for
+    low-frequency scans (e.g. mHz corrosion measurements), producing
+    near-zero weights.
+
+### Documentation
+
+- Added `doc/ZHIT_AUDIT_2026-04-26.md` with full review and remediation plan.
+
+---
+
 ## Version 0.13.5 (2026-04-24)
 
 ### Bug Fixes
