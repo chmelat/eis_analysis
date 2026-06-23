@@ -42,6 +42,20 @@ Complete change history for all project versions.
 
 ### Improvements
 
+- **Harden IO module** (`io/data_loading.py`) — audit finding 2.4
+  - Narrowed all three `except Exception` to `except OSError` (file open in
+    `read_gamry_native`, `parse_ocv_curve`, `parse_dta_metadata`). Missing/
+    unreadable files are still handled gracefully (`FileNotFoundError`/
+    `PermissionError` are `OSError` subclasses), but a genuine parsing bug in
+    `parse_dta_metadata` now surfaces instead of being silently turned into
+    partial metadata. Per-field `(ValueError, IndexError)` guards inside the
+    loops are unchanged (they correctly skip malformed data rows).
+  - Annotated the `metadata` dict as `Dict[str, Any]`, clearing all 12 mypy
+    errors in the module (project total 75 → 63).
+  - Two regression tests lock the narrowed-except behavior
+    (`test_metadata_missing_file_returns_defaults`,
+    `test_ocv_missing_file_returns_none`).
+
 - **Fix implicit-Optional annotations on `fixed_params`/`full_initial_guess`**
   (`fitting/diffevo.py`, `fitting/jacobian.py`, `fitting/covariance.py`)
   - These parameters default to `None` and `None` is a reachable value

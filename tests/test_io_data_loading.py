@@ -268,6 +268,12 @@ def test_metadata_malformed_value_no_crash(tmp_path):
     assert m["area"] is None  # unparseable value left as default, no exception
 
 
+def test_metadata_missing_file_returns_defaults():
+    # Narrowed except (OSError) still handles a missing file gracefully.
+    m = parse_dta_metadata("/nonexistent/path/missing.DTA")
+    assert m["area"] is None and m["notes"] == []
+
+
 # ---------------------------------------------------------------------------
 # D) parse_ocv_curve
 # ---------------------------------------------------------------------------
@@ -290,6 +296,11 @@ def test_ocv_happy_path(tmp_path):
 
 def test_ocv_missing_section_returns_none(tmp_path):
     assert parse_ocv_curve(_write(tmp_path, "noocv.DTA", _make_dta(_rows(12)))) is None
+
+
+def test_ocv_missing_file_returns_none():
+    # Narrowed except (OSError) still handles a missing file gracefully.
+    assert parse_ocv_curve("/nonexistent/path/missing.DTA") is None
 
 
 # ---------------------------------------------------------------------------

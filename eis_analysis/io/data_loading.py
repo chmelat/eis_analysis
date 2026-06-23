@@ -65,7 +65,7 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
                 lines = f.readlines()
     except FileNotFoundError:
         raise ValueError(f"File not found: {filename}")
-    except Exception as e:
+    except OSError as e:
         raise ValueError(f"Error reading file {filename}: {e}")
 
     # Find ZCURVE section and optional EXPERIMENTABORTED
@@ -148,7 +148,7 @@ def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
     try:
         with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"Error reading file {filename}: {e}")
         return None
 
@@ -237,7 +237,7 @@ def parse_dta_metadata(filename: str) -> Dict[str, Any]:
     dict
         Dictionary with metadata (empty values if field is missing)
     """
-    metadata = {
+    metadata: Dict[str, Any] = {
         'area': None,
         'vdc': None,
         'vac': None,
@@ -334,8 +334,11 @@ def parse_dta_metadata(filename: str) -> Dict[str, Any]:
 
             i += 1
 
-    except Exception as e:
-        logger.warning(f"Error parsing metadata from {filename}: {e}")
+    except OSError as e:
+        # Only IO errors are swallowed here (open/readlines). Per-field guards
+        # inside the loop handle malformed data; a genuine parsing bug now
+        # surfaces instead of being silently turned into partial metadata.
+        logger.warning(f"Error reading file {filename}: {e}")
 
     return metadata
 
