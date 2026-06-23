@@ -201,8 +201,9 @@ def fit_circuit_multistart(
     fig : matplotlib.figure.Figure
         Nyquist plot with best fit
     """
-    all_results = []
-    all_errors = []
+    all_results: List[FitResult] = []
+    all_errors: List[Optional[float]] = []
+    result_indices: List[int] = []  # start_idx aligned with all_results
     n_successful = 0
     diag_warnings = []
     failed_errors = []  # Track exceptions from failed fits
@@ -218,6 +219,7 @@ def fit_circuit_multistart(
         )
         all_results.append(result0)
         all_errors.append(result0.fit_error_rel)
+        result_indices.append(1)  # initial fit is restart #1
         n_successful += 1
         initial_error = result0.fit_error_rel
 
@@ -281,10 +283,12 @@ def fit_circuit_multistart(
             }
 
             for future in as_completed(futures):
+                idx = futures[future]
                 result = future.result()
                 if result is not None:
                     all_results.append(result)
                     all_errors.append(result.fit_error_rel)
+                    result_indices.append(idx)
                     n_successful += 1
                 else:
                     all_errors.append(None)
@@ -294,6 +298,7 @@ def fit_circuit_multistart(
             if result is not None:
                 all_results.append(result)
                 all_errors.append(result.fit_error_rel)
+                result_indices.append(idx)
                 n_successful += 1
             else:
                 all_errors.append(None)
@@ -302,12 +307,15 @@ def fit_circuit_multistart(
     if not all_results:
         raise RuntimeError("Multi-start failed: no successful fits")
 
-    best_result = min(all_results, key=lambda r: r.fit_error_rel)
+    best_pos = min(range(len(all_results)), key=lambda i: all_results[i].fit_error_rel)
+    best_result = all_results[best_pos]
     best_error = best_result.fit_error_rel
     improvement = (initial_error - best_error) / initial_error * 100 if initial_error > 0 else 0
 
-    # Find which start gave the best result
-    best_idx = all_errors.index(best_error) + 1 if best_error in all_errors else 1
+    # Which start produced the best result. result_indices is aligned with
+    # all_results, so this is robust to completion-order shuffling that
+    # ThreadPoolExecutor/as_completed introduces in parallel mode.
+    best_idx = result_indices[best_pos]
 
     # Build diagnostics
     diagnostics = MultistartDiagnostics(

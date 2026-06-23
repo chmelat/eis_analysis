@@ -4,6 +4,29 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.9 (2026-06-23)
+
+### Bug Fixes
+
+- **Fix wrong `best_start_index` in parallel multi-start** (`fitting/multistart.py`)
+  - In parallel mode (`parallel=True`), the restart that produced the best
+    fit was identified via `all_errors.index(best_error)`. But `all_errors`
+    is filled in *completion* order (`as_completed`) and interleaved with
+    `None` for failed fits, so its positions do not correspond to restart
+    numbers. The reported `best_start_index` (and the CLI line
+    `Best start: #N`) was therefore wrong whenever a non-initial restart won
+    and did not happen to complete first.
+  - The fit result itself was never affected — only the diagnostic label.
+  - Fix: track each successful fit's `start_idx` in a `result_indices` list
+    aligned with `all_results`, and read the winning index directly. Robust
+    to completion-order shuffling and to failed restarts.
+  - Also annotated the local `all_errors` as `List[Optional[float]]`,
+    clearing the related mypy `arg-type`/`append` errors.
+  - Regression tests: `tests/test_multistart_best_index.py` (parallel
+    completion-order, sequential, initial-fit-wins).
+
+---
+
 ## Version 0.13.8 (2026-04-26)
 
 ### Improvements
