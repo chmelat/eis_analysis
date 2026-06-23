@@ -25,6 +25,23 @@ Complete change history for all project versions.
   - Regression tests: `tests/test_multistart_best_index.py` (parallel
     completion-order, sequential, initial-fit-wins).
 
+### Tests
+
+- **Add IO module test suite** (`tests/test_io_data_loading.py`, 27 tests)
+  - `io/data_loading.py` (650 lines) previously had zero direct unit tests
+    despite tight coupling to user file formats (audit finding 2.4). New
+    suite covers `read_gamry_native`/`load_data`, `load_csv_data`,
+    `parse_dta_metadata`, and `parse_ocv_curve`.
+  - Synthetic in-memory `.DTA`/CSV fixtures exercise edge cases
+    (European decimals, `EXPERIMENTABORTED` truncation, malformed/non-finite
+    rows, `MIN_DATA_POINTS` validation, CSV delimiter/column auto-detect and
+    positional fallback, metadata defaults). Smoke tests anchor the parsers
+    to the real export `example/EISPOT-test1.DTA` (now tracked).
+  - Detection power verified via mutation (disabling European-decimal
+    conversion fails the suite).
+
+### Improvements
+
 - **Fix implicit-Optional annotations on `fixed_params`/`full_initial_guess`**
   (`fitting/diffevo.py`, `fitting/jacobian.py`, `fitting/covariance.py`)
   - These parameters default to `None` and `None` is a reachable value
