@@ -38,7 +38,8 @@ class _DECostFunction:
 
     def __init__(self, circuit: Circuit, frequencies: NDArray[np.float64],
                  Z: NDArray[np.complex128], weights: NDArray[np.float64],
-                 fixed_params: list = None, full_initial_guess: list = None):
+                 fixed_params: Optional[List[bool]] = None,
+                 full_initial_guess: Optional[List[float]] = None):
         self.circuit = circuit
         self.frequencies = frequencies
         self.Z = Z

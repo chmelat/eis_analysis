@@ -9,7 +9,7 @@ Author: EIS Analysis Toolkit
 
 import numpy as np
 import logging
-from typing import List, Union, Tuple
+from typing import List, Optional, Union, Tuple
 from numpy.typing import NDArray
 from dataclasses import dataclass
 from scipy.stats import t
@@ -49,7 +49,7 @@ def compute_covariance_matrix(
     jacobian: NDArray[np.float64],
     residuals: NDArray[np.float64],
     n_params: int,
-    fixed_params: List[bool] = None,
+    fixed_params: Optional[List[bool]] = None,
     rcond: float = 1e-10
 ) -> CovarianceResult:
     """

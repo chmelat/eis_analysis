@@ -38,7 +38,7 @@ Author: EIS Analysis Toolkit
 """
 
 import numpy as np
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
 from .circuit_elements import R, C, L, Q, W, Wo, K, G, CircuitElement
@@ -282,7 +282,7 @@ def compute_analytic_jacobian(
     freq: NDArray[np.float64],
     params: List[float],
     weights: NDArray[np.float64],
-    fixed_params: List[bool] = None
+    fixed_params: Optional[List[bool]] = None
 ) -> NDArray[np.float64]:
     """
     Compute the full Jacobian matrix for least_squares residuals.
@@ -349,8 +349,8 @@ def make_jacobian_function(
     circuit: Union[CircuitElement, CompositeCircuit],
     freq: NDArray[np.float64],
     weights: NDArray[np.float64],
-    fixed_params: List[bool] = None,
-    full_initial_guess: List[float] = None
+    fixed_params: Optional[List[bool]] = None,
+    full_initial_guess: Optional[List[float]] = None
 ):
     """
     Create a Jacobian function compatible with scipy.optimize.least_squares.

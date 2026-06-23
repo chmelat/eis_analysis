@@ -25,6 +25,16 @@ Complete change history for all project versions.
   - Regression tests: `tests/test_multistart_best_index.py` (parallel
     completion-order, sequential, initial-fit-wins).
 
+- **Fix implicit-Optional annotations on `fixed_params`/`full_initial_guess`**
+  (`fitting/diffevo.py`, `fitting/jacobian.py`, `fitting/covariance.py`)
+  - These parameters default to `None` and `None` is a reachable value
+    (a circuit without `get_all_fixed_params` leaves `fixed_params=None`),
+    but the annotations declared them as non-optional `list`/`List[bool]`.
+    All consumers already guard `is None`, so there was no runtime bug — but
+    the false annotation disabled mypy's ability to catch a real None misuse
+    and invited a future refactor to drop the guard. Annotations now read
+    `Optional[...]`. No behavior change. Clears the related mypy errors.
+
 ---
 
 ## Version 0.13.8 (2026-04-26)
