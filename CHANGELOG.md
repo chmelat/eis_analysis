@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.13 (2026-06-24)
+
+### Tests
+
+- **Add unit tests for Kramers-Kronig validation** (`tests/test_kramers_kronig.py`,
+  24 tests) — addresses the open audit item (`AUDIT_2026-06-23` priority 5):
+  the validation core previously had no direct tests, only indirect CLI
+  coverage.
+  - Pure helpers with exact/analytic checks: `compute_pseudo_chisqr`
+    (perfect fit = 0, known weighted value), `estimate_noise_percent`
+    (exact formula, monotonicity), `reconstruct_impedance` (single-Voigt vs
+    analytic, inductance term, `include_L=False`, low-frequency limit).
+  - `lin_kk_native` and `kramers_kronig_validation` on KK-compliant Voigt
+    spectra: validity, residual/figure shapes, mu in (0, 1].
+  - `KKResult` dataclass contract (empty defaults, validity threshold, error).
+  - `find_optimal_extend_decades` range/output.
+  - Regression for the v0.13.10 auto-extend fix: on the example spectrum the
+    bounded tau grid yields a spurious imaginary residual (>10%) that the
+    default extension removes (<5%). Verified with a mutation check.
+
 ## Version 0.13.12 (2026-06-24)
 
 ### Improvements
