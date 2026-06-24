@@ -4,6 +4,43 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.10 (2026-06-24)
+
+### Bug Fixes
+
+- **Fix spurious KK imaginary-part residuals on capacitive/inductive tails**
+  (`validation/kramers_kronig.py`, `cli/parser.py`)
+  - The Lin-KK test fits a Voigt chain to the **real part** (`fit_type='real'`)
+    over a time-constant grid bounded by the measured frequency range
+    (`extend_decades=0`). On data with a strong low-frequency capacitive tail
+    (or high-frequency inductive tail), that grid cannot reproduce the
+    imaginary part near the frequency edges, producing a large, smooth,
+    *systematic* imaginary residual (e.g. 22% on `EISPOT-test1.DTA`) even
+    though the data is fully KK-compliant — as independently confirmed by
+    Z-HIT (~0.4%). The artifact is the edge effect Schönleber et al. (2014)
+    address via tau-range extension.
+  - Fix: `--auto-extend` (extend_decades optimization) is now **on by
+    default**; the library default `kramers_kronig_validation(...,
+    auto_extend_decades=True)` matches. With the extended grid the imaginary
+    residual collapses to match Z-HIT (0.41% on the same file). Use
+    `--no-auto-extend` to restore the previous behavior.
+
+- **Validate the full measured spectrum, not the filtered subset** (`eis.py`)
+  - KK and Z-HIT validation now run on the full loaded data, *before* the
+    `--f-min`/`--f-max` frequency filter is applied. The filter applies only
+    to the analysis stages (R_inf, DRT, circuit fit). Previously, filtering
+    first (e.g. `--f-min 1000`) truncated the spectrum that KK then validated;
+    because KK is an integral relation over all frequencies, removing the
+    low-frequency arm produced a spurious imaginary-part residual
+    (18.6% on the filtered `EISPOT-test1.DTA` vs 0.41% on the full spectrum).
+
+### Improvements
+
+- **Cleaner KK terminal output** (`cli/handlers.py`)
+  - The Kramers-Kronig section now prints a header and a summary block
+    (M, mu, extend_decades, mean residuals, pseudo chi^2, noise estimate,
+    data-quality verdict), mirroring the Z-HIT validation section.
+
 ## Version 0.13.9 (2026-06-23)
 
 ### Bug Fixes

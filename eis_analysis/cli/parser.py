@@ -153,9 +153,12 @@ Examples:
                           help='Skip Kramers-Kronig validation')
     kk_group.add_argument('--mu-threshold', type=float, default=0.85,
                           help='mu metric threshold for Lin-KK test (default: 0.85)')
-    kk_group.add_argument('--auto-extend', action='store_true',
+    kk_group.add_argument('--auto-extend', action=argparse.BooleanOptionalAction,
+                          default=True,
                           help='Automatically optimize extend_decades for KK validation '
-                               '(minimizes pseudo chi-squared)')
+                               '(minimizes pseudo chi-squared). On by default to avoid '
+                               'tau-truncation bias on capacitive/inductive tails; use '
+                               '--no-auto-extend to disable.')
     kk_group.add_argument('--extend-decades-max', type=float, default=1.0,
                           help='Maximum extend_decades for --auto-extend search range '
                                '(searches from -max to +max, default: 1.0)')

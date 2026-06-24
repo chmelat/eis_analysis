@@ -73,7 +73,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         # Kramers-Kronig
         'no_kk': False,
         'mu_threshold': 0.85,
-        'auto_extend': False,
+        'auto_extend': True,
         'extend_decades_max': 1.0,
 
         # Z-HIT

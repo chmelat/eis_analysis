@@ -434,7 +434,7 @@ def kramers_kronig_validation(
     Z: NDArray[np.complex128],
     mu_threshold: float = 0.85,
     max_M: int = 50,
-    auto_extend_decades: bool = False,
+    auto_extend_decades: bool = True,
     extend_decades_range: Tuple[float, float] = (0.0, 1.0)
 ) -> KKResult:
     """
@@ -453,7 +453,10 @@ def kramers_kronig_validation(
     max_M : int, optional
         Maximum number of Voigt elements (default: 50)
     auto_extend_decades : bool, optional
-        Automatically optimize extend_decades (default: False)
+        Automatically optimize extend_decades (default: True). Extends the
+        Voigt time-constant grid beyond the measured frequency range, which
+        avoids spurious imaginary-part residuals on data with strong
+        capacitive/inductive tails (Schönleber et al. 2014).
     extend_decades_range : tuple of float, optional
         Search range for extend_decades optimization
 

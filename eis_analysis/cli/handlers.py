@@ -22,6 +22,7 @@ from numpy.typing import NDArray
 from .logging import log_separator
 from .utils import EISAnalysisError, save_figure, parse_circuit_expression
 from ..validation import kramers_kronig_validation, zhit_validation
+from ..validation.zhit import _quality_label
 from ..drt import calculate_drt, DRTResult
 from ..fitting import (
     fit_equivalent_circuit,
@@ -70,6 +71,10 @@ def run_kk_validation(
     if args.no_kk:
         return None
 
+    logger.info("=" * 60)
+    logger.info("Kramers-Kronig validation")
+    logger.info("=" * 60)
+
     result = kramers_kronig_validation(
         frequencies, Z,
         mu_threshold=args.mu_threshold,
@@ -79,6 +84,19 @@ def run_kk_validation(
     if not result.success:
         logger.warning(f"KK validation failed: {result.error}")
         return None
+
+    # Summary (format consistent with Z-HIT validation)
+    logger.info(f"KK: M={result.M}, mu={result.mu:.4f}, "
+                f"extend_decades={result.extend_decades:.2f}")
+    logger.info(f"  Mean |res_real|: {result.mean_residual_real:.2f}%")
+    logger.info(f"  Mean |res_imag|: {result.mean_residual_imag:.2f}%")
+    logger.info(f"  Pseudo chi^2: {result.pseudo_chisqr:.2e}")
+    logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
+
+    mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
+    log_fn = logger.info if result.is_valid else logger.warning
+    log_fn(f"Data quality: {_quality_label(mean_abs_residual)} "
+           f"(max mean |res|={mean_abs_residual:.2f}%, threshold=5.0%)")
 
     save_figure(result.figure, args.save, 'kk', args.format)
     return result.figure

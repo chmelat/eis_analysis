@@ -79,8 +79,18 @@ def _run_analysis(args) -> None:
     logger.info(f"EIS Analysis ({get_version_string()})")
     log_separator(60)
 
-    # Load and filter data
+    # Load the full measured spectrum
     data = load_eis_data(args)
+
+    # Validation runs on the FULL spectrum, before any frequency filtering.
+    # KK is an integral relation over all frequencies, so truncating the range
+    # (e.g. via --f-min) corrupts the imaginary-part reconstruction and yields
+    # spurious residuals. The --f-min/--f-max filter applies only to the
+    # analysis stages below (R_inf, DRT, circuit fit).
+    run_kk_validation(data.frequencies, data.Z, args)
+    run_zhit_validation(data.frequencies, data.Z, args)
+
+    # Filter to the analysis region
     data = filter_by_frequency(data, args)
 
     # Visualization
@@ -91,12 +101,6 @@ def _run_analysis(args) -> None:
     if args.ocv and data.ocv_data is not None:
         fig_ocv = visualize_ocv(data.ocv_data, data.title)
         save_figure(fig_ocv, args.save, 'ocv', args.format)
-
-    # Kramers-Kronig validation
-    run_kk_validation(data.frequencies, data.Z, args)
-
-    # Z-HIT validation (optional)
-    run_zhit_validation(data.frequencies, data.Z, args)
 
     # R_inf estimation
     R_inf_computed, _ = run_rinf_estimation(data.frequencies, data.Z, args)
