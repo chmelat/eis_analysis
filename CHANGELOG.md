@@ -4,6 +4,18 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.12 (2026-06-24)
+
+### Improvements
+
+- **Show the detected OCV value in the terminal output** (`cli/data_handling.py`)
+  - The `OCV data` section previously printed only the point count and
+    duration. It now also reports the stabilized open-circuit voltage
+    (final filtered `Vf`), the mean over the record, and the drift
+    (`|Vf[-1] - Vf[0]|`), e.g.
+    `OCV = -446.8 mV (mean -451.7 mV, drift 0.61 mV)`. These values were
+    already shown in the OCV plot; this surfaces them without opening the PDF.
+
 ## Version 0.13.11 (2026-06-24)
 
 ### Bug Fixes

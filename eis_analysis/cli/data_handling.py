@@ -90,6 +90,12 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
                 if ocv_data is not None:
                     logger.info(f"OCV data: {len(ocv_data['time'])} points, "
                                 f"duration {ocv_data['time'][-1]/60:.1f} min")
+                    vf = ocv_data['Vf']
+                    ocv_mV = vf[-1] * 1000
+                    mean_mV = float(np.mean(vf)) * 1000
+                    drift_mV = abs(vf[-1] - vf[0]) * 1000
+                    logger.info(f"  OCV = {ocv_mV:.1f} mV "
+                                f"(mean {mean_mV:.1f} mV, drift {drift_mV:.2f} mV)")
             elif ext == '.csv':
                 frequencies, Z = load_csv_data(args.input)
             else:
