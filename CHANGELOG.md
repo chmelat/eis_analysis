@@ -4,6 +4,25 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.15 (2026-06-24)
+
+### Refactoring
+
+- **Split `cli/handlers.py` (867 lines) into a `cli/handlers/` package**
+  — addresses the audit file-size debt (`AUDIT_2026-06-23` section 4 /
+  priority 4); `handlers.py` was the largest file in the project, 73 % over
+  the 500-line limit.
+  - Submodules by pipeline stage: `validation.py` (KK + Z-HIT), `rinf.py`,
+    `drt.py` (DRT + Voigt-from-DRT), `fitting.py` (circuit fitting +
+    optimizer diagnostics logging), `oxide.py`. Largest submodule is 418
+    lines; all are under the limit.
+  - Public API is unchanged: `handlers/__init__.py` re-exports the seven
+    `run_*` functions, so `from eis_analysis.cli.handlers import run_*`
+    (and `from eis_analysis.cli import run_*`) keep working.
+  - Pure code move — no behavior change. Verified by the full test suite
+    (149 passed), CLI smoke + circuit-fit/DRT runs, ruff, and mypy
+    (unchanged at 63, none new in the package).
+
 ## Version 0.13.14 (2026-06-24)
 
 ### Improvements
