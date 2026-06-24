@@ -72,6 +72,7 @@ class NNLSSolution:
     max_inductive_imag: float = 0.0
     gamma_max: Optional[float] = None
     gamma_min_nonzero: Optional[float] = None
+    condition_number: float = 0.0
     warnings: List[str] = field(default_factory=list)
 
 
@@ -86,7 +87,7 @@ class DRTDiagnostics:
 
     # Matrix info
     n_tau: int
-    condition_number: float
+    condition_number: float  # of the regularized system [A; sqrt(lambda)*L]
     d_ln_tau: float
 
     # R_inf estimation
@@ -422,6 +423,12 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
     A_reg = np.vstack([A, np.sqrt(lambda_reg) * L])
     b_reg = np.concatenate([b, np.zeros(n_tau - 2)])
 
+    # Condition number of the system actually solved. The bare kernel A is
+    # intrinsically ill-conditioned for any DRT problem (that is why Tikhonov
+    # regularization is applied); the regularized system is what determines the
+    # numerical health of the solve.
+    cond_reg = float(np.linalg.cond(A_reg))
+
     # Solve NNLS
     try:
         gamma, residual = nnls(A_reg, b_reg)
@@ -462,6 +469,7 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
         max_inductive_imag=max_inductive,
         gamma_max=gamma_max,
         gamma_min_nonzero=gamma_min_nonzero,
+        condition_number=cond_reg,
         warnings=warnings
     )
 
@@ -780,7 +788,7 @@ def calculate_drt(
         freq_range_ratio=freq_range_ratio,
         n_points=len(frequencies),
         n_tau=n_tau,
-        condition_number=matrices.condition_number,
+        condition_number=nnls_result.condition_number,
         d_ln_tau=matrices.d_ln_tau,
         rinf=rinf_est,
         lambda_sel=lambda_sel,

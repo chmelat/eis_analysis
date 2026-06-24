@@ -4,6 +4,27 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.11 (2026-06-24)
+
+### Bug Fixes
+
+- **Fix misleading DRT "ill-conditioned matrix" warning** (`drt/core.py`)
+  - The diagnostic reported the condition number of the *bare* DRT kernel
+    `A`, which is intrinsically ill-conditioned for any DRT problem (its
+    singular values decay exponentially — precisely why Tikhonov
+    regularization is applied). On sparse data this produced an alarming
+    `Matrix A is ill-conditioned (1.6e15)` even though the solve was
+    numerically sound.
+  - DRT never solves `A x = b`; it solves the regularized system
+    `[A; sqrt(lambda)*L] x = [b; 0]`, whose condition number on the same
+    data is ~450. `DRTDiagnostics.condition_number` (and the CLI warning)
+    now report that regularized value, so the false alarm disappears while a
+    genuinely ill-conditioned *solve* still triggers the warning.
+  - No change to DRT results (gamma, R_pol, peaks, reconstruction error).
+  - Note: the separate high reconstruction error / R_pol overestimate seen
+    when using `--f-min` to truncate the spectrum is a data-range
+    limitation (missing low-frequency arm), not a matrix-conditioning issue.
+
 ## Version 0.13.10 (2026-06-24)
 
 ### Bug Fixes
