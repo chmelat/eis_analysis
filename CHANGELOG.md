@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.14 (2026-06-24)
+
+### Improvements
+
+- **`fit_circuit_diffevo` accepts a `seed` argument** (`fitting/diffevo.py`)
+  - Threads an optional `seed` into `differential_evolution(seed=...)`.
+    Default `None` keeps the previous non-deterministic behavior; passing an
+    int makes runs reproducible (used by the new tests).
+
+### Tests
+
+- **Add unit + integration tests for Differential Evolution fitting**
+  (`tests/test_diffevo.py`, 18 tests) — addresses the open audit item
+  (`AUDIT_2026-06-23` priority 5): the project's most robust optimizer
+  previously had no direct tests, only indirect CLI coverage.
+  - `DE_STRATEGIES` mapping and unknown-strategy fallback.
+  - `_DECostFunction`: free/fixed parameter reconstruction, scalar cost
+    (zero at the true parameters), and picklability (its stated purpose for
+    `workers > 1`).
+  - `fit_circuit_diffevo`: exact recovery on noise-free data, return
+    contract, seed reproducibility, strategy/jacobian selection, fixed
+    parameters held constant, refinement never worse than DE, and
+    diagnostics population. Verified with a mutation check on the
+    fixed-parameter reconstruction.
+
 ## Version 0.13.13 (2026-06-24)
 
 ### Tests

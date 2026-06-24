@@ -148,7 +148,8 @@ def fit_circuit_diffevo(
     workers: int = 1,
     weighting: str = 'modulus',
     verbose: bool = True,  # Kept for backward compatibility, ignored
-    use_analytic_jacobian: bool = True
+    use_analytic_jacobian: bool = True,
+    seed: Optional[int] = None
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128], any]:
     """
     Fit circuit using Differential Evolution global optimization.
@@ -177,6 +178,9 @@ def fit_circuit_diffevo(
         Ignored (kept for backward compatibility)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian for refinement (default: True)
+    seed : int, optional
+        Seed for differential_evolution's random generator. Default None
+        (non-deterministic). Set an int for reproducible runs (e.g. tests).
 
     Returns
     -------
@@ -272,7 +276,7 @@ def fit_circuit_diffevo(
                 tol=tol,
                 workers=workers,
                 polish=False,
-                seed=None,
+                seed=seed,
                 disp=False,
                 updating='deferred' if workers != 1 else 'immediate',
             )
