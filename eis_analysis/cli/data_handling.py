@@ -151,6 +151,13 @@ def filter_by_frequency(
     if args.f_min is None and args.f_max is None:
         return data
 
+    # Own section header so the filter output is not visually attached to the
+    # preceding Z-HIT validation block. The filter applies to all analysis
+    # stages below (visualization, R_inf, DRT, circuit fit), not to validation.
+    logger.info("=" * 60)
+    logger.info("Frequency filtering (analysis range)")
+    logger.info("=" * 60)
+
     frequencies = data.frequencies
     Z = data.Z
     original_count = len(frequencies)
@@ -177,6 +184,9 @@ def filter_by_frequency(
         raise EISAnalysisError(
             "No data remaining after filtering! Check --f-min and --f-max."
         )
+
+    logger.info(f"Analysis frequency range: {frequencies.min():.2e} - "
+                f"{frequencies.max():.2e} Hz")
 
     return LoadedData(
         frequencies=frequencies,

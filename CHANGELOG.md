@@ -4,6 +4,20 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.16 (2026-06-25)
+
+### Improvements
+
+- **Frequency filtering (`--f-min`/`--f-max`) now logs under its own section
+  header** (`cli/data_handling.py`). Previously the filter output appeared
+  immediately after the Z-HIT validation block with no header, making it look
+  as if the crop applied only to validation. It now prints a
+  `"Frequency filtering (analysis range)"` header (matching the other section
+  blocks) and reports the resulting analysis frequency range, so it is clear
+  the crop applies to all downstream analysis stages (visualization, R_inf,
+  DRT, circuit fit) and not to the KK/Z-HIT validation, which run on the full
+  spectrum.
+
 ## Version 0.13.15 (2026-06-24)
 
 ### Refactoring
