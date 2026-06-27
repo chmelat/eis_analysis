@@ -182,6 +182,13 @@ def find_lcurve_corner(lambda_values: NDArray[np.float64],
     """
     Najde roh L-křivky (bod maximální křivosti).
 
+    Konvence znaménka: L-křivka (ρ = log||Ax-b||, η = log||Lx||) procházená
+    rostoucím λ jde z malého rezidua / velké normy řešení do velkého rezidua /
+    malé normy (ρ roste, η klesá). Roh je konvexní směrem k počátku, tedy
+    levotočivá (CCW) zatáčka, která má v této orientaci **kladnou** znaménkovou
+    křivost. Proto se roh hledá jako `argmax` (kladné) křivosti, ne `argmin`.
+    Tuto konvenci hlídají testy v `tests/test_lcurve_corner.py`.
+
     Parametry:
     - lambda_values: testované hodnoty λ
     - rho: log||Ax - b|| pro každé λ
@@ -321,7 +328,8 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
         'curvature': None,
         'rho': None,
         'eta': None,
-        'lambda_values': None
+        'lambda_values': None,
+        'corner_at_edge': False
     }
 
     # === Fáze 1: GCV pro initial guess ===
@@ -375,6 +383,18 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
 
     diagnostics['lambda_lcurve'] = lambda_lcurve
     diagnostics['curvature'] = curvature
+
+    # Háček: roh na okraji prohledávaného L-rozsahu znamená, že skutečný roh
+    # leží nejspíš mimo okno (úzké lcurve_decades) — λ_lcurve je pak
+    # nespolehlivé a stojí za to rozsah rozšířit.
+    n_lc = len(lambda_lcurve_range)
+    corner_at_edge = corner_idx <= 1 or corner_idx >= n_lc - 2
+    diagnostics['corner_at_edge'] = corner_at_edge
+    if corner_at_edge:
+        logger.warning(
+            f"  L-curve roh na okraji rozsahu (index {corner_idx}/{n_lc - 1}) "
+            f"— zvaž větší lcurve_decades"
+        )
 
     logger.info(f"  L-curve roh: λ_lcurve = {lambda_lcurve:.4e}")
 

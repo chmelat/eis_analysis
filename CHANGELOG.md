@@ -6,6 +6,28 @@ Complete change history for all project versions.
 
 ## Version 0.14.0 (2026-06-27)
 
+### Tests & Hardening
+
+- **Validated and hardened L-curve corner detection** (`drt/gcv.py`) —
+  addresses `DRT_MATH_AUDIT_2026-06-27` finding F6. `find_lcurve_corner`
+  picks the point of maximum *signed* curvature, whose sign depends on the
+  curve orientation; this was previously untested, so a sign/orientation
+  regression would silently pick a wrong lambda.
+  - New `tests/test_lcurve_corner.py` (10 tests): pins the curvature formula
+    and sign convention (circle of known radius/orientation gives +-1/r),
+    localizes the corner on a synthetic L-curve oriented like a real one, and
+    checks the orientation assumption (rho up / eta down with lambda) on a
+    real DRT L-curve built via the production `_build_drt_matrices`. A
+    sign flip (argmax->argmin) makes `test_corner_on_synthetic_L` fail
+    (verified by mutation).
+  - Confirmed the existing `argmax(positive curvature)` is correct (the
+    L-curve corner is a CCW turn -> positive curvature); documented the sign
+    convention in the `find_lcurve_corner` docstring.
+  - `find_optimal_lambda_hybrid` now sets `diagnostics['corner_at_edge']` and
+    logs a warning when the corner lands at the boundary of the searched
+    L-range (the true corner likely lies outside the window; widen
+    `lcurve_decades`).
+
 ### Breaking Changes
 
 - **Removed DRT term-type classification** (CPE/C determination from DRT

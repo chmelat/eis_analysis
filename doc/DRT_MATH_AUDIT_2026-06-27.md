@@ -45,7 +45,7 @@ hlídána.
 | F3 | Interakce auto-λ → spiky DRT → degenerovaný post-processing | `core.py`+`gcv.py` | **Střední** | GMM/klasifikace na nízkošumových datech bez smyslu |
 | F4 | Double-counting odporů u překrývajících se píků — ✅ OPRAVENO (v0.13.17) | `peaks.py`, `core.py` | **Střední** | Σ R_i ≠ R_pol, nadhodnocené dílčí odpory |
 | F5 | GCV používá NNLS reziduum, ale lineární trace(K) | `gcv.py` | **Střední** (dokum.) | Efektivní DoF nezohledňuje aktivní omezení |
-| F6 | L-curve roh přes argmax(křivost) — znaménko/orientace neověřeny | `gcv.py` | **Střední** | Riziko výběru nesprávného „rohu" |
+| F6 | L-curve roh přes argmax(křivost) — znaménko/orientace neověřeny — ✅ OVĚŘENO + zpevněno (v0.14.0) | `gcv.py` | **Střední** | Riziko výběru nesprávného „rohu" |
 | F7 | λ na hranici rozsahu se tiše akceptuje (bez varování) | `gcv.py` | Nízká–stř. | Pinning na mez není reportován |
 | F8 | R_inf jako medián 5 nejvyšších frekvencí — nadhodnocení při HF obloucích | `core.py` | Nízká–stř. (záměr) | Posun celého γ přes `b = Z'−R_inf` |
 | F9 | τ-mřížka omezena jen na měřený rozsah (bez auto-extend) | `core.py` | Nízká | Píky u krajů τ uříznuty/zkresleny |
@@ -250,7 +250,7 @@ spoléhat na L-curve (současný stav je rozumný).
 
 ---
 
-### F6 — L-curve roh přes argmax(křivost): znaménko a orientace neověřeny (Střední)
+### F6 — L-curve roh přes argmax(křivost): znaménko a orientace neověřeny (Střední) — ✅ OVĚŘENO + ZPEVNĚNO (v0.14.0)
 
 `gcv.py:170-176, 197-208`:
 
@@ -277,6 +277,20 @@ je chybný roh přímou chybou výběru λ.
 známým rohem a ověřit, že `find_lcurve_corner` jej trefí; případně
 převzít robustní variantu (např. maximalizace |κ| jen na konvexní větvi,
 nebo Hansenova trojúhelníková metoda).
+
+**Závěr (v0.14.0):** ověřeno, že **současná konvence je správná** —
+L-křivka s rostoucím λ (ρ↑, η↓) má roh jako levotočivou (CCW) zatáčku
+s **kladnou** křivostí, takže `argmax(κ)` trefí roh. Žádná oprava znaménka
+nebyla potřeba. Provedeno:
+- `tests/test_lcurve_corner.py` (10 testů): kružnice se známým poloměrem/
+  orientací zafixuje vzorec i znaménko (±1/r); syntetická „L" se známým
+  rohem zafixuje lokalizaci; reálná DRT L-křivka (přes produkční
+  `_build_drt_matrices`) ověří orientační předpoklad (ρ↑, η↓). Mutace
+  `argmax→argmin` shodí `test_corner_on_synthetic_L` (důkaz citlivosti).
+- Konvence znaménka zdokumentována v docstringu `find_lcurve_corner`.
+- `find_optimal_lambda_hybrid` nově nastavuje `diagnostics['corner_at_edge']`
+  a varuje, když roh sedne na okraj L-rozsahu (skutečný roh nejspíš mimo
+  okno → zvětšit `lcurve_decades`).
 
 ---
 
@@ -360,9 +374,11 @@ test rohu L-křivky a importovat produkční konstrukci matic.
 
 ## 4. Priority k řešení (přínos/úsilí)
 
-1. **F6 + F13** — přidat test rohu L-křivky a korektnostní testy DRT
-   (recovery γ). Nízké úsilí, vysoká hodnota: zamkne to současné chování
-   a odhalí případný špatný roh. Importovat `_build_drt_matrices` do testů.
+1. 🔶 **F6 + F13** — ✅ **F6 hotovo (v0.14.0)**: testy rohu L-křivky
+   (`tests/test_lcurve_corner.py`), konvence ověřena a zdokumentována, háček
+   na okrajový roh; integrační test staví matice produkční
+   `_build_drt_matrices`. ⏳ **F13 zbývá**: korektnostní testy `calculate_drt`
+   (recovery γ) a sjednocení matic v `test_hybrid_lambda.py`.
 2. ✅ **F4** — opravit double-counting: u GMM `R_i = weight_i · R_pol`,
    u scipy rozdělení v údolích. **Hotovo (v0.13.17)**; zvážit ještě
    stejnou opravu v `auto_suggest.py` (mimo rozsah F4).
