@@ -25,6 +25,21 @@ Complete change history for all project versions.
 
 ### Bug Fixes
 
+- **Fixed peak-resistance double-counting for overlapping DRT peaks**
+  (`drt/peaks.py`, `drt/core.py`) — addresses `DRT_MATH_AUDIT_2026-06-27`
+  finding F4. Both peak paths integrated the *total* gamma over each peak's
+  window, so the overlap region of adjacent peaks was counted multiple times
+  and `sum(R_i) > R_pol`.
+  - GMM path (`gmm_peak_detection`): `R_estimate` is now the unit
+    decomposition `weight_i * R_pol` (GMM weights sum to 1), guaranteeing
+    `sum(R_i) == R_pol` exactly.
+  - scipy path (`_estimate_peak_resistance`): the tau axis is partitioned at
+    the valleys (gamma minima) between consecutive peaks; trapz additivity
+    over the shared boundary node makes `sum(R_i)` equal the spanned-range
+    R_pol with no overlap. Removed the now-unused `tolerance` parameter.
+  - New regression tests in `tests/test_peak_resistance.py` (4) lock the
+    `sum(R_i) == R_pol` property for overlapping peaks on both paths.
+
 - **Narrowed `except Exception` in the DRT core** (`drt/core.py`, `drt/peaks.py`,
   `drt/gcv.py`) — addresses `AUDIT_2026-06-23` finding 2.5 / priority 1. The
   broad handlers swallowed any error (including programmer mistakes such as

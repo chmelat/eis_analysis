@@ -172,6 +172,13 @@ def gmm_peak_detection(
     peaks = []
     ln_tau = np.log(tau)
 
+    # Celkový R_pol = ∫ γ d ln τ. Dílčí odpory rozdělíme podle vah GMM
+    # (Σ weight = 1), takže Σ R_i = R_pol přesně. Tím se vyhneme
+    # double-countingu, který vzniká integrací CELKOVÉHO γ přes ±2σ okno
+    # každého píku — překryv sousedních píků by se jinak započítal vícekrát.
+    from ..utils.compat import np_trapz
+    R_pol = float(np_trapz(gamma, ln_tau))
+
     for i in range(best_gmm.n_components):
         mu = best_gmm.means_[i, 0]  # v log10(tau)
         sigma = np.sqrt(best_gmm.covariances_[i, 0, 0])
@@ -184,21 +191,8 @@ def gmm_peak_detection(
 
         f_center = 1 / (2 * np.pi * tau_center)
 
-        # Odhad R_i přímou integrací gamma v oblasti píku (tau_bounds)
-        # Najdi indexy odpovídající tau_bounds
-        idx_lower = np.searchsorted(tau, tau_lower)
-        idx_upper = np.searchsorted(tau, tau_upper)
-
-        # Ošetření hranic
-        idx_lower = max(0, idx_lower)
-        idx_upper = min(len(tau) - 1, idx_upper)
-
-        # Integrál gamma v této oblasti
-        if idx_upper > idx_lower:
-            from ..utils.compat import np_trapz
-            R_estimate = np_trapz(gamma[idx_lower:idx_upper+1], ln_tau[idx_lower:idx_upper+1])
-        else:
-            R_estimate = 0.0
+        # Odhad R_i rozkladem R_pol podle váhy komponenty (Σ weight = 1)
+        R_estimate = float(weight * R_pol)
 
         peaks.append({
             'tau_center': tau_center,

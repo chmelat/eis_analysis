@@ -176,35 +176,40 @@ class DRTResult:
 # =============================================================================
 
 def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
-                               peak_indices: NDArray,
-                               tolerance: float = 0.1) -> List[float]:
+                               peak_indices: NDArray) -> List[float]:
     """
-    Estimate resistance for each peak by integrating gamma in peak region.
+    Estimate resistance for each peak by integrating gamma over a partition
+    of the tau axis.
+
+    The tau axis is split at the valleys (gamma minima) between consecutive
+    peaks, so each grid point is assigned to exactly one peak. Because trapz
+    is additive over a shared boundary node, this guarantees sum(R_i) equals
+    the total R_pol over the spanned range — unlike per-peak threshold
+    windows, which double-count the overlap region of adjacent peaks.
     """
     if len(peak_indices) == 0:
         return []
 
-    resistances = []
     ln_tau = np.log(tau)
+    peaks = np.sort(peak_indices)
 
-    for peak_idx in peak_indices:
-        peak_height = gamma[peak_idx]
-        threshold = peak_height * tolerance
+    # Partition boundaries: outer ends of the array plus the valley (argmin)
+    # between each pair of consecutive peaks.
+    bounds = [0]
+    for j in range(len(peaks) - 1):
+        lo, hi = int(peaks[j]), int(peaks[j + 1])
+        valley = lo + int(np.argmin(gamma[lo:hi + 1]))
+        bounds.append(valley)
+    bounds.append(len(gamma) - 1)
 
-        left = peak_idx
-        while left > 0 and gamma[left] > threshold:
-            left -= 1
-
-        right = peak_idx
-        while right < len(gamma) - 1 and gamma[right] > threshold:
-            right += 1
-
+    resistances = []
+    for j in range(len(peaks)):
+        left, right = bounds[j], bounds[j + 1]
         if right > left:
-            R_peak = np_trapz(gamma[left:right+1], ln_tau[left:right+1])
+            R_peak = np_trapz(gamma[left:right + 1], ln_tau[left:right + 1])
         else:
             R_peak = 0.0
-
-        resistances.append(R_peak)
+        resistances.append(float(R_peak))
 
     return resistances
 
