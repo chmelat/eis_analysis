@@ -68,12 +68,7 @@ def _run_analysis(args) -> None:
     args : argparse.Namespace
         Parsed command line arguments
     """
-    # Auto-enable GMM if --classify-terms is used
     peak_method = args.peak_method
-    if args.classify_terms and peak_method != 'gmm':
-        logger.info("--classify-terms requires GMM peak detection")
-        logger.info("Automatically enabling --peak-method gmm")
-        peak_method = 'gmm'
 
     log_separator(60)
     logger.info(f"EIS Analysis ({get_version_string()})")

@@ -165,9 +165,6 @@ eis data.DTA --peak-method gmm
 
 # Robust R_inf estimation for inductive data
 eis data.DTA --ri-fit
-
-# Peak classification into physical processes
-eis data.DTA --peak-method gmm --classify-terms
 ```
 
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md)
@@ -325,7 +322,6 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, Gaussian Mixture Model - requires scikit-learn).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.
 - `--ri-fit` - Robust R_inf estimation using R+L+K model fit on high-frequency data. Suitable for data with inductive loop.
-- `--classify-terms` - Classification of DRT peaks into physical processes (requires `--peak-method gmm`).
 - `--no-drt` - Skip DRT analysis. Useful if you only want circuit fitting.
 
 ### Kramers-Kronig validation

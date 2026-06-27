@@ -124,8 +124,6 @@ Examples:
                            help='Number of points on tau axis for DRT (default: 100)')
     drt_group.add_argument('--no-voigt-info', action='store_true',
                            help='Do not display Voigt element analysis from DRT')
-    drt_group.add_argument('--classify-terms', action='store_true',
-                           help='Classify term types from DRT peaks. Enables GMM detection.')
     drt_group.add_argument('--no-drt', action='store_true',
                            help='Skip DRT analysis')
 

@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.14.0 (2026-06-27)
+
+### Breaking Changes
+
+- **Removed DRT term-type classification** (CPE/C determination from DRT
+  peaks) — addresses `DRT_MATH_AUDIT_2026-06-27` finding F2. An ideal R||C
+  (Voigt) element is a Dirac delta in the DRT; the observed peak width is set
+  by the regularization parameter lambda, not by the element physics. Width
+  thresholds therefore conflated "more regularization" with "CPE", making the
+  classification regularization-dependent rather than a measurement. Element
+  type (C vs Q) should be determined from circuit fitting instead.
+  - Removed CLI flag `--classify-terms` (and the auto-enable-GMM behavior it
+    triggered).
+  - Removed the `classify_terms` parameter from
+    `fitting.analyze_voigt_elements` and the `'classification'` key from each
+    returned element dict; `format_voigt_report` no longer prints the
+    classification table and always recommends R||C elements.
+  - Deleted the `eis_analysis.drt.term_classification` module
+    (`classify_peak_type`, `classify_all_peaks`).
+
 ## Version 0.13.17 (2026-06-27)
 
 ### Code Quality

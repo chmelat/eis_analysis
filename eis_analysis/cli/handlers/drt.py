@@ -207,7 +207,7 @@ def run_voigt_analysis(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: no_drt, no_voigt_info, classify_terms)
+        CLI arguments (uses: no_drt, no_voigt_info)
     """
     if args.no_drt or args.no_voigt_info:
         return
@@ -217,8 +217,7 @@ def run_voigt_analysis(
     try:
         voigt_info = analyze_voigt_elements(
             drt_result.tau, drt_result.gamma, frequencies, Z,
-            peaks_gmm=drt_result.peaks,
-            classify_terms=args.classify_terms
+            peaks_gmm=drt_result.peaks
         )
         report = format_voigt_report(voigt_info)
         logger.info(report)

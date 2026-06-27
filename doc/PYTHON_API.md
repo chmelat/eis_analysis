@@ -587,8 +587,7 @@ voigt_info = analyze_voigt_elements(
     gamma,                # From calculate_drt()
     frequencies,
     Z,
-    peaks_gmm=None,       # GMM peaks from calculate_drt() (optional)
-    classify_terms=False  # Classify term types (requires GMM)
+    peaks_gmm=None        # GMM peaks from calculate_drt() (optional)
 )
 
 # voigt_info is a dict with keys:

@@ -14,7 +14,6 @@ from scipy.signal import find_peaks
 
 from ..utils.compat import np_trapz
 from ..utils.impedance import calculate_rpol
-from ..drt.term_classification import classify_all_peaks
 from .config import (
     DRT_PEAK_HEIGHT_THRESHOLD,
     DRT_PEAK_PROMINENCE_THRESHOLD,
@@ -33,8 +32,7 @@ def analyze_voigt_elements(
     gamma: NDArray[np.float64],
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    peaks_gmm: Optional[List[Dict]] = None,
-    classify_terms: bool = False
+    peaks_gmm: Optional[List[Dict]] = None
 ) -> Dict:
     """
     Analyze Voigt elements (R||C) from DRT spectrum.
@@ -63,9 +61,6 @@ def analyze_voigt_elements(
     peaks_gmm : list of dict, optional
         GMM peaks from gmm_peak_detection()
         If provided, used instead of scipy.find_peaks
-    classify_terms : bool, optional
-        If True, classifies term types (Voigt/Q/other) based on peak shape.
-        Requires peaks_gmm (GMM detection). Default: False
 
     Returns
     -------
@@ -78,11 +73,6 @@ def analyze_voigt_elements(
             - 'R': float [Ohm]
             - 'C': float [F]
             - 'warnings': list of str
-            - 'classification': dict or None (if classify_terms=True):
-                - 'type': str ('voigt', 'cpe', 'multiple', 'uncertain')
-                - 'confidence': str ('high', 'medium', 'low')
-                - 'cpe_n_estimate': float or None
-                - 'reasoning': str
         - 'quality': str ('good', 'acceptable', 'uncertain', 'poor')
         - 'total_R': float (sum R_i) [Ohm]
         - 'R_pol': float (from data) [Ohm]
@@ -178,8 +168,7 @@ def analyze_voigt_elements(
                     'freq': f_char,
                     'R': R_pol_data,
                     'C': C_est,
-                    'warnings': ['estimated from -Z\'\' maximum (no DRT peaks)'],
-                    'classification': None
+                    'warnings': ['estimated from -Z\'\' maximum (no DRT peaks)']
                 }
             ],
             'quality': 'poor',
@@ -248,16 +237,6 @@ def analyze_voigt_elements(
         top_indices = np.argsort(peak_heights)[-MAX_VOIGT_ELEMENTS:]
         valid_peaks = sorted([valid_peaks[i] for i in top_indices], key=lambda p: tau[p])
 
-    # Term type classification (if requested and we have GMM peaks)
-    classifications = None
-    if classify_terms:
-        if peaks_gmm is not None and len(peaks_gmm) > 0:
-            logger.info("Term type classification activated")
-            classifications = classify_all_peaks(peaks_gmm, tau, gamma)
-        else:
-            logger.warning("Term classification requires GMM peak detection (--peak-method gmm)")
-            logger.warning("Skipping term classification")
-
     # Calculate Voigt elements from peaks
     n_voigt = len(valid_peaks)
     logger.info(f"Analyzing {n_voigt} Voigt elements")
@@ -319,12 +298,6 @@ def analyze_voigt_elements(
             'C': C_i,
             'warnings': elem_warnings
         }
-
-        # Add classification if available
-        if classifications is not None and i < len(classifications):
-            element['classification'] = classifications[i]
-        else:
-            element['classification'] = None
 
         elements.append(element)
 
@@ -425,35 +398,6 @@ def format_voigt_report(voigt_info: dict) -> str:
 
     lines.append("")
 
-    # Term classification (if available)
-    has_classification = any(elem.get('classification') is not None for elem in elements)
-    if has_classification:
-        lines.append("Term type classification:")
-        lines.append("")
-        lines.append("  ID | Type     | Confidence   | Q n    | Reason")
-        lines.append("  " + "-" * 72)
-
-        for elem in elements:
-            cls = elem.get('classification')
-            if cls is not None:
-                type_str = cls['type'].upper()
-                conf_str = cls['confidence']
-                n_str = f"{cls['cpe_n_estimate']:.3f}" if cls['cpe_n_estimate'] is not None else "-"
-                reason = cls['reasoning']
-                if len(reason) > 30:
-                    reason = reason[:27] + "..."
-
-                line = (f"  {elem['id']:2d} | "
-                        f"{type_str:8s} | "
-                        f"{conf_str:12s} | "
-                        f"{n_str:6s} | "
-                        f"{reason}")
-                lines.append(line)
-            else:
-                lines.append(f"  {elem['id']:2d} | N/A      | -            | -      | (classification unavailable)")
-
-        lines.append("")
-
     # R_pol validation
     lines.append("Consistency validation:")
     lines.append(f"  Sum R_i (from peaks): {voigt_info['total_R']:9.1f} Ohm")
@@ -493,21 +437,9 @@ def format_voigt_report(voigt_info: dict) -> str:
     lines.append("  1. Start with R_inf (series resistance):")
     lines.append("     R(R_inf)")
 
-    # Decide based on classification whether to use C or Q
-    if has_classification:
-        lines.append("  2. Add elements according to classification:")
-    else:
-        lines.append("  2. Add Voigt elements (R||C) for each peak:")
-
-    for i, elem in enumerate(elements, 1):
-        cls = elem.get('classification')
-        if cls is not None and cls['type'] == 'cpe':
-            # Q element - n is not estimated, suggest R||C with comment
-            lines.append(f"     Element {i}: (R(R{i}) | C(C{i}))  [{cls['type'].upper()} - try Q(Q{i}, n{i})]")
-        else:
-            # Standard Voigt (R||C)
-            type_label = f" [{cls['type'].upper()}]" if cls is not None else ""
-            lines.append(f"     Element {i}: (R(R{i}) | C(C{i})){type_label}")
+    lines.append("  2. Add Voigt elements (R||C) for each peak:")
+    for i, _elem in enumerate(elements, 1):
+        lines.append(f"     Element {i}: (R(R{i}) | C(C{i}))")
 
     lines.append("  3. Connect elements in series with '-' operator:")
 

@@ -64,7 +64,6 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'normalize_rpol': False,
         'n_tau': 100,
         'no_voigt_info': True,
-        'classify_terms': False,
         'no_drt': False,
         'peak_method': 'scipy',
         'gmm_bic_threshold': 10.0,

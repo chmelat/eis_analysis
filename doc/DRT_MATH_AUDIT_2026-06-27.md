@@ -41,7 +41,7 @@ hlídána.
 | # | Nález | Oblast | Závažnost | Dopad |
 |---|---|---|---|---|
 | F1 | GMM přes celočíselnou replikaci bodů — arbitrární škála BIC + background floor | `peaks.py` | **Vysoká** (metodická) | Počet píků, `bic_threshold` nemá stabilní význam |
-| F2 | Klasifikace termů podle šířky píku je závislá na λ | `term_classification.py` | **Vysoká** (metodická) | Voigt vs CPE rozhodnutí nestabilní |
+| F2 | Klasifikace termů podle šířky píku je závislá na λ — ✅ VYŘEŠENO (v0.14.0, feature odstraněna) | `term_classification.py` | **Vysoká** (metodická) | Voigt vs CPE rozhodnutí nestabilní |
 | F3 | Interakce auto-λ → spiky DRT → degenerovaný post-processing | `core.py`+`gcv.py` | **Střední** | GMM/klasifikace na nízkošumových datech bez smyslu |
 | F4 | Double-counting odporů u překrývajících se píků — ✅ OPRAVENO (v0.13.17) | `peaks.py`, `core.py` | **Střední** | Σ R_i ≠ R_pol, nadhodnocené dílčí odpory |
 | F5 | GCV používá NNLS reziduum, ale lineární trace(K) | `gcv.py` | **Střední** (dokum.) | Efektivní DoF nezohledňuje aktivní omezení |
@@ -142,7 +142,7 @@ model-selection použít kritérium, jehož `N` je počet skutečných měření
 
 ---
 
-### F2 — Klasifikace termů podle šířky píku je závislá na regularizaci (Vysoká)
+### F2 — Klasifikace termů podle šířky píku je závislá na regularizaci (Vysoká) — ✅ VYŘEŠENO (v0.14.0)
 
 `term_classification.py:75, 108-137`:
 
@@ -171,6 +171,13 @@ Absolutní prahy (1.5 / 2.0 dekády) proto zaměňují „hodně regularizace" z
 s šířkou, kterou by stejné λ dalo na syntetické δ), nebo (b) přestat tvrdit
 typ z DRT a ponechat určení n na circuit fittingu (jak už kód dělá pro
 `R_estimate`). Minimálně dokumentovat, že výstup je orientační.
+
+**Oprava (v0.14.0):** zvolena varianta (b) — určování typu (CPE/C) z DRT
+**odstraněno**. Smazán modul `term_classification.py`, parametr
+`classify_terms` z `analyze_voigt_elements` a klíč `'classification'`;
+odebrán CLI flag `--classify-terms`. `format_voigt_report` vždy doporučuje
+R‖C; typ elementu (C vs Q) se nově určuje až z circuit fittingu. Breaking
+change (viz CHANGELOG 0.14.0).
 
 ---
 
@@ -361,8 +368,8 @@ test rohu L-křivky a importovat produkční konstrukci matic.
    stejnou opravu v `auto_suggest.py` (mimo rozsah F4).
 3. **F1 + F3 + F7** — ozdravit GMM/λ pipeline: vážený EM místo replikace,
    detekce a varování na λ u meze a na „příliš řídký" DRT.
-4. **F2** — přehodnotit klasifikaci šířkou (λ-normalizace nebo přesun
-   rozhodnutí na circuit fitting); minimálně dokumentovat omezení.
+4. ✅ **F2** — určování typu (CPE/C) z DRT **odstraněno** (v0.14.0);
+   typ se určuje až z circuit fittingu.
 5. **F5, F8–F12** — dokumentovat jako vědomá omezení / drobnosti; opravit
    F12 a F10 při příležitosti.
 
