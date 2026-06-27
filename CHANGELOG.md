@@ -6,6 +6,23 @@ Complete change history for all project versions.
 
 ## Version 0.13.17 (2026-06-27)
 
+### Code Quality
+
+- **Fixed all mypy errors in the `drt/` package** (`core.py`, `gcv.py`,
+  `term_classification.py`) — addresses `AUDIT_2026-06-23` priority 2. No
+  behavior change; annotations, `float`/`int` casts, and one `assert`
+  documenting an existing invariant.
+  - `core.py`: `gamma` is `Optional` but `nnls_result.success == True`
+    guarantees a valid array (see `_solve_nnls`); added `assert gamma is not
+    None` to narrow the type, clearing the `union-attr`/`operator`/`arg-type`
+    errors around normalization, peak detection, and visualization.
+  - `gcv.py`: cast `np.linalg.norm` results to `float` (resolves `np.log10`
+    overload), cast `np.argmin`/`np.argmax` indices to `int` (resolves
+    `__getitem__` overloads), renamed list→ndarray reassignments
+    (`gcv_scores`→`gcv_scores_arr`, `rho`→`rho_arr`, …), and annotated the
+    hybrid `diagnostics` dict as `Dict[str, Any]`.
+  - `term_classification.py`: annotated `type_counts: Dict[str, int]`.
+
 ### Bug Fixes
 
 - **Narrowed `except Exception` in the DRT core** (`drt/core.py`, `drt/peaks.py`,

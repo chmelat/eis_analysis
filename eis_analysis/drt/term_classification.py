@@ -198,7 +198,7 @@ def classify_all_peaks(
         logger.info(f"    - σ(log τ): {classification['metrics']['log_tau_std']:.3f}")
 
     # Shrnutí
-    type_counts = {}
+    type_counts: Dict[str, int] = {}
     for cls in classifications:
         type_counts[cls['type']] = type_counts.get(cls['type'], 0) + 1
 

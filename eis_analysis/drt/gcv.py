@@ -9,7 +9,7 @@ Methods:
 
 import numpy as np
 import logging
-from typing import Tuple, Optional
+from typing import Any, Dict, Tuple, Optional
 from numpy.typing import NDArray
 from scipy.optimize import nnls
 
@@ -123,10 +123,10 @@ def compute_lcurve_point(lambda_val: float, A: NDArray[np.float64],
 
     # Norma rezidua ||Ax - b||
     residual = b - A @ x
-    residual_norm = np.linalg.norm(residual)
+    residual_norm = float(np.linalg.norm(residual))
 
     # Regularizační norma ||Lx||
-    reg_norm = np.linalg.norm(L @ x)
+    reg_norm = float(np.linalg.norm(L @ x))
 
     # Log transformace (s ochranou proti log(0))
     log_res = np.log10(max(residual_norm, 1e-15))
@@ -203,7 +203,7 @@ def find_lcurve_corner(lambda_values: NDArray[np.float64],
     else:
         # Maximum kladné křivosti
         corner_idx_inner = np.argmax(curvature_inner)
-        corner_idx = corner_idx_inner + 1  # Kompenzace za slice
+        corner_idx = int(corner_idx_inner) + 1  # Kompenzace za slice
 
     lambda_corner = lambda_values[corner_idx]
 
@@ -241,12 +241,12 @@ def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
         score = compute_gcv_score(lam, A, b, L)
         gcv_scores.append(score)
 
-    gcv_scores = np.array(gcv_scores)
+    gcv_scores_arr = np.array(gcv_scores)
 
     # Najdi minimum
-    min_idx = np.argmin(gcv_scores)
+    min_idx = int(np.argmin(gcv_scores_arr))
     lambda_coarse = lambda_values[min_idx]
-    gcv_coarse = gcv_scores[min_idx]
+    gcv_coarse = gcv_scores_arr[min_idx]
 
     logger.debug(f"Hrubé prohledání: λ = {lambda_coarse:.4e}, GCV = {gcv_coarse:.4e}")
 
@@ -272,10 +272,10 @@ def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
         score = compute_gcv_score(lam, A, b, L)
         gcv_fine.append(score)
 
-    gcv_fine = np.array(gcv_fine)
-    min_fine_idx = np.argmin(gcv_fine)
+    gcv_fine_arr = np.array(gcv_fine)
+    min_fine_idx = int(np.argmin(gcv_fine_arr))
     lambda_optimal = lambda_fine[min_fine_idx]
-    gcv_optimal = gcv_fine[min_fine_idx]
+    gcv_optimal = gcv_fine_arr[min_fine_idx]
 
     logger.info(f"✓ Optimální λ = {lambda_optimal:.4e} (GCV = {gcv_optimal:.4e})")
 
@@ -314,7 +314,7 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     """
     logger.info("Hybridní výběr λ (GCV + L-curve korekce)...")
 
-    diagnostics = {
+    diagnostics: Dict[str, Any] = {
         'lambda_gcv': None,
         'lambda_lcurve': None,
         'method_used': None,
@@ -336,8 +336,8 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
         score = compute_gcv_score(lam, A, b, L)
         gcv_scores.append(score)
 
-    gcv_scores = np.array(gcv_scores)
-    gcv_min_idx = np.argmin(gcv_scores)
+    gcv_scores_arr = np.array(gcv_scores)
+    gcv_min_idx = int(np.argmin(gcv_scores_arr))
     lambda_gcv = lambda_values[gcv_min_idx]
 
     diagnostics['lambda_gcv'] = lambda_gcv
@@ -363,15 +363,15 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
         rho.append(log_res)
         eta.append(log_reg)
 
-    rho = np.array(rho)
-    eta = np.array(eta)
+    rho_arr = np.array(rho)
+    eta_arr = np.array(eta)
 
-    diagnostics['rho'] = rho
-    diagnostics['eta'] = eta
+    diagnostics['rho'] = rho_arr
+    diagnostics['eta'] = eta_arr
     diagnostics['lambda_values'] = lambda_lcurve_range
 
     # Najdi roh L-křivky
-    lambda_lcurve, corner_idx, curvature = find_lcurve_corner(lambda_lcurve_range, rho, eta)
+    lambda_lcurve, corner_idx, curvature = find_lcurve_corner(lambda_lcurve_range, rho_arr, eta_arr)
 
     diagnostics['lambda_lcurve'] = lambda_lcurve
     diagnostics['curvature'] = curvature

@@ -737,7 +737,10 @@ def calculate_drt(
             )
         )
 
+    # success=True guarantees a valid gamma (see _solve_nnls); assert narrows
+    # the Optional for the type checker.
     gamma = nnls_result.gamma
+    assert gamma is not None
 
     # === Step 6: R_pol Calculation & Normalization ===
     n_avg = min(5, max(1, len(frequencies) // 10))
