@@ -4,6 +4,28 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.13.17 (2026-06-27)
+
+### Bug Fixes
+
+- **Narrowed `except Exception` in the DRT core** (`drt/core.py`, `drt/peaks.py`,
+  `drt/gcv.py`) — addresses `AUDIT_2026-06-23` finding 2.5 / priority 1. The
+  broad handlers swallowed any error (including programmer mistakes such as
+  `KeyError`/typos) and silently returned a fallback, hiding real bugs behind
+  data-shaped failures.
+  - `drt/core.py` `_select_lambda`: both nested handlers around auto-lambda
+    selection narrowed to `(np.linalg.LinAlgError, ValueError)`; added
+    `logger.debug(..., exc_info=True)` in each branch so a genuine failure
+    leaves a traceback instead of vanishing into the `lambda=0.1` fallback.
+  - `drt/peaks.py`: GMM fit handler narrowed to
+    `(ValueError, np.linalg.LinAlgError)` (sklearn `GaussianMixture.fit`).
+  - `drt/gcv.py`: both NNLS handlers (`compute_gcv_score`,
+    `compute_lcurve_point`) narrowed to `(RuntimeError, ValueError)`
+    (scipy `nnls`).
+  - Behavior on expected numerical failures is unchanged; existing
+    warning/debug logging is preserved. Verified by the full test suite
+    (149 passed) and ruff.
+
 ## Version 0.13.16 (2026-06-25)
 
 ### Improvements

@@ -50,7 +50,7 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
     # Řeš NNLS
     try:
         x, residual_nnls = nnls(A_reg, b_reg)
-    except Exception as e:
+    except (RuntimeError, ValueError) as e:
         logger.debug(f"NNLS selhalo pro λ={lambda_val:.2e}: {e}")
         return np.inf
 
@@ -117,7 +117,7 @@ def compute_lcurve_point(lambda_val: float, A: NDArray[np.float64],
 
     try:
         x, _ = nnls(A_reg, b_reg)
-    except Exception as e:
+    except (RuntimeError, ValueError) as e:
         logger.debug(f"NNLS selhalo pro λ={lambda_val:.2e}: {e}")
         return np.inf, np.inf, None
 

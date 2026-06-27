@@ -95,7 +95,7 @@ def gmm_peak_detection(
             bic_scores.append(bic)
             models.append(gmm)
             logger.info(f"n={n} komponenty: BIC={bic:.2f}")
-        except Exception as e:
+        except (ValueError, np.linalg.LinAlgError) as e:
             logger.warning(f"GMM fit selhal pro n={n}: {e}")
             bic_scores.append(np.inf)
             models.append(None)

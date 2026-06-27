@@ -377,7 +377,9 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                 method='gcv',
                 gcv_score=gcv_score
             )
-        except Exception:
+        except (np.linalg.LinAlgError, ValueError):
+            logger.debug("Hybrid lambda selection failed, falling back to GCV",
+                         exc_info=True)
             try:
                 lambda_opt, gcv_score = find_optimal_lambda_gcv(
                     A, b, L, lambda_range=(1e-5, 1.0), n_search=20
@@ -387,7 +389,9 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                     method='gcv',
                     gcv_score=gcv_score
                 )
-            except Exception:
+            except (np.linalg.LinAlgError, ValueError):
+                logger.debug("GCV lambda selection failed, using fallback "
+                             "lambda=0.1", exc_info=True)
                 return LambdaSelection(lambda_value=0.1, method='fallback')
 
     if lambda_reg is None:
