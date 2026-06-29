@@ -40,7 +40,7 @@ hlídána.
 
 | # | Nález | Oblast | Závažnost | Dopad |
 |---|---|---|---|---|
-| F1 | GMM přes celočíselnou replikaci bodů — arbitrární škála BIC + background floor | `peaks.py` | **Vysoká** (metodická) | Počet píků, `bic_threshold` nemá stabilní význam |
+| F1 | GMM přes celočíselnou replikaci bodů — arbitrární škála BIC + background floor — ✅ VYŘEŠENO (v0.15.0, vážený EM) | `peaks.py` | **Vysoká** (metodická) | Počet píků, `bic_threshold` nemá stabilní význam |
 | F2 | Klasifikace termů podle šířky píku je závislá na λ — ✅ VYŘEŠENO (v0.14.0, feature odstraněna) | `term_classification.py` | **Vysoká** (metodická) | Voigt vs CPE rozhodnutí nestabilní |
 | F3 | Interakce auto-λ → spiky DRT → degenerovaný post-processing | `core.py`+`gcv.py` | **Střední** | GMM/klasifikace na nízkošumových datech bez smyslu |
 | F4 | Double-counting odporů u překrývajících se píků — ✅ OPRAVENO (v0.13.17) | `peaks.py`, `core.py` | **Střední** | Σ R_i ≠ R_pol, nadhodnocené dílčí odpory |
@@ -104,7 +104,7 @@ klesá s λ, `trace(I−K)` zůstává kladná (112…127 pro λ 1e-5…1, n=140
 
 ## 3. Detailní nálezy
 
-### F1 — GMM přes celočíselnou replikaci bodů je metodicky nekorektní (Vysoká)
+### F1 — GMM přes celočíselnou replikaci bodů je metodicky nekorektní (Vysoká) — ✅ VYŘEŠENO (v0.15.0)
 
 `peaks.py:68-94`:
 
@@ -139,6 +139,16 @@ pokud verze sklearn podporuje — novější ano), nebo fitovat hustotu jiným
 nástrojem (vážený KDE / NNLS dekonvoluce na gaussovský slovník). Pro
 model-selection použít kritérium, jehož `N` je počet skutečných měření
 (frekvencí), ne replik.
+
+**Oprava (v0.15.0):** replikace nahrazena **váženým EM** (`peaks.py`,
+`_weighted_gaussian_mixture_1d`) — γ vstupuje přímo jako váha bodu, žádná
+replikace, žádný floor, žádná kvantizace. Zjištěno přitom, že sklearn
+`GaussianMixture` **nepodporuje `sample_weight`**, proto je EM napsán v
+numpy/scipy a závislost na sklearn (i flag `GMM_AVAILABLE`) **odstraněna**.
+BIC nově používá `N = počet frekvencí` (protaženo jako `n_data` z
+`calculate_drt`), takže `bic_threshold` je srovnatelný napříč datasety.
+Testy `tests/test_gmm_weighted.py`: obnova směsi, invariance BIC vůči škále γ,
+absence floor-pozadí, vliv `n_data` jen na penaltu.
 
 ---
 
@@ -382,8 +392,10 @@ test rohu L-křivky a importovat produkční konstrukci matic.
 2. ✅ **F4** — opravit double-counting: u GMM `R_i = weight_i · R_pol`,
    u scipy rozdělení v údolích. **Hotovo (v0.13.17)**; zvážit ještě
    stejnou opravu v `auto_suggest.py` (mimo rozsah F4).
-3. **F1 + F3 + F7** — ozdravit GMM/λ pipeline: vážený EM místo replikace,
-   detekce a varování na λ u meze a na „příliš řídký" DRT.
+3. **F1 + F3 + F7** — ozdravit GMM/λ pipeline. ✅ **F1 hotovo (v0.15.0)**:
+   vážený EM místo replikace, BIC s `N = počet frekvencí`, sklearn závislost
+   odstraněna. ⏳ **F3 + F7 zbývá**: detekce a varování na λ u meze a na
+   „příliš řídký" DRT.
 4. ✅ **F2** — určování typu (CPE/C) z DRT **odstraněno** (v0.14.0);
    typ se určuje až z circuit fittingu.
 5. **F5, F8–F12** — dokumentovat jako vědomá omezení / drobnosti; opravit

@@ -4,6 +4,43 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.15.0 (2026-06-29)
+
+### Fixed (DRT math audit F1)
+
+- **GMM peak detection now uses a weighted EM** fitted directly to gamma(tau)
+  (`drt/peaks.py`) — addresses `DRT_MATH_AUDIT_2026-06-27` finding F1. The old
+  path treated the DRT *density* gamma(tau) as a *sample* by replicating each
+  tau bin an integer number of times proportional to gamma
+  (`np.repeat(X, max(1, round(gamma/mean)))`). This was methodically incorrect:
+  - the BIC scale floated with the artificial replicated count `N`, so
+    `bic_threshold` was not comparable across datasets and the log-likelihood
+    was inflated by the number of copies;
+  - the `max(1, …)` floor gave every bin >=1 sample, injecting a uniform
+    background that pulled component means toward the grid center and inflated
+    peak widths (sigma);
+  - quantization collapsed all gamma < mean/2 to a single level.
+  - New helper `_weighted_gaussian_mixture_1d` runs a weighted EM where gamma is
+    the per-point weight (no replication, no floor, no quantization). For model
+    selection, BIC uses `N = number of frequency measurements` (threaded as
+    `n_data` from `calculate_drt`), so `bic_threshold` is comparable across
+    datasets. New `tests/test_gmm_weighted.py` (4 tests): mixture recovery,
+    BIC scale invariance under gamma scaling, no background-floor width
+    inflation, and the n_data penalty.
+
+### Changed / Breaking
+
+- **Removed the optional `scikit-learn` dependency.** sklearn's
+  `GaussianMixture` does not support sample weights, so the weighted EM is
+  implemented in pure numpy/scipy. GMM peak detection is now always available.
+- **Removed the public `GMM_AVAILABLE` flag** (from `eis_analysis` and
+  `eis_analysis.drt`). It was always-true gating for the sklearn import, which
+  no longer exists.
+- `gmm_peak_detection` now returns a `WeightedGMMResult` (with `means_`,
+  `covariances_`, `weights_`, `n_components` mirroring the sklearn interface)
+  instead of a sklearn `GaussianMixture`, and accepts an optional `n_data`
+  argument for the BIC penalty.
+
 ## Version 0.14.0 (2026-06-27)
 
 ### Tests & Hardening

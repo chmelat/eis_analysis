@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from eis_analysis.drt.core import _estimate_peak_resistance
-from eis_analysis.drt.peaks import gmm_peak_detection, GMM_AVAILABLE
+from eis_analysis.drt.peaks import gmm_peak_detection
 from eis_analysis.utils.compat import np_trapz
 
 
@@ -77,7 +77,6 @@ def test_scipy_peak_resistance_empty():
     assert _estimate_peak_resistance(tau, np.ones_like(tau), np.array([], dtype=int)) == []
 
 
-@pytest.mark.skipif(not GMM_AVAILABLE, reason="sklearn not available")
 def test_gmm_peak_resistance_sums_to_rpol(overlapping_peaks):
     """GMM R_estimate decomposition: sum(R_i) == R_pol exactly (sum w = 1)."""
     tau, gamma = overlapping_peaks

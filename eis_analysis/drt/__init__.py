@@ -19,7 +19,7 @@ from .gcv import (
     find_lcurve_corner,
 )
 from ..rinf_estimation import estimate_rinf_with_inductance
-from .peaks import gmm_peak_detection, GMM_AVAILABLE
+from .peaks import gmm_peak_detection
 
 __all__ = [
     # Main function
@@ -41,5 +41,4 @@ __all__ = [
     'estimate_rinf_with_inductance',
     # Peak detection
     'gmm_peak_detection',
-    'GMM_AVAILABLE',
 ]

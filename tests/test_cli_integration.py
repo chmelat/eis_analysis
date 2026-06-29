@@ -251,13 +251,7 @@ def test_drt_with_gmm():
     print("\n[Test 3b] DRT analysis with GMM peaks")
     print("-" * 70)
 
-    try:
-        from sklearn.mixture import GaussianMixture
-        has_sklearn = True
-    except ImportError:
-        has_sklearn = False
-        print("  [SKIP] scikit-learn not available")
-    
+    # GMM uses a pure-numpy weighted EM (no sklearn dependency).
     from eis_analysis.cli import run_drt_analysis
 
     frequencies, Z = get_synthetic_data()

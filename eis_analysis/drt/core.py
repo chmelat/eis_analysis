@@ -16,7 +16,7 @@ from scipy.optimize import nnls
 
 from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid
 from ..rinf_estimation import estimate_rinf_with_inductance
-from .peaks import gmm_peak_detection, GMM_AVAILABLE
+from .peaks import gmm_peak_detection
 from ..utils.compat import np_trapz
 from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
 
@@ -498,7 +498,7 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
     """
     Create DRT visualization figure.
     """
-    use_gmm = (peak_method == 'gmm' and GMM_AVAILABLE and
+    use_gmm = (peak_method == 'gmm' and
                peaks_result is not None and len(peaks_result) > 0)
 
     if use_gmm:
@@ -597,15 +597,18 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
 
 def _detect_peaks(tau: NDArray, gamma: NDArray,
                   peak_method: str,
-                  gmm_bic_threshold: float = 10.0
+                  gmm_bic_threshold: float = 10.0,
+                  n_data: Optional[int] = None
                   ) -> Tuple[Optional[List[Dict]], Optional[List[float]], Optional[List[Dict]]]:
     """
     Detect peaks in DRT spectrum.
 
+    n_data: počet skutečných měření (frekvencí) pro penalizaci BIC v GMM.
+
     Returns:
         (gmm_peaks, bic_scores, scipy_peaks)
     """
-    use_gmm = (peak_method == 'gmm' and GMM_AVAILABLE)
+    use_gmm = (peak_method == 'gmm')
 
     # Always calculate scipy peaks for diagnostics
     peaks_idx, _ = find_peaks(gamma, height=np.max(gamma) * DRT_PEAK_HEIGHT_THRESHOLD)
@@ -623,7 +626,7 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
 
     if use_gmm:
         peaks_result, gmm_model, bic_scores = gmm_peak_detection(
-            tau, gamma, bic_threshold=gmm_bic_threshold
+            tau, gamma, bic_threshold=gmm_bic_threshold, n_data=n_data
         )
 
         if len(peaks_result) == 0 or gmm_model is None:
@@ -764,7 +767,8 @@ def calculate_drt(
 
     # === Step 7: Peak Detection ===
     peaks_result, bic_scores, scipy_peaks = _detect_peaks(
-        matrices.tau, gamma, peak_method, gmm_bic_threshold
+        matrices.tau, gamma, peak_method, gmm_bic_threshold,
+        n_data=len(frequencies)
     )
 
     n_peaks = len(peaks_result) if peaks_result else len(scipy_peaks) if scipy_peaks else 0

@@ -47,7 +47,6 @@ from .drt import (
     compute_gcv_score,
     find_optimal_lambda_gcv,
     gmm_peak_detection,
-    GMM_AVAILABLE,
     DRTResult,
     DRTDiagnostics,
 )
@@ -106,7 +105,6 @@ __all__ = [
     'find_optimal_lambda_gcv',
     'estimate_rinf_with_inductance',
     'gmm_peak_detection',
-    'GMM_AVAILABLE',
     'DRTResult',
     'DRTDiagnostics',
     # Fitting (circuit elements)
