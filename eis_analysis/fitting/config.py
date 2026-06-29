@@ -33,6 +33,23 @@ Value 3% is a very sensitive setting for detecting very weak processes.
 WARNING: May capture noise in lower quality data.
 """
 
+DRT_MIN_EFFECTIVE_BINS = 7.0
+"""
+Minimum effective number of gamma bins for meaningful peak-shape analysis.
+
+Measured as the participation ratio N_eff = (sum gamma)^2 / sum(gamma^2),
+which is ~1 for a single-bin spike and grows to tens for a smooth
+distribution. Below this threshold the DRT is too sparse/spiky to analyze
+peak shape reliably (typically auto-lambda collapsing toward 0 on
+low-noise data; see audit finding F3).
+
+Calibration
+-----------
+Healthy DRT: N_eff ~ 9-20. Degenerate (auto-lambda -> 0): N_eff ~ 4-5.5.
+A threshold of 7 cleanly separates the two. Advisory only (emits a
+warning; does not alter gamma or detected peaks).
+"""
+
 DRT_PEAK_PROMINENCE_THRESHOLD = 0.015
 """
 Minimum peak prominence as fraction of maximum (1.5%).
@@ -170,6 +187,7 @@ Grid should be visible but unobtrusive.
 __all__ = [
     # DRT Peak Detection
     'DRT_PEAK_HEIGHT_THRESHOLD',
+    'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
     'DRT_PEAK_MIN_SPACING_DECADES',
     'GMM_PEAK_HEIGHT_FACTOR',

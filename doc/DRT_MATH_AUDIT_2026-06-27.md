@@ -42,11 +42,11 @@ hlídána.
 |---|---|---|---|---|
 | F1 | GMM přes celočíselnou replikaci bodů — arbitrární škála BIC + background floor — ✅ VYŘEŠENO (v0.15.0, vážený EM) | `peaks.py` | **Vysoká** (metodická) | Počet píků, `bic_threshold` nemá stabilní význam |
 | F2 | Klasifikace termů podle šířky píku je závislá na λ — ✅ VYŘEŠENO (v0.14.0, feature odstraněna) | `term_classification.py` | **Vysoká** (metodická) | Voigt vs CPE rozhodnutí nestabilní |
-| F3 | Interakce auto-λ → spiky DRT → degenerovaný post-processing | `core.py`+`gcv.py` | **Střední** | GMM/klasifikace na nízkošumových datech bez smyslu |
+| F3 | Interakce auto-λ → spiky DRT → degenerovaný post-processing — ✅ VYŘEŠENO (v0.16.0, detekce + varování) | `core.py`+`gcv.py` | **Střední** | GMM/klasifikace na nízkošumových datech bez smyslu |
 | F4 | Double-counting odporů u překrývajících se píků — ✅ OPRAVENO (v0.13.17) | `peaks.py`, `core.py` | **Střední** | Σ R_i ≠ R_pol, nadhodnocené dílčí odpory |
 | F5 | GCV používá NNLS reziduum, ale lineární trace(K) | `gcv.py` | **Střední** (dokum.) | Efektivní DoF nezohledňuje aktivní omezení |
 | F6 | L-curve roh přes argmax(křivost) — znaménko/orientace neověřeny — ✅ OVĚŘENO + zpevněno (v0.14.0) | `gcv.py` | **Střední** | Riziko výběru nesprávného „rohu" |
-| F7 | λ na hranici rozsahu se tiše akceptuje (bez varování) | `gcv.py` | Nízká–stř. | Pinning na mez není reportován |
+| F7 | λ na hranici rozsahu se tiše akceptuje (bez varování) — ✅ VYŘEŠENO (v0.16.0, `lambda_at_edge`) | `gcv.py`+`core.py` | Nízká–stř. | Pinning na mez není reportován |
 | F8 | R_inf jako medián 5 nejvyšších frekvencí — nadhodnocení při HF obloucích | `core.py` | Nízká–stř. (záměr) | Posun celého γ přes `b = Z'−R_inf` |
 | F9 | τ-mřížka omezena jen na měřený rozsah (bez auto-extend) | `core.py` | Nízká | Píky u krajů τ uříznuty/zkresleny |
 | F10 | R_pol integrováno lichoběžníkem, jádro používá obdélník | `core.py` | Nízká | Zanedbatelná nekonzistence (≤ 1 interval) |
@@ -191,7 +191,7 @@ change (viz CHANGELOG 0.14.0).
 
 ---
 
-### F3 — auto-λ → spiky DRT → degenerovaný post-processing (Střední)
+### F3 — auto-λ → spiky DRT → degenerovaný post-processing (Střední) — ✅ VYŘEŠENO (v0.16.0)
 
 **Empiricky doloženo.** Pro čistý jednopíkový Voigt vrátil hybridní výběr
 `λ ≈ 1.5e-5` (spodní mez rozšířeného rozsahu), což dalo DRT s **pouhými
@@ -208,6 +208,18 @@ binů / efektivní šířka) a varovat, když je DRT příliš řídký pro anal
 tvaru; (b) pro účely detekce píků zvážit mírně vyšší λ než pro rekonstrukci
 (rozpojit „λ pro fit" a „λ pro tvarovou analýzu"); (c) propojit s F7
 (detekce λ na hranici).
+
+**Oprava (v0.16.0):** zvolena varianta **(a) + (c)** — detekce + varování,
+bez změny γ či píků. Přidána metrika `N_eff = (Σγ)²/Σγ²` (participation ratio,
+`core.py:_effective_bins`), vystavená jako `DRTDiagnostics.n_effective_bins` a
+v CLI. Pod prahem `DRT_MIN_EFFECTIVE_BINS = 7` (kalibrace: zdravé DRT ~9–20,
+degenerované ~4–5.5) se vypíše varování „DRT is sparse/spiky … consider a
+higher lambda". Pro (c) propojen F7: flag `corner_at_edge` (počítaný v
+`gcv.py`, dříve zahazovaný v `_select_lambda`) + nový `lambda_at_edge` jsou
+nově na `LambdaSelection` a generují varování „auto-lambda at search-range
+edge". Auto-λ je výchozí v CLI, takže F3 postihovalo i běžné spuštění.
+Varianta (b) (rozpojení λ pro fit/tvar) vědomě vynechána — mění výstupy a
+zdvojuje cenu; lze přidat později jako opt-in.
 
 ---
 
@@ -304,7 +316,7 @@ nebyla potřeba. Provedeno:
 
 ---
 
-### F7 — λ na hranici rozsahu se tiše akceptuje (Nízká–střední)
+### F7 — λ na hranici rozsahu se tiše akceptuje (Nízká–střední) — ✅ VYŘEŠENO (v0.16.0)
 
 `gcv.py:254-263` rozšiřuje jemné hledání, pokud minimum padne na okraj
 (`×/÷10`), ale výsledné λ může pořád ležet na nové hranici a **vrátí se bez
@@ -314,6 +326,11 @@ než dovolím" — uživatel to nevidí.
 
 **Doporučení:** detekovat, že vybrané λ ≈ mez rozsahu, a přidat varování do
 diagnostiky (analogicky GMM). Souvisí s F3.
+
+**Oprava (v0.16.0):** `_select_lambda` nově nastavuje `lambda_at_edge` na
+`LambdaSelection` (vybrané λ nebo GCV odhad na mezi GCV rozsahu) a propisuje
+`corner_at_edge` z `gcv.py` (dříve zahazován). Generuje varování „auto-lambda
+at search-range edge". Řešeno společně s F3.
 
 ---
 
@@ -392,10 +409,11 @@ test rohu L-křivky a importovat produkční konstrukci matic.
 2. ✅ **F4** — opravit double-counting: u GMM `R_i = weight_i · R_pol`,
    u scipy rozdělení v údolích. **Hotovo (v0.13.17)**; zvážit ještě
    stejnou opravu v `auto_suggest.py` (mimo rozsah F4).
-3. **F1 + F3 + F7** — ozdravit GMM/λ pipeline. ✅ **F1 hotovo (v0.15.0)**:
-   vážený EM místo replikace, BIC s `N = počet frekvencí`, sklearn závislost
-   odstraněna. ⏳ **F3 + F7 zbývá**: detekce a varování na λ u meze a na
-   „příliš řídký" DRT.
+3. ✅ **F1 + F3 + F7** — ozdravit GMM/λ pipeline. **Hotovo**: F1 (v0.15.0)
+   vážený EM místo replikace, BIC s `N = počet frekvencí`, sklearn odstraněn;
+   F3 + F7 (v0.16.0) metrika `N_eff` + varování na řídký DRT a na λ u meze
+   rozsahu (`lambda_at_edge`/`corner_at_edge`). Varianta (b) rozpojení λ pro
+   fit/tvar vynechána (volitelné do budoucna).
 4. ✅ **F2** — určování typu (CPE/C) z DRT **odstraněno** (v0.14.0);
    typ se určuje až z circuit fittingu.
 5. **F5, F8–F12** — dokumentovat jako vědomá omezení / drobnosti; opravit

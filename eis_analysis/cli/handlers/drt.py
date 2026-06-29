@@ -90,6 +90,8 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
                     f"lambda={lambda_sel.lambda_value:.2e}")
     else:
         logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}")
+    if diag.n_effective_bins is not None:
+        logger.info(f"  DRT effective bins (N_eff): {diag.n_effective_bins:.1f}")
 
     # Matrix condition
     if diag.condition_number > 1e15:

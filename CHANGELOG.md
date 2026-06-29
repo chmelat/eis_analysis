@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.0 (2026-06-29)
+
+### Added (DRT math audit F3 / F7)
+
+- **DRT shape-quality detection** (`drt/core.py`) — addresses
+  `DRT_MATH_AUDIT_2026-06-27` finding F3 (variant a+c: detect and warn).
+  Lambda selection optimizes data fit, so for low-noise data auto-lambda
+  drives lambda toward 0, producing a sparse/spiky DRT on which peak-shape
+  analysis (scipy `find_peaks`, GMM) is meaningless. Auto-lambda is the CLI
+  default (`python3 eis.py` without `--lambda`), so this affected normal use.
+  - New participation-ratio metric `N_eff = (sum gamma)^2 / sum(gamma^2)`
+    (`_effective_bins`), exposed as `DRTDiagnostics.n_effective_bins` and shown
+    in the CLI. ~1 for a single spike, tens for a smooth distribution.
+  - Warns when `N_eff < DRT_MIN_EFFECTIVE_BINS` (=7, calibrated: healthy DRT
+    ~9-20, degenerate ~4-5.5) — "DRT is sparse/spiky ... consider a higher
+    lambda".
+  - **Lambda-edge detection (F7)**: the `corner_at_edge` flag already computed
+    in `gcv.py` was being discarded by `_select_lambda`; it is now surfaced on
+    `LambdaSelection` together with a new `lambda_at_edge` flag (set when the
+    selected lambda, or the GCV guess, hits a search-range bound). Emits an
+    "auto-lambda at search-range edge" warning.
+  - Advisory only: gamma and the detected peaks are unchanged.
+  - New `tests/test_drt_spikiness.py` (4 tests): metric correctness, degenerate
+    auto-lambda warns, healthy lambda does not, lambda-edge detection.
+
 ## Version 0.15.0 (2026-06-29)
 
 ### Fixed (DRT math audit F1)

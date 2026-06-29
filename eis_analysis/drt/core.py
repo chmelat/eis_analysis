@@ -18,7 +18,7 @@ from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid
 from ..rinf_estimation import estimate_rinf_with_inductance
 from .peaks import gmm_peak_detection
 from ..utils.compat import np_trapz
-from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
+from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,8 @@ class LambdaSelection:
     method: str  # 'user', 'default', 'gcv', 'hybrid', 'fallback'
     lambda_gcv: Optional[float] = None  # If L-curve correction was applied
     gcv_score: Optional[float] = None
+    corner_at_edge: bool = False   # L-curve corner landed at edge of search range (F7)
+    lambda_at_edge: bool = False   # selected lambda hit a bound of the GCV range (F3/F7)
 
 
 @dataclass
@@ -111,6 +113,9 @@ class DRTDiagnostics:
     peak_method: str
     n_peaks: int
     scipy_peaks: Optional[List[Dict]] = None  # For scipy method
+
+    # Shape diagnostics (F3): effective number of gamma bins (participation ratio)
+    n_effective_bins: Optional[float] = None
 
 
 @dataclass
@@ -356,43 +361,64 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
 # Lambda Selection
 # =============================================================================
 
+def _effective_bins(gamma: NDArray) -> float:
+    """Participation ratio N_eff = (sum gamma)^2 / sum(gamma^2).
+
+    ~1 for a single-bin spike, grows to tens for a smooth distribution.
+    Used to flag DRT too sparse/spiky for peak-shape analysis (audit F3).
+    """
+    s = float(np.sum(gamma))
+    denom = float(np.sum(gamma**2))
+    return (s * s) / denom if denom > 0 else 0.0
+
+
 def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                    lambda_reg: Optional[float] = None,
                    auto_lambda: bool = False) -> LambdaSelection:
     """
     Select regularization parameter lambda.
     """
+    # GCV search bounds. Edge detection (F3/F7): lambda landing at a bound -
+    # or the GCV guess pinning there even when L-curve corrected it - signals
+    # the optimizer wants more extreme regularization than the range allows.
+    lambda_range = (1e-5, 1.0)
+
+    def _at_bound(lam: Optional[float]) -> bool:
+        return lam is not None and (lam <= lambda_range[0] or lam >= lambda_range[1])
+
     if auto_lambda:
         try:
             lambda_opt, gcv_score, diag = find_optimal_lambda_hybrid(
                 A, b, L,
-                lambda_range=(1e-5, 1.0),
+                lambda_range=lambda_range,
                 n_search=20,
                 lcurve_decades=1.5
             )
-            if diag['method_used'] == 'lcurve_correction':
-                return LambdaSelection(
-                    lambda_value=lambda_opt,
-                    method='hybrid',
-                    lambda_gcv=diag['lambda_gcv'],
-                    gcv_score=gcv_score
-                )
+            lambda_gcv = diag.get('lambda_gcv')
+            corner_at_edge = diag.get('corner_at_edge', False)
+            at_edge = _at_bound(lambda_opt) or _at_bound(lambda_gcv) or corner_at_edge
+            method = 'hybrid' if diag['method_used'] == 'lcurve_correction' else 'gcv'
             return LambdaSelection(
                 lambda_value=lambda_opt,
-                method='gcv',
-                gcv_score=gcv_score
+                method=method,
+                # lambda_gcv only meaningful (and displayed) for L-curve correction
+                lambda_gcv=lambda_gcv if method == 'hybrid' else None,
+                gcv_score=gcv_score,
+                corner_at_edge=corner_at_edge,
+                lambda_at_edge=at_edge
             )
         except (np.linalg.LinAlgError, ValueError):
             logger.debug("Hybrid lambda selection failed, falling back to GCV",
                          exc_info=True)
             try:
                 lambda_opt, gcv_score = find_optimal_lambda_gcv(
-                    A, b, L, lambda_range=(1e-5, 1.0), n_search=20
+                    A, b, L, lambda_range=lambda_range, n_search=20
                 )
                 return LambdaSelection(
                     lambda_value=lambda_opt,
                     method='gcv',
-                    gcv_score=gcv_score
+                    gcv_score=gcv_score,
+                    lambda_at_edge=_at_bound(lambda_opt)
                 )
             except (np.linalg.LinAlgError, ValueError):
                 logger.debug("GCV lambda selection failed, using fallback "
@@ -775,6 +801,7 @@ def calculate_drt(
 
     # === Step 8: Reconstruction & Error ===
     gamma_for_recon = gamma_original if normalized else gamma
+    assert gamma_for_recon is not None  # set whenever normalized; narrows Optional
     Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma_for_recon
     rel_error = float(np.mean(np.abs(Z - Z_reconstructed) / np.abs(Z)) * 100)
 
@@ -786,6 +813,24 @@ def calculate_drt(
     elif rel_error > 5.0:
         nnls_result.warnings.append(
             f"Elevated reconstruction error ({rel_error:.1f}%)"
+        )
+
+    # === Step 8b: Shape-quality diagnostics (F3) ===
+    # Warn if the DRT is too sparse/spiky for peak-shape analysis, or if
+    # auto-lambda hit the search-range edge (regularization too low). Advisory
+    # only - gamma and detected peaks are unchanged.
+    n_eff = _effective_bins(gamma_for_recon)
+    if n_eff < DRT_MIN_EFFECTIVE_BINS:
+        nnls_result.warnings.append(
+            f"DRT is sparse/spiky (effective bins {n_eff:.1f} < "
+            f"{DRT_MIN_EFFECTIVE_BINS:.0f}); peak-shape analysis may be "
+            f"unreliable - consider a higher lambda"
+        )
+    if lambda_sel.lambda_at_edge or lambda_sel.corner_at_edge:
+        nnls_result.warnings.append(
+            f"Auto-lambda at search-range edge (lambda="
+            f"{lambda_sel.lambda_value:.2e}); regularization may be too low "
+            f"for reliable DRT shape"
         )
 
     # === Step 9: Visualization ===
@@ -815,7 +860,8 @@ def calculate_drt(
         reconstruction_error_rel=rel_error,
         peak_method=peak_method,
         n_peaks=n_peaks,
-        scipy_peaks=scipy_peaks
+        scipy_peaks=scipy_peaks,
+        n_effective_bins=n_eff
     )
 
     return DRTResult(
