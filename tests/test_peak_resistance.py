@@ -13,9 +13,14 @@ These tests lock sum(R_i) == R_pol for overlapping peaks.
 import numpy as np
 import pytest
 
-from eis_analysis.drt.core import _estimate_peak_resistance
+from eis_analysis.drt.core import _estimate_peak_resistance, _rpol_from_gamma
 from eis_analysis.drt.peaks import gmm_peak_detection
-from eis_analysis.utils.compat import np_trapz
+
+
+def _rpol(gamma, tau):
+    """Rectangle-rule R_pol, matching the DRT kernel and production (F10)."""
+    d_ln_tau = float(np.mean(np.diff(np.log(tau))))
+    return _rpol_from_gamma(gamma, d_ln_tau)
 
 
 def _two_gaussian_gamma(tau, centers, sigma, amps):
@@ -39,7 +44,6 @@ def overlapping_peaks():
 def test_scipy_peak_resistance_sums_to_rpol(overlapping_peaks):
     """sum(R_i) over valley-partitioned peaks equals R_pol of spanned range."""
     tau, gamma = overlapping_peaks
-    ln_tau = np.log(tau)
 
     from scipy.signal import find_peaks
     peaks_idx, _ = find_peaks(gamma, height=np.max(gamma) * 0.05)
@@ -47,9 +51,9 @@ def test_scipy_peak_resistance_sums_to_rpol(overlapping_peaks):
 
     resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
 
-    # Partition spans from index 0 to the last index, so the sum equals the
-    # full-range integral exactly (trapz is additive over shared nodes).
-    R_pol_full = np_trapz(gamma, ln_tau)
+    # Disjoint half-open segments cover the whole array, so the rectangle-rule
+    # sum equals the full-range rectangle R_pol exactly (F10).
+    R_pol_full = _rpol(gamma, tau)
     assert np.isclose(sum(resistances), R_pol_full, rtol=1e-9), (
         f"sum(R_i)={sum(resistances):.4f} != R_pol={R_pol_full:.4f}"
     )
@@ -66,7 +70,7 @@ def test_scipy_peak_resistance_no_double_count(overlapping_peaks):
     peaks_idx, _ = find_peaks(gamma, height=np.max(gamma) * 0.05)
 
     resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
-    R_pol_full = float(np_trapz(gamma, np.log(tau)))
+    R_pol_full = _rpol(gamma, tau)
 
     assert sum(resistances) <= R_pol_full * (1 + 1e-9)
 
@@ -83,7 +87,7 @@ def test_gmm_peak_resistance_sums_to_rpol(overlapping_peaks):
     peaks, gmm_model, _ = gmm_peak_detection(tau, gamma, bic_threshold=10.0)
 
     assert gmm_model is not None and len(peaks) >= 1
-    R_pol_full = float(np_trapz(gamma, np.log(tau)))
+    R_pol_full = _rpol(gamma, tau)
 
     total = sum(p['R_estimate'] for p in peaks)
     # GMM weights sum to 1, so weight_i * R_pol sums to R_pol exactly.
@@ -91,3 +95,23 @@ def test_gmm_peak_resistance_sums_to_rpol(overlapping_peaks):
         f"sum(R_estimate)={total:.4f} != R_pol={R_pol_full:.4f}"
     )
     assert all(p['R_estimate'] > 0 for p in peaks)
+
+
+def test_rpol_unified_integration(overlapping_peaks):
+    """F10: scipy sum(R_i) and GMM R_pol both equal the rectangle R_pol.
+
+    All three derive R_pol from gamma with the same rectangle rule (consistent
+    with the DRT kernel), so they must agree exactly for the same gamma.
+    """
+    tau, gamma = overlapping_peaks
+    rect = _rpol(gamma, tau)
+
+    from scipy.signal import find_peaks
+    idx, _ = find_peaks(gamma, height=np.max(gamma) * 0.05)
+    scipy_sum = sum(_estimate_peak_resistance(tau, gamma, idx))
+
+    peaks, model, _ = gmm_peak_detection(tau, gamma, bic_threshold=10.0)
+    gmm_sum = sum(p['R_estimate'] for p in peaks)
+
+    assert np.isclose(scipy_sum, rect, rtol=1e-9)
+    assert np.isclose(gmm_sum, rect, rtol=1e-9)

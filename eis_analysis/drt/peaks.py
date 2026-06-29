@@ -270,14 +270,13 @@ def gmm_peak_detection(
 
     # Extrahuj parametry píků
     peaks = []
-    ln_tau = np.log(tau)
 
-    # Celkový R_pol = ∫ γ d ln τ. Dílčí odpory rozdělíme podle vah GMM
-    # (Σ weight = 1), takže Σ R_i = R_pol přesně. Tím se vyhneme
-    # double-countingu, který vzniká integrací CELKOVÉHO γ přes ±2σ okno
-    # každého píku — překryv sousedních píků by se jinak započítal vícekrát.
-    from ..utils.compat import np_trapz
-    R_pol = float(np_trapz(gamma, ln_tau))
+    # Celkový R_pol = Σγ·Δlnτ (obdélníkové pravidlo, konzistentní s jádrem DRT,
+    # viz audit F10). Dílčí odpory rozdělíme podle vah GMM (Σ weight = 1), takže
+    # Σ R_i = R_pol přesně. Tím se vyhneme double-countingu, který vzniká
+    # integrací CELKOVÉHO γ přes ±2σ okno každého píku.
+    d_ln_tau = float(np.mean(np.diff(np.log(tau))))
+    R_pol = float(np.sum(gamma) * d_ln_tau)
 
     for i in range(best_gmm.n_components):
         mu = best_gmm.means_[i, 0]  # v log10(tau)

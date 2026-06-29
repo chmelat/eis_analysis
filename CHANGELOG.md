@@ -4,6 +4,46 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.1 (2026-06-29)
+
+### Tests (DRT math audit F13)
+
+- **Correctness tests for lambda selection and DRT reconstruction** —
+  addresses `DRT_MATH_AUDIT_2026-06-27` finding F13. The lambda-selection tests
+  were smoke-only (lambda positive/finite/in-range) and re-implemented the DRT
+  matrix construction locally, so drift between test and production matrices
+  would have been invisible.
+  - `tests/test_hybrid_lambda.py` now imports the production
+    `_build_drt_matrices` instead of a local copy (removed). Adds
+    `compute_gcv_score` tests (finite/positive across the range; the
+    GCV-selected lambda scores no worse than the range endpoints, i.e. the
+    selector genuinely minimizes the score function).
+  - New `tests/test_drt_recovery.py`: end-to-end `calculate_drt` recovery of
+    known Voigt spectra — detected peaks land at the true time constants
+    (within 0.15 decade) and the gamma integral recovers R_pol (within 3%),
+    for both two-peak and single-peak circuits.
+
+### Fixed (DRT math audit F10)
+
+- **Unified R_pol integration with the DRT kernel** (`drt/core.py`,
+  `drt/peaks.py`) — addresses finding F10. `R_pol_from_gamma` and the per-peak
+  resistances used the trapezoid rule, while the DRT kernel integrates with the
+  rectangle rule (`A_re -> d_ln_tau` as omega -> 0), so the reported R_pol did
+  not exactly match the model's own DC limit. All R_pol computations now use the
+  rectangle rule via the new `_rpol_from_gamma` helper:
+  - total `R_pol_from_gamma` = `sum(gamma) * d_ln_tau`;
+  - `_estimate_peak_resistance` partitions the tau axis into disjoint half-open
+    valley segments (rectangle sum per segment), keeping `sum(R_i) = R_pol`
+    exactly (simpler than the previous shared-node trapz);
+  - GMM `R_pol` (for the `weight_i * R_pol` decomposition) likewise.
+  - The difference vs trapz is negligible (~0.1%, half the endpoint values),
+    but R_pol is now consistent with the reconstructed model. Peak-resistance
+    tests updated to the rectangle reference; new `test_rpol_unified_integration`
+    pins that the scipy, GMM and rectangle R_pol all agree.
+
+Note: `fitting/auto_suggest.py` still uses trapz over threshold windows (a
+separate path with its own known double-counting, out of scope here).
+
 ## Version 0.16.0 (2026-06-29)
 
 ### Added (DRT math audit F3 / F7)

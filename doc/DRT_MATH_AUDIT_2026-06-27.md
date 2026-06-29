@@ -49,10 +49,10 @@ hlídána.
 | F7 | λ na hranici rozsahu se tiše akceptuje (bez varování) — ✅ VYŘEŠENO (v0.16.0, `lambda_at_edge`) | `gcv.py`+`core.py` | Nízká–stř. | Pinning na mez není reportován |
 | F8 | R_inf jako medián 5 nejvyšších frekvencí — nadhodnocení při HF obloucích | `core.py` | Nízká–stř. (záměr) | Posun celého γ přes `b = Z'−R_inf` |
 | F9 | τ-mřížka omezena jen na měřený rozsah (bez auto-extend) | `core.py` | Nízká | Píky u krajů τ uříznuty/zkresleny |
-| F10 | R_pol integrováno lichoběžníkem, jádro používá obdélník | `core.py` | Nízká | Zanedbatelná nekonzistence (≤ 1 interval) |
+| F10 | R_pol integrováno lichoběžníkem, jádro používá obdélník — ✅ VYŘEŠENO (v0.16.1) | `core.py`, `peaks.py` | Nízká | Zanedbatelná nekonzistence (≤ 1 interval) |
 | F11 | DRT nereprezentuje induktivní data (γ≥0, A_im≤0) | `core.py` | Nízká (záměr) | Body Z''>0 zvyšují reziduum; jen varování |
-| F12 | Větev `uncertain` v klasifikaci je mrtvý kód | `term_classification.py` | Kosmetika | Dosažitelná jen přesnou rovností |
-| F13 | Testy λ-výběru jsou jen smoke; matematika neověřena; matice duplikovány | `tests/` | Střední (proces) | Drift test↔produkce neviditelný |
+| F12 | Větev `uncertain` v klasifikaci je mrtvý kód — ✅ BEZPŘEDMĚTNÝ (modul smazán v F2/v0.14.0) | `term_classification.py` | Kosmetika | Dosažitelná jen přesnou rovností |
+| F13 | Testy λ-výběru jsou jen smoke; matematika neověřena; matice duplikovány — ✅ VYŘEŠENO (v0.16.1) | `tests/` | Střední (proces) | Drift test↔produkce neviditelný |
 
 ---
 
@@ -354,12 +354,20 @@ do dokumentace.
 
 ---
 
-### F10 — R_pol: lichoběžník vs. obdélník jádra (Nízká)
+### F10 — R_pol: lichoběžník vs. obdélník jádra (Nízká) — ✅ VYŘEŠENO (v0.16.1)
 
 `core.py:750`: `R_pol_from_gamma = trapz(γ, lnτ)`, zatímco jádro a tím i
 modelové `Z'(0)−R_inf = Σγ_m·Δlnτ` používají obdélník. Rozdíl je ≤ jeden
 krajní interval (ověřeno: 100.04 vs 100.0). Pro konzistenci by `R_pol`
 mohlo být `Σγ_m·Δlnτ` (vlastní R_pol modelu). Zanedbatelné.
+
+**Oprava (v0.16.1):** všechny výpočty R_pol z γ sjednoceny na obdélníkové
+pravidlo (helper `core._rpol_from_gamma` = `Σγ·Δlnτ`, konzistentní s jádrem):
+celkové `R_pol_from_gamma`, GMM `R_pol` (rozklad `weight_i·R_pol`) i
+`_estimate_peak_resistance` (τ-osa rozdělena na disjunktní polootevřené
+úseky v údolích, obdélníkový součet na úsek → `Σ R_i = R_pol` přesně, navíc
+jednodušší než dřívější lichoběžník přes sdílený uzel). Pozn.: `auto_suggest.py`
+zůstává na lichoběžníku přes prahová okna (samostatná cesta, mimo rozsah).
 
 ---
 
@@ -372,7 +380,11 @@ podíl varuje (`core.py:420-424`), ale stejně fituje. Inherentní limitace
 
 ---
 
-### F12 — Mrtvá větev `uncertain` (Kosmetika)
+### F12 — Mrtvá větev `uncertain` (Kosmetika) — ✅ BEZPŘEDMĚTNÝ (v0.14.0)
+
+Modul `term_classification.py` byl odstraněn v rámci F2 (v0.14.0), takže mrtvá
+větev `uncertain` už neexistuje.
+
 
 `term_classification.py:108-147`: podmínky `< THRESHOLD` a `> THRESHOLD`
 pokrývají vše kromě přesné rovnosti, takže `else: 'uncertain'` je prakticky
@@ -381,7 +393,7 @@ nebo větev odstranit.
 
 ---
 
-### F13 — Testy λ-výběru jsou jen smoke; matice duplikovány (Střední, proces)
+### F13 — Testy λ-výběru jsou jen smoke; matice duplikovány (Střední, proces) — ✅ VYŘEŠENO (v0.16.1)
 
 `tests/test_hybrid_lambda.py` ověřuje pouze, že λ je kladné, konečné a
 „v rozumném rozsahu". **Neexistuje** test, který by:
@@ -397,15 +409,27 @@ konstrukcí matic by zůstala neviditelná.
 **Doporučení:** přidat korektnostní testy (recovery známých spekter),
 test rohu L-křivky a importovat produkční konstrukci matic.
 
+**Oprava (postupně):** test rohu L-křivky + import produkční
+`_build_drt_matrices` přidán už ve **F6** (`tests/test_lcurve_corner.py`),
+GMM/`peaks.py` pokryt ve **F1** (`test_gmm_weighted.py`,
+`test_peak_resistance.py`); `term_classification.py` smazán (F2). Ve
+**v0.16.1** doplněno: (1) `tests/test_hybrid_lambda.py` importuje produkční
+`_build_drt_matrices` místo lokální kopie (odstraněna) → drift test↔produkce
+je nyní viditelný; (2) testy `compute_gcv_score` (konečné/kladné; vybrané λ
+skóruje ne hůř než konce rozsahu); (3) `tests/test_drt_recovery.py` —
+end-to-end recovery známého Voigt spektra: píky na správných τ (do 0.15
+dekády) a R_pol z integrálu γ (do 3 %).
+
 ---
 
 ## 4. Priority k řešení (přínos/úsilí)
 
-1. 🔶 **F6 + F13** — ✅ **F6 hotovo (v0.14.0)**: testy rohu L-křivky
+1. ✅ **F6 + F13** — **F6 (v0.14.0)**: testy rohu L-křivky
    (`tests/test_lcurve_corner.py`), konvence ověřena a zdokumentována, háček
    na okrajový roh; integrační test staví matice produkční
-   `_build_drt_matrices`. ⏳ **F13 zbývá**: korektnostní testy `calculate_drt`
-   (recovery γ) a sjednocení matic v `test_hybrid_lambda.py`.
+   `_build_drt_matrices`. **F13 (v0.16.1)**: korektnostní testy `calculate_drt`
+   (recovery γ, `tests/test_drt_recovery.py`), testy `compute_gcv_score`,
+   a sjednocení matic v `test_hybrid_lambda.py` (import produkční konstrukce).
 2. ✅ **F4** — opravit double-counting: u GMM `R_i = weight_i · R_pol`,
    u scipy rozdělení v údolích. **Hotovo (v0.13.17)**; zvážit ještě
    stejnou opravu v `auto_suggest.py` (mimo rozsah F4).
@@ -416,8 +440,8 @@ test rohu L-křivky a importovat produkční konstrukci matic.
    fit/tvar vynechána (volitelné do budoucna).
 4. ✅ **F2** — určování typu (CPE/C) z DRT **odstraněno** (v0.14.0);
    typ se určuje až z circuit fittingu.
-5. **F5, F8–F12** — dokumentovat jako vědomá omezení / drobnosti; opravit
-   F12 a F10 při příležitosti.
+5. **F5, F8, F9, F11** — dokumentovat jako vědomá omezení / drobnosti.
+   (F10 opraveno v0.16.1; F12 bezpředmětný — modul smazán v F2.)
 
 ---
 

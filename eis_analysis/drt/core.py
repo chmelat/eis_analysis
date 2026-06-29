@@ -17,7 +17,6 @@ from scipy.optimize import nnls
 from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid
 from ..rinf_estimation import estimate_rinf_with_inductance
 from .peaks import gmm_peak_detection
-from ..utils.compat import np_trapz
 from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS
 
 logger = logging.getLogger(__name__)
@@ -180,6 +179,18 @@ class DRTResult:
 # Helper Functions
 # =============================================================================
 
+def _rpol_from_gamma(gamma: NDArray, d_ln_tau: float) -> float:
+    """Polarization resistance R_pol = sum(gamma) * d_ln_tau (rectangle rule).
+
+    This matches the DRT kernel, which integrates with the rectangle rule:
+    A_re -> d_ln_tau as omega -> 0, so the model's own DC limit is
+    Z'(0) - R_inf = sum_m gamma_m * d_ln_tau. Using the same quadrature here
+    (rather than trapz) keeps R_pol consistent with the reconstructed model
+    (audit finding F10).
+    """
+    return float(np.sum(gamma) * d_ln_tau)
+
+
 def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
                                peak_indices: NDArray) -> List[float]:
     """
@@ -187,34 +198,34 @@ def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
     of the tau axis.
 
     The tau axis is split at the valleys (gamma minima) between consecutive
-    peaks, so each grid point is assigned to exactly one peak. Because trapz
-    is additive over a shared boundary node, this guarantees sum(R_i) equals
-    the total R_pol over the spanned range — unlike per-peak threshold
-    windows, which double-count the overlap region of adjacent peaks.
+    peaks into disjoint half-open segments, so each grid point is assigned to
+    exactly one peak. Each segment is integrated with the rectangle rule
+    (consistent with the DRT kernel, F10), so sum(R_i) equals the total R_pol
+    over the spanned range exactly — unlike per-peak threshold windows, which
+    double-count the overlap region of adjacent peaks.
     """
     if len(peak_indices) == 0:
         return []
 
     ln_tau = np.log(tau)
+    d_ln_tau = float(np.mean(np.diff(ln_tau)))
     peaks = np.sort(peak_indices)
 
-    # Partition boundaries: outer ends of the array plus the valley (argmin)
-    # between each pair of consecutive peaks.
+    # Partition boundaries: start of the array plus the valley (argmin) between
+    # each pair of consecutive peaks, plus the end. Segments are half-open
+    # [bounds[j], bounds[j+1]) so every grid point belongs to exactly one peak.
     bounds = [0]
     for j in range(len(peaks) - 1):
         lo, hi = int(peaks[j]), int(peaks[j + 1])
         valley = lo + int(np.argmin(gamma[lo:hi + 1]))
         bounds.append(valley)
-    bounds.append(len(gamma) - 1)
+    bounds.append(len(gamma))
 
     resistances = []
     for j in range(len(peaks)):
         left, right = bounds[j], bounds[j + 1]
-        if right > left:
-            R_peak = np_trapz(gamma[left:right + 1], ln_tau[left:right + 1])
-        else:
-            R_peak = 0.0
-        resistances.append(float(R_peak))
+        R_peak = _rpol_from_gamma(gamma[left:right], d_ln_tau) if right > left else 0.0
+        resistances.append(R_peak)
 
     return resistances
 
@@ -781,7 +792,7 @@ def calculate_drt(
     low_freq_indices = np.argsort(frequencies)[:n_avg]
     R_dc = float(np.median(Z.real[low_freq_indices]))
     R_pol_from_data = R_dc - R_inf
-    R_pol_from_gamma = float(np_trapz(gamma, np.log(matrices.tau)))
+    R_pol_from_gamma = _rpol_from_gamma(gamma, matrices.d_ln_tau)
 
     gamma_original = None
     normalized = False

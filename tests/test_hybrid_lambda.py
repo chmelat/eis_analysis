@@ -4,9 +4,11 @@
 import numpy as np
 import pytest
 from eis_analysis.drt.gcv import (
+    compute_gcv_score,
     find_optimal_lambda_gcv,
     find_optimal_lambda_hybrid,
 )
+from eis_analysis.drt.core import _build_drt_matrices
 
 
 # =============================================================================
@@ -30,33 +32,10 @@ def generate_warburg_impedance(frequencies, R_inf, R_ct, C_dl, sigma_w):
     return R_inf + Z_ct + Z_W
 
 
-def build_drt_matrices(frequencies, Z, R_inf, n_tau=100):
-    """Build matrices A, b, L for DRT problem."""
-    omega = 2 * np.pi * frequencies
-
-    f_max = frequencies.max()
-    f_min = frequencies.min()
-    tau_min = 1 / (2 * np.pi * f_max)
-    tau_max = 1 / (2 * np.pi * f_min)
-    tau = np.logspace(np.log10(tau_min), np.log10(tau_max), n_tau)
-
-    d_ln_tau = np.mean(np.diff(np.log(tau)))
-
-    omega_mesh, tau_mesh = np.meshgrid(omega, tau, indexing='ij')
-    denom = 1 + (omega_mesh * tau_mesh)**2
-    A_re = d_ln_tau / denom
-    A_im = -omega_mesh * tau_mesh * d_ln_tau / denom
-    A = np.vstack([A_re, A_im])
-
-    b = np.concatenate([Z.real - R_inf, Z.imag])
-
-    L = np.zeros((n_tau - 2, n_tau))
-    for i in range(n_tau - 2):
-        L[i, i] = 1
-        L[i, i + 1] = -2
-        L[i, i + 2] = 1
-
-    return A, b, L
+def _matrices(frequencies, Z, R_inf):
+    """A, b, L from the production matrix builder (no test re-implementation)."""
+    m = _build_drt_matrices(frequencies, Z, R_inf)
+    return m.A, m.b, m.L
 
 
 # =============================================================================
@@ -93,7 +72,7 @@ def warburg_data(frequencies):
 def test_gcv_returns_positive_lambda(voigt_data):
     """Test that GCV returns a positive lambda value."""
     frequencies, Z, R_inf = voigt_data
-    A, b, L = build_drt_matrices(frequencies, Z, R_inf)
+    A, b, L = _matrices(frequencies, Z, R_inf)
 
     lambda_gcv, gcv_score = find_optimal_lambda_gcv(A, b, L)
 
@@ -105,7 +84,7 @@ def test_gcv_returns_positive_lambda(voigt_data):
 def test_hybrid_returns_positive_lambda(voigt_data):
     """Test that Hybrid method returns a positive lambda value."""
     frequencies, Z, R_inf = voigt_data
-    A, b, L = build_drt_matrices(frequencies, Z, R_inf)
+    A, b, L = _matrices(frequencies, Z, R_inf)
 
     lambda_hybrid, hybrid_score, diag = find_optimal_lambda_hybrid(A, b, L)
 
@@ -117,7 +96,7 @@ def test_hybrid_returns_positive_lambda(voigt_data):
 def test_gcv_and_hybrid_similar_for_clean_voigt(voigt_data):
     """Test that GCV and Hybrid give similar results for clean Voigt data."""
     frequencies, Z, R_inf = voigt_data
-    A, b, L = build_drt_matrices(frequencies, Z, R_inf)
+    A, b, L = _matrices(frequencies, Z, R_inf)
 
     lambda_gcv, _ = find_optimal_lambda_gcv(A, b, L)
     lambda_hybrid, _, _ = find_optimal_lambda_hybrid(A, b, L)
@@ -135,7 +114,7 @@ def test_hybrid_works_for_noisy_data(voigt_data):
     noise = 0.02 * np.abs(Z) * (np.random.randn(len(Z)) + 1j * np.random.randn(len(Z)))
     Z_noisy = Z + noise
 
-    A, b, L = build_drt_matrices(frequencies, Z_noisy, R_inf)
+    A, b, L = _matrices(frequencies, Z_noisy, R_inf)
 
     lambda_hybrid, _, diag = find_optimal_lambda_hybrid(A, b, L)
 
@@ -146,7 +125,7 @@ def test_hybrid_works_for_noisy_data(voigt_data):
 def test_hybrid_works_for_warburg_data(warburg_data):
     """Test that Hybrid method works for Warburg (diffusion) data."""
     frequencies, Z, R_inf = warburg_data
-    A, b, L = build_drt_matrices(frequencies, Z, R_inf)
+    A, b, L = _matrices(frequencies, Z, R_inf)
 
     lambda_hybrid, _, diag = find_optimal_lambda_hybrid(A, b, L)
 
@@ -157,7 +136,7 @@ def test_hybrid_works_for_warburg_data(warburg_data):
 def test_lambda_in_reasonable_range(voigt_data):
     """Test that lambda values are in a reasonable range."""
     frequencies, Z, R_inf = voigt_data
-    A, b, L = build_drt_matrices(frequencies, Z, R_inf)
+    A, b, L = _matrices(frequencies, Z, R_inf)
 
     lambda_gcv, _ = find_optimal_lambda_gcv(A, b, L)
     lambda_hybrid, _, _ = find_optimal_lambda_hybrid(A, b, L)
@@ -165,3 +144,37 @@ def test_lambda_in_reasonable_range(voigt_data):
     # Lambda should typically be between 1e-6 and 1e2
     assert 1e-8 < lambda_gcv < 1e3, f"GCV lambda out of range: {lambda_gcv}"
     assert 1e-8 < lambda_hybrid < 1e3, f"Hybrid lambda out of range: {lambda_hybrid}"
+
+
+# =============================================================================
+# compute_gcv_score correctness (F13)
+# =============================================================================
+
+def test_gcv_score_finite_positive(voigt_data):
+    """GCV score is finite and positive across the search range."""
+    frequencies, Z, R_inf = voigt_data
+    A, b, L = _matrices(frequencies, Z, R_inf)
+
+    for lam in np.logspace(-5, 0, 12):
+        score = compute_gcv_score(lam, A, b, L)
+        assert np.isfinite(score), f"GCV score not finite at lambda={lam:.1e}"
+        assert score > 0, f"GCV score not positive at lambda={lam:.1e}"
+
+
+def test_gcv_score_has_minimum(voigt_data):
+    """The lambda selected by GCV scores no worse than the range endpoints.
+
+    Verifies find_optimal_lambda_gcv genuinely minimizes compute_gcv_score
+    (the selector and the score function are consistent), not just returns
+    something in range.
+    """
+    frequencies, Z, R_inf = voigt_data
+    A, b, L = _matrices(frequencies, Z, R_inf)
+
+    lambda_gcv, _ = find_optimal_lambda_gcv(A, b, L)
+    score_opt = compute_gcv_score(lambda_gcv, A, b, L)
+    score_lo = compute_gcv_score(1e-5, A, b, L)
+    score_hi = compute_gcv_score(1.0, A, b, L)
+
+    assert score_opt <= score_lo + 1e-12, "selected lambda worse than lower edge"
+    assert score_opt <= score_hi + 1e-12, "selected lambda worse than upper edge"
