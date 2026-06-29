@@ -6,6 +6,19 @@ Complete change history for all project versions.
 
 ## Version 0.16.1 (2026-06-29)
 
+### Fixed (CLI DRT peak listing)
+
+- **"Found N peaks" now matches the peaks actually listed** (`cli/handlers/drt.py`).
+  With GMM peak detection, `n_peaks` counts the merged GMM components, but the
+  handler listed `scipy_peaks` (the raw `find_peaks` maxima kept for
+  diagnostics), which GMM may merge via BIC. The header therefore reported e.g.
+  2 peaks while 3 were printed. The handler now lists `result.peaks` (GMM
+  components) when the method is `gmm`, and `scipy_peaks` otherwise, so the
+  count and the listing always agree. Display-only; DRT/gamma and downstream
+  fitting were unaffected.
+  - Regression test `tests/test_cli_integration.py::test_drt_peak_count_matches_listing`
+    asserts the listed peak count equals the reported count for both methods.
+
 ### Tests (DRT math audit F13)
 
 - **Correctness tests for lambda selection and DRT reconstruction** —

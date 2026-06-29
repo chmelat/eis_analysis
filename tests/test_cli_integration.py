@@ -269,6 +269,50 @@ def test_drt_with_gmm():
     print("  [OK] DRT with GMM completed successfully")
 
 
+def test_drt_peak_count_matches_listing(caplog):
+    """Regression: 'Found N peaks' must match the number of peaks listed.
+
+    With GMM, n_peaks counts the merged GMM components, which can be fewer than
+    the raw scipy maxima kept for diagnostics. The handler previously printed
+    scipy_peaks while reporting the GMM count, so the header said 2 but 3 peaks
+    were listed. Guard the invariant for both methods.
+    """
+    print("\n[Test 3c] DRT peak count matches the listing")
+    print("-" * 70)
+
+    import re
+    from eis_analysis.cli import run_drt_analysis
+
+    frequencies, Z = get_synthetic_data()
+
+    for method in ('gmm', 'scipy'):
+        args = create_test_args(no_drt=False, peak_method=method,
+                                gmm_bic_threshold=10.0)
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO,
+                             logger='eis_analysis.cli.handlers.drt'):
+            result = run_drt_analysis(frequencies, Z, args, None, method)
+
+        messages = [rec.getMessage() for rec in caplog.records]
+
+        found = [m for m in messages if m.startswith('Found ')]
+        assert found, f"[{method}] no 'Found N peaks' line was logged"
+        n_reported = int(re.search(r'Found (\d+) peaks', found[0]).group(1))
+
+        n_listed = sum(1 for m in messages
+                       if re.match(r'\s+Peak \d+:', m))
+
+        assert n_listed == n_reported, (
+            f"[{method}] header reports {n_reported} peaks but "
+            f"{n_listed} were listed"
+        )
+        print(f"  [{method}] reported={n_reported}, listed={n_listed} [OK]")
+
+    plt.close('all')
+    print("  [OK] Peak count matches listing for both methods")
+
+
 
 # =============================================================================
 # Test 4: R_inf Estimation

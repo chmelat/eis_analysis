@@ -120,7 +120,15 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     logger.info(f"Method: {method_str}")
     logger.info(f"Found {diag.n_peaks} peaks")
 
-    if diag.scipy_peaks:
+    # Print the same peaks that n_peaks counts. With GMM, n_peaks reflects the
+    # GMM components (result.peaks), which may differ from the raw scipy peaks
+    # kept for diagnostics (GMM merges nearby maxima via BIC). Listing
+    # scipy_peaks here would contradict the reported count.
+    if diag.peak_method == 'gmm' and result.peaks:
+        for i, peak in enumerate(result.peaks):
+            logger.info(f"  Peak {i+1}: tau = {peak['tau_center']:.2e} s "
+                        f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
+    elif diag.scipy_peaks:
         for i, peak in enumerate(diag.scipy_peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
                         f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
