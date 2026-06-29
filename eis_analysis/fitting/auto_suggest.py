@@ -210,6 +210,15 @@ def analyze_voigt_elements(
 
         if peak_info['valid']:
             valid_peaks.append(peak)
+        else:
+            # Surface why a detected DRT peak is dropped from the circuit
+            # suggestion (otherwise the count silently shrinks, e.g. 2 -> 1).
+            f_peak = 1 / (2 * np.pi * tau[peak])
+            reason = '; '.join(peak_info['warnings'])
+            logger.warning(
+                f"  Peak at tau = {tau[peak]:.2e} s (f = {f_peak:.2e} Hz) "
+                f"excluded: {reason}"
+            )
 
     diagnostics['n_peaks_valid'] = len(valid_peaks)
 

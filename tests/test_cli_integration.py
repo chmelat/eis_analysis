@@ -486,6 +486,54 @@ def test_voigt_chain():
     print("  [OK] Voigt chain fitting completed successfully")
 
 
+def test_voigt_edge_peak_excluded_and_logged(caplog):
+    """A DRT peak at the tau-range edge is dropped from the circuit suggestion
+    AND the exclusion is logged with a reason (not silently lost in the count).
+
+    Mirrors the ex1 case: GMM finds a slow peak piled up at the low-frequency
+    (right) edge of the tau grid; it is excluded as a truncation artifact, so
+    n_peaks shrinks (e.g. 2 -> 1). Without an explicit log line the drop is
+    invisible to the user.
+    """
+    print("\n[Test 6b] Edge peak excluded from circuit suggestion is logged")
+    print("-" * 70)
+
+    from eis_analysis.fitting import analyze_voigt_elements
+
+    frequencies, Z = get_synthetic_data()
+
+    # Construct a DRT spectrum with one interior peak and one at the right edge.
+    tau = np.logspace(-4, 1, 100)
+    ln_tau = np.log(tau)
+    interior = 50
+    gamma = np.exp(-0.5 * ((ln_tau - ln_tau[interior]) / 0.3) ** 2)
+    gamma += np.exp(-0.5 * ((ln_tau - ln_tau[-1]) / 0.1) ** 2)  # right edge
+
+    # GMM peaks at the interior point and at the last grid point (the edge).
+    peaks_gmm = [
+        {'tau_center': tau[interior]},
+        {'tau_center': tau[-1]},
+    ]
+
+    with caplog.at_level(logging.WARNING, logger='eis_analysis.fitting.auto_suggest'):
+        info = analyze_voigt_elements(tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm)
+
+    # Only the interior peak survives -> a single Voigt element.
+    assert len(info['elements']) == 1, (
+        f"expected 1 valid element, got {len(info['elements'])}"
+    )
+
+    # The exclusion must be logged with the edge reason.
+    excluded = [r.getMessage() for r in caplog.records
+                if 'excluded' in r.getMessage()]
+    assert excluded, "edge-excluded peak was not logged"
+    assert 'right edge' in excluded[0], (
+        f"log line lacks the reason: {excluded[0]!r}"
+    )
+    print(f"  Logged exclusion: {excluded[0].strip()}")
+    print("  [OK] Edge peak excluded and logged")
+
+
 
 # =============================================================================
 # Test 7: Z-HIT Validation

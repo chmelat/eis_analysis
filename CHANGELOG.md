@@ -6,6 +6,18 @@ Complete change history for all project versions.
 
 ## Version 0.16.1 (2026-06-29)
 
+### Changed (circuit suggestion: log edge-excluded peaks)
+
+- **Edge-excluded DRT peaks are now logged with a reason** (`fitting/auto_suggest.py`).
+  The auto circuit suggestion drops peaks sitting within 5% of the tau-grid
+  edges (likely truncation artifacts), so the peak count can shrink silently
+  (e.g. 2 detected -> 1 Voigt element). Each excluded peak now emits a warning
+  with its tau, frequency, and reason, e.g.
+  `Peak at tau = 1.59e+01 s (f = 1.00e-02 Hz) excluded: near right edge (low f)`.
+  Logging only; the filtering itself is unchanged.
+  - Regression test
+    `tests/test_cli_integration.py::test_voigt_edge_peak_excluded_and_logged`.
+
 ### Fixed (CLI DRT peak listing)
 
 - **"Found N peaks" now matches the peaks actually listed** (`cli/handlers/drt.py`).
