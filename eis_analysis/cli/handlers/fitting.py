@@ -293,7 +293,7 @@ def _fit_voigt_chain(
         fit_error_rel=fit_error_rel,
         fit_error_abs=fit_error_abs,
         quality=quality,
-        _n_data=len(frequencies)
+        _dof=max(2 * len(frequencies) - len(initial_params), 1)
     )
 
     # Generate interpolated frequencies for smooth curve

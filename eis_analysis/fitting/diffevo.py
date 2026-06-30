@@ -440,7 +440,7 @@ def fit_circuit_diffevo(
             ))
 
     # Step 5: Create FitResult
-    n_data = len(frequencies)
+    # When cov_result is None, stderr is inf so the CI is +/-inf regardless of dof.
     fit_result = FitResult(
         circuit=circuit,
         params_opt=params_opt,
@@ -454,7 +454,7 @@ def fit_circuit_diffevo(
         diagnostics=fit_diagnostics,
         param_labels=param_labels_indexed,
         bound_status=bound_status,
-        _n_data=n_data
+        _dof=cov_result.dof if cov_result is not None else 0
     )
 
     # Build DiffEvoDiagnostics

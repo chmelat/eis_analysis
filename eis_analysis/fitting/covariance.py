@@ -38,6 +38,10 @@ class CovarianceResult:
         True if cond(J^T J) < 1e10
     warning_message : str or None
         Warning message if any issues detected
+    dof : int
+        Residual degrees of freedom of the variance estimate
+        (n_residuals - n_free_params). Used for the t-distribution CI so it
+        matches the dof used for s^2.
     """
     cov: Union[NDArray[np.float64], None]
     stderr: NDArray[np.float64]
@@ -45,6 +49,7 @@ class CovarianceResult:
     rank: int
     is_well_conditioned: bool
     warning_message: Union[str, None]
+    dof: int = 1
 
 
 def compute_covariance_matrix(
@@ -177,6 +182,7 @@ def compute_covariance_matrix(
                 rank=int(rank),
                 is_well_conditioned=False,
                 warning_message=warning_message,
+                dof=dof,
             )
 
         if not is_well_conditioned:
@@ -224,7 +230,8 @@ def compute_covariance_matrix(
             condition_number=condition_number,
             rank=rank,
             is_well_conditioned=is_well_conditioned,
-            warning_message=warning_message
+            warning_message=warning_message,
+            dof=dof,
         )
 
     except np.linalg.LinAlgError as e:
@@ -239,14 +246,15 @@ def compute_covariance_matrix(
             condition_number=np.inf,
             rank=0,
             is_well_conditioned=False,
-            warning_message=f"SVD failed: {e}"
+            warning_message=f"SVD failed: {e}",
+            dof=dof,
         )
 
 
 def compute_confidence_interval(
     params_opt: NDArray[np.float64],
     params_stderr: NDArray[np.float64],
-    n_data: int,
+    dof: int,
     confidence_level: float = 0.95
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
@@ -258,8 +266,10 @@ def compute_confidence_interval(
         Optimal parameters
     params_stderr : ndarray
         Standard errors of parameters (from covariance matrix)
-    n_data : int
-        Number of data points (for degrees of freedom)
+    dof : int
+        Residual degrees of freedom of the variance estimate
+        (n_residuals - n_free_params). Must match the dof used for s^2 in
+        compute_covariance_matrix; available as CovarianceResult.dof.
     confidence_level : float, optional
         Confidence level (0.95 for 95% CI, 0.99 for 99% CI), default 0.95
 
@@ -272,12 +282,11 @@ def compute_confidence_interval(
 
     Notes
     -----
-    Uses t-distribution with (n_data - n_params) degrees of freedom.
-    For large datasets (n > 30), t approximates normal distribution (1.96 for 95%).
-    For small datasets, t-distribution is more conservative (wider CI).
+    Uses the t-distribution with `dof` degrees of freedom. For large dof
+    (> 30) t approximates the normal distribution (1.96 for 95%); for small
+    dof it is more conservative (wider CI).
     """
-    n_params = len(params_opt)
-    dof = max(n_data - n_params, 1)
+    dof = max(int(dof), 1)
 
     alpha = 1 - confidence_level
     t_critical = t.ppf(1 - alpha/2, dof)

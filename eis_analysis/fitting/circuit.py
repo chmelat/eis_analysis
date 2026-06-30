@@ -94,8 +94,9 @@ class FitResult:
         Covariance matrix of parameters (None if computation failed)
     diagnostics : FitDiagnostics or None
         Detailed diagnostics
-    _n_data : int
-        Number of data points (internal, for CI computation)
+    _dof : int
+        Residual degrees of freedom (internal, for CI computation).
+        Matches CovarianceResult.dof = n_residuals - n_free_params.
     """
     circuit: Circuit
     params_opt: NDArray[np.float64]
@@ -111,7 +112,7 @@ class FitResult:
     # Per-parameter bound status: '' (interior), 'lower', 'upper', or 'fixed'.
     # Aligned with params_opt; None means caller did not supply bound info.
     bound_status: Optional[List[str]] = None
-    _n_data: int = 0
+    _dof: int = 0
 
     @property
     def params_ci_95(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -122,7 +123,7 @@ class FitResult:
                 np.full_like(self.params_opt, np.inf)
             )
         return compute_confidence_interval(
-            self.params_opt, self.params_stderr, self._n_data, 0.95
+            self.params_opt, self.params_stderr, self._dof, 0.95
         )
 
     @property
@@ -134,7 +135,7 @@ class FitResult:
                 np.full_like(self.params_opt, np.inf)
             )
         return compute_confidence_interval(
-            self.params_opt, self.params_stderr, self._n_data, 0.99
+            self.params_opt, self.params_stderr, self._dof, 0.99
         )
 
     @property
@@ -475,7 +476,6 @@ def fit_equivalent_circuit(
                 bound_status.append('')
 
         # Step 9: Create result object
-        n_data = len(frequencies)
         result = FitResult(
             circuit=circuit,
             params_opt=params_opt,
@@ -489,7 +489,7 @@ def fit_equivalent_circuit(
             diagnostics=diagnostics,
             param_labels=param_labels,
             bound_status=bound_status,
-            _n_data=n_data
+            _dof=cov_result.dof
         )
 
     except Exception as e:

@@ -115,5 +115,5 @@ jsou dokumentační/sémantické nepřesnosti.
 | 2 | Střední       | Opraveno (v0.16.2) |
 | 3 | Nízká–střední | Opraveno (v0.16.3) |
 | 4 | Nízká         | Opraveno (v0.16.4) |
-| 5 | Nízká         | Otevřeno           |
+| 5 | Nízká         | Opraveno (v0.16.5) |
 | 6 | Nízká         | Otevřeno           |

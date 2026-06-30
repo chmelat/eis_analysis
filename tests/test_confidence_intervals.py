@@ -15,10 +15,9 @@ def testcompute_confidence_interval_margins():
     """Test that CI margins are computed correctly using t-distribution."""
     params = np.array([100.0, 5000.0, 1e-6])
     stderr = np.array([1.0, 50.0, 1e-8])
-    n_data = 50
-    dof = n_data - len(params)
+    dof = 47
 
-    ci_low_95, ci_high_95 = compute_confidence_interval(params, stderr, n_data, 0.95)
+    ci_low_95, ci_high_95 = compute_confidence_interval(params, stderr, dof, 0.95)
 
     # Verify against scipy t-distribution
     t_95 = t.ppf(0.975, dof)
@@ -33,10 +32,10 @@ def test_ci_99_wider_than_95():
     """Test that 99% CI is wider than 95% CI."""
     params = np.array([100.0, 5000.0, 1e-6])
     stderr = np.array([1.0, 50.0, 1e-8])
-    n_data = 50
+    dof = 47
 
-    ci_low_95, ci_high_95 = compute_confidence_interval(params, stderr, n_data, 0.95)
-    ci_low_99, ci_high_99 = compute_confidence_interval(params, stderr, n_data, 0.99)
+    ci_low_95, ci_high_95 = compute_confidence_interval(params, stderr, dof, 0.95)
+    ci_low_99, ci_high_99 = compute_confidence_interval(params, stderr, dof, 0.99)
 
     width_95 = ci_high_95 - ci_low_95
     width_99 = ci_high_99 - ci_low_99
@@ -70,6 +69,33 @@ def test_fit_result_ci_properties():
     assert np.all(width_99 > width_95)
 
 
+def test_ci_dof_matches_covariance_residual_dof():
+    """CI uses the residual dof of the variance estimate: 2*n_freq - n_free.
+
+    Pre-fix the CI used n_freq - n_total, which is wrong for complex (split
+    real/imag) residuals.
+    """
+    circuit = R(100) - (R(5000) | C(1e-6))
+    freq = np.logspace(4, -1, 30)  # n_freq = 30
+    true_params = [98.5, 4823.2, 8.7e-7]
+    Z_true = circuit.impedance(freq, true_params)
+
+    np.random.seed(42)
+    noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq))
+                                     + 1j * np.random.randn(len(freq)))
+    result, _, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit, plot=False)
+
+    # 3 free params, 2*30 = 60 real residuals -> dof = 57.
+    expected_dof = 2 * len(freq) - len(result.params_opt)
+    assert result._dof == expected_dof
+
+    ci_low, ci_high = result.params_ci_95
+    # Recover the t-multiplier from a parameter with finite, positive stderr.
+    i = int(np.argmax(np.isfinite(result.params_stderr) & (result.params_stderr > 0)))
+    t_used = (ci_high[i] - result.params_opt[i]) / result.params_stderr[i]
+    assert t_used == pytest.approx(t.ppf(0.975, expected_dof), rel=1e-9)
+
+
 def test_invalid_stderr_returns_inf_ci():
     """Test that invalid (inf) stderr returns +/-inf CI."""
     circuit = R(100) - (R(5000) | C(1e-6))
@@ -86,8 +112,8 @@ def test_invalid_stderr_returns_inf_ci():
     assert np.all(np.isinf(ci_high)) and np.all(ci_high > 0), "Expected +inf for high CI"
 
 
-def test_backwards_compatibility_no_n_data():
-    """Test FitResult can be created without _n_data (uses default)."""
+def test_backwards_compatibility_no_dof():
+    """Test FitResult can be created without _dof (uses default)."""
     circuit = R(100) - (R(5000) | C(1e-6))
 
     result = FitResult(
@@ -97,12 +123,12 @@ def test_backwards_compatibility_no_n_data():
         fit_error_rel=1.0,
         fit_error_abs=10.0,
         quality='good'
-        # _n_data omitted - uses default 0
+        # _dof omitted - uses default 0
     )
 
-    assert result._n_data == 0, "Default _n_data should be 0"
+    assert result._dof == 0, "Default _dof should be 0"
 
-    # CI should still be computable (with dof=1, very wide)
+    # CI should still be computable (with dof clamped to 1, very wide)
     ci_low, ci_high = result.params_ci_95
     assert len(ci_low) == 3
     assert len(ci_high) == 3

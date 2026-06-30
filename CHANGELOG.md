@@ -4,6 +4,27 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.5 (2026-06-30)
+
+### Fixed (diffevo math audit #5)
+
+- **Confidence intervals now use the same degrees of freedom as the variance
+  estimate** (`fitting/covariance.py`, `fitting/circuit.py`). The residual
+  variance `s²` is computed with `dof = 2·n_freq − n_free_params` (complex data
+  split into 2·n_freq real residuals), but `compute_confidence_interval` derived
+  its t-quantile from `dof = n_freq − n_total_params` — a different value (factor
+  of two on observations, plus counting fixed parameters). The t-multiplier
+  therefore did not match the `s²` it scaled. The residual `dof` is now the
+  single source of truth: `CovarianceResult.dof` (= `n_residuals − n_free_params`)
+  is propagated to `FitResult` and used directly by the CI.
+  - `compute_confidence_interval` signature changed: `n_data` → `dof`.
+  - `FitResult._n_data` renamed to `FitResult._dof` (residual degrees of
+    freedom). Internal field; the public CI properties are unchanged.
+  - Regression test `tests/test_confidence_intervals.py::
+    test_ci_dof_matches_covariance_residual_dof` (fails on the pre-fix code).
+
+---
+
 ## Version 0.16.4 (2026-06-30)
 
 ### Fixed (diffevo math audit #4)
