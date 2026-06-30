@@ -1,58 +1,82 @@
 # GMM Peak Detection v DRT spektrech
 
-**Verze:** 0.9.4
-**Datum:** 2026-01-05
+**Verze:** 0.16.6
+**Datum:** 2026-06-30
 **Implementace:** `eis_analysis/drt/peaks.py`
 
 ## Přehled
 
-Gaussian Mixture Models (GMM) poskytují robustnější a objektivnější metodu pro detekci píků v DRT (Distribution of Relaxation Times) spektrech než tradiční `scipy.signal.find_peaks`.
+Vážená Gaussovská směs (GMM) poskytuje robustnější a objektivnější metodu pro
+detekci píků v DRT (Distribution of Relaxation Times) spektrech než tradiční
+`scipy.signal.find_peaks`.
+
+Implementace je **vlastní vážený EM** (`_weighted_gaussian_mixture_1d`) postavený
+jen na `numpy` a `scipy.special.logsumexp` — **nevyžaduje scikit-learn ani žádnou
+další závislost** nad rámec core balíčků projektu.
 
 ### Klíčové výhody
 
-1. **Explicitní hranice píků**: τ ∈ [μ-2σ, μ+2σ] poskytuje 95% confidence interval
-2. **Automatická dekonvoluce**: Separuje překrývající se píky
-3. **Objektivní výběr**: BIC (Bayesian Information Criterion) automaticky určí počet píků
-4. **Kvantifikace nejistoty**: Šířka píků v log-prostoru (σ)
-5. **Přesnější odhady R_i**: Integrace gaussovských komponent místo ad-hoc hranice
+1. **Explicitní hranice píků**: τ ∈ [10^(μ−2σ), 10^(μ+2σ)] (95% interval)
+2. **Automatická dekonvoluce**: separuje překrývající se píky
+3. **Objektivní výběr**: BIC (Bayesian Information Criterion) určí počet píků
+4. **Kvantifikace nejistoty**: šířka píku v log-prostoru (σ)
+5. **Konzistentní odhad R_i**: rozklad R_pol podle vah komponent (Σ R_i = R_pol)
 
 ## Použití
 
-### Základní použití
+### CLI
+
+Vstupní bod je `eis.py` (spouštěj `python3`).
 
 ```bash
 # GMM detekce píků (místo výchozí scipy metody)
-eis data.DTA --peak-method gmm
-```
+python3 eis.py data.DTA --peak-method gmm
 
-### S automatickou analýzou
+# Konzervativnější / citlivější výběr počtu píků (BIC práh, default 10)
+python3 eis.py data.DTA --peak-method gmm --gmm-bic-threshold 5
 
-```bash
-# Kompletní automatizace: GMM + auto-lambda + auto-circuit
-eis data.DTA --peak-method gmm --auto-lambda --auto-circuit
+# Vyšší rozlišení tau gridu
+python3 eis.py data.DTA --peak-method gmm --n-tau 150
 
-# S verbose výstupem pro diagnostiku
-eis data.DTA --peak-method gmm --auto-lambda -vv
-```
-
-### Uložení výsledků
-
-```bash
 # Uložit grafy a skrýt display
-eis data.DTA --peak-method gmm --save results --no-show
+python3 eis.py data.DTA --peak-method gmm --save results --no-show
+```
+
+> Výběr regularizace λ je **automatický by default** (GCV + L-curve, viz
+> [GCV_IMPLEMENTATION.md](GCV_IMPLEMENTATION.md)); samostatný „auto" přepínač
+> neexistuje, ruční λ se zadá přes `--lambda`.
+
+### Relevantní přepínače
+
+| Přepínač | Popis | Default |
+|----------|-------|---------|
+| `--peak-method` | `scipy` (rychlé) nebo `gmm` (robustní) | `scipy` |
+| `--gmm-bic-threshold` | Min. BIC zlepšení pro přidání komponenty (vyšší = méně píků) | 10.0 |
+| `--n-tau` / `-n` | Počet tau bodů (rozlišení DRT) | 100 |
+
+### Python API
+
+```python
+from eis_analysis.drt import gmm_peak_detection, calculate_drt
+
+# Přímo na DRT spektru
+peaks, gmm_model, bic_scores = gmm_peak_detection(tau, gamma, bic_threshold=10.0)
+
+# Nebo přes plnou DRT analýzu
+result = calculate_drt(freq, Z, peak_method='gmm')
 ```
 
 ## Výstup
 
 ### Konzole
 
-GMM vypíše detailní informace o každém detekovaném píku:
-
 ```
-==================================================
+============================================================
 GMM detekce píků
-==================================================
+============================================================
 Hledám optimální počet komponent v rozsahu (1, 6)
+n=1 komponenty: BIC=...
+n=2 komponenty: BIC=56.59
 ✓ Optimální počet píků: 2 (BIC=56.59)
 
 Detekované píky (seřazeno podle τ):
@@ -72,205 +96,160 @@ Detekované píky (seřazeno podle τ):
 
 ### Grafy (layout 2×2)
 
-Při použití GMM metody se vytvoří 4 subploty:
+Při GMM metodě se vykreslí 4 subploty (plot fce v `drt/core.py`):
 
-**Top-left: DRT spektrum**
-- Standardní γ(τ) graf
-- Základní vizualizace distribuce
-
-**Top-right: Rekonstrukce Nyquist**
-- Porovnání dat vs DRT rekonstrukce
-- Kontrola kvality fitu
-
-**Bottom-left: GMM dekonvoluce**
-- Překryv jednotlivých gaussovských komponent (barevně odlišené)
-- Vertikální čáry označují:
-  - Tečkované: hranice píků (μ±2σ)
-  - Přerušované: střed píku (μ)
-- Legenda s τ hodnotami pro každý pík
-
-**Bottom-right: BIC křivka**
-- Model selection diagnostika
-- X-osa: počet komponent
-- Y-osa: BIC hodnota (nižší = lepší)
-- Červená hvězda: optimální volba
+- **Top-left: DRT spektrum** — γ(τ).
+- **Top-right: Nyquist rekonstrukce** — data vs. DRT rekonstrukce.
+- **Bottom-left: GMM dekonvoluce** — jednotlivé Gaussovské komponenty (barevně);
+  tečkované čáry = hranice μ±2σ, přerušované = střed μ. Výška každého Gaussiánu
+  je škálovaná tak, aby měl plochu rovnou R_estimate píku (viz `gamma_max` níže).
+- **Bottom-right: BIC křivka** — BIC vs. počet komponent; svislá čára značí
+  zvolené n (nižší BIC = lepší).
 
 ## Jak GMM hledá komponenty
 
-GMM (Gaussian Mixture Model) používá iterativní EM (Expectation-Maximization) algoritmus pro nalezení optimálních parametrů směsi Gaussiánů.
+GMM fituje směs Gaussiánů na **vážená** data v log₁₀(τ) prostoru pomocí
+iterativního EM (Expectation-Maximization). DRT γ(τ) je vážená hustota, ne
+náhodný vzorek — proto váhy vstupují přímo do EM (žádná replikace bodů).
 
-### Inicializace (k-means)
+### Inicializace (kvantilová, deterministická)
 
-GMM nepoužívá náhodnou inicializaci, ale **k-means clustering**:
-
-```
-Data (log10(τ) vážené podle gamma):
-••••    •••••••••    ••••••
-
-K-means rozdělí do n shluků:
-[----shluk 1----]  [--shluk 2--]
-
-Počáteční odhad:
-  μ₁ = centroid shluku 1
-  μ₂ = centroid shluku 2
-  σ₁, σ₂ = variance v každém shluku
-  w₁, w₂ = podíl bodů v každém shluku
-```
-
-Parametr `random_state=42` zajišťuje reprodukovatelnost výsledků.
-
-### EM iterace
-
-**E-step (Expectation):** Pro každý bod vypočti pravděpodobnost příslušnosti ke každé komponentě:
+Není použito k-means ani náhodný start. Středy komponent se inicializují na
+rovnoměrně rozmístěných **vážených kvantilech** dat:
 
 ```
-P(bod → komponenta A) = w_A × N(bod|μ_A,σ_A) / Σ[w_i × N(bod|μ_i,σ_i)]
+x = log10(τ) pro biny s γ > 0,  váhy w = γ
+cdf = kumulativní Σw / Σw
+μ_k = interpolace x na kvantilech (k+0.5)/K,  k = 0..K-1
+σ²_k = (vážený celkový rozptyl) / K
+w_k  = 1/K
 ```
 
-**M-step (Maximization):** Aktualizuj parametry podle vážených příslušností:
+Pro 1D je kvantilový init stabilní a reprodukovatelný bez `random_state`.
+
+### Vážený EM
+
+**E-krok:** spočti log-responsibility (přes `logsumexp`, numericky stabilní):
 
 ```
-μ_nový = vážený průměr bodů podle pravděpodobností příslušnosti
-σ_nový = vážená variance
-w_nový = průměrná pravděpodobnost příslušnosti
+P(bod → komponenta k) ∝ w_k · N(x | μ_k, σ²_k)
 ```
 
-### Průběh pro 2 komponenty
+**M-krok (vážený):** aktualizuj parametry s váhami `w·resp`:
 
 ```
-Iterace 0 (k-means init):
-  Komponenta A: μ=-3.0, σ=0.5
-  Komponenta B: μ=-1.0, σ=0.4
-
-Iterace 1:
-  E: Přepočítej příslušnosti bodů
-  M: A: μ=-3.02, σ=0.48  B: μ=-1.05, σ=0.42
-
-Iterace 2:
-  E: Přepočítej příslušnosti
-  M: A: μ=-3.01, σ=0.47  B: μ=-1.04, σ=0.41
-
-... (typicky 5-20 iterací)
-
-Konvergence:
-  A: μ=-3.01, σ=0.47, w=0.35
-  B: μ=-1.04, σ=0.41, w=0.65
+N_k = Σ w·resp_k
+π_k = N_k / Σw
+μ_k = Σ(w·resp_k·x) / N_k
+σ²_k = Σ(w·resp_k·(x−μ_k)²) / N_k  + reg_covar
 ```
+
+Iteruje do konvergence log-likelihood (typicky jednotky až desítky iterací).
 
 ### Klíčové vlastnosti
 
-- **Měkké přiřazení:** Každý bod má pravděpodobnost příslušnosti ke všem komponentám (ne jen k jedné)
-- **Dekonvoluce překryvu:** I překrývající se peaky se správně separují
-- **Automatické vyvážení:** Váhy w se naučí z dat
+- **Měkké přiřazení:** každý bin přispívá všem komponentám podle responsibility.
+- **Dekonvoluce překryvu:** překrývající se píky se separují.
+- **Vážení γ:** váhy = γ normalizované na Σw = n_data (počet měření), takže
+  log-likelihood má škálu měření a `bic_threshold` je srovnatelný napříč
+  datasety (náprava auditu F1).
+- **Podlaha rozptylu (`var_floor`):** (½ mediánu rozestupu mřížky)² brání tomu,
+  aby se komponenta smrskla na jediný bin (singularita / nereálně úzký pík).
 
 ## Technické detaily
 
 ### Algoritmus
 
-1. **Transformace**: DRT se fituje v log₁₀(τ) prostoru pro lepší separaci píků
-2. **Váhování**: Body jsou replikovány podle γ(τ) amplitudy (nové v sklearn 1.8+)
-3. **BIC optimalizace**: Testuje n=1 až n=6 komponent
-4. **Konzervativní výběr**: Preferuje jednodušší model pokud BIC improvement < 10
-5. **Parametry píků**:
-   - μ (mean): pozice píku v log₁₀(τ)
-   - σ (std): šířka v log₁₀(τ) prostoru
-   - w (weight): relativní váha komponenty
-   - R_estimate: numerický integrál γ(τ) přes hranice píku (viz níže)
+1. **Transformace**: směs se fituje v log₁₀(τ) prostoru.
+2. **Vážení**: body váženy přímo γ (vážený EM, **bez replikace bodů** — audit F1);
+   váhy normalizovány na Σw = n_data.
+3. **BIC optimalizace**: testuje n = 1 až 6 komponent.
+4. **Konzervativní výběr (Occam)**: přidává komponentu jen pokud BIC zlepšení >
+   `bic_threshold`, jinak zastaví.
+5. **Parametry píku**: μ (log₁₀τ), σ (šířka v dekádách), w (váha), R_estimate.
 
-### BIC formula
+### BIC
 
 ```
-BIC(n) = -2·log(L) + k·log(N)
+BIC(n) = −2·log(L) + k·log(N)
 ```
 
 kde:
-- L = likelihood modelu s n komponentami
-- k = počet parametrů (3n pro GMM: μ, σ, w pro každou komponentu)
-- N = počet datových bodů
+- `L` = (vážená) likelihood modelu s n komponentami,
+- `k = 3n − 1` (parametry 1D směsi: μ(n) + σ²(n) + π(n−1)),
+- `N` = počet skutečných **měření (frekvencí)**.
 
-Nižší BIC = lepší kompromis mezi fitem a složitostí.
+Nižší BIC = lepší kompromis fit/složitost. Výběr používá early-stopping
+(přidávej komponenty, dokud zlepšení > `bic_threshold`); na okrajích rozsahu
+(n=1 nebo n=6) se vypíše varování.
 
-### Výpočet R_estimate a gamma_max
+### Výpočet R_estimate
 
-GMM přímo nepočítá odpor peaku ani jeho výšku. Tyto hodnoty se stanovují dodatečně:
-
-**1. R_estimate - numerická integrace z DRT spektra**
-
-Po detekci peaku (μ, σ) se odpor R_estimate počítá **numericky z vypočteného DRT spektra**:
-
-```python
-# Hranice peaku = 95% confidence interval
-tau_lower = 10**(mu - 2*sigma)
-tau_upper = 10**(mu + 2*sigma)
-
-# Numerická integrace skutečných hodnot gamma
-R_estimate = trapz(gamma[idx_lower:idx_upper+1], ln_tau[idx_lower:idx_upper+1])
-```
-
-Proč numericky ze skutečného DRT:
-- GMM předpokládá symetrické Gaussiány, ale reálné peaky mohou být asymetrické
-- Integrál ∫γ(τ)d(ln τ) přímo odpovídá odporu daného elektrochemického procesu
-- Zachovává se skutečná plocha pod peakem, ne idealizovaná
-
-**2. gamma_max - zpětný výpočet pro vizualizaci**
-
-Výška peaku se dopočítává až při vizualizaci tak, aby rekonstruovaný Gaussián měl **stejnou plochu** jako integrovaný DRT peak:
+GMM nepočítá odpor píku přímo. R_i se odvodí z DRT spektra rozkladem celkového
+polarizačního odporu podle vah komponent (náprava auditu F10):
 
 ```python
-integral_log10 = sigma * sqrt(2 * pi)    # integrál Gaussiánu v log10 prostoru
-integral_ln = integral_log10 * log(10)    # převod na ln prostor
-gamma_max = R_estimate / integral_ln      # výška peaku
+# Celkový R_pol obdélníkovým pravidlem (konzistentní s jádrem DRT)
+d_ln_tau = mean(diff(ln(tau)))
+R_pol = sum(gamma) * d_ln_tau
+
+# Dílčí odpor = podíl podle váhy komponenty (Σ weight = 1)
+R_estimate = weight * R_pol      # => Σ R_i = R_pol přesně
 ```
 
-**Vzorec:**
+Proč rozklad podle vah a ne integrace γ přes ±2σ okno každého píku: okna
+překrývajících se píků by integrovala **totéž** γ vícekrát (double-counting),
+takže Σ R_i by neodpovídalo R_pol. Rozklad podle vah to řeší přesně.
+
+### gamma_max (jen pro vizualizaci)
+
+Výška píku se dopočítává **pouze pro graf** dekonvoluce tak, aby rekonstruovaný
+Gaussián měl stejnou plochu jako R_estimate:
 
 ```
-gamma_max = R_estimate / (σ × √(2π) × ln(10))
+gamma_max = R_estimate / (σ · √(2π) · ln(10))
 ```
 
-Fyzikální význam: Gaussián s touto výškou má stejnou plochu (odpor R) jako skutečný DRT peak.
+(plocha Gaussiánu v log₁₀ prostoru `σ·√(2π)` převedená na ln prostor faktorem
+`ln 10`). Není to vstup do žádného výpočtu, jen měřítko křivky v grafu.
 
 ### Srovnání s scipy.find_peaks
 
-| Vlastnost | `scipy.find_peaks` | GMM |
-|-----------|-------------------|-----|
-| Překrývající se píky | ❌ Jen jeden max | ✅ Dekonvoluce |
-| Hranice píků | ❌ Nedefinované | ✅ μ±2σ (95% CI) |
+| Vlastnost | `scipy.find_peaks` | GMM (vážený EM) |
+|-----------|-------------------|-----------------|
+| Překrývající se píky | ❌ jen jeden max | ✅ dekonvoluce |
+| Hranice píků | ❌ nedefinované | ✅ μ±2σ (95% interval) |
 | Šířka píků | ❌ | ✅ σ v log-prostoru |
-| Odhad R_i | Manuální integrace | ✅ Z plochy gaussiánu |
-| Objektivita | ⚠️ Hard thresholds | ✅ BIC |
-| Rychlost | ✅✅ Velmi rychlé | ✅ Rychlé (~1-2s) |
-| Závislosti | scipy | sklearn |
+| Odhad R_i | per-pík integrace | ✅ rozklad R_pol podle vah |
+| Objektivita | ⚠️ pevné prahy | ✅ BIC |
+| Rychlost | ✅✅ velmi rychlé | ✅ rychlé (~1-2 s) |
+| Závislosti | numpy/scipy | numpy/scipy |
 
-## Integrace s auto-circuit
+## Integrace s návrhem obvodu
 
-Při použití `--auto-circuit`, GMM píky se automaticky použijí pro:
+GMM píky slouží jako podklad pro návrh ekvivalentního obvodu. V DRT výstupu se
+automaticky vypíše **Voigt report** (`analyze_voigt_elements` /
+`format_voigt_report` z `fitting/auto_suggest.py`):
 
-1. **Počet Voigtových článků**: Jeden článek R||C pro každý GMM pík
-2. **Initial guess pro R_i**: Použije R_estimate z GMM
-3. **Initial guess pro τ_i**: Použije τ_center z GMM
-4. **Initial guess pro C_i**: Vypočte C_i = τ_i / R_i
+1. **Počet R‖C článků**: jeden na každý GMM pík.
+2. **Initial guess R_i**: R_estimate z GMM.
+3. **Initial guess τ_i**: τ_center z GMM.
+4. **Initial guess C_i**: C_i = τ_i / R_i.
 
-Výsledek: Výrazně lepší konvergence circuit fitu.
+Samotný fit se spustí zadáním obvodu přes `--circuit` (např.
+`--circuit 'R()-(R()|Q())-(R()|Q())'`). Lepší initial guess z GMM zlepšuje
+konvergenci fitu.
 
 ## Požadavky
 
-### Python balíčky
-
-```bash
-# Nutné pro GMM
-pip install scikit-learn --break-system-packages
-
-# Nebo systemově (Debian/Ubuntu)
-sudo apt install python3-sklearn
-```
+GMM vyžaduje pouze core závislosti projektu (`numpy`, `scipy`) — **žádná extra
+instalace** (scikit-learn není potřeba).
 
 ### Fallback
 
-Pokud sklearn není dostupný:
-- GMM metoda se automaticky přepne na `scipy.find_peaks`
-- Uživatel dostane warning zprávu
-- Analýza pokračuje s fallback metodou
+Pokud vážený EM selže numericky (např. téměř nulová γ, extrémně málo binů),
+`gmm_peak_detection` vrátí prázdný seznam a DRT analýza se automaticky vrátí ke
+`scipy.signal.find_peaks` (ty se počítají vždy a slouží jako fallback).
 
 ## Kdy použít GMM vs scipy
 
@@ -278,184 +257,87 @@ Pokud sklearn není dostupný:
 - Máš překrývající se píky
 - Potřebuješ přesné hranice pro fyzikální interpretaci
 - Chceš objektivní výběr počtu píků
-- Potřebuješ publikovatelné výsledky s kvantifikací nejistoty
+- Potřebuješ publikovatelné výsledky s kvantifikací šířky
 
 ### 🔧 Použij scipy pokud:
 - Píky jsou dobře separované
-- Potřebuješ rychlou exploraci
-- sklearn není dostupný
-- Stačí ti kvalitativní analýza
+- Potřebuješ nejrychlejší exploraci
+- Stačí kvalitativní analýza
 
 ## Příklady výstupů
 
 ### Příklad 1: Dva dobře separované píky
 
 ```
-Input: R1=1000Ω, τ1=1ms, R2=5000Ω, τ2=50ms
-GMM output:
-  Pík 1: τ=0.91ms [0.33-2.6ms]  R~1877Ω
-  Pík 2: τ=49.2ms [17-141ms]    R~4179Ω
-BIC: n=2 optimal (BIC=56.59)
+Vstup: R1=1000Ω, τ1=1ms, R2=5000Ω, τ2=50ms
+GMM:   Pík 1: τ=0.91ms [0.33-2.6ms]  R~1877Ω
+       Pík 2: τ=49.2ms [17-141ms]    R~4179Ω
+BIC: n=2 optimální (BIC=56.59)
 ```
 
 ### Příklad 2: Překrývající se píky
 
 ```
-Input: R1=2000Ω, τ1=5ms, R2=3000Ω, τ2=8ms (částečný překryv)
-scipy: Detekuje 1 široký pík při τ~6ms
-GMM: Separuje na 2 píky při τ1=4.8ms a τ2=8.3ms
+Vstup: R1=2000Ω, τ1=5ms, R2=3000Ω, τ2=8ms (částečný překryv)
+scipy: detekuje 1 široký pík při τ~6ms
+GMM:   separuje na 2 píky při τ1≈4.8ms a τ2≈8.3ms
 ```
 
-## Limitace a budoucí vylepšení
+## Limitace
 
-### Současné limitace
-
-1. **Gaussovský předpoklad**: Reálné píky mohou být asymetrické
-2. **Pouze kladné γ**: Zatím nepodporuje záporné píky (induktivní smyčky)
-3. **Fixní rozsah**: n=1 až n=6 komponent (může být nedostatečné pro složité systémy)
+1. **Gaussovský předpoklad**: reálné píky mohou být asymetrické.
+2. **Pouze kladné γ**: záporné píky (induktivní smyčky) zatím nepodporovány.
+3. **Fixní rozsah**: n = 1 až 6 komponent.
 
 ### Sloučení malých peaků do jednoho Gaussiánu
 
-GMM může aproximovat několik blízkých malých peaků **jedním širokým Gaussiánem**:
-
-```
-Skutečné DRT spektrum:           GMM aproximace (n=1):
-
-γ(τ)                             γ(τ)
-  │    ▲                           │
-  │   ███  ▲   ▲                   │      ████████
-  │  █████ ██ ███                  │    ████████████
-  │ ███████████████                │  ████████████████
-  └─────────────────               └─────────────────
-      3 malé peaky                 1 široký Gaussián
-
-   R₁ + R₂ + R₃  ≈  R_estimate (zachováno)
-```
-
-**Kdy k tomu dochází:**
-- Peaky jsou blízko u sebe v log(τ) prostoru
-- Přidání další komponenty nezlepší BIC o více než threshold
-- GMM vidí skupinu peaků jako jeden široký shluk
-
-**Důsledky:**
+GMM může aproximovat několik blízkých malých peaků **jedním širokým Gaussiánem**,
+pokud přidání další komponenty nezlepší BIC nad práh. Důsledky:
 
 | Parametr | Výsledek |
 |----------|----------|
-| R_estimate | ≈ součet R jednotlivých peaků (fyzikálně správné) |
-| τ_center | vážený průměr pozic peaků |
+| R_estimate (součet) | ≈ součet R sloučených peaků (R_pol zachováno) |
+| τ_center | vážený průměr pozic |
 | σ (šířka) | větší než u jednotlivých peaků |
 | Počet procesů | podhodnocen |
 
-**Kdy je to problém:**
-- Potřebujete identifikovat jednotlivé elektrochemické procesy
-- Různé procesy mají různou teplotní závislost nebo jinou charakteristiku
-
-**Kdy je to žádoucí:**
-- Šum vytváří falešné "picky"
-- Blízké časové konstanty reprezentují jeden distribuovaný proces (CPE)
-
-**Jak předejít sloučení:**
-
-```bash
-# Snížit BIC threshold = citlivější detekce
-eis data.dta --gmm-bic-threshold 5
-```
+**Žádoucí**, když jde o šum nebo jeden distribuovaný proces (CPE); **problém**,
+když potřebuješ rozlišit jednotlivé procesy. Citlivější detekci vynutíš nižším
+prahem: `--gmm-bic-threshold 5`.
 
 ### Co GMM neověřuje
 
-GMM pracuje **pouze s DRT spektrem** a nemá přístup k původním impedančním datům:
+GMM pracuje **pouze s DRT spektrem** a nemá přístup k původní impedanci:
 
 ```
-Tok dat v analýze:
-
-Z(ω) měřená
-    ↓
-[Tikhonov regularizace] ← validace: ||A·γ - Z||²
-    ↓
-γ(τ) DRT spektrum
-    ↓
-[GMM peak detection] ← BIC vybírá "statisticky nejlepší" model
-    ↓
-Detekované peaky (μ, σ, R_estimate)
-    ↓
-[suggest_circuit] → návrh obvodu
-    ↓
-[CNLS fit] ← ZDE probíhá validace proti Z(ω)
-    ↓
-Fitované parametry + χ²
+Z(ω) → [Tikhonov] → γ(τ) → [GMM] → píky (μ, σ, R_estimate)
+                                      → [Voigt report / --circuit] → [CNLS fit] ← validace proti Z(ω)
 ```
 
-**Co GMM dělá:**
-- Fituje směs Gaussiánů na distribuci pozic v log(τ) vážených podle γ
-- Likelihood = pravděpodobnost, že pozorovaná distribuce pochází z modelu
-- BIC penalizuje složitost modelu
-
-**Co GMM nedělá:**
-- Nerekonstruuje impedanci Z(ω) z detekovaných peaků
-- Neporovnává rekonstrukci s měřenými daty
-- Neověřuje fyzikální smysluplnost výsledků
-
-**Důsledek:**
-GMM může vrátit statisticky optimální model, který neodpovídá fyzikální realitě. Validace probíhá až při CNLS fitu navrženého obvodu, kde se porovnává model s měřenou impedancí.
-
-### Plánovaná vylepšení
-
-- [ ] **Log-normální směs**: Lepší pro asymetrické píky
-- [ ] **Signed GMM**: Podpora záporných γ pro induktivní procesy
-- [ ] **Bayesian GMM**: Dirichlet Process pro automatický počet komponent bez horní meze
-- [ ] **Uncertainty propagation**: Chyby R_i a C_i z GMM kovariancí
-- [ ] **L-curve visualization**: Alternativní diagnostika k BIC
+GMM tedy vrací statisticky nejlepší rozklad γ, ne fyzikálně ověřený model —
+validace proti měřené impedanci probíhá až při CNLS fitu navrženého obvodu.
 
 ## Reference
 
-### Teorie GMM
-
-- Bishop, C. M. (2006). *Pattern Recognition and Machine Learning*. Springer. Chapter 9.
-- Murphy, K. P. (2012). *Machine Learning: A Probabilistic Perspective*. MIT Press. Chapter 11.
-
-### BIC v kontextu regularizace
-
-- Schwarz, G. (1978). "Estimating the dimension of a model". *Annals of Statistics* 6(2), 461-464.
-- Burnham, K. P., & Anderson, D. R. (2004). *Multimodel Inference*. Springer.
-
-### DRT aplikace
-
-- Saccoccio, M. et al. (2014). "Optimal Regularization in Distribution of Relaxation Times applied to Electrochemical Impedance Spectroscopy". *Electrochimica Acta* 147, 470-482.
+- Bishop, C. M. (2006). *Pattern Recognition and Machine Learning*. Springer,
+  kap. 9.
+- Murphy, K. P. (2012). *Machine Learning: A Probabilistic Perspective*. MIT
+  Press, kap. 11.
+- Schwarz, G. (1978). *Estimating the dimension of a model*. Annals of
+  Statistics 6(2), 461-464.
+- Saccoccio, M. et al. (2014). *Optimal Regularization in DRT applied to EIS*.
+  Electrochimica Acta 147, 470-482.
 
 ## Troubleshooting
 
-### "ModuleNotFoundError: No module named 'sklearn'"
+**„GMM fit selhal pro n=X"** — neškodné; některé n mohou selhat kvůli numerické
+nestabilitě, GMM je přeskočí (BIC = inf).
 
-```bash
-pip install scikit-learn --break-system-packages
-```
+**„Všechny GMM fity selhaly"** — vzácné (velmi málo bodů, extrémní šum, téměř
+nulová γ). Automatický fallback na `scipy.find_peaks`.
 
-### "GMM fit selhal pro n=X"
-
-Obvykle neškodné - některé hodnoty n mohou selhat kvůli numerické nestabilitě. GMM automaticky přeskočí tyto hodnoty.
-
-### "Všechny GMM fity selhaly"
-
-Vzácné, ale možné při:
-- Velmi malém počtu bodů
-- Extrémně šumných datech
-- Téměř nulové γ(τ)
-
-Řešení: Automatický fallback na scipy.find_peaks.
-
-### GMM najde příliš mnoho/málo píků
-
-Zkus:
-1. Změnit regularizaci λ (méně píků → zvětši λ)
-2. Použít `--auto-lambda` pro optimální λ
-3. Zvýšit `--n-tau` pro lepší rozlišení
-
-## Příspěvky
-
-Máte-li nápady na vylepšení GMM implementace:
-- Otevřete issue na GitHubu
-- Navrhněte pull request s vylepšením
-- Sdílejte příklady dat kde GMM selhává
+**GMM najde příliš mnoho/málo píků** — uprav `--gmm-bic-threshold` (vyšší = méně
+píků), případně regularizaci λ (ruční `--lambda`) nebo rozlišení `--n-tau`.
 
 ---
 
