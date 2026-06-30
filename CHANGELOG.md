@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.4 (2026-06-30)
+
+### Fixed (diffevo math audit #4)
+
+- **Rank-deficient covariance is now reported as infinite, not regularized**
+  (`fitting/covariance.py`). For singular values below the rank threshold the
+  code substituted `S_inv_sq = 1/threshold²` — an arbitrary, `S[0]`-dependent
+  finite value that inflated the variance of unidentifiable directions by an
+  undefined amount. When `JᵀJ` is singular the covariance does not exist, so the
+  covariance and standard errors of the affected (free) parameters are now set
+  to `inf` (the `scipy.optimize.curve_fit` convention); fixed parameters keep
+  zero variance. Full-rank fits are unchanged (the regularization branch never
+  triggered for them). Downstream already handles `inf` stderr (multistart falls
+  back to log-uniform perturbation, confidence intervals become `±inf`).
+  - Regression tests in `tests/test_covariance.py`:
+    `test_rank_deficient_returns_inf`, `test_rank_deficient_with_fixed_params`,
+    `test_full_rank_stderr_finite`.
+
+---
+
 ## Version 0.16.3 (2026-06-30)
 
 ### Fixed (diffevo math audit #3)

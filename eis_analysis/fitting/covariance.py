@@ -76,8 +76,11 @@ def compute_covariance_matrix(
         J_w^T @ J_w = V @ S^2 @ V^T
         (J_w^T @ J_w)^{-1} = V @ S^{-2} @ V^T
 
-    Small singular values (< rcond * max(S)) are regularized to prevent
-    numerical instability.
+    If the Jacobian is rank-deficient (any singular value < rcond * max(S)),
+    J^T J is singular and the covariance does not exist. In that case the
+    covariance and standard errors of the affected (free) parameters are
+    reported as infinite -- the scipy.optimize.curve_fit convention -- rather
+    than substituting an arbitrary regularized value.
 
     Parameters
     ----------
@@ -104,7 +107,8 @@ def compute_covariance_matrix(
     then expanded to include fixed parameters (with zero variance/covariance).
 
     For ill-conditioned problems (cond(J^T J) > 1e10), the covariance
-    estimate may be unreliable. This often indicates:
+    estimate may be unreliable; for rank-deficient problems it is reported as
+    infinite (not estimable). This often indicates:
     - Over-parametrized model
     - Correlated parameters
     - Insufficient data in some frequency range
@@ -142,26 +146,48 @@ def compute_covariance_matrix(
         # Check conditioning
         is_well_conditioned = condition_number < 1e10
 
+        # Rank-deficient: J^T J is singular, so the covariance does not exist.
+        # Report it as infinite (the scipy.optimize.curve_fit convention) rather
+        # than substituting an arbitrary regularized value: the honest statement
+        # is that the uncertainty is not estimable for the affected parameters.
+        # Fixed parameters keep zero variance (they are known exactly).
+        if rank < n_free_params:
+            warning_message = (
+                f"Rank-deficient Jacobian (rank={rank}/{n_free_params}). "
+                f"Some parameters are not identifiable; covariance not estimable."
+            )
+            if fixed_params is not None and any(fixed_params):
+                n_total = len(fixed_params)
+                free_indices = [i for i, f in enumerate(fixed_params) if not f]
+            else:
+                n_total = n_free_params
+                free_indices = list(range(n_free_params))
+
+            cov = np.zeros((n_total, n_total))
+            for i_full in free_indices:
+                for j_full in free_indices:
+                    cov[i_full, j_full] = np.inf
+            stderr = np.zeros(n_total)
+            stderr[free_indices] = np.inf
+
+            return CovarianceResult(
+                cov=cov,
+                stderr=stderr,
+                condition_number=condition_number,
+                rank=int(rank),
+                is_well_conditioned=False,
+                warning_message=warning_message,
+            )
+
         if not is_well_conditioned:
             warning_message = (
                 f"Ill-conditioned normal matrix J^T J (cond={condition_number:.2e}). "
                 f"Covariance estimates may be unreliable."
             )
 
-        if rank < n_free_params:
-            warning_message = (
-                f"Rank-deficient Jacobian (rank={rank}/{n_free_params}). "
-                f"Some parameters are not identifiable from data."
-            )
-
-        # Compute (J^T @ J)^{-1} using SVD
-        S_inv_sq = np.zeros_like(S)
-        for i, s in enumerate(S):
-            if s > threshold:
-                S_inv_sq[i] = 1.0 / (s * s)
-            else:
-                S_inv_sq[i] = 1.0 / (threshold * threshold)
-
+        # Full rank here: every singular value is above the threshold.
+        # Compute (J^T @ J)^{-1} = V @ S^{-2} @ V^T using SVD.
+        S_inv_sq = 1.0 / (S * S)
         V = Vt.T
         JtJ_inv_free = V @ np.diag(S_inv_sq) @ Vt
 

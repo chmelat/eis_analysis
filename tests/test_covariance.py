@@ -38,3 +38,40 @@ def test_well_conditioned_true_for_benign_jacobian():
     r = np.array([0.1, 0.2])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert result.is_well_conditioned
+
+
+def _rank_deficient_jacobian():
+    # 3 columns, col2 = col0 + col1 -> rank 2, one zero singular value.
+    c0 = np.array([1.0, 0.0, 0.0, 1.0])
+    c1 = np.array([0.0, 1.0, 0.0, 1.0])
+    return np.column_stack([c0, c1, c0 + c1])
+
+
+def test_rank_deficient_returns_inf():
+    J = _rank_deficient_jacobian()
+    r = np.array([0.1, 0.2, 0.1, 0.05])
+    result = compute_covariance_matrix(J, r, n_params=3)
+    assert result.rank == 2
+    assert not result.is_well_conditioned
+    assert np.all(np.isinf(result.stderr))
+    assert np.all(np.isinf(np.diag(result.cov)))
+    assert "Rank-deficient" in result.warning_message
+
+
+def test_rank_deficient_with_fixed_params():
+    # Free block (columns) is rank-deficient; one parameter is fixed.
+    J = _rank_deficient_jacobian()  # 3 free columns, rank 2
+    r = np.array([0.1, 0.2, 0.1, 0.05])
+    fixed = [True, False, False, False]  # 4 params total, 1 fixed, 3 free
+    result = compute_covariance_matrix(J, r, n_params=4, fixed_params=fixed)
+    assert len(result.stderr) == 4
+    assert result.stderr[0] == 0.0          # fixed -> known exactly
+    assert np.all(np.isinf(result.stderr[1:]))  # free, rank-deficient
+
+
+def test_full_rank_stderr_finite():
+    # Full rank -> covariance estimable, finite standard errors.
+    J = np.diag([2.0, 0.5])
+    r = np.array([0.1, 0.2])
+    result = compute_covariance_matrix(J, r, n_params=2)
+    assert np.all(np.isfinite(result.stderr))
