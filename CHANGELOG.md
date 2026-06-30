@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.7 (2026-06-30)
+
+### Fixed (mypy, AUDIT_2026-06-23 section 3 / priority 2)
+
+Fixed the genuine latent-bug mypy errors outside `drt/` flagged by the audit,
+as distinct from the numpy dtype-variance noise it classifies as cosmetic.
+mypy: 55 → 35 errors. Tests 193/193, ruff clean.
+
+- **`any` (builtin) used as a type annotation** (`fitting/multistart.py`,
+  `fitting/diffevo.py`). The matplotlib-figure return slot and the
+  `DiffEvoResult.de_result` field were annotated with the builtin `any`
+  instead of `typing.Any`. Now `Any`.
+- **Implicit Optional `max_iter: int = None`** in `robust_nnls`
+  (`fitting/voigt_chain/solvers.py`) — PEP 484 violation, same pattern as
+  audit finding 2.3. Now `Optional[int]` (the `None` default was already
+  handled at runtime).
+- **`auto_suggest` diagnostics dict masked type checking**
+  (`fitting/auto_suggest.py`). `diagnostics` was inferred as
+  `dict[str, object]`, so `.append()`, `len()` and iteration over its values
+  failed type-checking across the whole function (10 errors). Annotated
+  `Dict[str, Any]`; also fixed a `list` → `ndarray` reassignment of `peaks`.
+- **`None` propagation in Voigt-chain build** (`fitting/voigt_chain/fitting.py`).
+  `circuit` was inferred as `Optional[R]`, letting `None` flow into
+  `circuit - L(...)` and `circuit.get_all_params()` — a real crash risk for a
+  circuit with no series resistance and no K elements. Annotated
+  `Optional[Circuit]` with an explicit `None` guard (raises `ValueError`). The
+  return type was also corrected from `Series` to the truthful `Circuit`, since
+  a single bare element can be returned.
+
+---
+
 ## Version 0.16.6 (2026-06-30)
 
 ### Fixed (diffevo math audit #6)
