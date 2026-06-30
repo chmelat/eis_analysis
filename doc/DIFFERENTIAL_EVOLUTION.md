@@ -51,7 +51,7 @@ min_θ f(θ) = Σᵢ wᵢ² |Z_data(ωᵢ) - Z_model(ωᵢ, θ)|²
 
 kde:
 - θ = [θ₁, θ₂, ..., θₚ] jsou parametry obvodu
-- wᵢ jsou váhy (uniform, sqrt, proportional)
+- wᵢ jsou váhy (modulus [default], uniform, sqrt, proportional)
 - Z_model je impedanční funkce obvodu
 
 ### 2.2 Algoritmus diferenciální evoluce
@@ -185,8 +185,7 @@ result, Z_fit, fig = fit_circuit_diffevo(
     maxiter=1000,    # Maximální počet generací
     tol=0.01,        # Tolerance pro konvergenci
     workers=1,       # Paralelizace (-1 = všechna CPU)
-    weighting='sqrt',
-    verbose=True,
+    weighting='modulus',  # default; též uniform, sqrt, proportional
     use_analytic_jacobian=True  # Analytický Jacobián pro refinement
 )
 
@@ -312,6 +311,7 @@ Analytický Jacobián je použit pouze pro least_squares refinement (krok 2), ne
 - W (Warburg)
 - Wo (Warburg open/bounded)
 - K (Voigt element)
+- G (Gerischer element)
 
 
 ## 6. Srovnání metod
@@ -480,7 +480,7 @@ PARAMETER_BOUNDS = {
     'R': (1e-4, 1e10),   # 0.1 mOhm - 10 GOhm
     'C': (1e-15, 1e-1),  # 1 fF - 100 mF
     'Q': (1e-12, 1e-1),  # Q koeficient
-    'n': (0.4, 1.0),     # Q exponent
+    'n': (0.3, 1.0),     # Q exponent
     ...
 }
 ```
@@ -570,8 +570,7 @@ result, Z_fit, fig = fit_circuit_diffevo(
     strategy=1,
     popsize=20,
     maxiter=1000,
-    workers=-1,
-    verbose=True
+    workers=-1
 )
 
 # Výsledky
@@ -625,4 +624,4 @@ Pro nejlepší výsledky doporučujeme:
 
 *Dokument vytvořen pro EIS Analysis Toolkit*
 *Autor: Claude Code*
-*Poslední aktualizace: 2026-01-01*
+*Poslední aktualizace: 2026-06-30*
