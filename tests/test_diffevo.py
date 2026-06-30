@@ -32,6 +32,20 @@ from eis_analysis.fitting.diffevo import (
     DE_STRATEGIES,
     DiffEvoResult,
 )
+from eis_analysis.fitting.diagnostics import compute_weights
+from eis_analysis.fitting.jacobian import make_jacobian_function
+from eis_analysis.fitting.covariance import compute_covariance_matrix
+
+
+def weighted_ssr(params_full, Z, weighting='modulus'):
+    """Optimized objective S = sum w^2 |Z - Z_fit|^2 evaluated at full params.
+
+    This mirrors the cost function that DE and least_squares both minimize.
+    """
+    w = compute_weights(Z, weighting)
+    Z_fit = make_circuit().impedance(FREQ, list(params_full))
+    return np.sum(((Z.real - Z_fit.real) * w) ** 2
+                  + ((Z.imag - Z_fit.imag) * w) ** 2)
 
 FREQ = np.logspace(5, -1, 25)
 TRUE = [100.0, 5000.0, 1e-6]  # Rs, R_ct, C_dl
@@ -240,3 +254,78 @@ def test_diffevoresult_fields():
     assert result.n_evaluations > 0
     assert result.de_error >= 0.0
     assert result.final_error >= 0.0
+
+
+# =============================================================================
+# Selection / improvement on the optimized objective (audit finding #1)
+# =============================================================================
+
+def test_diagnostics_expose_objective_costs():
+    """de_cost matches the weighted SSR recomputed at the DE solution."""
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
+    plt.close('all')
+    d = result.diagnostics
+    # No fixed params -> de_result.x (free) is the full parameter vector.
+    de_cost_recomputed = weighted_ssr(result.de_result.x, Z)
+    assert d.de_cost == pytest.approx(de_cost_recomputed, rel=1e-9)
+    assert d.refined_cost >= 0.0
+
+
+def test_selection_picks_lower_objective():
+    """The returned fit has the smaller weighted SSR of {DE, refined}."""
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
+    plt.close('all')
+    d = result.diagnostics
+    best_cost = weighted_ssr(result.best_result.params_opt, Z)
+    assert best_cost == pytest.approx(min(d.de_cost, d.refined_cost),
+                                      rel=1e-6, abs=1e-12)
+
+
+def test_improvement_is_objective_based():
+    """improvement is the relative reduction of the optimized objective (SSR)."""
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
+    plt.close('all')
+    d = result.diagnostics
+    expected = (d.de_cost - d.refined_cost) / d.de_cost * 100
+    assert result.improvement == pytest.approx(expected, rel=1e-9)
+
+
+# =============================================================================
+# Covariance evaluated at the returned point (audit finding #2)
+# =============================================================================
+
+def test_refinement_failure_falls_back_with_valid_covariance(monkeypatch):
+    """If least_squares raises, the DE result is kept and covariance is still
+    computed (analytic Jacobian at the DE point), not left undefined."""
+    def boom(*args, **kwargs):
+        raise RuntimeError("forced refinement failure")
+
+    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
+    plt.close('all')
+    warns = result.diagnostics.warnings
+    assert any('Refinement failed' in w for w in warns)
+    # Covariance computed at the DE point -> finite standard errors.
+    assert np.all(np.isfinite(result.best_result.params_stderr))
+
+
+def test_covariance_computed_at_returned_point():
+    """Reported covariance matches s^2 (J^T J)^-1 with J and residuals both
+    evaluated at the returned parameters."""
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
+    plt.close('all')
+    # No fixed params -> params_opt is the full == free vector.
+    params_opt = np.asarray(result.best_result.params_opt)
+    w = compute_weights(Z, 'modulus')
+    J = make_jacobian_function(make_circuit(), FREQ, w)(params_opt)
+    Z_fit = make_circuit().impedance(FREQ, list(params_opt))
+    residuals = np.concatenate([(Z.real - Z_fit.real) * w,
+                                (Z.imag - Z_fit.imag) * w])
+    expected = compute_covariance_matrix(J, residuals, n_params=len(params_opt))
+    np.testing.assert_allclose(result.best_result.params_stderr,
+                               expected.stderr, rtol=1e-6, atol=1e-12)

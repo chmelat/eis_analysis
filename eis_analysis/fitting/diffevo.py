@@ -90,6 +90,12 @@ class DiffEvoDiagnostics:
     refinement_improved: bool
     total_evaluations: int
 
+    # Optimized objective values (weighted SSR, S = sum w^2 |dZ|^2).
+    # These drive the DE-vs-refinement selection; the *_error fields above
+    # are the human-readable weighted mean relative error (%) used for display.
+    de_cost: float = 0.0
+    refined_cost: float = 0.0
+
     # Fixed params info
     n_fixed_params: int = 0
     fixed_param_indices: List[int] = field(default_factory=list)
@@ -334,10 +340,17 @@ def fit_circuit_diffevo(
     Z_fit_ls = circuit.impedance(frequencies, list(ls_params_full))
     ls_error_rel, _, _ = compute_fit_metrics(Z, Z_fit_ls, weighting)
 
-    improvement = (de_error_rel - ls_error_rel) / de_error_rel * 100 if de_error_rel > 0 else 0
+    # Selection and improvement use the *optimized* objective (weighted SSR,
+    # S = sum w^2 |dZ|^2), not the weighted mean relative error: DE and
+    # least_squares both minimize S, so choosing on a different metric could
+    # discard a genuinely better refined fit. cost_function returns S directly.
+    de_cost = float(cost_function(de_result.x))
+    ls_cost = float(cost_function(ls_result.x))
+
+    improvement = (de_cost - ls_cost) / de_cost * 100 if de_cost > 0 else 0
 
     # Choose better result
-    if ls_error_rel <= de_error_rel:
+    if ls_cost <= de_cost:
         params_opt_free = ls_params_free
         params_opt = ls_params_full
         Z_fit = Z_fit_ls
@@ -354,12 +367,24 @@ def fit_circuit_diffevo(
     fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
 
     # Step 3: Compute covariance
+    # Both the residuals and the Jacobian must be evaluated at the *chosen*
+    # point (params_opt_free). When the DE result is kept, ls_result.jac is the
+    # Jacobian at the LS point, not the chosen one, so it must not be reused.
     final_residuals = residual_function(params_opt_free)
     n_params_full = len(params_opt)
 
-    if hasattr(ls_result, 'jac') and ls_result.jac is not None:
+    if jacobian_type == 'analytic':
+        jac_at_opt = jac_func(params_opt_free)
+    elif used_refinement and getattr(ls_result, 'jac', None) is not None:
+        # Numeric Jacobian; LS point coincides with the chosen point.
+        jac_at_opt = ls_result.jac
+    else:
+        jac_at_opt = None
+
+    cov_result = None
+    if jac_at_opt is not None:
         cov_result = compute_covariance_matrix(
-            jacobian=ls_result.jac,
+            jacobian=jac_at_opt,
             residuals=final_residuals,
             n_params=n_params_full,
             fixed_params=fixed_params
@@ -446,6 +471,8 @@ def fit_circuit_diffevo(
         de_evaluations=de_result.nfev,
         de_error=de_error_rel,
         refined_error=ls_error_rel,
+        de_cost=de_cost,
+        refined_cost=ls_cost,
         refinement_improved=used_refinement,
         total_evaluations=de_result.nfev + (ls_result.nfev if hasattr(ls_result, 'nfev') else 0),
         n_fixed_params=len(fixed_param_indices),

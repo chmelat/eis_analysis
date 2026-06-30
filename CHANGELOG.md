@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.2 (2026-06-30)
+
+### Fixed (diffevo math audit #1, #2)
+
+- **DE-vs-refinement selection now uses the optimized objective**
+  (`fitting/diffevo.py`). Differential evolution and the `least_squares`
+  refinement both minimize the weighted sum of squared residuals
+  (S = sum w^2 |dZ|^2), but the choice between their results — and the reported
+  `improvement` — was made on the weighted *mean relative error* (a different,
+  L1-style metric). Because the two metrics can disagree, a genuinely better
+  refined fit could be discarded with a spurious "Refinement worsened fit".
+  Selection and `improvement` now compare S directly (via the existing DE cost
+  function). The `de_error` / `refined_error` percentages are unchanged and
+  remain for display. New diagnostic fields `de_cost` / `refined_cost` expose
+  the objective values.
+- **Covariance is now evaluated at the returned parameters**
+  (`fitting/diffevo.py`). When the DE result was kept, the covariance combined
+  residuals at the DE point with the Jacobian from the (different) `least_squares`
+  point, giving an invalid covariance/standard errors. The Jacobian is now
+  recomputed at the chosen point (analytic when available). This also removes a
+  latent `UnboundLocalError` (`cov_result`) that could crash the refinement
+  failure fallback.
+  - Regression tests in `tests/test_diffevo.py`:
+    `test_diagnostics_expose_objective_costs`,
+    `test_selection_picks_lower_objective`,
+    `test_improvement_is_objective_based`,
+    `test_refinement_failure_falls_back_with_valid_covariance`,
+    `test_covariance_computed_at_returned_point`.
+
+---
+
 ## Version 0.16.1 (2026-06-29)
 
 ### Changed (circuit suggestion: log edge-excluded peaks)
