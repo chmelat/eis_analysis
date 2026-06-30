@@ -133,8 +133,10 @@ BIC = -2 * ln(likelihood) + k * ln(n)
 ```
 
 kde:
-- `k` = pocet parametru modelu
-- `n` = pocet dat
+- `k` = pocet parametru modelu (pro 1D smes n komponent: `k = 3n - 1`, tj.
+  mu(n) + sigma^2(n) + mixing(n-1))
+- `n` = pocet mereni (frekvenci); vahy gamma jsou normalizovane na sum(w) = pocet
+  mereni, aby byl `--gmm-bic-threshold` srovnatelny napric datasety (audit F1)
 
 ## Proc je to Bayesovske?
 
