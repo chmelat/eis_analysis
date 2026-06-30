@@ -153,6 +153,8 @@ eis data.DTA --no-kk
 
 Distribution of Relaxation Times - model-free method for impedance data analysis. Automatic regularization parameter selection using GCV (Generalized Cross-Validation).
 
+New to DRT? Start with the intuitive introduction: [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md).
+
 ```bash
 # Default DRT with auto-lambda
 eis data.DTA
@@ -506,6 +508,7 @@ python3 -m pytest tests/ -k "voigt"   # Tests matching pattern
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
 | [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md) | Z-HIT validation |
+| [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md) | DRT - intuitive introduction |
 | [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md) | Lambda selection (GCV + L-curve) documentation |
 | [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md) | GMM peak detection |
 | [doc/DRT_METHOD_ANALYSIS.md](doc/DRT_METHOD_ANALYSIS.md) | DRT method analysis |
