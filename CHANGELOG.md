@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.8 (2026-06-30)
+
+### Changed (refactor, AUDIT_2026-06-23 section 4 / priority 4)
+
+- **Split `drt/core.py` (891 lines) into focused submodules.** It was the
+  project's largest monolith and had grown since the audit (810 → 891), making
+  it the worst file-size offender. The DRT pipeline is now spread across cohesive
+  modules under `eis_analysis/drt/`, each well under the 500-line limit:
+  - `core.py` (322) — orchestrator: `calculate_drt` + `_detect_peaks`
+  - `results.py` (155) — the 6 result dataclasses (`DRTResult`,
+    `DRTDiagnostics`, `RinfEstimate`, `LambdaSelection`, `NNLSSolution`,
+    `DRTMatrices`)
+  - `linear_system.py` (223) — frequency validation, matrix build, lambda
+    selection, NNLS solve
+  - `estimation.py` (137) — R_inf, R_pol, per-peak resistance, effective-bins
+  - `plotting.py` (118) — `_create_visualization`
+
+  Pure structural refactor — **no behavior, signature, or numerics changes.**
+  All symbols (public dataclasses + `calculate_drt`, plus the private helpers
+  imported directly by tests) remain importable from `eis_analysis.drt.core`
+  via re-export, so `drt/__init__.py` and all tests are unchanged. Verified:
+  193/193 tests pass, `drt/` stays mypy-clean, ruff clean, CLI smoke OK.
+
+---
+
 ## Version 0.16.7 (2026-06-30)
 
 ### Fixed (mypy, AUDIT_2026-06-23 section 3 / priority 2)
