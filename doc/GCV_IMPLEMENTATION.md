@@ -1,419 +1,274 @@
-# GCV Implementace pro Automatický Výběr Regularizačního Parametru
+# Automatický výběr regularizačního parametru λ (GCV + L-curve)
 
 ## Přehled
 
-Byla implementována metoda **GCV (Generalized Cross Validation)** pro automatický výběr optimálního regularizačního parametru λ v DRT analýze. Tato implementace eliminuje potřebu manuálního tuningu λ a poskytuje objektivní, datově řízený přístup k regularizaci.
+DRT analýza řeší **ill-posed** inverzní problém regularizací (Tikhonov 2. řádu)
+s parametrem λ, který určuje kompromis mezi věrností datům a hladkostí výsledné
+distribuce γ(τ). Tato implementace volí λ **automaticky a datově řízeně**, takže
+odpadá subjektivní ruční tuning.
 
-## Co je GCV?
+Automatický výběr je **výchozí chování** — spustí se vždy, když uživatel nezadá
+λ ručně přes `--lambda`. Kombinuje dvě metody:
 
-GCV je cross-validation technika pro výběr regularizačního parametru v ill-posed problémech. Minimalizuje score funkci:
+| Metoda | Role | Funkce v `drt/gcv.py` |
+|--------|------|------------------------|
+| **GCV** (Generalized Cross-Validation) | rychlý počáteční odhad | `compute_gcv_score`, `find_optimal_lambda_gcv` |
+| **L-curve** | robustní korekce pro NNLS | `compute_lcurve_point`, `find_lcurve_corner` |
+| **Hybrid** (GCV → L-curve) | **reálně používaný** výběr | `find_optimal_lambda_hybrid` |
 
-```
-GCV(λ) = n * ||Z - A·x(λ)||² / (trace(I - K(λ)))²
-```
+`calculate_drt(..., auto_lambda=True)` volá `find_optimal_lambda_hybrid`;
+při jeho selhání se použije čisté GCV jako fallback (`drt/core.py`).
 
-kde:
-- `n` = počet měření
-- `Z` = naměřená impedance
-- `A·x(λ)` = DRT model s regularizací λ
-- `K(λ)` = influence matrix (projekční matice)
-- `trace(I - K)` = efektivní počet stupňů volnosti
+## Proč hybrid, a ne čisté GCV?
 
-**Význam:**
-- **Čitatel:** Měří kvalitu fitu (residuální chyba)
-- **Jmenovatel:** Penalizuje příliš komplexní modely (přeučení)
-- **Minimum GCV:** Optimální trade-off mezi fit a hladkostí
+GCV je odvozeno pro **lineární** least-squares. DRT ale řeší **NNLS**
+(non-negative least squares, γ ≥ 0), což je nelineární constraint. Kvůli němu
+má GCV pro DRT systematickou tendenci **podhodnocovat λ** (volí příliš malou
+regularizaci → zašuměná γ s falešnými píky).
+
+L-curve (graf log‖Ax−b‖ vs. log‖Lx‖) je vůči NNLS robustnější — „roh" křivky
+odpovídá dobrému kompromisu nezávisle na linearitě. Je ale dražší na celém
+rozsahu, proto se používá hybrid:
+
+1. **GCV** dá rychlý hrubý odhad λ_gcv.
+2. **L-curve** se prohledá jen v úzkém okolí λ_gcv (±1.5 dekády).
+3. **Rozhodnutí** podle vzájemného poměru obou odhadů (viz níže).
 
 ## Použití
 
-### Základní použití
+### CLI
+
+Vstupní bod je `eis.py` (spouštěj `python3`).
 
 ```bash
-# Automatický výběr λ pomocí GCV
-python eis_analysis.py data.DTA --auto-lambda
+# Automatický výběr λ (default — nic se nezadává)
+python3 eis.py data.DTA
 
-# Stále lze použít manuální λ
-python eis_analysis.py data.DTA --lambda 0.05
+# Ruční λ (přebije automatiku)
+python3 eis.py data.DTA --lambda 0.05      # nebo -l 0.05
+
+# Vyšší rozlišení tau gridu
+python3 eis.py data.DTA --n-tau 150        # nebo -n 150
+
+# Bez vstupního souboru = demo se syntetickými daty (též auto λ)
+python3 eis.py
 ```
 
-### Přepínače
+### Relevantní přepínače
 
 | Přepínač | Popis | Default |
 |----------|-------|---------|
-| `--auto-lambda` | Aktivuje automatický výběr λ pomocí GCV | False |
-| `--lambda` / `-l` | Manuální λ (ignorováno s --auto-lambda) | 0.1 |
-| `--n-tau` / `-n` | Počet tau bodů | 100 |
+| `--lambda` / `-l` | Ruční λ. **Bez něj** se použije automatický výběr (GCV + L-curve). | None (= auto) |
+| `--n-tau` / `-n` | Počet tau bodů (rozlišení DRT) | 100 |
 
-### Příklady
+> Žádný samostatný „zapínač" automatiky neexistuje — automatika je default a
+> vypíná se právě a jen zadáním `--lambda`.
 
-```bash
-# 1. Syntetická data s auto λ
-python eis_analysis.py --auto-lambda
+### Python API
 
-# 2. Gamry soubor s auto λ a uložením
-python eis_analysis.py data.DTA --auto-lambda --save results --no-show
+```python
+from eis_analysis.drt import calculate_drt
+import numpy as np
 
-# 3. CSV soubor s vyšším rozlišením
-python eis_analysis.py data.csv --auto-lambda --n-tau 150
+freq = np.logspace(-2, 5, 61)
+Z = ...  # naměřená impedance (complex)
 
-# 4. Pouze DRT s auto λ (přeskoč KK a fitting)
-python eis_analysis.py data.DTA --auto-lambda --no-kk --no-fit
+# Automatický výběr λ (hybrid GCV + L-curve)
+result = calculate_drt(freq, Z, n_tau=100, auto_lambda=True)
+
+# Ruční λ
+result = calculate_drt(freq, Z, n_tau=100, lambda_reg=0.05)
 ```
 
-## Implementační Detaily
+## Implementační detaily
 
-### 1. Funkce `compute_gcv_score()`
+### 1. `compute_gcv_score(lambda_val, A, b, L)`
 
 Vypočítá GCV score pro danou λ.
 
-**Klíčové vlastnosti:**
-- Používá **SVD dekomposici** pro stabilní výpočet trace(K)
-- Robustní error handling (vrací `inf` při numerických problémech)
-- Korektní normalizace faktorem `n`
+```
+GCV(λ) = n · ‖b − A·x(λ)‖² / (n − trace K(λ))²
+```
 
-**Výpočetní složitost:** O(N²) pro SVD + O(N) pro NNLS
+kde `K(λ) = A · (AᵀA + λ·LᵀL)⁻¹ · Aᵀ` je influence (projekční) matice a
+`n − trace K = trace(I − K)` je efektivní počet stupňů volnosti.
+
+Postup:
+1. Vyřeš NNLS na rozšířeném systému `[A; √λ·L] x = [b; 0]`.
+2. Spočítej **neregularizované** reziduum `r = b − A·x` a `‖r‖²`.
+3. Spočítej `trace K` **přímou inverzí** (ne SVD):
+   ```python
+   M = A.T @ A + lambda_val * L.T @ L
+   K = A @ np.linalg.solve(M, A.T)   # K = A·M⁻¹·Aᵀ
+   trace_K = np.trace(K)
+   ```
+4. `GCV = n · ‖r‖² / (n − trace_K)²`.
+
+Robustní error handling: při selhání NNLS, singulární M nebo
+`n − trace_K ≤ 10⁻¹⁰` vrací `inf`.
+
+> **Pozn.:** Pro NNLS je GCV pouze **aproximace** — vzorec předpokládá lineární
+> řešení, kdežto `x ≥ 0` je nelineární constraint. Proto hybrid s L-curve.
+
+### 2. L-curve
+
+- **`compute_lcurve_point(λ, A, b, L)`** → `(log₁₀‖Ax−b‖, log₁₀‖Lx‖, x)`.
+  Reziduum vs. regularizační norma pro dané λ (NNLS řešení).
+- **`compute_lcurve_curvature(ρ, η)`** → křivost v log-log prostoru
+  `κ = (ρ′η″ − ρ″η′) / (ρ′² + η′²)^{3/2}`, derivace přes `np.gradient`.
+- **`find_lcurve_corner(λ, ρ, η)`** → roh = bod **maximální (kladné)** křivosti
+  na vnitřku rozsahu.
+
+  **Znaménková konvence:** L-křivka procházená rostoucím λ jde z malého rezidua /
+  velké normy řešení do velkého rezidua / malé normy (ρ roste, η klesá). Roh je
+  konvexní směrem k počátku — levotočivá (CCW) zatáčka s **kladnou** křivostí,
+  proto `argmax`, ne `argmin`. Tuto konvenci hlídá `tests/test_lcurve_corner.py`.
+
+### 3. `find_optimal_lambda_gcv(A, b, L, lambda_range=(1e-5, 1.0), n_search=20)`
+
+Čistě GCV, dvoufázové prohledání (fallback hybridu):
+
+- **Fáze 1 (hrubá):** `n_search` bodů v log-prostoru `[1e-5, 1.0]`, najdi
+  minimum GCV.
+- **Fáze 2 (jemná):** `n_search` bodů v okolí minima. Při minimu na okraji se
+  rozsah rozšíří o dekádu ven.
+
+Celkem 40 evaluací (2 × 20). Vrací `(λ_optimal, gcv_optimal)`.
+
+### 4. `find_optimal_lambda_hybrid(..., lcurve_decades=1.5)` — reálně používaný
+
+1. **GCV initial guess:** minimum GCV přes `n_search` bodů → λ_gcv.
+2. **L-curve korekce:** L-křivka v rozsahu ±`lcurve_decades` (1.5) dekády kolem
+   λ_gcv; najdi roh → λ_lcurve. Pokud roh padne na okraj okna, nastaví se
+   `corner_at_edge` (varování — skutečný roh může ležet mimo úzké okno).
+3. **Rozhodnutí** podle `ratio = λ_lcurve / λ_gcv`:
+
+   | ratio | Volba | `method_used` |
+   |-------|-------|---------------|
+   | 0.1 < ratio < 10 | λ_lcurve (konzistentní) | `lcurve` |
+   | ratio ≥ 10 | λ_lcurve (GCV podhodnotilo kvůli NNLS) | `lcurve_correction` |
+   | ratio ≤ 0.1 | √(λ_gcv·λ_lcurve) (geom. průměr, nekonzistentní) | `geometric_mean` |
+
+Vrací `(λ_optimal, gcv_score, diagnostics)`; `diagnostics` obsahuje `lambda_gcv`,
+`lambda_lcurve`, `method_used`, `curvature`, `rho`, `eta`, `corner_at_edge`.
+
+### 5. Integrace v `drt/core.py`
+
+`_select_lambda(A, b, L, lambda_reg, auto_lambda)` vrací `LambdaSelection`:
 
 ```python
-def compute_gcv_score(lambda_val, A, b, L):
-    # 1. Řeš NNLS: minimize ||A·x - b||² + λ||L·x||²
-    x, _ = nnls(A_reg, b_reg)
-
-    # 2. Vypočti reziduum
-    residual = b - A @ x
-
-    # 3. Vypočti trace(I - K) pomocí SVD(A)
-    U, s, Vt = np.linalg.svd(A, full_matrices=False)
-    s_reg = s**2 / (s**2 + lambda_val * eigenvals_LtL)
-    trace_K = np.sum(s_reg)
-
-    # 4. GCV score
-    gcv = n * ||residual||² / (n - trace_K)²
-
-    return gcv
+@dataclass
+class LambdaSelection:
+    lambda_value: float
+    method: str            # 'user' | 'default' | 'gcv' | 'hybrid' | 'fallback'
+    lambda_gcv: Optional[float] = None   # jen při L-curve korekci
+    gcv_score: Optional[float] = None
+    corner_at_edge: bool = False         # roh L-křivky na okraji okna (F7)
+    lambda_at_edge: bool = False         # zvolené λ na mezi GCV rozsahu (F3/F7)
 ```
 
-### 2. Funkce `find_optimal_lambda_gcv()`
+Když `auto_lambda=True`, volá se `find_optimal_lambda_hybrid`. Reportovaná
+`method` je **`hybrid`** pouze pokud L-curve výrazně korigovala
+(`method_used == 'lcurve_correction'`), jinak **`gcv`** (L-curve souhlasila s
+GCV). `lambda_gcv` se ukládá/zobrazuje jen pro `hybrid`.
 
-Najde optimální λ pomocí dvou-fázové strategie.
+Detekce okrajů (náprava F3/F7): pokud λ_opt nebo λ_gcv narazí na mez rozsahu
+`[1e-5, 1.0]`, nebo je roh na okraji okna, nastaví se `lambda_at_edge` —
+signál, že optimizér chce extrémnější regularizaci, než rozsah dovoluje
+(typicky problém s daty / modelem). `calculate_drt(..., auto_lambda=...)` celý
+výběr orchestruje (`drt/core.py`).
 
-**Fáze 1: Hrubé prohledání**
-- 20 bodů v log-prostoru [10⁻⁵, 1.0]
-- Identifikuje oblast minima
-
-**Fáze 2: Jemné doladění**
-- 20 bodů v okolí minima
-- Zvláštní zacházení s okrajovými minimy (rozšíří rozsah)
-
-**Výhody dvou-fázového přístupu:**
-- Rychlejší než plná optimalizace (40 evaluací vs. ~100)
-- Robustnější vůči lokálním minimům
-- Automaticky detekuje okrajové minimum
-
-```python
-def find_optimal_lambda_gcv(A, b, L, lambda_range=(1e-5, 1.0)):
-    # Fáze 1: Hrubé prohledání
-    lambda_coarse = np.logspace(-5, 0, 20)
-    gcv_coarse = [compute_gcv_score(lam, A, b, L) for lam in lambda_coarse]
-
-    # Najdi minimum
-    min_idx = np.argmin(gcv_coarse)
-
-    # Fáze 2: Jemné doladění v okolí
-    if min_idx == 0:  # Minimum na levém okraji
-        fine_range = (lambda_range[0] / 10, lambda_coarse[2])
-    elif min_idx == len(lambda_coarse) - 1:  # Na pravém okraji
-        fine_range = (lambda_coarse[-3], lambda_range[1] * 10)
-    else:  # Uvnitř rozsahu
-        fine_range = (lambda_coarse[min_idx-1], lambda_coarse[min_idx+1])
-
-    lambda_fine = np.logspace(np.log10(fine_range[0]),
-                               np.log10(fine_range[1]), 20)
-    gcv_fine = [compute_gcv_score(lam, A, b, L) for lam in lambda_fine]
-
-    return lambda_fine[np.argmin(gcv_fine)]
-```
-
-### 3. Integrace s `calculate_drt()`
-
-Přidán parametr `auto_lambda`:
-
-```python
-def calculate_drt(frequencies, Z, n_tau=100,
-                  lambda_reg=None, auto_lambda=False):
-    # ... sestavení matic A, b, L ...
-
-    if auto_lambda:
-        lambda_reg, gcv_score = find_optimal_lambda_gcv(A, b, L)
-    else:
-        lambda_reg = lambda_reg if lambda_reg is not None else 0.1
-
-    # ... NNLS řešení s lambda_reg ...
-```
-
-## Výkon
-
-### Typické časy výpočtu
-
-| N_freq | N_tau | GCV čas | Celkový čas DRT |
-|--------|-------|---------|-----------------|
-| 50     | 50    | ~2 s    | ~2.5 s          |
-| 70     | 100   | ~5 s    | ~5.5 s          |
-| 100    | 100   | ~8 s    | ~8.5 s          |
-| 150    | 150   | ~18 s   | ~19 s           |
-
-**Poznámky:**
-- GCV přidá ~5-10s pro typická měření (70 frekvencí)
-- Škáluje přibližně jako O(N²·n_evaluations)
-- Většina času se stráví v SVD dekomposici
-
-### Optimalizace
-
-Pro zrychlení:
-1. **Snižte n_search**: default 20 → 15 (~30% rychlejší, mírně méně přesné)
-2. **Cache SVD**: Pro opakovanou analýzu stejných frekvencí
-3. **Paralelizace**: Evaluace různých λ nezávislé (možné paralelizovat)
-
-## Validace
-
-### Test na syntetických datech
-
-```bash
-python test_gcv.py
-```
-
-Testovací skript ověří:
-1. ✓ Správnost výpočtu GCV score
-2. ✓ Schopnost najít optimum
-3. ✓ Rekonstrukci známého R_pol (chyba < 10%)
-4. ✓ Vizualizaci GCV křivky
-
-### Očekávané výsledky
-
-Pro syntetická data (R₁=1000Ω, R₂=5000Ω):
-- **Optimální λ:** typicky ~0.01 - 0.05
-- **R_pol chyba:** < 5% pro šum 1%
-- **Počet píků:** 2 detekované
-
-## Srovnání s Manuálním Tuningem
-
-### Před GCV (manuální)
-
-```bash
-# Zkus různé λ, dokud není výsledek uspokojivý
-python eis_analysis.py data.DTA --lambda 0.1   # Příliš hladké?
-python eis_analysis.py data.DTA --lambda 0.01  # Příliš šumové?
-python eis_analysis.py data.DTA --lambda 0.05  # Vypadá dobře!
-```
-
-**Problémy:**
-- ⏱ Časově náročné (3-5 pokusů)
-- 🤔 Subjektivní (co je "dobře"?)
-- ⚠️ Nekonzistentní mezi měřeními
-
-### S GCV (automatické)
-
-```bash
-# Jeden příkaz, objektivní výběr
-python eis_analysis.py data.DTA --auto-lambda
-```
-
-**Výhody:**
-- ✅ Automatické
-- ✅ Objektivní (minimalizace GCV)
-- ✅ Konzistentní
-- ✅ Reproducibilní
-
-## Kdy Použít Auto-Lambda
-
-### ✅ Doporučeno:
-
-1. **Exploratorní analýza** - Rychlé prozkoumání nových dat
-2. **Batch processing** - Analýza mnoha souborů najednou
-3. **Publikace** - Objektivní, reproducibilní výběr λ
-4. **Nekonsistentní měření** - Různá úroveň šumu mezi soubory
-
-### ⚠️ Opatrně:
-
-1. **Velmi šumová data** - GCV může preferovat příliš vysoké λ (over-smoothing)
-2. **Extrémně malé/velké impedance** - Numerická stabilita
-3. **Nestandard frekvence** - Velmi nerovnoměrný spacing
-
-### 🔧 Manuální λ stále užitečná:
-
-1. **Fine-tuning** - Po automatickém výběru doladit
-2. **Známý systém** - Když víš, co očekávat
-3. **Specifické požadavky** - Chceš zdůraznit určité rysy
-4. **Rychlost** - Když je čas kritický (skip GCV)
-
-## Interpretace GCV Křivky
-
-GCV křivka (log-log plot) má typicky:
-
-```
-GCV
- │
- │     ╱─────  Over-smoothing (λ příliš velké)
- │    ╱
- │   ╱
- │  │  ← Optimum (minimum)
- │   ╲
- │    ╲___   Under-smoothing (λ příliš malé)
- │        ╲___
- └──────────────> λ
-```
-
-**Tvary křivky:**
-
-1. **Ostrý U-tvar**: Jasné optimum, GCV spolehlivý
-2. **Plochý tvar**: Široké rozmezí dobrých λ, méně citlivý
-3. **Monotónní**: Minimum na okraji, data problematická
-4. **Více minim**: Lokální minima, může být nejednoznačné
-
-**Co dělat při problémech:**
-
-```bash
-# Vizualizuj GCV křivku (připravíme samostatný skript)
-python plot_gcv_curve.py data.DTA
-
-# Pokud optimum na okraji:
-# - Rozšiř rozsah: upravit lambda_range v kódu
-# - Zkontroluj kvalitu dat (KK validace)
-
-# Pokud plochý tvar:
-# - Jakákoliv λ v rozmezí je OK
-# - Použij střed plateau
-```
-
-## Matematické Pozadí
+## Matematické pozadí
 
 ### Odvození GCV
 
-Standardní cross-validation:
-```
-CV(λ) = (1/n) Σᵢ [zᵢ - ẑ₋ᵢ(λ)]²
-```
-kde `ẑ₋ᵢ` je predikce bez i-tého bodu.
-
-**Problém:** Vyžaduje n řešení NNLS (pomalé).
-
-**GCV aproximace:**
-```
-GCV(λ) = (1/n) ||Z - A·x(λ)||² / (1/n · trace(I - K))²
-       = n · ||Z - A·x(λ)||² / trace(I - K)²
-```
-
-Předpoklad: `[zᵢ - ẑ₋ᵢ]² ≈ [zᵢ - ẑᵢ]² / (1 - Kᵢᵢ)²`
-
-Pro uniformní Kᵢᵢ: `(1 - Kᵢᵢ) ≈ trace(I - K) / n`
-
-**Výhoda:** Pouze 1 řešení NNLS, přesto aproximuje leave-one-out CV.
-
-### Influence Matrix K(λ)
+Standardní leave-one-out cross-validation `CV(λ) = (1/n) Σᵢ [bᵢ − x̂₋ᵢ(λ)]²`
+vyžaduje n řešení (pomalé). GCV ho aproximuje pomocí stopy influence matice:
 
 ```
-K(λ) = A @ (A^T·A + λ·L^T·L)^(-1) @ A^T
+GCV(λ) = n · ‖b − A·x(λ)‖² / (n − trace K)²
 ```
 
-**Vlastnosti:**
-- `K` je projekční matice: Z̃ = K·Z
-- `Kᵢᵢ` měří "influence" i-tého bodu na jeho predikci
-- `trace(K)` = efektivní dimenze modelu
-- λ → 0: trace(K) → rank(A) (žádná regularizace)
-- λ → ∞: trace(K) → 0 (plná regularizace)
+s předpokladem `[bᵢ − x̂₋ᵢ]² ≈ [bᵢ − x̂ᵢ]² / (1 − Kᵢᵢ)²` a uniformní `Kᵢᵢ ≈
+trace(K)/n`. Výhoda: jediné řešení místo n.
 
-### SVD výpočet trace(K)
-
-Místo explicitní inverze:
+### Influence matice K(λ)
 
 ```
-A = U·Σ·V^T  (SVD)
-
-trace(K) = trace(A @ inv(A^T·A + λ·L^T·L) @ A^T)
-         = trace(V @ inv(Σ² + λ·M) @ Σ² @ V^T)
-         = Σᵢ σᵢ² / (σᵢ² + λ·μᵢ)
+K(λ) = A · (AᵀA + λ·LᵀL)⁻¹ · Aᵀ
 ```
 
-kde `σᵢ` jsou singulární hodnoty A a `μᵢ` jsou eigenvalues L^T·L v bázi V.
+- `Kᵢᵢ` měří vliv i-tého bodu na vlastní predikci, `trace K` = efektivní dimenze
+  modelu.
+- λ → 0: `trace K → rank(A)` (bez regularizace); λ → ∞: `trace K → 0`
+  (plná regularizace).
 
-**Numerická stabilita:** ✅ Žádná explicitní inverze
+Stopa se počítá **přímou inverzí** přes `np.linalg.solve(M, A.T)` (kód i tato
+dokumentace; dřívější verze chybně uváděla SVD).
+
+### L-curve a křivost
+
+L-křivka `(ρ, η) = (log‖Ax−b‖, log‖Lx‖)` má v log-log prostoru tvar „L"; roh
+(maximum kladné křivosti) odpovídá optimálnímu kompromisu reziduum/hladkost.
+Křivost se počítá centrálními diferencemi (`np.gradient`).
+
+## Diagnostika a interpretace výstupu
+
+CLI vypisuje zvolenou metodu a λ. Když L-curve s GCV souhlasí:
+
+```
+Lambda: GCV (automatic)
+  lambda = 5.00e-03
+```
+
+Když L-curve korigovala GCV nahoru (typické pro NNLS):
+
+```
+Lambda: Hybrid GCV + L-curve
+  L-curve correction: lambda_gcv=3.20e-04 -> lambda=1.00e-02
+```
+
+**Klíčové indikátory:**
+- `lambda_at_edge` / „λ na mezi rozsahu" — optimum je mimo `[1e-5, 1.0]`;
+  zkontroluj kvalitu dat (KK validace) nebo zadej λ ručně.
+- `corner_at_edge` — roh L-křivky na okraji okna; skutečný roh může ležet dál.
+- Velmi šumová data → GCV/L-curve mohou preferovat vyšší λ (over-smoothing).
+
+## Kdy použít ruční λ
+
+Automatika je dobrá baseline (objektivní, reprodukovatelná, vhodná pro batch a
+publikace). Ruční `--lambda` má smysl pro fine-tuning u známého systému, při
+specifických požadavcích na zvýraznění rysů, nebo když je auto λ na okraji
+rozsahu.
+
+## Validace
+
+Relevantní testy:
+
+```bash
+python3 -m pytest tests/test_hybrid_lambda.py tests/test_lcurve_corner.py \
+                  tests/test_drt_spikiness.py -q
+```
+
+- `tests/test_hybrid_lambda.py` — GCV score (konečný/kladný; GCV-vybrané λ není
+  horší než okraje rozsahu), hybridní výběr, integrace s `_build_drt_matrices`.
+- `tests/test_lcurve_corner.py` — znaménková konvence rohu (max kladné křivosti).
+- `tests/test_drt_spikiness.py` — detekce degenerované / zašuměné γ.
 
 ## Reference
 
-### Teoretické základy
-
-1. **Wahba, G. (1985)**
-   *"A comparison of GCV and GML for choosing the smoothing parameter"*
-   Annals of Statistics 13, 1378-1402
-   → Originální popis GCV metody
-
-2. **Hansen, P.C. (1998)**
-   *"Rank-Deficient and Discrete Ill-Posed Problems"*
-   SIAM, Philadelphia
-   → Komprehensivní přehled regularizačních metod
-
-3. **Golub, G.H., Heath, M., Wahba, G. (1979)**
-   *"Generalized Cross-Validation as a Method for Choosing a Good Ridge Parameter"*
-   Technometrics 21, 215-223
-   → Aplikace GCV na ridge regression
-
-### DRT specifické
-
-4. **Saccoccio, M., Wan, T.H., Chen, C., Ciucci, F. (2014)**
-   *"Optimal regularization in distribution of relaxation times applied to electrochemical impedance spectroscopy: ridge and lasso regression methods"*
-   Electrochimica Acta 147, 470-482
-   → GCV pro DRT analýzu (základ této implementace)
-
-5. **Maradesa, A., Py, B., et al. (2023)**
-   *"Selecting the regularization parameter in the distribution of relaxation times"*
-   Journal of the Electrochemical Society 170, 030502
-   → Srovnání GCV s jinými metodami (mGCV, rGCV, LC)
-
-## Changelog
-
-### Version 1.0 (2025-12-10)
-
-**Přidáno:**
-- ✅ Funkce `compute_gcv_score()` pro výpočet GCV
-- ✅ Funkce `find_optimal_lambda_gcv()` pro optimalizaci λ
-- ✅ Parametr `--auto-lambda` v CLI
-- ✅ Integrace s `calculate_drt()`
-- ✅ Test suite `test_gcv.py`
-- ✅ Dokumentace
-
-**Opraveno vs. původní návrh:**
-- ✅ Přidán normalizační faktor `n` do GCV vzorce
-- ✅ SVD výpočet trace místo explicitní inverze
-- ✅ Robustní error handling
-- ✅ Dvou-fázová optimalizace místo generic minimize
-
-**Testováno:**
-- ✅ Syntetická data (2 Voigt elementy)
-- ✅ R_pol rekonstrukce (chyba < 5%)
-- ✅ Robustnost vůči šumu (1-2%)
-- ✅ Rychlost (< 10s pro N=100)
-
-## FAQ
-
-**Q: Je GCV vždy lepší než manuální λ?**
-A: Ne. GCV poskytuje objektivní baseline, ale expertní znalost systému může vést k lepší volbě. GCV je nejužitečnější pro exploratorní analýzu nebo když nemáte apriorní znalost.
-
-**Q: Proč trvá GCV ~5 sekund?**
-A: GCV vyhodnocuje 40 různých λ (2 fáze × 20 bodů). Každá evaluace vyžaduje NNLS řešení a SVD, což trvá ~0.1-0.2s.
-
-**Q: Můžu použít --auto-lambda a --lambda zároveň?**
-A: Ne, --auto-lambda ignoruje --lambda. Použij buď jeden, nebo druhý.
-
-**Q: Jak moc se GCV liší od pyDRTtools?**
-A: Naše implementace je zjednodušená, ale matematicky ekvivalentní. pyDRTtools má více CV variant (mGCV, rGCV), my máme zatím jen GCV.
-
-**Q: Co když GCV najde λ na okraji rozsahu?**
-A: To indikuje, že optimum je mimo [10⁻⁵, 1.0]. Zkontroluj data (KK validace) nebo uprav lambda_range v kódu.
-
-**Q: Můžu paralelizovat GCV?**
-A: Ano! Evaluace různých λ jsou nezávislé. Možná budoucí optimalizace s `multiprocessing`.
+1. **Golub, Heath, Wahba (1979)** — *Generalized Cross-Validation as a Method
+   for Choosing a Good Ridge Parameter*, Technometrics 21, 215-223.
+2. **Wahba (1985)** — *A comparison of GCV and GML…*, Annals of Statistics 13,
+   1378-1402.
+3. **Hansen, P.C. (1998)** — *Rank-Deficient and Discrete Ill-Posed Problems*,
+   SIAM. (L-curve a regularizační metody.)
+4. **Saccoccio, Wan, Chen, Ciucci (2014)** — *Optimal regularization in DRT…*,
+   Electrochimica Acta 147, 470-482.
+5. **Maradesa, Py, et al. (2023)** — *Selecting the regularization parameter in
+   the distribution of relaxation times*, J. Electrochem. Soc. 170, 030502.
 
 ---
 
-**Autor:** Implementace podle revize Claude Opus 4.5
-**Datum:** 2025-12-10
-**Verze:** 1.0
+*Dokument pro EIS Analysis Toolkit*
+*Poslední aktualizace: 2026-06-30 (GCV + L-curve hybrid)*
