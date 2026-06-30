@@ -4,6 +4,28 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.6 (2026-06-30)
+
+### Fixed (diffevo math audit #6)
+
+- **Reported relative error no longer double-counts 1/|Z|**
+  (`fitting/diagnostics.py`). `compute_fit_metrics` computed
+  `Σ wᵢ·(|ΔZᵢ|/|Zᵢ|) / Σ wᵢ`; with modulus weighting (`wᵢ = 1/|Zᵢ|`) the 1/|Z|
+  appeared twice, giving an effective 1/|Z|² emphasis on the residual. The
+  metric is now weighting-consistent: `Σ wᵢ|ΔZᵢ| / Σ wᵢ|Zᵢ| · 100`, applying the
+  weight once. For the default modulus weighting this equals the mean relative
+  error `mean(|ΔZ|/|Z|)`. Reporting only (since audit #1 the DE/refinement
+  selection uses the weighted SSR, not this metric); quality thresholds
+  unchanged.
+  - Regression tests in `tests/test_fit_metrics.py`
+    (`test_modulus_equals_mean_relative_error`,
+    `test_uniform_equals_aggregate_relative_error`,
+    `test_perfect_fit_zero_error`).
+
+This completes the diffevo math audit (`doc/AUDIT_diffevo.md`, findings #1-#6).
+
+---
+
 ## Version 0.16.5 (2026-06-30)
 
 ### Fixed (diffevo math audit #5)

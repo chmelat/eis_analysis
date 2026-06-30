@@ -146,7 +146,11 @@ def compute_fit_metrics(
     Returns
     -------
     fit_error_rel : float
-        Weighted relative error [%]
+        Weighting-consistent relative error [%]:
+        ``sum(w_i * |Z_i - Z_fit_i|) / sum(w_i * |Z_i|) * 100``. The weight is
+        applied once (to both residual and magnitude), so it is not
+        double-counted with the 1/|Z| of a relative error. For modulus
+        weighting this equals the mean relative error ``mean(|dZ|/|Z|)``.
     fit_error_abs : float
         Mean absolute error [Ohm]
     quality : str
@@ -154,10 +158,15 @@ def compute_fit_metrics(
     """
     weights = compute_weights(Z, weighting)
     Z_mag_safe = np.maximum(np.abs(Z), 1e-15)
-    relative_errors = np.abs(Z - Z_fit) / Z_mag_safe
+    abs_errors = np.abs(Z - Z_fit)
+    relative_errors = abs_errors / Z_mag_safe
 
-    fit_error_rel = np.sum(weights * relative_errors) / np.sum(weights) * 100
-    fit_error_abs = np.mean(np.abs(Z - Z_fit))
+    # Weighting-consistent relative error: the weight is applied once, to both
+    # the residual and the magnitude, so it is not double-counted with the
+    # 1/|Z| that already defines a relative error. For modulus weighting
+    # (w = 1/|Z|) this reduces to the mean relative error mean(|dZ|/|Z|).
+    fit_error_rel = np.sum(weights * abs_errors) / np.sum(weights * Z_mag_safe) * 100
+    fit_error_abs = np.mean(abs_errors)
 
     # Log unweighted vs weighted difference if significant
     fit_error_rel_unweighted = np.mean(relative_errors) * 100

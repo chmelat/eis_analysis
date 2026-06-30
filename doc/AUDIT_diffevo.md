@@ -116,4 +116,4 @@ jsou dokumentační/sémantické nepřesnosti.
 | 3 | Nízká–střední | Opraveno (v0.16.3) |
 | 4 | Nízká         | Opraveno (v0.16.4) |
 | 5 | Nízká         | Opraveno (v0.16.5) |
-| 6 | Nízká         | Otevřeno           |
+| 6 | Nízká         | Opraveno (v0.16.6) |

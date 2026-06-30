@@ -235,15 +235,19 @@ Mean |res_imag| [%] = 100 * mean(|res_imag|)
 #### Relative Error [%]
 
 ```
-rel_error_i = |Z_i - Z_fit,i| / |Z_i|
-fit_error_rel = [SUM(w_i * rel_error_i) / SUM(w_i)] * 100
+fit_error_rel = [SUM(w_i * |Z_i - Z_fit,i|) / SUM(w_i * |Z_i|)] * 100
 
 where w_i = weights according to selected weighting type
 ```
 
+The weight is applied once, to both the residual and the magnitude, so it is
+not double-counted with the 1/|Z| that already defines a relative error. For
+modulus weighting (w_i = 1/|Z_i|) this reduces to the mean relative error
+`mean(|Z_i - Z_fit,i| / |Z_i|)`.
+
 **Interpretation:**
-- Weighted average of relative deviations
-- Depends on selected weighting
+- Weighting-consistent relative deviation
+- Depends on selected weighting (modulus -> mean relative error)
 - Primary indicator of circuit fit quality
 
 #### Absolute Error [Ohm]
