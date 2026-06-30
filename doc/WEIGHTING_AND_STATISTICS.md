@@ -295,12 +295,13 @@ where:
   - Model is overparameterized
   - Correlation between parameters
 
-**Condition number:**
+**Condition number** (of the normal matrix J^T J, which governs the
+covariance inverse):
 ```
-cond = S_max / S_min  (via SVD decomposition of Jacobian)
+cond(J^T J) = (S_max / S_min)^2  (S from SVD of the Jacobian J)
 ```
-- cond < 10^10: Well-conditioned problem, SE are reliable
-- cond > 10^10: Ill-conditioned problem, SE may be unreliable
+- cond(J^T J) < 10^10: Well-conditioned problem, SE are reliable
+- cond(J^T J) > 10^10: Ill-conditioned problem, SE may be unreliable
 
 ---
 
@@ -356,7 +357,7 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 | Fit error abs. | [0, inf) | Ohm | contextual | Fit quality |
 | SE | [0, inf) | [param] | < 10% of param | Parameter uncertainty |
 | 95% CI | - | [param] | narrow | Parameter uncertainty |
-| Cond. number | [1, inf) | - | < 10^10 | Fit stability |
+| Cond. number (J^T J) | [1, inf) | - | < 10^10 | Fit stability |
 
 ---
 
@@ -376,7 +377,7 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 
 3. **Parameters**
    - Check 95% CI - are they reasonable?
-   - Check condition number < 10^10
+   - Check condition number cond(J^T J) < 10^10
    - If SE is high, parameter is not well determined
 
 ### Troubleshooting

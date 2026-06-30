@@ -152,7 +152,7 @@ def perturb_from_covariance(params, cov, scale=2.0, bounds=None):
 
 **Kdy se použije:**
 - Kovarianční matice je k dispozici
-- Condition number < 10¹⁰ (well-conditioned)
+- cond(JᵀJ) < 10¹⁰ (well-conditioned)
 
 ### 3.2 Stderr-based (fallback)
 

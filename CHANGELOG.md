@@ -4,6 +4,32 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.3 (2026-06-30)
+
+### Fixed (diffevo math audit #3)
+
+- **`condition_number` now reports cond(JᵀJ), not cond(J)**
+  (`fitting/covariance.py`). The covariance is `s²·(JᵀJ)⁻¹`, so the reliability
+  of that inverse is governed by `cond(JᵀJ) = cond(J)²`. The code computed
+  `cond(J) = S_max/S_min` but the docstrings (and the `is_well_conditioned <
+  1e10` test) were written for `JᵀJ`, so the threshold effectively allowed
+  `cond(JᵀJ)` up to ~1e20 — a numerically unreliable covariance could be
+  flagged "well-conditioned". `condition_number` is now `(S_max/S_min)²` and the
+  `1e10` threshold applies to `cond(JᵀJ)` as documented.
+  - Side effect: borderline fits (cond(J) between 1e5 and 1e10) are now
+    correctly flagged not well-conditioned; `multistart` falls back from
+    covariance-based to stderr-based perturbation for those (fallback already
+    existed).
+  - Docstrings/docs aligned (`covariance.py`, `fitting/circuit.py`,
+    `doc/PYTHON_API.md`, `doc/WEIGHTING_AND_STATISTICS.md`,
+    `doc/MULTISTART_OPTIMIZATION.md`).
+  - Regression tests in `tests/test_covariance.py`:
+    `test_condition_number_is_cond_of_JtJ`,
+    `test_well_conditioned_threshold_on_JtJ`,
+    `test_well_conditioned_true_for_benign_jacobian`.
+
+---
+
 ## Version 0.16.2 (2026-06-30)
 
 ### Fixed (diffevo math audit #1, #2)

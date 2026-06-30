@@ -113,7 +113,7 @@ jsou dokumentační/sémantické nepřesnosti.
 |---|---------------|--------------------|
 | 1 | Střední       | Opraveno (v0.16.2) |
 | 2 | Střední       | Opraveno (v0.16.2) |
-| 3 | Nízká–střední | Otevřeno           |
+| 3 | Nízká–střední | Opraveno (v0.16.3) |
 | 4 | Nízká         | Otevřeno           |
 | 5 | Nízká         | Otevřeno           |
 | 6 | Nízká         | Otevřeno           |

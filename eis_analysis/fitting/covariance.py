@@ -29,11 +29,13 @@ class CovarianceResult:
     stderr : ndarray
         Standard errors of parameters (inf if computation failed)
     condition_number : float
-        Condition number of J^T @ J (high = ill-conditioned)
+        Condition number of the normal matrix J^T @ J = cond(J)^2
+        (high = ill-conditioned). Governs reliability of the (J^T J)^{-1}
+        used for the covariance.
     rank : int
         Numerical rank of Jacobian
     is_well_conditioned : bool
-        True if condition number < 1e10
+        True if cond(J^T J) < 1e10
     warning_message : str or None
         Warning message if any issues detected
     """
@@ -101,7 +103,7 @@ def compute_covariance_matrix(
     The covariance matrix is computed in the space of free parameters,
     then expanded to include fixed parameters (with zero variance/covariance).
 
-    For ill-conditioned problems (condition_number > 1e10), the covariance
+    For ill-conditioned problems (cond(J^T J) > 1e10), the covariance
     estimate may be unreliable. This often indicates:
     - Over-parametrized model
     - Correlated parameters
@@ -127,8 +129,11 @@ def compute_covariance_matrix(
         # SVD decomposition: J = U @ S @ V^T
         U, S, Vt = np.linalg.svd(jacobian, full_matrices=False)
 
-        # Condition number
-        condition_number = S[0] / S[-1] if S[-1] > 0 else np.inf
+        # Condition number of the normal matrix J^T J = cond(J)^2.
+        # The covariance is s^2 (J^T J)^{-1}, so the reliability of that
+        # inverse is governed by cond(J^T J), not cond(J).
+        cond_J = S[0] / S[-1] if S[-1] > 0 else np.inf
+        condition_number = cond_J ** 2
 
         # Numerical rank (singular values above threshold)
         threshold = rcond * S[0]
@@ -139,7 +144,7 @@ def compute_covariance_matrix(
 
         if not is_well_conditioned:
             warning_message = (
-                f"Ill-conditioned Jacobian (cond={condition_number:.2e}). "
+                f"Ill-conditioned normal matrix J^T J (cond={condition_number:.2e}). "
                 f"Covariance estimates may be unreliable."
             )
 

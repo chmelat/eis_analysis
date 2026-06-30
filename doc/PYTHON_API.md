@@ -401,8 +401,8 @@ result.param_labels    # Parameter labels ['R0', 'R1', 'Q0', 'n0', ...]
 result.fit_error_rel   # Relative fit error [%]
 result.fit_error_abs   # Absolute fit error [Ohm]
 result.quality         # 'excellent', 'good', 'acceptable', 'poor'
-result.condition_number # Condition number of Jacobian
-result.is_well_conditioned # True if cond < 1e10
+result.condition_number # Condition number of J^T J (= cond(J)^2)
+result.is_well_conditioned # True if cond(J^T J) < 1e10
 result.cov             # Covariance matrix (ndarray or None)
 result.diagnostics     # FitDiagnostics dataclass
 result.all_warnings    # List of all warnings (convenience property)
@@ -413,7 +413,7 @@ result.diagnostics.optimizer_message   # Optimizer message
 result.diagnostics.optimizer_success   # True if converged
 result.diagnostics.n_function_evals    # Number of function evaluations
 result.diagnostics.jacobian_type       # 'analytic' or 'numeric'
-result.diagnostics.condition_number    # Jacobian condition number
+result.diagnostics.condition_number    # cond(J^T J) (= cond(J)^2)
 result.diagnostics.covariance_rank     # Rank of covariance matrix
 result.diagnostics.covariance_warning  # Warning if ill-conditioned
 result.diagnostics.params_at_bounds    # List of param indices at bounds

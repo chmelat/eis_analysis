@@ -86,9 +86,10 @@ class FitResult:
     quality : str
         Fit quality: 'excellent', 'good', 'acceptable', or 'poor'
     condition_number : float
-        Condition number of Jacobian (high = ill-conditioned)
+        Condition number of the normal matrix J^T J = cond(J)^2
+        (high = ill-conditioned)
     is_well_conditioned : bool
-        True if condition number < 1e10 (covariance reliable)
+        True if cond(J^T J) < 1e10 (covariance reliable)
     cov : ndarray of float or None
         Covariance matrix of parameters (None if computation failed)
     diagnostics : FitDiagnostics or None
