@@ -15,7 +15,7 @@ from .tau_grid import generate_tau_grid
 from .solvers import robust_nnls
 
 from ..circuit_elements import R, K, L
-from ..circuit_builder import Series
+from ..circuit_builder import Series, Circuit
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +295,7 @@ def fit_voigt_chain_linear(
     max_M: int = 50,
     refit_positive: bool = False,
     weighting: str = 'modulus'
-) -> Tuple[VoigtChain, List[float]]:
+) -> Tuple[Circuit, List[float]]:
     """
     Fit Voigt chain to EIS data using linear regression (Lin-KK method).
 
@@ -491,6 +491,7 @@ def fit_voigt_chain_linear(
     logger.info(f"Step 4: Building circuit with {len(R_i)} K elements")
 
     # Start with R_s if included
+    circuit: Optional[Circuit]
     if include_Rs and R_s > 0:
         circuit = R(R_s)
     else:
@@ -504,6 +505,11 @@ def fit_voigt_chain_linear(
             circuit = k_element
         else:
             circuit = circuit - k_element
+
+    if circuit is None:
+        raise ValueError(
+            "Cannot build circuit: no series resistance and no K elements"
+        )
 
     # Add inductance if fitted
     if include_L and L_value is not None:

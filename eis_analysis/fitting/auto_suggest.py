@@ -8,7 +8,7 @@ Does NOT generate circuit strings - provides information for manual circuit buil
 
 import numpy as np
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
@@ -105,7 +105,7 @@ def analyze_voigt_elements(
     logger.info("Automatic circuit suggestion from DRT")
     logger.info("="*60)
 
-    diagnostics = {
+    diagnostics: Dict[str, Any] = {
         'n_peaks_raw': 0,
         'n_peaks_valid': 0,
         'peaks_info': [],
@@ -128,12 +128,12 @@ def analyze_voigt_elements(
 
         # Convert GMM peaks to format compatible with rest of function
         # Find nearest index in tau for each GMM peak
-        peaks = []
+        peak_indices = []
         for peak_gmm in peaks_gmm:
             tau_center = peak_gmm['tau_center']
             idx = np.argmin(np.abs(tau - tau_center))
-            peaks.append(idx)
-        peaks = np.array(peaks)
+            peak_indices.append(idx)
+        peaks = np.array(peak_indices)
         properties = {}  # GMM doesn't need properties from find_peaks
     else:
         # Use scipy.find_peaks (original method)

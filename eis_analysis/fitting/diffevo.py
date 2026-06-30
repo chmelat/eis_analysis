@@ -12,7 +12,7 @@ Strategy options:
 import numpy as np
 import logging
 import warnings
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
@@ -134,7 +134,7 @@ class DiffEvoResult:
         Detailed diagnostics
     """
     best_result: FitResult
-    de_result: any
+    de_result: Any
     de_error: float
     final_error: float
     n_evaluations: int
@@ -156,7 +156,7 @@ def fit_circuit_diffevo(
     verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True,
     seed: Optional[int] = None
-) -> Tuple[DiffEvoResult, NDArray[np.complex128], any]:
+) -> Tuple[DiffEvoResult, NDArray[np.complex128], Any]:
     """
     Fit circuit using Differential Evolution global optimization.
 

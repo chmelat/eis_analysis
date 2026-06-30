@@ -9,7 +9,7 @@ from initial fits to intelligently generate perturbations.
 
 import numpy as np
 import logging
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -165,7 +165,7 @@ def fit_circuit_multistart(
     max_workers: int = 4,
     verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True
-) -> Tuple[MultistartResult, NDArray[np.complex128], any]:
+) -> Tuple[MultistartResult, NDArray[np.complex128], Any]:
     """
     Fit circuit using adaptive multi-start optimization.
 

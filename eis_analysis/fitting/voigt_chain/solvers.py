@@ -6,7 +6,7 @@ This module provides the NNLS solver and design matrix computation.
 
 import numpy as np
 import logging
-from typing import Tuple
+from typing import Tuple, Optional
 from numpy.typing import NDArray
 from scipy.optimize import nnls, lsq_linear
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def robust_nnls(
     A: NDArray[np.float64],
     b: NDArray[np.float64],
-    max_iter: int = None
+    max_iter: Optional[int] = None
 ) -> Tuple[NDArray[np.float64], float]:
     """
     Robust non-negative least squares solver with multiple fallback strategies.
