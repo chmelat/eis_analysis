@@ -4,6 +4,32 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.9 (2026-06-30)
+
+### Changed (refactor, AUDIT_2026-06-23 section 4 / priority 4)
+
+- **Split `fitting/circuit_elements.py` (647 lines) into a package.** It was the
+  last `fitting/` file over the 500-line limit and the last big monolit named by
+  the audit. Converted to `fitting/circuit_elements/`, mirroring the existing
+  `cli/handlers/` precedent, grouped by element category:
+  - `base.py` (134) — `CircuitElement` abstract base + operator overloading
+  - `basic.py` (132) — `R`, `C`, `L` (lumped ideal elements)
+  - `distributed.py` (152) — `Q` (CPE), `W`, `Wo` (Warburg diffusion)
+  - `composite.py` (209) — `K` (Voigt R-τ), `G` (Gerischer)
+  - `__init__.py` (37) — re-exports all 9 public symbols + `__all__`
+
+  Pure structural refactor — **no behavior, signature, or numerics changes.**
+  All consumers import via `eis_analysis.fitting.circuit_elements`, which the
+  package `__init__.py` re-exports unchanged, so no consumer or test was touched.
+  Verified: 193/193 tests pass, ruff clean, whole-project mypy count unchanged
+  (35 — the one pre-existing `R.impedance` error just moved file), CLI smoke OK.
+
+  This completes audit priority 4, whose two named targets — `cli/handlers.py`
+  (v0.13.15) and `circuit_elements.py` (this release) — are now both split. Six
+  files remain over the limit (down from 9), none flagged as priority.
+
+---
+
 ## Version 0.16.8 (2026-06-30)
 
 ### Changed (refactor, AUDIT_2026-06-23 section 4 / priority 4)
