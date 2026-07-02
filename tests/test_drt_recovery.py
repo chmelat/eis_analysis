@@ -57,6 +57,31 @@ def test_two_peak_recovery():
     assert r.diagnostics.n_effective_bins > DRT_MIN_EFFECTIVE_BINS
 
 
+def test_scipy_peak_frequency_convention():
+    """Scipy peak 'frequency' is the characteristic frequency 1/(2*pi*tau).
+
+    Regression for audit 2026-07-02 finding 2.1: scipy peaks reported
+    f = 1/tau while GMM peaks and auto_suggest use f = 1/(2*pi*tau), so the
+    CLI showed frequencies differing by 2*pi for the same process.
+    """
+    R_inf = 50.0
+    R, tau_true = 500.0, 1e-2
+    Z = _voigt_impedance(FREQUENCIES, R_inf, [(R, tau_true)])
+
+    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    peaks = r.diagnostics.scipy_peaks
+    assert peaks, "expected at least one scipy peak"
+
+    # Structural identity: frequency key is exactly 1/(2*pi*tau) per peak.
+    for p in peaks:
+        assert p['frequency'] == 1 / (2 * np.pi * p['tau'])
+
+    # Physical check: detected frequency matches the true characteristic
+    # frequency within the same 0.15-decade tolerance as tau recovery.
+    f_char_true = 1 / (2 * np.pi * tau_true)
+    assert abs(np.log10(peaks[0]['frequency'] / f_char_true)) < 0.15
+
+
 def test_single_peak_recovery():
     """Single RC: one peak at the right tau, R_pol recovered."""
     R_inf = 50.0

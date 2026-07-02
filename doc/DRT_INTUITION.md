@@ -166,7 +166,7 @@ Kdyz mas gamma(tau), ctes z neho tohle:
 
 | Co vidis | Co to znamena |
 |----------|---------------|
-| Poloha piku (tau) | Casova konstanta procesu; `f = 1/tau` |
+| Poloha piku (tau) | Casova konstanta procesu; `f = 1/(2*pi*tau)` |
 | Plocha pod pikem | Odpor procesu R_i |
 | Pocet piku | Pocet rozlisitelnych procesu |
 | Uzky pik (sigma ~ 0.2 dekad) | Skoro idealni RC, jedna tau |

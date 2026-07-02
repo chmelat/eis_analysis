@@ -88,7 +88,7 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
         scipy_peaks.append({
             'index': int(idx),
             'tau': float(tau[idx]),
-            'frequency': float(1/tau[idx]),
+            'frequency': float(1/(2 * np.pi * tau[idx])),
             'R_estimate': float(R_peak)
         })
 

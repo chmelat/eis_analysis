@@ -4,6 +4,23 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.10 (2026-07-02)
+
+### Fixed (audit 2026-07-02, finding 2.1)
+
+- **Scipy DRT peaks now report the characteristic frequency 1/(2·π·τ)**
+  (`drt/core.py`). The `'frequency'` field of `scipy_peaks` was computed as
+  `1/τ`, while GMM peaks (`drt/peaks.py`) and `fitting/auto_suggest.py` use the
+  standard RC characteristic frequency `f = 1/(2πτ)` — the CLI printed both as
+  "f = ... Hz", so the same relaxation process showed frequencies differing by
+  a factor of 2π (~6.28×) depending on the peak method. Reported frequencies
+  from the default scipy method drop by 2π; τ and R estimates are unchanged.
+  Also fixed the same convention in `doc/DRT_INTUITION.md`.
+  - Regression test `test_scipy_peak_frequency_convention` in
+    `tests/test_drt_recovery.py`.
+
+---
+
 ## Version 0.16.9 (2026-06-30)
 
 ### Changed (refactor, AUDIT_2026-06-23 section 4 / priority 4)
