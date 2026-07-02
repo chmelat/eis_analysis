@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.14 (2026-07-02)
+
+### Fixed (oxide audit 2026-07-02, finding O1)
+
+- **CPE conversion formula correctly attributed to Hsu-Mansfeld, not Brug**
+  (`analysis/oxide.py`, `doc/OXIDE_ANALYSIS_GUIDE.md`). The formula
+  `C_eff = (R*Q)^(1/n) / R` used for R||Q elements is the Hsu & Mansfeld
+  (2001) conversion via `tau = (R*Q)^(1/n)`, corresponding to a normal (3D,
+  through-layer) distribution of time constants — the appropriate model for
+  oxide layers. It was mislabeled as the Brug (1984) formula, which is a
+  different expression (`C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)`) for a
+  surface (2D) distribution and involves the series resistance; for n ~ 0.8
+  the two differ by tens of percent. Documentation-only fix: computed values
+  are unchanged; docstrings, comments, log messages, and the guide were
+  corrected, and the 3D-model assumption is now documented explicitly.
+
+---
+
 ## Version 0.16.13 (2026-07-02)
 
 ### Changed (audit 2026-07-02, cleanup findings 2.4-2.6)

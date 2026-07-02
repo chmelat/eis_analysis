@@ -12,7 +12,7 @@ Two complementary functions for oxide layer analysis:
 **Key features:**
 - Finds dominant Voigt (R||C), K, or R||Q element (largest R = main barrier)
 - Uses parallel plate capacitor model
-- For Q: uses Brug formula for effective capacitance
+- For Q: uses Hsu-Mansfeld formula for effective capacitance
 - Returns structured `OxideAnalysisResult` dataclass
 
 ---
@@ -167,7 +167,7 @@ C_eff = C  (direct)
 C_eff = tau / R  (for K element)
 ```
 
-**For Q elements (Brug formula):**
+**For Q elements (Hsu-Mansfeld formula):**
 ```
 C_eff = (R * Q)^(1/n) / R
 ```
@@ -193,7 +193,7 @@ where:
 | Element | Detection | Capacitance |
 |---------|-----------|-------------|
 | `R(x) \| C(y)` | Parallel R-C | C directly |
-| `R(x) \| Q(Q, n)` | Parallel R-Q | Brug: (R*Q)^(1/n)/R |
+| `R(x) \| Q(Q, n)` | Parallel R-Q | Hsu-Mansfeld: (R*Q)^(1/n)/R |
 | `K(R, tau)` | K element | tau/R |
 
 **Note:** Series R elements are ignored (they don't form RC time constants).
@@ -244,7 +244,7 @@ result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
 
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Type: {oxide.element_type}")           # 'Q'
-print(f"C_eff (Brug): {oxide.capacitance:.2e} F")
+print(f"C_eff (Hsu-Mansfeld): {oxide.capacitance:.2e} F")
 ```
 
 ### Example 4: K Element (tau parametrization)
@@ -359,7 +359,7 @@ Real oxide layers often show non-ideal capacitive behavior due to:
 
 Q impedance: `Z_Q = 1 / (Q * (j*omega)^n)`
 
-### Brug Formula
+### Hsu-Mansfeld Formula
 
 For parallel R-Q circuit, effective capacitance:
 
@@ -367,12 +367,25 @@ For parallel R-Q circuit, effective capacitance:
 C_eff = (R * Q)^(1/n) / R
 ```
 
+derived from the characteristic time constant `tau = (R * Q)^(1/n)`.
+
 This formula accounts for:
 - Q coefficient Q
 - Q exponent n (0 < n < 1)
 - Parallel resistance R
 
-**Reference:** Brug et al., J. Electroanal. Chem. 176, 275 (1984)
+**Model assumption (3D vs 2D distribution):** The Hsu-Mansfeld conversion
+corresponds to a *normal* (3D, through-layer) distribution of time
+constants, which is the appropriate model for oxide layers with thickness
+or resistivity variations across the film. The alternative Brug (1984)
+formula, `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)`, corresponds to a
+*surface* (2D) distribution and additionally involves the series
+resistance Rs. For n around 0.8 the two can differ by tens of percent,
+which propagates directly into the thickness estimate. This toolkit
+deliberately uses the 3D (Hsu-Mansfeld) model.
+
+**Reference:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
+cf. Brug et al., J. Electroanal. Chem. 176, 275 (1984)
 
 ### Fallback Methods
 
@@ -423,10 +436,11 @@ If R is unknown:
 
 ## References
 
-- Brug et al. (1984): Q effective capacitance formula
+- Hsu & Mansfeld (2001): Q effective capacitance formula (3D distribution)
+- Brug et al. (1984): alternative Q conversion for surface (2D) distribution
 - Orazem & Tribollet (2008): "Electrochemical Impedance Spectroscopy"
 - Bojinov et al.: "EIS of passive films on metals"
 
 ---
 
-*Last updated: 2025-12-26*
+*Last updated: 2026-07-02*

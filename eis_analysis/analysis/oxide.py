@@ -107,8 +107,16 @@ def _estimate_cpe_capacitance(
     """
     Estimate effective capacitance of Q (CPE) element.
 
-    Method 1 (preferred): Brug formula when R is known
-        C_eff = (R × Q)^(1/n) / R
+    Method 1 (preferred): Hsu-Mansfeld formula when R is known
+        C_eff = (R × Q)^(1/n) / R    (via τ = (R × Q)^(1/n))
+
+        Assumes a normal (3D, through-layer) distribution of time
+        constants — appropriate for oxide layers. For a surface (2D)
+        distribution the Brug (1984) formula would apply instead,
+        which also involves the series resistance:
+        C = Q^(1/n) × (1/Rs + 1/Rct)^((n-1)/n).
+
+        Reference: Hsu & Mansfeld, Corrosion 57, 747 (2001).
 
     Method 2 (fallback): From Z'' maximum frequency
         C_eff = Q × ω_max^(n-1)
@@ -116,10 +124,11 @@ def _estimate_cpe_capacitance(
     Method 3 (last resort): Simple approximation at 1 kHz
         C_eff ≈ Q × (2π × 1000)^(n-1)
     """
-    # Method 1: Brug formula (most accurate when R is known)
+    # Method 1: Hsu-Mansfeld formula (most accurate when R is known;
+    # assumes 3D distribution of time constants — see docstring)
     if R is not None and R > 0:
         C_eff = (R * Q) ** (1.0 / n) / R
-        logger.debug(f"Q C_eff (Brug): {C_eff:.3e} F")
+        logger.debug(f"Q C_eff (Hsu-Mansfeld): {C_eff:.3e} F")
         return C_eff
 
     # Method 2: From Z'' maximum
@@ -177,7 +186,8 @@ def analyze_oxide_layer(
         d = ε₀ × εᵣ / C_specific
 
     For Q elements, effective capacitance is estimated using:
-        - Brug formula: C_eff = (R × Q)^(1/n) / R  (when R is known)
+        - Hsu-Mansfeld formula: C_eff = (R × Q)^(1/n) / R  (when R is known;
+          assumes a normal/3D distribution of time constants)
         - From Z'' maximum frequency (fallback)
 
     Examples
