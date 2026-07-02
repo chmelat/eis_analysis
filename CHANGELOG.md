@@ -4,6 +4,25 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.11 (2026-07-02)
+
+### Fixed (audit 2026-07-02, finding 2.2)
+
+- **`--normalize-rpol` no longer breaks peak resistance estimates**
+  (`drt/core.py`, `drt/plotting.py`, `cli/handlers/drt.py`). Peak detection
+  ran on the normalized gamma (gamma/R_pol), so `R_estimate` of both scipy
+  and GMM peaks came out as dimensionless fractions (sum = 1) yet was printed
+  as "R ~ ... Ohm", and the Voigt element analysis derived C = tau/R from
+  these wrong values. Peak detection, reconstruction, and shape metrics now
+  always use the unnormalized (physical) gamma; only the returned/plotted
+  gamma is normalized. The GMM deconvolution panel likewise plots the
+  unnormalized gamma, matching its component scaling in Ohm. Behavior without
+  `--normalize-rpol` is unchanged.
+  - Regression test `test_peak_r_estimate_invariant_to_normalize_rpol` in
+    `tests/test_drt_recovery.py`.
+
+---
+
 ## Version 0.16.10 (2026-07-02)
 
 ### Fixed (audit 2026-07-02, finding 2.1)

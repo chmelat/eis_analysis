@@ -224,9 +224,15 @@ def run_voigt_analysis(
     if drt_result.tau is None or drt_result.gamma is None:
         return
 
+    # With --normalize-rpol, drt_result.gamma is gamma/R_pol; the R and C
+    # estimates need the unnormalized gamma [Ohm] (audit 2026-07-02, 2.2).
+    gamma_ohm = (drt_result.gamma_original
+                 if drt_result.gamma_original is not None
+                 else drt_result.gamma)
+
     try:
         voigt_info = analyze_voigt_elements(
-            drt_result.tau, drt_result.gamma, frequencies, Z,
+            drt_result.tau, gamma_ohm, frequencies, Z,
             peaks_gmm=drt_result.peaks
         )
         report = format_voigt_report(voigt_info)

@@ -82,6 +82,46 @@ def test_scipy_peak_frequency_convention():
     assert abs(np.log10(peaks[0]['frequency'] / f_char_true)) < 0.15
 
 
+def test_peak_r_estimate_invariant_to_normalize_rpol():
+    """Peak R_estimates stay in Ohm when gamma is normalized by R_pol.
+
+    Regression for audit 2026-07-02 finding 2.2: peak detection ran on the
+    normalized gamma, so with normalize_rpol=True the R_estimates were
+    dimensionless fractions (sum = 1) instead of resistances in Ohm.
+    """
+    R_inf = 100.0
+    elements = [(1000.0, 1e-3), (2000.0, 1e-1)]
+    Z = _voigt_impedance(FREQUENCIES, R_inf, elements)
+
+    r_plain = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r_norm = calculate_drt(FREQUENCIES, Z, peak_method='scipy',
+                           normalize_rpol=True)
+
+    R_plain = [p['R_estimate'] for p in r_plain.diagnostics.scipy_peaks]
+    R_norm = [p['R_estimate'] for p in r_norm.diagnostics.scipy_peaks]
+    assert np.allclose(R_plain, R_norm), (
+        f"R_estimate changed under normalize_rpol: {R_plain} vs {R_norm}"
+    )
+    # Physical sanity: recovered R close to the true element resistances.
+    for got, R_true in zip(sorted(R_norm), sorted(R for R, _ in elements)):
+        assert abs(got - R_true) / R_true < 0.05
+
+    # The returned gamma is still the normalized one (integral = 1) and the
+    # unnormalized original is preserved alongside it.
+    d_ln_tau = float(np.mean(np.diff(np.log(r_norm.tau))))
+    assert abs(np.sum(r_norm.gamma) * d_ln_tau - 1.0) < 1e-6
+    assert r_norm.gamma_original is not None
+
+    # Same invariance for GMM peaks (R_i = weight_i * R_pol must be in Ohm).
+    g_plain = calculate_drt(FREQUENCIES, Z, peak_method='gmm')
+    g_norm = calculate_drt(FREQUENCIES, Z, peak_method='gmm',
+                           normalize_rpol=True)
+    assert g_plain.peaks and g_norm.peaks
+    R_g_plain = [p['R_estimate'] for p in g_plain.peaks]
+    R_g_norm = [p['R_estimate'] for p in g_norm.peaks]
+    assert np.allclose(R_g_plain, R_g_norm)
+
+
 def test_single_peak_recovery():
     """Single RC: one peak at the right tau, R_pol recovered."""
     R_inf = 50.0

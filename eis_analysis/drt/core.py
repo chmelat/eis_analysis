@@ -233,18 +233,22 @@ def calculate_drt(
             gamma = gamma / R_pol_from_gamma
             normalized = True
 
+    # Physical (unnormalized) gamma for everything downstream that must stay
+    # in Ohm — peak R_estimates, reconstruction, shape metrics — even when the
+    # returned gamma is normalized by R_pol (audit 2026-07-02 finding 2.2).
+    gamma_physical = gamma_original if normalized else gamma
+    assert gamma_physical is not None  # set whenever normalized; narrows Optional
+
     # === Step 7: Peak Detection ===
     peaks_result, bic_scores, scipy_peaks = _detect_peaks(
-        matrices.tau, gamma, peak_method, gmm_bic_threshold,
+        matrices.tau, gamma_physical, peak_method, gmm_bic_threshold,
         n_data=len(frequencies)
     )
 
     n_peaks = len(peaks_result) if peaks_result else len(scipy_peaks) if scipy_peaks else 0
 
     # === Step 8: Reconstruction & Error ===
-    gamma_for_recon = gamma_original if normalized else gamma
-    assert gamma_for_recon is not None  # set whenever normalized; narrows Optional
-    Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma_for_recon
+    Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma_physical
     rel_error = float(np.mean(np.abs(Z - Z_reconstructed) / np.abs(Z)) * 100)
 
     # Add warning for high reconstruction error
@@ -261,7 +265,7 @@ def calculate_drt(
     # Warn if the DRT is too sparse/spiky for peak-shape analysis, or if
     # auto-lambda hit the search-range edge (regularization too low). Advisory
     # only - gamma and detected peaks are unchanged.
-    n_eff = _effective_bins(gamma_for_recon)
+    n_eff = _effective_bins(gamma_physical)
     if n_eff < DRT_MIN_EFFECTIVE_BINS:
         nnls_result.warnings.append(
             f"DRT is sparse/spiky (effective bins {n_eff:.1f} < "

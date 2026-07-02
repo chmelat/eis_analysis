@@ -72,7 +72,10 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
     if use_gmm:
         assert peaks_result is not None  # guaranteed by use_gmm
         log_tau = np.log10(tau)
-        ax3.semilogx(tau, gamma, 'b-', linewidth=2, label='DRT gamma(tau)', alpha=0.7)
+        # GMM components below are scaled by R_estimate [Ohm], so this panel
+        # must plot the unnormalized gamma even when ax1 shows gamma/R_pol.
+        gamma_ohm = gamma_original if gamma_original is not None else gamma
+        ax3.semilogx(tau, gamma_ohm, 'b-', linewidth=2, label='DRT gamma(tau)', alpha=0.7)
 
         colors = plt.cm.tab10(np.linspace(0, 1, len(peaks_result)))
         for i, peak in enumerate(peaks_result):
