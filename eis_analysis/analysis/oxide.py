@@ -14,7 +14,12 @@ from numpy.typing import NDArray
 from ..fitting.circuit import FitResult
 from ..fitting.circuit_elements import R, C, Q, K
 from ..fitting.circuit_builder import Series, Parallel
-from .config import EPSILON_0
+from .config import (
+    EPSILON_0,
+    CPE_N_RELIABLE_MIN,
+    HF_ESTIMATE_DECADE_FACTOR,
+    HF_C_SPREAD_MAX_RATIO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +186,16 @@ def _extract_capacitance(
             logger.warning("Falling back to high-frequency estimate...")
             fit_result = None
         else:
-            logger.info(f"Found {len(elements)} capacitive element(s)")
+            # List all candidates so the dominant-element choice can be
+            # verified (largest R may also be a charge-transfer process)
+            logger.info(f"Found {len(elements)} capacitive element(s):")
+            for i, e in enumerate(elements, 1):
+                if e['type'] == 'Q':
+                    logger.info(f"  [{i}] Q: R = {e['R']:.1f} Ω, "
+                                f"Q = {e['Q']:.3e}, n = {e['n']:.3f}")
+                else:
+                    logger.info(f"  [{i}] {e['type']}: R = {e['R']:.1f} Ω, "
+                                f"C = {e['C']:.3e} F, tau = {e['tau']:.2e} s")
 
             # Find element with largest R (dominant barrier = compact oxide)
             elements_with_R = [e for e in elements if e.get('R') is not None and e['R'] > 0]
@@ -193,12 +207,20 @@ def _extract_capacitance(
                 dominant = max(elements_with_R, key=lambda e: e['R'])
 
                 logger.info(f"Dominant element: {dominant['type']} with R = {dominant['R']:.1f} Ω")
+                logger.info("Selection assumes the largest-R element is the compact "
+                            "oxide barrier (verify: a charge-transfer process can "
+                            "also have the largest R)")
 
                 # Get capacitance
                 if dominant['type'] in ('C', 'K'):
                     C_eff = dominant['C']
                     tau = dominant['tau']
                 else:  # Q
+                    if dominant['n'] < CPE_N_RELIABLE_MIN:
+                        logger.warning(
+                            f"CPE exponent n = {dominant['n']:.3f} < "
+                            f"{CPE_N_RELIABLE_MIN}: effective capacitance is not "
+                            "well-defined; thickness estimate may be unreliable")
                     C_eff = _estimate_cpe_capacitance(
                         dominant['Q'], dominant['n'], dominant['R'],
                         frequencies, Z
@@ -231,21 +253,45 @@ def _extract_capacitance(
     # === Mode 2: Fallback - high-frequency estimate ===
     logger.info("Mode: High-frequency estimate (simplified)")
     logger.warning("For better accuracy, provide fitted circuit via fit_result")
+    logger.warning("For multilayer (series) systems the high-frequency estimate "
+                   "yields the series combination of layer capacitances")
 
-    # Estimate C from imaginary impedance at highest frequency
-    # C = -1 / (ω × Z_imag)
+    # Estimate C from imaginary impedance, C = -1 / (ω × Z''), as the
+    # median over capacitive points in the top frequency decade
     high_freq_idx = np.argmax(frequencies)
-    omega_hf = 2 * np.pi * frequencies[high_freq_idx]
-    Z_imag_hf = Z[high_freq_idx].imag
+    f_max = frequencies[high_freq_idx]
+    decade_mask = frequencies >= f_max / HF_ESTIMATE_DECADE_FACTOR
+    capacitive_mask = decade_mask & (Z.imag < -1e-10)
 
-    if abs(Z_imag_hf) < 1e-10:
-        logger.error("Imaginary impedance too small at high frequency")
-        return None
+    if np.any(capacitive_mask):
+        omega = 2 * np.pi * frequencies[capacitive_mask]
+        C_values = -1 / (omega * Z.imag[capacitive_mask])
+        C_estimate = float(np.median(C_values))
+        logger.info(f"  Median over {C_values.size} point(s) in the top frequency decade")
 
-    if Z_imag_hf > 0:
-        logger.warning("Positive imaginary impedance (inductive) - result may be invalid")
+        # C_i is frequency-independent only when the capacitance dominates
+        # (ωRC ≫ 1); a large spread means that assumption does not hold
+        spread = float(np.max(C_values) / np.min(C_values))
+        if spread > HF_C_SPREAD_MAX_RATIO:
+            logger.warning(
+                f"C estimates vary by factor {spread:.2f} across the top "
+                f"frequency decade (ωRC ≫ 1 may not hold); "
+                "estimate may be unreliable")
+    else:
+        # No capacitive point in the top decade: fall back to the single
+        # highest-frequency point (original pre-0.16.16 behavior)
+        Z_imag_hf = Z[high_freq_idx].imag
 
-    C_estimate = -1 / (omega_hf * Z_imag_hf)
+        if abs(Z_imag_hf) < 1e-10:
+            logger.error("Imaginary impedance too small at high frequency")
+            return None
+
+        if Z_imag_hf > 0:
+            logger.warning("Positive imaginary impedance (inductive) - result may be invalid")
+
+        omega_hf = 2 * np.pi * f_max
+        C_estimate = -1 / (omega_hf * Z_imag_hf)
+
     C_specific = C_estimate / area_cm2
 
     logger.info(f"  Capacitance:        {C_estimate:.3e} F")

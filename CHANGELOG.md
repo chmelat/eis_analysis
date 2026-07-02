@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.16 (2026-07-02)
+
+### Fixed (oxide audit 2026-07-02, finding O3)
+
+- **Silent assumptions in oxide analysis are now visible in the log**
+  (`analysis/oxide.py`, thresholds documented in `analysis/config.py`):
+  - All candidate capacitive elements (type, R, C/Q, tau) are listed, and
+    the selection assumption ("largest R = compact oxide barrier") is
+    stated explicitly so the choice can be verified against a
+    charge-transfer interpretation.
+  - A warning is logged when the dominant element is a CPE with n < 0.8
+    (`CPE_N_RELIABLE_MIN`), where a single effective capacitance is not
+    well-defined and the thickness estimate may be unreliable.
+- **High-frequency fallback (no fitted circuit) is more robust**: the
+  capacitance is now the median of `C_i = -1/(omega*Z'')` over the
+  capacitive points in the top frequency decade (`HF_ESTIMATE_DECADE_FACTOR`)
+  instead of the single highest-frequency point. **Numeric change:** Mode 2
+  results can differ slightly from <= 0.16.15 (fitted-circuit results are
+  unchanged). New warnings: the fallback always notes that multilayer
+  (series) systems yield the series combination of layer capacitances, and
+  it warns when the per-point estimates spread by more than max/min = 1.2
+  (`HF_C_SPREAD_MAX_RATIO`) across the decade — i.e. `omega*R*C >> 1` does
+  not hold and the estimate is unreliable. (A phase-angle check was
+  considered and rejected: the phase at the highest frequency is dominated
+  by the series resistance and flags data where the estimate is in fact
+  exact.) If no capacitive point exists in the top decade, the previous
+  single-point behavior is preserved.
+  - Regression tests added to `tests/test_oxide.py` (candidate listing,
+    n-warning on/off, median accuracy, spread warning on/off, series note,
+    inductive-data edge case).
+
+---
+
 ## Version 0.16.15 (2026-07-02)
 
 ### Fixed (oxide audit 2026-07-02, finding O2)

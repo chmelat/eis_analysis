@@ -1,8 +1,11 @@
 """
 Tests for oxide layer analysis (analysis/oxide.py).
 
-Regression tests for audit finding O2 (2026-07-02): estimate_permittivity()
-must not log a bogus "Oxide thickness" computed from a dummy epsilon_r.
+Regression tests for audit findings (2026-07-02):
+- O2: estimate_permittivity() must not log a bogus "Oxide thickness"
+  computed from a dummy epsilon_r.
+- O3: silent assumptions must be visible (candidate listing, CPE n warning,
+  high-frequency fallback checks and median estimate).
 """
 
 import logging
@@ -12,7 +15,7 @@ import numpy as np
 from eis_analysis.analysis.config import EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.fitting.circuit import FitResult
-from eis_analysis.fitting.circuit_elements import C, R
+from eis_analysis.fitting.circuit_elements import C, Q, R
 
 OXIDE_LOGGER = 'eis_analysis.analysis.oxide'
 
@@ -90,3 +93,138 @@ def test_permittivity_thickness_roundtrip():
     )
 
     assert abs(eps_r - 22.0) / 22.0 < 1e-9
+
+
+# --- Audit O3: candidate listing and selection assumption ---
+
+def _fit_result_two_voigts():
+    """Two Voigt elements; the second (R=5000) is the dominant barrier."""
+    circuit = R(R_S) - (R(1000.0) | C(1e-5)) - (R(R_P) | C(C_P))
+    params = np.array([R_S, 1000.0, 1e-5, R_P, C_P])
+    return FitResult(
+        circuit=circuit,
+        params_opt=params,
+        params_stderr=np.zeros_like(params),
+        fit_error_rel=0.1,
+    )
+
+
+def test_candidates_listed_and_assumption_noted(caplog):
+    """Regression (audit O3): all candidates logged, selection assumption stated."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.INFO, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(
+            freq, Z, epsilon_r=22.0, fit_result=_fit_result_two_voigts()
+        )
+
+    assert oxide is not None
+    assert oxide.element_R == R_P  # larger R wins
+    assert '[1] C: R = 1000.0' in caplog.text
+    assert '[2] C: R = 5000.0' in caplog.text
+    assert 'Selection assumes the largest-R element' in caplog.text
+
+
+# --- Audit O3: CPE exponent warning ---
+
+def _fit_result_voigt_q(n):
+    circuit = R(R_S) - (R(R_P) | Q(2e-6, n))
+    params = np.array([R_S, R_P, 2e-6, n])
+    return FitResult(
+        circuit=circuit,
+        params_opt=params,
+        params_stderr=np.zeros_like(params),
+        fit_error_rel=0.1,
+    )
+
+
+def test_cpe_low_n_warns(caplog):
+    """Regression (audit O3): n < 0.8 -> C_eff not well-defined warning."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(
+            freq, Z, epsilon_r=22.0, fit_result=_fit_result_voigt_q(0.7)
+        )
+
+    assert oxide is not None
+    assert 'not well-defined' in caplog.text
+
+
+def test_cpe_high_n_no_warning(caplog):
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(
+            freq, Z, epsilon_r=22.0, fit_result=_fit_result_voigt_q(0.9)
+        )
+
+    assert oxide is not None
+    assert 'not well-defined' not in caplog.text
+
+
+# --- Audit O3: high-frequency fallback (Mode 2) ---
+
+def test_hf_fallback_median_estimate():
+    """Fallback C is the median over the top frequency decade, close to C_P."""
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert oxide is not None
+    assert oxide.element_type == 'estimate'
+    # omega*R_P*C_P >= ~314 in the top decade, so C_i ~ C_P within ~1e-5
+    assert abs(oxide.capacitance - C_P) / C_P < 1e-3
+
+
+def test_hf_fallback_series_combination_warning(caplog):
+    """Regression (audit O3): fallback warns about series capacitance combination."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert 'series combination' in caplog.text
+
+
+def test_hf_fallback_spread_warning(caplog):
+    """Regression (audit O3): warn when omega*R*C >> 1 does not hold in the decade.
+
+    R_P*C = 5e-6 s puts the characteristic frequency (~32 kHz) inside the
+    top decade, so C_i = -1/(omega*Z'') drifts by ~10x across it.
+    """
+    freq = np.logspace(5, -2, 50)
+    omega = 2 * np.pi * freq
+    Z = R_S + R_P / (1 + 1j * omega * R_P * 1e-9)
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert oxide is not None
+    assert 'may not hold' in caplog.text
+
+
+def test_hf_fallback_settled_estimate_no_spread_warning(caplog):
+    """Series R does not invalidate C = -1/(omega*Z'') -> no spread warning."""
+    freq = np.logspace(5, -2, 50)
+    omega = 2 * np.pi * freq
+    # Series R-C: C_i is exact at every frequency despite resistive phase
+    Z = 1000.0 - 1j / (omega * 1e-6)
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert abs(oxide.capacitance - 1e-6) / 1e-6 < 1e-9
+    assert 'may not hold' not in caplog.text
+
+
+def test_hf_fallback_inductive_data(caplog):
+    """No capacitive point in the top decade -> single-point path with warning."""
+    freq = np.logspace(5, -2, 50)
+    omega = 2 * np.pi * freq
+    Z = 100.0 + 1j * omega * 1e-6  # inductive everywhere
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert oxide is not None  # pre-0.16.16 behavior preserved
+    assert 'inductive' in caplog.text

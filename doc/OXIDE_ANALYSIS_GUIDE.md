@@ -159,6 +159,11 @@ Selects element with **largest resistance R**.
 - Other processes (double layer, pores) have smaller R
 - Largest R typically corresponds to compact oxide layer
 
+All candidate elements (type, R, C/Q, tau) are listed in the log together
+with the stated selection assumption, so the choice can be verified.
+**Caution:** a charge-transfer process can also have the largest R -
+always check that the selected element represents the oxide.
+
 ### 3. Capacitance Extraction
 
 **For C or K elements:**
@@ -185,6 +190,21 @@ where:
   C_specific = C / area [F/cm^2]
   d in cm, converted to nm (* 1e7)
 ```
+
+### 5. Fallback Without a Fitted Circuit (Mode 2)
+
+Without `fit_result`, capacitance is estimated as the **median** of
+`C_i = -1 / (omega * Z'')` over the capacitive points in the top frequency
+decade (`f >= f_max / 10`). Warnings are logged:
+
+- always: for multilayer (series) systems the estimate yields the *series
+  combination* of layer capacitances;
+- when the per-point estimates spread by more than max/min = 1.2 across
+  the decade - the assumption `omega*R*C >> 1` then does not hold within
+  the decade and the estimate is unreliable.
+
+If no capacitive point exists in the top decade, the single
+highest-frequency point is used (pre-0.16.16 behavior).
 
 ---
 
@@ -265,6 +285,7 @@ print(f"tau: {oxide.element_tau:.2e} s")
 
 ```python
 # Without fitted circuit - uses high-frequency estimate
+# (median over the top frequency decade, see "How It Works" section 5)
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22)
 print(f"Type: {oxide.element_type}")  # 'estimate'
 # Less accurate, use only for quick checks
@@ -383,6 +404,11 @@ formula, `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)`, corresponds to a
 resistance Rs. For n around 0.8 the two can differ by tens of percent,
 which propagates directly into the thickness estimate. This toolkit
 deliberately uses the 3D (Hsu-Mansfeld) model.
+
+A warning is logged when the dominant element has n < 0.8: the
+distribution of time constants is then too broad for a single effective
+capacitance to be well-defined, and the thickness estimate may be
+unreliable.
 
 **Reference:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
 cf. Brug et al., J. Electroanal. Chem. 176, 275 (1984)
