@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.13 (2026-07-02)
+
+### Changed (audit 2026-07-02, cleanup findings 2.4-2.6)
+
+- **Removed dead code from `fitting/diagnostics.py`** (finding 2.4):
+  `check_parameter_diagnostics` and `log_fit_results` were never called
+  anywhere in the package or tests; the latter was a stale duplicate of
+  `_log_fit_result` in `cli/handlers/fitting.py` (which additionally handles
+  bound status and CI suppression). No public API impact (neither was
+  exported from `fitting/__init__.py`).
+- **Fit quality log line shows the correct threshold per tier**
+  (`cli/handlers/fitting.py`, finding 2.5): the line printed "(<10.0%)" for
+  every tier including Excellent; it now shows the bound matching the tiers
+  in `compute_fit_metrics` (<1.0% / <10.0% / <20.0% / >=20.0%), driven by the
+  config constants.
+- **Covariance warnings no longer overwrite each other**
+  (`fitting/covariance.py`, finding 2.5): the "Negative variance" message is
+  appended to an earlier ill-conditioned warning instead of replacing it.
+  Also removed a dead `diag_cov = np.abs(diag_cov)` assignment (stderr
+  already applies abs).
+- **Unknown weighting string now logs a warning** (`fitting/diagnostics.py`,
+  finding 2.5): `compute_weights` fell back to uniform weights silently;
+  relevant for Python API callers (the CLI restricts choices in the parser).
+- **Documented the BIC gap behavior in GMM early stopping** (`drt/peaks.py`,
+  finding 2.5): when a middle n fails, improvement is compared across the gap
+  between valid models with the same threshold (a deliberate simplification).
+- **mypy: `drt/` package is clean again** (`drt/plotting.py`, finding 2.6):
+  replaced `plt.cm.tab10` (attr-defined error, regression since the v0.13.17
+  cleanup; the code moved from `core.py` to `plotting.py` in the v0.16.8
+  split) with the equivalent `plt.get_cmap('tab10')`.
+
+---
+
 ## Version 0.16.12 (2026-07-02)
 
 ### Fixed (audit 2026-07-02, finding 2.3)

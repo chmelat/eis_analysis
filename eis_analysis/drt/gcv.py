@@ -56,7 +56,7 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
 
     # Reziduum původního problému (bez regularizace)
     residual = b - A @ x
-    residual_norm_sq = np.sum(residual**2)
+    residual_norm_sq = float(np.sum(residual**2))
 
     # Výpočet trace(I - K) pomocí přímé inverze
     # K = A @ inv(A^T @ A + λ·L^T·L) @ A^T

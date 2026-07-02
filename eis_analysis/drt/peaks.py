@@ -215,7 +215,10 @@ def gmm_peak_detection(
     # Seřaď podle indexu (počtu komponent)
     valid_bic_sorted = sorted(valid_bic, key=lambda x: x[0])
 
-    # Early stopping: začni s nejmenším n, přidávej dokud zlepšení > threshold
+    # Early stopping: začni s nejmenším n, přidávej dokud zlepšení > threshold.
+    # Pozn.: selže-li fit pro některé prostřední n (BIC = inf), porovnává se
+    # zlepšení mezi sousedními *validními* modely (tj. přes díru, např. n-1 vs.
+    # n+1) se stejným prahem — vědomé zjednodušení.
     best_idx = valid_bic_sorted[0][0]  # Začni s prvním validním modelem
 
     logger.info(f"BIC threshold pro přidání komponenty: {bic_threshold:.1f}")

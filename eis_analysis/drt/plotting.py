@@ -77,7 +77,7 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
         gamma_ohm = gamma_original if gamma_original is not None else gamma
         ax3.semilogx(tau, gamma_ohm, 'b-', linewidth=2, label='DRT gamma(tau)', alpha=0.7)
 
-        colors = plt.cm.tab10(np.linspace(0, 1, len(peaks_result)))
+        colors = plt.get_cmap('tab10')(np.linspace(0, 1, len(peaks_result)))
         for i, peak in enumerate(peaks_result):
             mu = np.log10(peak['tau_center'])
             sigma = peak['log_tau_std']

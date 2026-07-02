@@ -200,11 +200,13 @@ def compute_covariance_matrix(
         # Covariance matrix for free parameters
         cov_free = residual_variance * JtJ_inv_free
 
-        # Check for negative diagonal
-        diag_cov = np.diag(cov_free)
-        if np.any(diag_cov < 0):
-            warning_message = "Negative variance detected. Using absolute values."
-            diag_cov = np.abs(diag_cov)
+        # Check for negative diagonal (numerical artifact; the stderr below
+        # already uses abs). Append rather than assign so an earlier
+        # ill-conditioned warning is not silently overwritten.
+        if np.any(np.diag(cov_free) < 0):
+            neg_msg = "Negative variance detected. Using absolute values."
+            warning_message = (f"{warning_message} {neg_msg}"
+                               if warning_message else neg_msg)
 
         # Expand to full parameter space (including fixed parameters)
         if fixed_params is not None and any(fixed_params):

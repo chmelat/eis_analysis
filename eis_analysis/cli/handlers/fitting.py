@@ -26,6 +26,7 @@ from ...fitting import (
     DiffEvoResult,
 )
 from ...fitting.diagnostics import compute_fit_metrics
+from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,16 @@ def _log_fit_result(result: FitResult) -> None:
 
     # Fit quality
     logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")
-    logger.info(f"  Quality: {result.quality.capitalize()} (<10.0%)")
+    # Threshold bounds match the tiers in compute_fit_metrics.
+    quality_thresholds = {
+        'excellent': f"<{FIT_QUALITY_EXCELLENT_ERROR:.1f}%",
+        'good': f"<{FIT_QUALITY_GOOD_ERROR:.1f}%",
+        'acceptable': f"<{FIT_QUALITY_GOOD_ERROR * 2:.1f}%",
+        'poor': f">={FIT_QUALITY_GOOD_ERROR * 2:.1f}%",
+    }
+    threshold = quality_thresholds.get(result.quality)
+    logger.info(f"  Quality: {result.quality.capitalize()}"
+                + (f" ({threshold})" if threshold else ""))
 
     # Warnings
     for warning in result.all_warnings:
