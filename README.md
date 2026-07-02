@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.13.3 (2026-01-11)
+**Version:** v0.16.13 (2026-07-02)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -295,7 +295,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 
 ### Circuit fitting
 
-- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K.
+- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K, G.
 - `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 
@@ -450,7 +450,7 @@ If you prefer not to install the package, you can run the script directly:
 ```bash
 pip install numpy scipy matplotlib   # Install dependencies
 python3 eis.py --help                 # Run script directly
-python3 eis data.DTA
+python3 eis.py data.DTA
 ```
 
 ### Option 3: System packages (Debian/Ubuntu)
@@ -486,7 +486,7 @@ Run the test suite with pytest:
 python3 -m pytest tests/           # All tests
 python3 -m pytest tests/ -v        # Verbose output
 python3 -m pytest tests/ -q        # Quiet mode
-python3 -m pytest tests/test_drt.py   # Single file
+python3 -m pytest tests/test_drt_recovery.py   # Single file
 python3 -m pytest tests/ -k "voigt"   # Tests matching pattern
 ```
 
@@ -517,7 +517,6 @@ python3 -m pytest tests/ -k "voigt"   # Tests matching pattern
 | [doc/MULTISTART_OPTIMIZATION.md](doc/MULTISTART_OPTIMIZATION.md) | Multi-start optimization |
 | [doc/NONLINEAR_FIT_ANALYSIS.md](doc/NONLINEAR_FIT_ANALYSIS.md) | Nonlinear optimization overview |
 | [doc/OXIDE_ANALYSIS_GUIDE.md](doc/OXIDE_ANALYSIS_GUIDE.md) | Oxide layer analysis |
-| [doc/CODE_ANALYSIS_REPORT.md](doc/CODE_ANALYSIS_REPORT.md) | Code structure analysis |
 
 ---
 
