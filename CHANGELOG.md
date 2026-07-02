@@ -4,6 +4,27 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.12 (2026-07-02)
+
+### Fixed (audit 2026-07-02, finding 2.3)
+
+- **A failed least_squares refinement in diffevo no longer masquerades as a
+  successful one** (`fitting/diffevo.py`). When refinement raised an
+  exception, `ls_result` was aliased to the DE result, so the equal costs made
+  the selection report `refinement_improved=True`, attributed the DE
+  message/status to the optimizer, and double-counted DE evaluations in
+  `total_evaluations`/`n_function_evals` (via the aliased `nfev`). The failure
+  path is now gated by an explicit `refinement_ran` flag:
+  `refinement_improved=False`, `optimizer_message='DE only (refinement
+  failed)'`, `optimizer_status=-1`, and evaluation counts include only the DE
+  run. Fitted parameters, covariance, and the existing "Refinement failed"
+  warning are unchanged. Also removed a redundant duplicate
+  `compute_fit_metrics` evaluation in the selection branches.
+  - Regression test `test_refinement_failure_reported_honestly` in
+    `tests/test_diffevo.py`.
+
+---
+
 ## Version 0.16.11 (2026-07-02)
 
 ### Fixed (audit 2026-07-02, finding 2.2)

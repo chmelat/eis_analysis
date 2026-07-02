@@ -313,6 +313,30 @@ def test_refinement_failure_falls_back_with_valid_covariance(monkeypatch):
     assert np.all(np.isfinite(result.best_result.params_stderr))
 
 
+def test_refinement_failure_reported_honestly(monkeypatch):
+    """A failed refinement must not masquerade as a successful one
+    (audit 2026-07-02 finding 2.3): refinement_improved stays False, optimizer
+    metadata is not misattributed to least_squares, and DE evaluations are not
+    double-counted via the aliased ls_result."""
+    def boom(*args, **kwargs):
+        raise RuntimeError("forced refinement failure")
+
+    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
+    Z = true_impedance()
+    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
+    plt.close('all')
+
+    diag = result.diagnostics
+    assert diag.refinement_improved is False
+    assert diag.total_evaluations == diag.de_evaluations
+    assert result.n_evaluations == diag.de_evaluations
+
+    fit_diag = result.best_result.diagnostics
+    assert fit_diag.optimizer_message == 'DE only (refinement failed)'
+    assert fit_diag.optimizer_status == -1
+    assert fit_diag.n_function_evals == diag.de_evaluations
+
+
 def test_covariance_computed_at_returned_point():
     """Reported covariance matches s^2 (J^T J)^-1 with J and residuals both
     evaluated at the returned parameters."""

@@ -310,6 +310,7 @@ def fit_circuit_diffevo(
         jac_func = '2-point'
         jacobian_type = 'numeric'
 
+    refinement_ran = True
     try:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always", OptimizeWarning)
@@ -328,9 +329,9 @@ def fit_circuit_diffevo(
                 max_nfev=5000,
             )
     except Exception as e:
+        refinement_ran = False
         diag_warnings.append(f"Refinement failed: {e}, using DE result")
         ls_result = de_result
-        ls_result.x = de_result.x
 
     # Reconstruct full params
     ls_params_free = np.array(ls_result.x)
@@ -349,20 +350,21 @@ def fit_circuit_diffevo(
 
     improvement = (de_cost - ls_cost) / de_cost * 100 if de_cost > 0 else 0
 
-    # Choose better result
-    if ls_cost <= de_cost:
+    # Choose better result. A failed refinement must not masquerade as a
+    # successful one: ls_result then aliases de_result (equal costs), so gate
+    # on refinement_ran as well (audit 2026-07-02 finding 2.3).
+    if refinement_ran and ls_cost <= de_cost:
         params_opt_free = ls_params_free
         params_opt = ls_params_full
         Z_fit = Z_fit_ls
-        fit_error_rel = ls_error_rel
         used_refinement = True
     else:
         params_opt_free = np.array(de_result.x)
         params_opt = np.array(de_params_full)
         Z_fit = Z_fit_de
-        fit_error_rel = de_error_rel
         used_refinement = False
-        diag_warnings.append("Refinement worsened fit, using DE result")
+        if refinement_ran:
+            diag_warnings.append("Refinement worsened fit, using DE result")
 
     fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
 
@@ -417,11 +419,14 @@ def fit_circuit_diffevo(
         param_labels_indexed = None
 
     # Build FitDiagnostics
+    # Optimizer metadata belongs to least_squares only when it actually ran;
+    # on failure ls_result aliases de_result, whose message/nfev would be
+    # misattributed (and DE evaluations double-counted).
     fit_diagnostics = FitDiagnostics(
-        optimizer_status=ls_result.status if hasattr(ls_result, 'status') else -1,
-        optimizer_message=ls_result.message if hasattr(ls_result, 'message') else 'DE only',
-        optimizer_success=ls_result.success if hasattr(ls_result, 'success') else de_result.success,
-        n_function_evals=de_result.nfev + (ls_result.nfev if hasattr(ls_result, 'nfev') else 0),
+        optimizer_status=ls_result.status if refinement_ran else -1,
+        optimizer_message=ls_result.message if refinement_ran else 'DE only (refinement failed)',
+        optimizer_success=ls_result.success if refinement_ran else de_result.success,
+        n_function_evals=de_result.nfev + (ls_result.nfev if refinement_ran else 0),
         jacobian_type=jacobian_type,
         condition_number=condition_number,
         covariance_rank=cov_result.rank if cov_result else 0,
@@ -474,7 +479,7 @@ def fit_circuit_diffevo(
         de_cost=de_cost,
         refined_cost=ls_cost,
         refinement_improved=used_refinement,
-        total_evaluations=de_result.nfev + (ls_result.nfev if hasattr(ls_result, 'nfev') else 0),
+        total_evaluations=de_result.nfev + (ls_result.nfev if refinement_ran else 0),
         n_fixed_params=len(fixed_param_indices),
         fixed_param_indices=fixed_param_indices,
         initial_guess=list(initial_guess_full),
