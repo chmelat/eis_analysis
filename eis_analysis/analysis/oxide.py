@@ -148,6 +148,119 @@ def _estimate_cpe_capacitance(
     return C_eff
 
 
+def _extract_capacitance(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complex128],
+    area_cm2: float,
+    fit_result: Optional[FitResult]
+) -> Optional[Dict[str, Any]]:
+    """
+    Extract effective capacitance of the dominant capacitive element.
+
+    Shared core of analyze_oxide_layer() and estimate_permittivity():
+    element selection, capacitance estimation, and related logging.
+    Deliberately does NOT compute or log thickness — each caller logs
+    only the quantity it actually derives from the capacitance.
+
+    Returns
+    -------
+    extracted : dict or None
+        Keys: 'C_eff' [F], 'C_specific' [F/cm²], 'element_type',
+        'element_R', 'element_tau', 'element_params'.
+        None if capacitance could not be extracted.
+    """
+    # === Mode 1: From fitted circuit (preferred) ===
+    if fit_result is not None:
+        circuit = fit_result.circuit
+
+        # Find all parallel R-C/Q combinations and K elements
+        elements = _find_parallel_rc_elements(circuit)
+
+        if not elements:
+            logger.warning("No Voigt (R||C), K, or R||Q elements found in circuit")
+            logger.warning("Falling back to high-frequency estimate...")
+            fit_result = None
+        else:
+            logger.info(f"Found {len(elements)} capacitive element(s)")
+
+            # Find element with largest R (dominant barrier = compact oxide)
+            elements_with_R = [e for e in elements if e.get('R') is not None and e['R'] > 0]
+
+            if not elements_with_R:
+                logger.warning("No elements with valid resistance found")
+                fit_result = None
+            else:
+                dominant = max(elements_with_R, key=lambda e: e['R'])
+
+                logger.info(f"Dominant element: {dominant['type']} with R = {dominant['R']:.1f} Ω")
+
+                # Get capacitance
+                if dominant['type'] in ('C', 'K'):
+                    C_eff = dominant['C']
+                    tau = dominant['tau']
+                else:  # Q
+                    C_eff = _estimate_cpe_capacitance(
+                        dominant['Q'], dominant['n'], dominant['R'],
+                        frequencies, Z
+                    )
+                    # Estimate tau from R and C_eff
+                    tau = dominant['R'] * C_eff
+                    dominant['tau'] = tau
+
+                C_specific = C_eff / area_cm2
+
+                # Log element info (thickness/permittivity logged by caller)
+                logger.info("")
+                logger.info("Results:")
+                logger.info(f"  Element type:       {dominant['type']}")
+                logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
+                logger.info(f"  Capacitance:        {C_eff:.3e} F")
+                logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
+                logger.info(f"  Time constant:      {tau:.3e} s")
+                logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
+
+                return {
+                    'C_eff': C_eff,
+                    'C_specific': C_specific,
+                    'element_type': dominant['type'],
+                    'element_R': dominant['R'],
+                    'element_tau': tau,
+                    'element_params': dominant
+                }
+
+    # === Mode 2: Fallback - high-frequency estimate ===
+    logger.info("Mode: High-frequency estimate (simplified)")
+    logger.warning("For better accuracy, provide fitted circuit via fit_result")
+
+    # Estimate C from imaginary impedance at highest frequency
+    # C = -1 / (ω × Z_imag)
+    high_freq_idx = np.argmax(frequencies)
+    omega_hf = 2 * np.pi * frequencies[high_freq_idx]
+    Z_imag_hf = Z[high_freq_idx].imag
+
+    if abs(Z_imag_hf) < 1e-10:
+        logger.error("Imaginary impedance too small at high frequency")
+        return None
+
+    if Z_imag_hf > 0:
+        logger.warning("Positive imaginary impedance (inductive) - result may be invalid")
+
+    C_estimate = -1 / (omega_hf * Z_imag_hf)
+    C_specific = C_estimate / area_cm2
+
+    logger.info(f"  Capacitance:        {C_estimate:.3e} F")
+    logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
+
+    return {
+        'C_eff': C_estimate,
+        'C_specific': C_specific,
+        'element_type': 'estimate',
+        'element_R': None,
+        'element_tau': None,
+        'element_params': {}
+    }
+
+
 def analyze_oxide_layer(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
@@ -200,108 +313,27 @@ def analyze_oxide_layer(
     logger.info("Oxide layer analysis")
     logger.info("=" * 50)
 
-    # === Mode 1: From fitted circuit (preferred) ===
-    if fit_result is not None:
-        circuit = fit_result.circuit
-
-        # Find all parallel R-C/Q combinations and K elements
-        elements = _find_parallel_rc_elements(circuit)
-
-        if not elements:
-            logger.warning("No Voigt (R||C), K, or R||Q elements found in circuit")
-            logger.warning("Falling back to high-frequency estimate...")
-            fit_result = None
-        else:
-            logger.info(f"Found {len(elements)} capacitive element(s)")
-
-            # Find element with largest R (dominant barrier = compact oxide)
-            elements_with_R = [e for e in elements if e.get('R') is not None and e['R'] > 0]
-
-            if not elements_with_R:
-                logger.warning("No elements with valid resistance found")
-                fit_result = None
-            else:
-                dominant = max(elements_with_R, key=lambda e: e['R'])
-
-                logger.info(f"Dominant element: {dominant['type']} with R = {dominant['R']:.1f} Ω")
-
-                # Get capacitance
-                if dominant['type'] in ('C', 'K'):
-                    C_eff = dominant['C']
-                    tau = dominant['tau']
-                else:  # Q
-                    C_eff = _estimate_cpe_capacitance(
-                        dominant['Q'], dominant['n'], dominant['R'],
-                        frequencies, Z
-                    )
-                    # Estimate tau from R and C_eff
-                    tau = dominant['R'] * C_eff
-                    dominant['tau'] = tau
-
-                # Calculate thickness
-                C_specific = C_eff / area_cm2
-                d_cm = EPSILON_0 * epsilon_r / C_specific
-                d_nm = d_cm * 1e7
-
-                # Log results
-                logger.info("")
-                logger.info("Results:")
-                logger.info(f"  Element type:       {dominant['type']}")
-                logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
-                logger.info(f"  Capacitance:        {C_eff:.3e} F")
-                logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
-                logger.info(f"  Time constant:      {tau:.3e} s")
-                logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
-                logger.info(f"  Oxide thickness:    {d_nm:.1f} nm")
-                logger.info(f"  (assuming ε_r={epsilon_r}, area={area_cm2} cm²)")
-                logger.info("=" * 50)
-
-                return OxideAnalysisResult(
-                    capacitance=C_eff,
-                    capacitance_specific=C_specific,
-                    thickness_nm=d_nm,
-                    element_type=dominant['type'],
-                    element_R=dominant['R'],
-                    element_tau=tau,
-                    element_params=dominant
-                )
-
-    # === Mode 2: Fallback - high-frequency estimate ===
-    logger.info("Mode: High-frequency estimate (simplified)")
-    logger.warning("For better accuracy, provide fitted circuit via fit_result")
-
-    # Estimate C from imaginary impedance at highest frequency
-    # C = -1 / (ω × Z_imag)
-    high_freq_idx = np.argmax(frequencies)
-    omega_hf = 2 * np.pi * frequencies[high_freq_idx]
-    Z_imag_hf = Z[high_freq_idx].imag
-
-    if abs(Z_imag_hf) < 1e-10:
-        logger.error("Imaginary impedance too small at high frequency")
+    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result)
+    if extracted is None:
         return None
 
-    if Z_imag_hf > 0:
-        logger.warning("Positive imaginary impedance (inductive) - result may be invalid")
-
-    C_estimate = -1 / (omega_hf * Z_imag_hf)
-    C_specific = C_estimate / area_cm2
+    # Calculate thickness (parallel plate capacitor model)
+    C_specific = extracted['C_specific']
     d_cm = EPSILON_0 * epsilon_r / C_specific
     d_nm = d_cm * 1e7
 
-    logger.info(f"  Capacitance:        {C_estimate:.3e} F")
-    logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
     logger.info(f"  Oxide thickness:    {d_nm:.1f} nm")
     logger.info(f"  (assuming ε_r={epsilon_r}, area={area_cm2} cm²)")
     logger.info("=" * 50)
 
     return OxideAnalysisResult(
-        capacitance=C_estimate,
+        capacitance=extracted['C_eff'],
         capacitance_specific=C_specific,
         thickness_nm=d_nm,
-        element_type='estimate',
-        element_R=None,
-        element_tau=None,
-        element_params={}
+        element_type=extracted['element_type'],
+        element_R=extracted['element_R'],
+        element_tau=extracted['element_tau'],
+        element_params=extracted['element_params']
     )
 
 
@@ -351,30 +383,21 @@ def estimate_permittivity(
     logger.info("Permittivity estimation from known thickness")
     logger.info("=" * 50)
 
-    # Get capacitance using same logic as analyze_oxide_layer
-    # but with dummy epsilon_r (we'll calculate the real one)
-    oxide_result = analyze_oxide_layer(
-        frequencies, Z,
-        epsilon_r=1.0,  # dummy value
-        area_cm2=area_cm2,
-        fit_result=fit_result
-    )
+    # Get capacitance using the same element-selection logic as
+    # analyze_oxide_layer (no thickness is computed or logged here)
+    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result)
 
-    if oxide_result is None:
+    if extracted is None:
         logger.error("Could not extract capacitance from data")
         return None
 
     # Calculate permittivity from thickness and capacitance
     # d = ε₀ × εᵣ / C_specific  =>  εᵣ = d × C_specific / ε₀
     d_cm = thickness_nm * 1e-7  # nm -> cm
-    C_specific = oxide_result.capacitance_specific
+    C_specific = extracted['C_specific']
     epsilon_r = d_cm * C_specific / EPSILON_0
 
-    logger.info("")
-    logger.info("Results:")
     logger.info(f"  Known thickness:    {thickness_nm:.1f} nm")
-    logger.info(f"  Capacitance:        {oxide_result.capacitance:.3e} F")
-    logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
     logger.info(f"  Permittivity ε_r:   {epsilon_r:.1f}")
     logger.info(f"  (area={area_cm2} cm²)")
     logger.info("=" * 50)

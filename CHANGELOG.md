@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.15 (2026-07-02)
+
+### Fixed (oxide audit 2026-07-02, finding O2)
+
+- **`estimate_permittivity` no longer logs a bogus oxide thickness**
+  (`analysis/oxide.py`). It previously reused `analyze_oxide_layer` with a
+  dummy `epsilon_r=1.0` to extract the capacitance, so the log contained a
+  full analysis block including a meaningless "Oxide thickness" line (and a
+  misleading "Oxide layer analysis" header). The shared element-selection
+  and capacitance-extraction logic now lives in a private helper
+  `_extract_capacitance()`; each public function logs only the quantity it
+  actually derives (thickness resp. permittivity). Computed values are
+  unchanged for both functions; `analyze_oxide_layer` log output is
+  unchanged.
+  - Regression tests in new `tests/test_oxide.py` (no thickness line in the
+    permittivity log for both the fitted-circuit and the high-frequency
+    fallback path, plus thickness/permittivity roundtrip consistency).
+
+---
+
 ## Version 0.16.14 (2026-07-02)
 
 ### Fixed (oxide audit 2026-07-02, finding O1)
