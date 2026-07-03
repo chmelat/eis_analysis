@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.18 (2026-07-03)
+
+### Fixed (fitting diagnostics audit 2026-07-03, findings D1, D2, D5)
+
+- **One criterion for "parameter at a bound"** (`fitting/circuit.py`,
+  `fitting/bounds.py`): `FitDiagnostics.bounds_warnings`/`params_at_bounds`
+  used to check "within 1 % of the bound value" while
+  `FitResult.bound_status` (which suppresses CIs in the CLI) used the
+  `classify_bound_status` criterion (1 decade on log scale for wide
+  bounds), so the CLI could tag a parameter "[at lower bound — CI not
+  meaningful]" without any corresponding warning. Both channels are now
+  derived from a single `bound_status` vector built by the new shared
+  helper `build_bound_status()` (also replaces the duplicated block in
+  `fitting/diffevo.py`, whose diagnostics now carry the bounds fields
+  too). **Behavioral change:** bounds warnings fire on the looser,
+  CI-consistent criterion; fit numerics are unchanged.
+- **Warning indices are now in full parameter space with labels**:
+  messages like "Parameter 0 at lower bound" used free-space indices
+  (fixed parameters excluded), so with fixed parameters the number
+  pointed at the wrong parameter. Now:
+  "Parameter n0 = 1.000e+00 near upper bound 1.0e+00".
+  `FitDiagnostics.params_at_bounds` holds full-space indices.
+- **Removed dead `check_bounds_proximity()`** (`fitting/bounds.py`) — a
+  third, never-called implementation of the same check. **Breaking** only
+  for direct API imports of this function; use `build_bound_status()` /
+  `classify_bound_status()` instead.
+- Tests added in `tests/test_bounds_diagnostics.py`: `build_bound_status`
+  unit coverage (log/linear branches, fixed, no bounds), warning/status
+  consistency regression, full-space index regression with a fixed
+  parameter.
+
+---
+
 ## Version 0.16.17 (2026-07-03)
 
 ### Fixed (oxide audit 2026-07-02, finding O4)

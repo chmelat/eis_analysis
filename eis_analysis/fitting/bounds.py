@@ -8,11 +8,8 @@ Author: EIS Analysis Toolkit
 """
 
 import numpy as np
-import logging
 from typing import List, Tuple, Optional
 from numpy.typing import NDArray
-
-logger = logging.getLogger(__name__)
 
 # Physically reasonable ranges for electrochemical systems
 PARAMETER_BOUNDS = {
@@ -111,8 +108,8 @@ def classify_bound_status(
 ) -> str:
     """Return 'lower', 'upper', or '' depending on whether `value` sits at a bound.
 
-    Uses the same threshold as `check_bounds_proximity`: 1 decade on log scale
-    (when bounds span >6 decades) or 1% of the range on linear scale.
+    Threshold: 1 decade on log scale (when bounds span >6 decades) or 1% of
+    the range on linear scale.
     """
     if not (np.isfinite(lower) and np.isfinite(upper)):
         return ''
@@ -136,75 +133,51 @@ def classify_bound_status(
     return ''
 
 
-def check_bounds_proximity(
+def build_bound_status(
     params_opt: NDArray[np.float64],
-    params_opt_free: NDArray[np.float64],
-    lower_bounds: List[float],
-    upper_bounds: List[float],
+    lower_bounds: Optional[List[float]],
+    upper_bounds: Optional[List[float]],
     fixed_params: Optional[List[bool]]
-) -> None:
+) -> List[str]:
     """
-    Check and warn if parameters are near bounds.
+    Build per-parameter bound status for the full parameter vector.
+
+    Single source of truth for the "parameter at a bound" diagnostic:
+    both FitResult.bound_status and FitDiagnostics.bounds_warnings are
+    derived from this vector, so they cannot disagree.
 
     Parameters
     ----------
     params_opt : ndarray
         All optimized parameters (including fixed)
-    params_opt_free : ndarray
-        Only free (optimized) parameters
-    lower_bounds : list of float
-        Lower bounds for free parameters
-    upper_bounds : list of float
-        Upper bounds for free parameters
+    lower_bounds, upper_bounds : list of float or None
+        Bounds in full parameter space; if None, no bound info is
+        available and all statuses are ''
     fixed_params : list of bool or None
-        Which parameters are fixed
+        Which parameters are fixed (True = fixed)
+
+    Returns
+    -------
+    bound_status : list of str
+        For each parameter: '' (interior), 'lower', 'upper'
+        (per `classify_bound_status`), or 'fixed'
     """
-    if lower_bounds is None or upper_bounds is None:
-        return
-
-    near_lower, near_upper = [], []
-
-    if fixed_params is not None and any(fixed_params):
-        free_to_full_idx = [i for i, is_fixed in enumerate(fixed_params) if not is_fixed]
-    else:
-        free_to_full_idx = list(range(len(params_opt)))
-
-    for free_idx in range(len(params_opt_free)):
-        full_idx = free_to_full_idx[free_idx]
-        param_val = params_opt_free[free_idx]
-        lb, ub = lower_bounds[free_idx], upper_bounds[free_idx]
-
-        if lb > 0 and ub / lb > 1e6:
-            # Logarithmic check for wide bounds
-            log_param = np.log10(param_val) if param_val > 0 else -np.inf
-            log_lower, log_upper = np.log10(lb), np.log10(ub)
-            if log_param - log_lower < 1.0:
-                near_lower.append((full_idx, param_val, lb))
-            elif log_upper - log_param < 1.0:
-                near_upper.append((full_idx, param_val, ub))
+    bound_status = []
+    for i, value in enumerate(params_opt):
+        if fixed_params is not None and i < len(fixed_params) and fixed_params[i]:
+            bound_status.append('fixed')
+        elif lower_bounds is not None and upper_bounds is not None:
+            bound_status.append(classify_bound_status(
+                float(value), lower_bounds[i], upper_bounds[i]
+            ))
         else:
-            # Linear check for narrow bounds
-            bound_range = ub - lb
-            if np.isfinite(bound_range):
-                if param_val - lb < 0.01 * bound_range:
-                    near_lower.append((full_idx, param_val, lb))
-                elif ub - param_val < 0.01 * bound_range:
-                    near_upper.append((full_idx, param_val, ub))
-
-    if near_lower or near_upper:
-        logger.warning("=" * 50)
-        logger.warning("WARNING: Some parameters are at or near bounds!")
-        for idx, val, bound in near_lower:
-            logger.warning(f"  Parameter {idx}: {val:.3e} near LOWER bound {bound:.3e}")
-        for idx, val, bound in near_upper:
-            logger.warning(f"  Parameter {idx}: {val:.3e} near UPPER bound {bound:.3e}")
-        logger.warning("  Recommendation: Try simpler circuit or extend bounds")
-        logger.warning("=" * 50)
+            bound_status.append('')
+    return bound_status
 
 
 __all__ = [
     'generate_simple_bounds',
-    'check_bounds_proximity',
+    'build_bound_status',
     'classify_bound_status',
     'PARAMETER_BOUNDS',
 ]

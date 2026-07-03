@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
-from .bounds import generate_simple_bounds, classify_bound_status
+from .bounds import generate_simple_bounds, build_bound_status
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
@@ -418,6 +418,25 @@ def fit_circuit_diffevo(
     else:
         param_labels_indexed = None
 
+    # Per-parameter bound status and derived warnings — same contract as
+    # fit_equivalent_circuit (full-space indices, classify_bound_status
+    # criterion, labels when available).
+    bound_status = build_bound_status(
+        params_opt, lower_bounds_full, upper_bounds_full, fixed_params
+    )
+    bounds_warnings = []
+    params_at_bounds = []
+    for i, status in enumerate(bound_status):
+        if status not in ('lower', 'upper'):
+            continue
+        params_at_bounds.append(i)
+        name = param_labels_indexed[i] if param_labels_indexed is not None else str(i)
+        bound_val = lower_bounds_full[i] if status == 'lower' else upper_bounds_full[i]
+        bounds_warnings.append(
+            f"Parameter {name} = {params_opt[i]:.3e} near {status} "
+            f"bound {bound_val:.1e}"
+        )
+
     # Build FitDiagnostics
     # Optimizer metadata belongs to least_squares only when it actually ran;
     # on failure ls_result aliases de_result, whose message/nfev would be
@@ -431,18 +450,10 @@ def fit_circuit_diffevo(
         condition_number=condition_number,
         covariance_rank=cov_result.rank if cov_result else 0,
         covariance_warning=cov_result.warning_message if cov_result else None,
+        params_at_bounds=params_at_bounds,
+        bounds_warnings=bounds_warnings,
         warnings=diag_warnings
     )
-
-    # Per-parameter bound status (full vector, with 'fixed' for fixed params).
-    bound_status = []
-    for i, value in enumerate(params_opt):
-        if fixed_params is not None and i < len(fixed_params) and fixed_params[i]:
-            bound_status.append('fixed')
-        else:
-            bound_status.append(classify_bound_status(
-                float(value), lower_bounds_full[i], upper_bounds_full[i]
-            ))
 
     # Step 5: Create FitResult
     # When cov_result is None, stderr is inf so the CI is +/-inf regardless of dof.

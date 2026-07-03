@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
-from .bounds import generate_simple_bounds, classify_bound_status
+from .bounds import generate_simple_bounds, build_bound_status
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
@@ -55,7 +55,9 @@ class FitDiagnostics:
     covariance_rank: int
     covariance_warning: Optional[str] = None
 
-    # Bounds info
+    # Bounds info. Full-parameter-space indices (fixed params included),
+    # derived from FitResult.bound_status (classify_bound_status criterion) —
+    # the same criterion that suppresses CIs for at-bound parameters.
     params_at_bounds: List[int] = field(default_factory=list)
     bounds_warnings: List[str] = field(default_factory=list)
 
@@ -408,18 +410,26 @@ def fit_equivalent_circuit(
                 if issubclass(warning.category, OptimizeWarning):
                     diag_warnings.append(f"Optimizer warning: {warning.message}")
 
-        # Step 4: Check bounds proximity
+        # Step 4: Check bounds proximity. Single criterion for the whole
+        # result: bound_status (classify_bound_status) drives both the
+        # params_at_bounds/bounds_warnings diagnostics and the per-parameter
+        # tags in FitResult, so the two channels cannot disagree. Indices and
+        # bounds are in full parameter space (fixed params included).
+        bound_status = build_bound_status(
+            params_opt, lower_bounds, upper_bounds, fixed_params
+        )
         bounds_warnings = []
         params_at_bounds = []
-        if bounds_for_opt[0] is not None:
-            # Check which parameters are at bounds (silent check)
-            for i, (p, lb, ub) in enumerate(zip(params_opt_free, bounds_for_opt[0], bounds_for_opt[1])):
-                if abs(p - lb) / max(abs(lb), 1e-10) < 0.01:
-                    params_at_bounds.append(i)
-                    bounds_warnings.append(f"Parameter {i} at lower bound")
-                elif abs(p - ub) / max(abs(ub), 1e-10) < 0.01:
-                    params_at_bounds.append(i)
-                    bounds_warnings.append(f"Parameter {i} at upper bound")
+        for i, status in enumerate(bound_status):
+            if status not in ('lower', 'upper'):
+                continue
+            params_at_bounds.append(i)
+            name = param_labels[i] if param_labels is not None else str(i)
+            bound_val = lower_bounds[i] if status == 'lower' else upper_bounds[i]
+            bounds_warnings.append(
+                f"Parameter {name} = {params_opt[i]:.3e} near {status} "
+                f"bound {bound_val:.1e}"
+            )
 
         # Step 5: Compute covariance matrix
         n_params_total = len(fixed_params) if fixed_params is not None else len(params_opt)
@@ -463,19 +473,7 @@ def fit_equivalent_circuit(
             warnings=diag_warnings
         )
 
-        # Per-parameter bound status (full vector, with 'fixed' for fixed params).
-        bound_status = []
-        for i, value in enumerate(params_opt):
-            if fixed_params is not None and i < len(fixed_params) and fixed_params[i]:
-                bound_status.append('fixed')
-            elif lower_bounds is not None and upper_bounds is not None:
-                bound_status.append(classify_bound_status(
-                    float(value), lower_bounds[i], upper_bounds[i]
-                ))
-            else:
-                bound_status.append('')
-
-        # Step 9: Create result object
+        # Step 9: Create result object (bound_status computed in Step 4)
         result = FitResult(
             circuit=circuit,
             params_opt=params_opt,
