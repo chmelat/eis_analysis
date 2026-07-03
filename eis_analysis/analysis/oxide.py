@@ -44,7 +44,7 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
     """
     results = []
 
-    def traverse(node, parent_is_parallel=False, sibling_R=None):
+    def traverse(node):
         if isinstance(node, Parallel):
             # Check if this parallel contains R with C/Q
             elements = node.elements
@@ -53,8 +53,14 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
 
             for elem in elements:
                 if isinstance(elem, R):
+                    if R_elem is not None:
+                        logger.warning("Multiple R elements in one parallel "
+                                       "combination - using the last one")
                     R_elem = elem
                 elif isinstance(elem, (C, Q)):
+                    if cap_elem is not None:
+                        logger.warning("Multiple C/Q elements in one parallel "
+                                       "combination - using the last one")
                     cap_elem = elem
 
             if R_elem is not None and cap_elem is not None:
@@ -80,16 +86,21 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
 
             # Continue traversing children
             for elem in elements:
-                traverse(elem, parent_is_parallel=True)
+                traverse(elem)
 
         elif isinstance(node, Series):
             for elem in node.elements:
-                traverse(elem, parent_is_parallel=False)
+                traverse(elem)
 
         elif isinstance(node, K):
             # K element directly provides R and tau
             R_val = node.params[0]
             tau_val = node.params[1]
+            if R_val <= 0:
+                # C = tau/R is undefined; a non-positive R would be dropped
+                # by the dominant-element filter anyway
+                logger.warning(f"K element with non-positive R = {R_val:g} Ω - skipping")
+                return
             C_val = tau_val / R_val
             results.append({
                 'type': 'K',
@@ -102,54 +113,23 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
     return results
 
 
-def _estimate_cpe_capacitance(
-    Q: float,
-    n: float,
-    R: Optional[float],
-    frequencies: Optional[NDArray] = None,
-    Z: Optional[NDArray] = None
-) -> float:
+def _estimate_cpe_capacitance(Q_val: float, n: float, R_val: float) -> float:
     """
     Estimate effective capacitance of Q (CPE) element.
 
-    Method 1 (preferred): Hsu-Mansfeld formula when R is known
+    Hsu-Mansfeld formula (requires the parallel resistance R):
         C_eff = (R × Q)^(1/n) / R    (via τ = (R × Q)^(1/n))
 
-        Assumes a normal (3D, through-layer) distribution of time
-        constants — appropriate for oxide layers. For a surface (2D)
-        distribution the Brug (1984) formula would apply instead,
-        which also involves the series resistance:
-        C = Q^(1/n) × (1/Rs + 1/Rct)^((n-1)/n).
+    Assumes a normal (3D, through-layer) distribution of time
+    constants — appropriate for oxide layers. For a surface (2D)
+    distribution the Brug (1984) formula would apply instead,
+    which also involves the series resistance:
+    C = Q^(1/n) × (1/Rs + 1/Rct)^((n-1)/n).
 
-        Reference: Hsu & Mansfeld, Corrosion 57, 747 (2001).
-
-    Method 2 (fallback): From Z'' maximum frequency
-        C_eff = Q × ω_max^(n-1)
-
-    Method 3 (last resort): Simple approximation at 1 kHz
-        C_eff ≈ Q × (2π × 1000)^(n-1)
+    Reference: Hsu & Mansfeld, Corrosion 57, 747 (2001).
     """
-    # Method 1: Hsu-Mansfeld formula (most accurate when R is known;
-    # assumes 3D distribution of time constants — see docstring)
-    if R is not None and R > 0:
-        C_eff = (R * Q) ** (1.0 / n) / R
-        logger.debug(f"Q C_eff (Hsu-Mansfeld): {C_eff:.3e} F")
-        return C_eff
-
-    # Method 2: From Z'' maximum
-    if frequencies is not None and Z is not None:
-        Z_imag = -Z.imag  # -Z'' (positive for capacitive)
-        if np.any(Z_imag > 0):
-            max_idx = np.argmax(Z_imag)
-            omega_max = 2 * np.pi * frequencies[max_idx]
-            C_eff = Q * omega_max ** (n - 1)
-            logger.debug(f"Q C_eff (from Z'' max at {frequencies[max_idx]:.1f} Hz): {C_eff:.3e} F")
-            return C_eff
-
-    # Method 3: Approximation at 1 kHz
-    omega_ref = 2 * np.pi * 1000  # 1 kHz reference
-    C_eff = Q * omega_ref ** (n - 1)
-    logger.debug(f"Q C_eff (1 kHz approx): {C_eff:.3e} F")
+    C_eff = (R_val * Q_val) ** (1.0 / n) / R_val
+    logger.debug(f"Q C_eff (Hsu-Mansfeld): {C_eff:.3e} F")
     return C_eff
 
 
@@ -222,8 +202,7 @@ def _extract_capacitance(
                             f"{CPE_N_RELIABLE_MIN}: effective capacitance is not "
                             "well-defined; thickness estimate may be unreliable")
                     C_eff = _estimate_cpe_capacitance(
-                        dominant['Q'], dominant['n'], dominant['R'],
-                        frequencies, Z
+                        dominant['Q'], dominant['n'], dominant['R']
                     )
                     # Estimate tau from R and C_eff
                     tau = dominant['R'] * C_eff
@@ -247,7 +226,7 @@ def _extract_capacitance(
                     'element_type': dominant['type'],
                     'element_R': dominant['R'],
                     'element_tau': tau,
-                    'element_params': dominant
+                    'element_params': dict(dominant)
                 }
 
     # === Mode 2: Fallback - high-frequency estimate ===
@@ -344,10 +323,9 @@ def analyze_oxide_layer(
     Thickness formula (parallel plate capacitor model):
         d = ε₀ × εᵣ / C_specific
 
-    For Q elements, effective capacitance is estimated using:
-        - Hsu-Mansfeld formula: C_eff = (R × Q)^(1/n) / R  (when R is known;
-          assumes a normal/3D distribution of time constants)
-        - From Z'' maximum frequency (fallback)
+    For Q elements, effective capacitance is estimated using the
+    Hsu-Mansfeld formula: C_eff = (R × Q)^(1/n) / R
+    (assumes a normal/3D distribution of time constants)
 
     Examples
     --------

@@ -4,6 +4,33 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.17 (2026-07-03)
+
+### Fixed (oxide audit 2026-07-02, finding O4)
+
+- **K element with R = 0 no longer crashes the circuit traversal**
+  (`analysis/oxide.py`): `C = tau/R` raised `ZeroDivisionError` before the
+  dominant-element filter could drop the element. Fitting was protected by
+  parameter bounds, but a direct API call with such a circuit crashed. The
+  element is now skipped with a warning.
+- **Ambiguous parallel combinations are no longer silent**: circuits like
+  `(R1 | R2 | C)` or `(R | C1 | C2)` used to silently take the last R and
+  the last C/Q; a warning is now logged (behavior unchanged — the last
+  element still wins).
+- **Dead code removed**: the Z''-maximum and 1 kHz fallback branches of
+  `_estimate_cpe_capacitance()` were unreachable (the only caller always
+  passes R > 0 after the dominant-element filter), so the helper now
+  implements only the Hsu-Mansfeld conversion with a required R. Unused
+  `traverse()` parameters dropped; `Q`/`R` parameter names no longer shadow
+  the circuit-element classes; `OxideAnalysisResult.element_params` is a
+  copy instead of an internal mutable dict.
+- **Numeric results are unchanged** for all previously working inputs.
+  - Tests added to `tests/test_oxide.py`: K element traversal, Hsu-Mansfeld
+    conversion accuracy, mixed Voigt+K dominance (audit priority 4), plus
+    regressions for the K R=0 crash and the multiple-R/C warnings.
+
+---
+
 ## Version 0.16.16 (2026-07-02)
 
 ### Fixed (oxide audit 2026-07-02, finding O3)
