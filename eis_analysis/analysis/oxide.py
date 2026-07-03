@@ -30,7 +30,7 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', or 'Q'
+    element_type: str           # 'C', 'K', 'Q', or 'estimate' (HF fallback)
     element_R: Optional[float]  # Associated resistance [Ω]
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters

@@ -43,14 +43,14 @@ print(f"Permittivity: {eps_r:.1f}")
 
 ```bash
 # Basic oxide analysis (requires fitted circuit)
-python eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' --analyze-oxide
+python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' --analyze-oxide
 
 # With custom permittivity and area
-python eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
     --analyze-oxide --epsilon-r 23 --area 0.5
 
 # Using Voigt chain for automatic circuit
-python eis.py data.DTA --voigt-chain --analyze-oxide
+python3 eis.py data.DTA --voigt-chain --analyze-oxide
 ```
 
 **Note:** For oxide analysis with custom data, you must specify `--circuit` or `--voigt-chain`.
@@ -137,7 +137,10 @@ class OxideAnalysisResult:
 | `--epsilon-r` | 22.0 | Relative permittivity of oxide |
 | `--area` | 1.0 | Electrode area [cm^2] |
 
-**Note:** Area can be automatically loaded from DTA file metadata if available.
+**Note:** Area is automatically loaded from DTA file metadata whenever
+`--area` is left at its default (1.0). An explicit `--area 1.0` cannot be
+distinguished from the default and is therefore overridden by metadata;
+any other explicit value takes precedence.
 
 ---
 
@@ -149,6 +152,11 @@ The function traverses the circuit tree and finds:
 - `Parallel(R, C)` combinations (Voigt elements)
 - `Parallel(R, Q)` combinations
 - `K` elements (Voigt with tau parametrization)
+
+Malformed or ambiguous circuits are handled with a warning:
+- a K element with R <= 0 is skipped (C = tau/R is undefined there);
+- when one parallel combination contains multiple R or multiple C/Q
+  elements (e.g. `(R1 | R2 | C)`), the last one is used.
 
 ### 2. Dominant Element Selection
 
@@ -413,11 +421,11 @@ unreliable.
 **Reference:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
 cf. Brug et al., J. Electroanal. Chem. 176, 275 (1984)
 
-### Fallback Methods
-
-If R is unknown:
-1. From Z'' maximum: `C_eff = Q * omega_max^(n-1)`
-2. At 1 kHz reference: `C_eff = Q * (2*pi*1000)^(n-1)`
+The parallel resistance R needed for the conversion is always available:
+the dominant element is selected only among candidates with R > 0, so the
+Hsu-Mansfeld formula is used unconditionally. (Fallback conversions for
+R-less CPEs existed up to v0.16.16 but were unreachable and have been
+removed.)
 
 ---
 
@@ -444,8 +452,8 @@ If R is unknown:
 
 ## Troubleshooting
 
-**"No Voigt elements found"**
-- Check circuit structure - needs Parallel(R, C) or Parallel(R, Q)
+**"No Voigt (R||C), K, or R||Q elements found in circuit"**
+- Check circuit structure - needs Parallel(R, C), Parallel(R, Q), or K
 - Series elements alone don't work
 
 **Unrealistic thickness (< 1 nm or > 1000 nm)**
@@ -469,4 +477,4 @@ If R is unknown:
 
 ---
 
-*Last updated: 2026-07-02*
+*Last updated: 2026-07-03*
