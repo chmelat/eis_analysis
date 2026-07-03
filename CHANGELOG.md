@@ -4,6 +4,32 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.20 (2026-07-03)
+
+### Fixed (Kramers-Kronig audit 2026-07-03, finding K2)
+
+- **mu is now documented and presented as the Lin-KK stop value, not
+  a data-quality metric.** By construction of the Lin-KK iteration the
+  returned mu is below mu_threshold on every normal termination (it is
+  the value at the first M where mu dropped below the threshold), yet
+  the docs claimed the opposite: `PYTHON_API.md` said "Quality metric
+  (>0.85 = good)" — making every successful KK run read as bad — and
+  README said values below the threshold "indicate problematic data".
+  Corrected in: `KKResult`/`LinKKResult` docstrings, `lin_kk_native` and
+  `kramers_kronig_validation` Returns sections, README `--mu-threshold`
+  description, PYTHON_API, and CLI `--mu-threshold`/`--voigt-mu-threshold`
+  help texts. Data quality is judged by the residuals (`is_valid`).
+- **Inverted threshold description fixed** (`find_optimal_M_mu`): "Lower
+  values -> more conservative (fewer elements)" was backwards — the
+  iteration runs while mu > threshold, so a lower threshold stops later
+  and yields *more* elements.
+- CLI log now gives the context inline:
+  `KK: M=25, mu=0.7324 (Lin-KK stop, threshold 0.85), ...`; the residuals
+  plot title labels the value as `stop mu=`.
+- No numeric changes; documentation and presentation only.
+  - Regression test in `tests/test_kramers_kronig.py` (CLI log carries the
+    stop-value context; normal termination ends below the threshold).
+
 ## Version 0.16.19 (2026-07-03)
 
 ### Fixed (Kramers-Kronig audit 2026-07-03, finding K1)

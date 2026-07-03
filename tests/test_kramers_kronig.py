@@ -317,3 +317,40 @@ def test_kk_validation_default_enables_auto_extend():
         assert result.mean_residual_imag < 5.0
     finally:
         plt.close('all')
+
+
+# =============================================================================
+# mu semantics in the CLI log (regression, KK audit 2026-07-03, K2)
+# =============================================================================
+
+def test_kk_cli_log_explains_mu(caplog):
+    """Regression (audit K2): the CLI log must present mu as the Lin-KK stop
+    value (with its threshold), not as a bare number that reads like a
+    failed quality metric. On normal termination mu < threshold by
+    construction."""
+    import argparse
+    import logging
+
+    from eis_analysis.cli.handlers.validation import run_kk_validation
+
+    freq = np.logspace(4, -1, 40)
+    Z = voigt_impedance(freq, 100.0, [(5000.0, 5e-3)])
+    args = argparse.Namespace(
+        no_kk=False, mu_threshold=0.85, auto_extend=True,
+        extend_decades_max=1.0, save=None, format='png',
+    )
+
+    with caplog.at_level(logging.INFO,
+                         logger='eis_analysis.cli.handlers.validation'):
+        fig = run_kk_validation(freq, Z, args)
+
+    try:
+        assert fig is not None
+        assert 'Lin-KK stop, threshold 0.85' in caplog.text
+        # Pin the semantics the message describes: normal termination
+        # ends below the threshold.
+        mu_line = [ln for ln in caplog.text.splitlines() if 'Lin-KK stop' in ln][0]
+        mu_value = float(mu_line.split('mu=')[1].split()[0])
+        assert mu_value < 0.85
+    finally:
+        plt.close('all')

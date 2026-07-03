@@ -90,7 +90,8 @@ def find_optimal_M_mu(
         Measured impedance [Ohm]
     mu_threshold : float, optional
         Threshold for mu metric (default: 0.85, as in Lin-KK)
-        Lower values -> more conservative (fewer elements)
+        Lower values -> the iteration stops later -> more elements
+        (higher overfit tolerance); higher values -> fewer elements
     max_M : int, optional
         Maximum number of elements to try (default: 50)
     extend_decades : float, optional
@@ -113,7 +114,8 @@ def find_optimal_M_mu(
     M_optimal : int
         Optimal number of Voigt elements
     mu_final : float
-        Final mu value at M_optimal
+        Mu value at the stopping M (below mu_threshold on normal
+        termination; above it only when max_M was reached)
     tau_optimal : ndarray of float
         Optimal tau grid
     elements : ndarray of float

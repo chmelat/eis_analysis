@@ -27,7 +27,10 @@ class KKResult:
     M : int
         Number of Voigt elements used (0 if failed)
     mu : float
-        Mu metric value (1.0 = no overfit, <0.85 = overfit)
+        Lin-KK stop value: mu at the first M where it dropped below
+        mu_threshold, so it is expected to be below the threshold on
+        normal termination. Not a data-quality metric (judge quality by
+        the residuals); mu > threshold only when max_M was reached.
     Z_fit : NDArray[np.complex128] or None
         Fitted impedance
     residuals_real : NDArray[np.float64] or None
@@ -98,7 +101,10 @@ class LinKKResult:
     M : int
         Number of Voigt elements used
     mu : float
-        Mu metric value (1.0 = no overfit, <0.85 = overfit)
+        Lin-KK stop value: mu at the first M where it dropped below
+        mu_threshold, so it is expected to be below the threshold on
+        normal termination. Not a data-quality metric (judge quality by
+        the residuals); mu > threshold only when max_M was reached.
     Z_fit : NDArray[np.complex128]
         Fitted impedance
     residuals_real : NDArray[np.float64]
@@ -365,6 +371,9 @@ def lin_kk_native(
     LinKKResult
         Dataclass containing M, mu, Z_fit, residuals, pseudo_chisqr,
         noise_estimate, extend_decades, inductance, elements, tau.
+        Note: the returned mu is the Lin-KK stop value and is expected
+        to be below mu_threshold on normal termination — judge data
+        quality by the residuals, not by mu.
 
     References
     ----------
@@ -464,7 +473,9 @@ def kramers_kronig_validation(
     -------
     KKResult
         Result object with all diagnostics. Check result.success to verify
-        validation completed successfully.
+        validation completed successfully. Data quality is judged by the
+        residuals (result.is_valid); result.mu is only the Lin-KK stop
+        value (expected below mu_threshold on normal termination).
     """
     warnings = []
 
@@ -518,7 +529,7 @@ def kramers_kronig_validation(
     ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
     ax2.set_xlabel("Frequency [Hz]")
     ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"KK residuals (mu={lkk.mu:.3f}, chi^2={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
+    ax2.set_title(f"KK residuals (stop mu={lkk.mu:.3f}, chi^2={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 

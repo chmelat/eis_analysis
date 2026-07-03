@@ -166,7 +166,8 @@ result = kramers_kronig_validation(
 
 # result: KKResult dataclass
 result.M                   # Number of Voigt elements used
-result.mu                  # Quality metric (>0.85 = good)
+result.mu                  # Lin-KK stop value (< mu_threshold on normal
+                           # termination; not a quality metric - use residuals)
 result.Z_fit               # Reconstructed impedance
 result.residuals_real      # Real part residuals (fraction)
 result.residuals_imag      # Imaginary part residuals (fraction)

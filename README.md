@@ -329,7 +329,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Kramers-Kronig validation
 
 - `--no-kk` - Skip Kramers-Kronig validation. KK test verifies causality, linearity, and stability of data.
-- `--mu-threshold` (default: 0.85) - Threshold value of mu metric for Lin-KK test. Values below threshold indicate problematic data.
+- `--mu-threshold` (default: 0.85) - Stopping threshold of the Lin-KK M-iteration: elements are added until mu drops below this value. Lower values allow more Voigt elements (higher overfit tolerance). It controls the fit, not data quality - quality is judged by the residuals.
 - `--auto-extend` / `--no-auto-extend` (default: on) - Automatically optimize extend_decades for KK validation (minimizes pseudo chi-squared). On by default to avoid tau-truncation bias that produces spurious imaginary-part residuals on data with strong capacitive/inductive tails. Use `--no-auto-extend` to disable.
 - `--extend-decades-max` (default: 1.0) - Maximum extend_decades for `--auto-extend` search range.
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.

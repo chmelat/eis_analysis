@@ -150,7 +150,9 @@ Examples:
     kk_group.add_argument('--no-kk', action='store_true',
                           help='Skip Kramers-Kronig validation')
     kk_group.add_argument('--mu-threshold', type=float, default=0.85,
-                          help='mu metric threshold for Lin-KK test (default: 0.85)')
+                          help='Stopping threshold of the Lin-KK M-iteration '
+                               '(default: 0.85). Lower values allow more Voigt '
+                               'elements; not a data-quality criterion.')
     kk_group.add_argument('--auto-extend', action=argparse.BooleanOptionalAction,
                           default=True,
                           help='Automatically optimize extend_decades for KK validation '
@@ -234,7 +236,8 @@ Examples:
     voigt_group.add_argument('--voigt-auto-M', action='store_true',
                              help='Auto-optimize M elements using mu metric')
     voigt_group.add_argument('--voigt-mu-threshold', type=float, default=0.85,
-                             help='mu threshold for --voigt-auto-M (default: 0.85)')
+                             help='Stopping threshold for --voigt-auto-M (default: '
+                                  '0.85; lower values allow more elements)')
     voigt_group.add_argument('--voigt-max-M', type=int, default=50,
                              help='Maximum M elements for --voigt-auto-M (default: 50)')
 
