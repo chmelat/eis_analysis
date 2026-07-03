@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.19 (2026-07-03)
+
+### Fixed (Kramers-Kronig audit 2026-07-03, finding K1)
+
+- **R_s recovery in the imaginary-only fit was numerically broken**
+  (`fitting/voigt_chain/fitting.py`, `estimate_R_linear` with
+  `fit_type='imag'`). The real-part prediction used for the Boukamp R_s
+  recovery was built from the *weighted* design matrix and "un-weighted"
+  by multiplying with |Z| — valid only for unnormalized modulus weights,
+  while the weights are normalized to mean 1 (and other weightings never
+  matched at all). Present since the initial commit. Measured on
+  KK-consistent synthetic data (true R_s = 100 Ohm, M=10):
+
+  | weighting | before    | after fix |
+  |-----------|-----------|-----------|
+  | modulus   | -4513     | 98.7      |
+  | uniform   | -36596    | 70.2*     |
+
+  (*remaining deviation is tau-grid discretization at M=10; at M=15 all
+  weightings recover R_s within 0.3 %.) The prediction is now computed
+  from the unweighted design matrix (dividing the weights back out).
+  **Not affected:** the default paths — KK validation (`fit_type='real'`)
+  and the Voigt-chain CLI default (`complex`) — plus R_k, L and the mu
+  metric. **Numeric change (correction):** results of
+  `--voigt-chain --voigt-fit-type imag` and direct API calls with
+  `fit_type='imag'`.
+  - Regression tests in `tests/test_voigt_chain.py`: R_s recovery for all
+    four weightings, the low-impedance (mOhm) case where the old bias
+    looked plausible, and an end-to-end `fit_voigt_chain_linear`
+    imag-fit error check.
+
 ## Version 0.16.18 (2026-07-03)
 
 ### Fixed (fitting diagnostics audit 2026-07-03, findings D1, D2, D5)

@@ -6,6 +6,7 @@ import pytest
 from eis_analysis.fitting import fit_equivalent_circuit, fit_voigt_chain_linear
 from eis_analysis.fitting.voigt_chain import (
     generate_tau_grid,
+    generate_tau_grid_fixed_M,
     compute_voigt_matrix,
     estimate_R_linear,
 )
@@ -186,3 +187,67 @@ def test_three_time_constants(three_voigt_data):
     result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
 
     assert result.fit_error_rel < 3.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
+
+
+# =============================================================================
+# Tests: R_s recovery in imag-only fit (regression, KK audit 2026-07-03, K1)
+# =============================================================================
+
+def _single_voigt(R_s, R1, tau1, freq):
+    omega = 2 * np.pi * freq
+    return R_s + R1 / (1 + 1j * omega * tau1)
+
+
+@pytest.mark.parametrize("weighting", ['modulus', 'sqrt', 'uniform', 'proportional'])
+def test_imag_fit_recovers_Rs_all_weightings(weighting):
+    """Regression (audit K1): R_s from imag fit was garbage for every weighting.
+
+    Pre-fix values on this data (M=10): modulus -> -4513, sqrt -> -15731,
+    uniform -> -36596 (true R_s = 100). M=15 keeps the tau-grid
+    discretization error below ~0.3 % for every weighting, so the test
+    exercises the recovery formula, not the grid density.
+    """
+    freq = np.logspace(4, -1, 40)
+    Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
+    tau = generate_tau_grid_fixed_M(freq, 15)
+
+    elements, _, _ = estimate_R_linear(
+        freq, Z, tau, include_Rs=True, include_L=False,
+        fit_type='imag', allow_negative=True, weighting=weighting
+    )
+
+    assert abs(elements[0] - 100.0) / 100.0 < 0.05, \
+        f"R_s = {elements[0]:.3e} (true 100), weighting={weighting}"
+
+
+def test_imag_fit_Rs_low_impedance_data():
+    """Regression (audit K1): mOhm-scale data gave plausible-looking but
+    biased R_s (~+10 %, absorbing part of the polarization)."""
+    freq = np.logspace(4, -1, 40)
+    Z = _single_voigt(1e-3, 5e-2, 5e-3, freq)
+    tau = generate_tau_grid_fixed_M(freq, 15)
+
+    elements, _, _ = estimate_R_linear(
+        freq, Z, tau, include_Rs=True, include_L=False,
+        fit_type='imag', allow_negative=True, weighting='modulus'
+    )
+
+    assert abs(elements[0] - 1e-3) / 1e-3 < 0.05, \
+        f"R_s = {elements[0]:.3e} (true 1e-3)"
+
+
+def test_voigt_chain_linear_imag_fit_end_to_end():
+    """Regression (audit K1): with broken R_s the real part of Z_fit was
+    garbage, so the overall fit error exploded."""
+    from eis_analysis.fitting.diagnostics import compute_fit_metrics
+
+    freq = np.logspace(4, -1, 40)
+    Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
+
+    circuit, params = fit_voigt_chain_linear(
+        freq, Z, n_per_decade=3, fit_type='imag', allow_negative=True
+    )
+    Z_fit = circuit.impedance(freq, params)
+    fit_error_rel, _, _ = compute_fit_metrics(Z, Z_fit, 'modulus')
+
+    assert fit_error_rel < 1.0, f"Fit error {fit_error_rel:.2f}% (expected < 1%)"

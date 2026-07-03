@@ -226,9 +226,14 @@ def estimate_R_linear(
 
         # For imag fit, find R_s from real part residual (Boukamp approach)
         if include_Rs:
-            z_re_fit = A_real[:, 1:] @ elements[1:]
+            # Unweighted real-part prediction of the fitted R_k: dividing by
+            # `weights` undoes the weighting baked into A_real columns (the
+            # R_s column is excluded; the L column of A_real is zero, so L
+            # drops out). The previous `* Z_mag_safe` un-weighting was only
+            # valid for unnormalized modulus weights (audit K1 2026-07-03).
+            z_re_fit = (A_real[:, 1:] / weights[:, None]) @ elements[1:]
             ws = 1 / (Z_real**2 + Z_imag**2 + 1e-30)
-            elements[0] = np.sum(ws * (Z_real - z_re_fit * Z_mag_safe)) / np.sum(ws)
+            elements[0] = np.sum(ws * (Z_real - z_re_fit)) / np.sum(ws)
 
         residual = np.linalg.norm(A_imag @ elements - b_imag)
         L_value = float(elements[L_col]) if include_L else None
