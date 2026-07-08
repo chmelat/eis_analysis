@@ -7,8 +7,9 @@
 | Nález | Stav | Verze | Commit |
 |-------|------|-------|--------|
 | D1, D2, D5 | Opraveno | 0.16.18 | 3b41082 |
-| D3 | Opraveno | 0.16.21 | — |
-| D4, D6-D10 | Otevřené | — | — |
+| D3 | Opraveno | 0.16.21 | 7f004db |
+| D4 | Opraveno | 0.16.22 | — |
+| D6-D10 | Otevřené | — | — |
 
 **Rozsah:** `fitting/diagnostics.py` (váhy, metriky), `fitting/covariance.py`
 (kovariance, CI), `fitting/bounds.py`, diagnostické části `fitting/circuit.py`

@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.22 (2026-07-08)
+
+### Fixed (fitting diagnostics audit 2026-07-03, finding D4)
+
+- **Voigt chain linear fit no longer claims exact parameters.** The CLI
+  handler (`--voigt-chain` without nonlinear refinement) filled
+  `FitResult.params_stderr` with zeros, which reads as "known exactly"
+  and made `params_ci_95` return CIs of +/- 0. The linear fit provides
+  no uncertainty estimate, so stderr is now `inf` ("unknown" — the
+  convention used by `covariance.py` and `diffevo.py` for missing
+  covariance) and the CIs are honestly (-inf, inf). CLI output is
+  unaffected (this path never printed per-parameter stderr); only API
+  consumers of the returned `FitResult` see the change.
+- Regression test in `tests/test_cli_integration.py`.
+
 ## Version 0.16.21 (2026-07-08)
 
 ### Fixed (fitting diagnostics audit 2026-07-03, finding D3)

@@ -295,11 +295,13 @@ def _fit_voigt_chain(
     if hasattr(circuit, 'update_params'):
         circuit.update_params(initial_params)
 
-    # Create FitResult
+    # Create FitResult. The linear fit provides no uncertainty estimate, so
+    # stderr is inf ("unknown", covariance.py convention), not 0 ("exact");
+    # params_ci_95 then honestly returns (-inf, inf) instead of +/- 0 (audit D4).
     result = FitResult(
         circuit=circuit,
         params_opt=np.array(initial_params),
-        params_stderr=np.zeros(len(initial_params)),
+        params_stderr=np.full(len(initial_params), np.inf),
         fit_error_rel=fit_error_rel,
         fit_error_abs=fit_error_abs,
         quality=quality,

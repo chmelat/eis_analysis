@@ -486,6 +486,34 @@ def test_voigt_chain():
     print("  [OK] Voigt chain fitting completed successfully")
 
 
+def test_voigt_chain_cli_stderr_is_inf():
+    """Regression for audit D4: the linear Voigt chain fit has no
+    uncertainty estimate, so the CLI handler must report stderr = inf
+    ("unknown") and CI (-inf, inf) — not stderr = 0 ("known exactly")
+    with CI +/- 0."""
+    print("\n[Test 6b] Voigt chain CLI result: honest stderr")
+    print("-" * 70)
+
+    from eis_analysis.cli import run_circuit_fitting
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(no_fit=False, voigt_chain=True)
+
+    result, fig = run_circuit_fitting(frequencies, Z, args)
+
+    assert result is not None, "Voigt chain fitting should return a result"
+    assert np.all(np.isinf(result.params_stderr)), \
+        "Linear fit stderr must be inf (no uncertainty estimate)"
+    ci_low, ci_high = result.params_ci_95
+    assert np.all(np.isneginf(ci_low)) and np.all(np.isposinf(ci_high)), \
+        "CI must be (-inf, inf), not +/- 0"
+
+    if fig is not None:
+        plt.close(fig)
+
+    print("  [OK] Voigt chain CLI stderr is honest (inf)")
+
+
 def test_voigt_edge_peak_excluded_and_logged(caplog):
     """A DRT peak at the tau-range edge is dropped from the circuit suggestion
     AND the exclusion is logged with a reason (not silently lost in the count).
