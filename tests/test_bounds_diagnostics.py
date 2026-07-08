@@ -7,6 +7,8 @@ Regression tests for audit findings (2026-07-03):
   and therefore cannot disagree.
 - D2: warning indices/labels are in full parameter space (fixed params
   included), consistent with param labels shown to the user.
+- D3: initial guess silently clipped into bounds must be reported in
+  FitDiagnostics.warnings.
 """
 
 import numpy as np
@@ -121,3 +123,35 @@ def test_bounds_warning_full_space_index_with_fixed_param():
     n_warnings = [w for w in result.diagnostics.bounds_warnings if 'n0' in w]
     assert len(n_warnings) == 1
     assert 'upper' in n_warnings[0]
+
+
+# --- Regression D3: clipped initial guess is reported ---
+
+def test_clipped_initial_guess_warns():
+    """R(0) is below the lower bound 1e-4 -> clipped, warning must appear.
+
+    Pre-fix, _prepare_optimization recorded clipped_params but nothing
+    propagated it: the fit silently started from a different point than
+    the user specified.
+    """
+    circuit = R(0.0) - (R(5000.0) | C(1e-6))
+    freq = np.logspace(5, -1, 40)
+    Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
+
+    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+
+    clip_warnings = [w for w in result.diagnostics.warnings if 'clipped' in w]
+    assert len(clip_warnings) == 1
+    assert 'R0' in clip_warnings[0]
+    assert clip_warnings[0] in result.all_warnings
+
+
+def test_in_bounds_guess_no_clip_warning():
+    """Guess inside bounds: no clipping warning."""
+    circuit = R(100.0) - (R(5000.0) | C(1e-6))
+    freq = np.logspace(5, -1, 40)
+    Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
+
+    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+
+    assert [w for w in result.diagnostics.warnings if 'clipped' in w] == []

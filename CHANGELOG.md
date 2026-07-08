@@ -4,6 +4,23 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.21 (2026-07-08)
+
+### Fixed (fitting diagnostics audit 2026-07-03, finding D3)
+
+- **Initial guess clipped into bounds is no longer silent.**
+  `_prepare_optimization` clips out-of-bounds initial values (e.g. `R(0)`
+  starts from the lower bound 1e-4) and recorded the indices in
+  `OptimizationSetup.clipped_params`, but nothing propagated them — the
+  fit silently started from a different point than the user specified.
+  Each clipped parameter now produces a warning in
+  `FitDiagnostics.warnings` (visible via `FitResult.all_warnings` and the
+  CLI) plus a `logger.warning`, with the parameter label, original value
+  and clipped value. With an explicit `initial_guess` override nothing is
+  reported: the merge discards the clipped values, and an out-of-bounds
+  override already fails loudly in `least_squares` ("x0 is infeasible").
+- Regression tests in `tests/test_bounds_diagnostics.py`.
+
 ## Version 0.16.20 (2026-07-03)
 
 ### Fixed (Kramers-Kronig audit 2026-07-03, finding K2)

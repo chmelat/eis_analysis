@@ -378,6 +378,19 @@ def fit_equivalent_circuit(
     # Step 3: Run optimization
     diag_warnings = []
 
+    # Report initial-guess values clipped into bounds by _prepare_optimization
+    # (audit D3). With an explicit initial_guess override the clipped values
+    # were discarded by the merge above, so there is nothing to report.
+    if initial_guess is None:
+        for i in setup.clipped_params:
+            name = param_labels[i] if param_labels is not None else str(i)
+            msg = (
+                f"Initial guess for parameter {name} = {circuit_values[i]:.3e} "
+                f"outside bounds, clipped to {initial_guess_list[i]:.3e}"
+            )
+            diag_warnings.append(msg)
+            logger.warning(msg)
+
     try:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always", OptimizeWarning)
