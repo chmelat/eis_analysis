@@ -392,8 +392,9 @@ def _fit_standard_circuit(
             _log_diffevo_diagnostics(diffevo_result)
 
         elif args.optimizer == 'multistart':
-            # Multi-start optimization
-            n_restarts = args.multistart if args.multistart > 0 else 16
+            # Multi-start optimization; parser guarantees multistart is None
+            # (use default) or a positive int
+            n_restarts = args.multistart if args.multistart else 16
             multistart_result, Z_fit, fig = fit_circuit_multistart(
                 circuit,
                 frequencies, Z,

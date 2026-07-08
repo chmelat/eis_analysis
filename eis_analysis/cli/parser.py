@@ -191,13 +191,15 @@ Examples:
                            help='Use numeric Jacobian instead of analytic (fallback for custom elements)')
 
     # Optimizer selection
-    fit_group.add_argument('--optimizer', type=str, default='de',
+    fit_group.add_argument('--optimizer', type=str, default=None,
                            choices=['single', 'multistart', 'de'],
-                           help='Optimizer: de (differential evolution, default), multistart, or single (one local fit)')
+                           help='Optimizer: de (differential evolution, default), multistart, '
+                                'or single (one local fit). --multistart N implies multistart.')
 
     # Multi-start options
-    fit_group.add_argument('--multistart', type=int, default=0, metavar='N',
-                           help='Multi-start optimization with N restarts (default: 0 = disabled)')
+    fit_group.add_argument('--multistart', type=int, default=None, metavar='N',
+                           help='Number of restarts for multi-start optimization '
+                                '(default: 16). Implies --optimizer multistart.')
     fit_group.add_argument('--multistart-scale', type=float, default=2.0,
                            help='Perturbation scaling in sigma units (default: 2.0)')
 
@@ -261,4 +263,18 @@ Examples:
     vis_group.add_argument('--ocv', action='store_true',
                            help='Enable OCV (Open Circuit Voltage) curve visualization')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Resolve optimizer vs. --multistart (audit P1). Previously --multistart
+    # without --optimizer multistart was silently ignored and the fit ran DE.
+    if args.multistart is not None and args.multistart <= 0:
+        parser.error('--multistart must be a positive integer')
+    if args.optimizer is None:
+        args.optimizer = 'multistart' if args.multistart is not None else 'de'
+    elif args.optimizer != 'multistart' and args.multistart is not None:
+        parser.error(
+            f"--multistart has no effect with --optimizer {args.optimizer}; "
+            "use --optimizer multistart (or drop --multistart)"
+        )
+
+    return args

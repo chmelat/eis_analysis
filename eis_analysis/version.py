@@ -5,8 +5,8 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.16.22'
-__version_info__ = (0, 16, 22)
+__version__ = '0.16.23'
+__version_info__ = (0, 16, 23)
 __release_date__ = '2026-07-08'
 
 # Breaking changes in this version

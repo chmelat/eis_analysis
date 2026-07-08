@@ -4,6 +4,23 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.16.23 (2026-07-08)
+
+### Fixed (CLI parser audit 2026-07-08, finding P1)
+
+- **`--multistart N` is no longer silently ignored.** With the default
+  `--optimizer de`, passing `--multistart N` had no effect — the fit ran
+  Differential Evolution and N was discarded without a word. Now
+  `--multistart N` implies `--optimizer multistart`; combining it with
+  an explicit `--optimizer de/single` is a clean argparse error instead
+  of a silent surprise.
+- **"0 = disabled" semantics removed.** The help text claimed
+  `--multistart 0` disables multistart, but with `--optimizer multistart`
+  the handler mapped 0 (and any negative N) to a hidden default of 16
+  restarts. Non-positive N is now rejected by the parser; the default of
+  16 is documented in the help text and README.
+- Regression tests in `tests/test_cli_parser.py` (new file).
+
 ## Version 0.16.22 (2026-07-08)
 
 ### Fixed (fitting diagnostics audit 2026-07-03, finding D4)

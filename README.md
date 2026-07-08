@@ -313,7 +313,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 
 ### Multi-start optimization
 
-- `--multistart N` - Number of restarts for multi-start optimization. Each restart starts from perturbed initial values. Default: 16 when `--optimizer multistart` is used.
+- `--multistart N` - Number of restarts for multi-start optimization (default: 16). Each restart starts from perturbed initial values. Implies `--optimizer multistart`; combining with another `--optimizer` is an error.
 - `--multistart-scale` (default: 2.0) - Perturbation size in sigma units (standard deviation from covariance matrix). Higher = larger parameter space exploration.
 
 ### DRT analysis
