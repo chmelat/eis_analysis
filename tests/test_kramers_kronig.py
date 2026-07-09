@@ -276,7 +276,7 @@ def test_kk_validation_compliant_data_is_valid():
 def test_find_optimal_extend_within_range():
     f = np.logspace(-1, 5, 50)
     Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
-    ext, chi2, tau, elements, L = find_optimal_extend_decades(
+    ext, chi2, tau, elements, L, C = find_optimal_extend_decades(
         f, Z, M=7, search_range=(0.0, 1.0), n_evaluations=6
     )
     assert 0.0 <= ext <= 1.0
@@ -320,6 +320,88 @@ def test_kk_validation_default_enables_auto_extend():
 
 
 # =============================================================================
+# Series capacitance (include_C, Schonleber add_cap)
+# =============================================================================
+
+def blocking_impedance(frequencies, Rs, voigt, C):
+    """KK-compliant impedance with a blocking series capacitance."""
+    omega = 2 * np.pi * frequencies
+    return voigt_impedance(frequencies, Rs, voigt) + 1.0 / (1j * omega * C)
+
+
+def test_reconstruct_adds_capacitance_term():
+    f = np.logspace(-2, 5, 30)
+    omega = 2 * np.pi * f
+    Rs, R, tau, C = 5.0, 20.0, 1e-2, 1e-4
+    elements = np.array([Rs, R, 0.0])
+    Z = reconstruct_impedance(f, elements, np.array([tau]), L_value=0.0, C_value=C)
+    Z_expected = Rs + R / (1 + 1j * omega * tau) + 1.0 / (1j * omega * C)
+    np.testing.assert_allclose(Z, Z_expected, rtol=1e-12, atol=1e-12)
+
+
+def test_reconstruct_c_value_none_has_no_capacitive_term():
+    f = np.logspace(0, 5, 20)
+    elements = np.array([5.0, 20.0, 0.0])
+    tau = np.array([1e-2])
+    Z_none = reconstruct_impedance(f, elements, tau, L_value=None, C_value=None)
+    Z_default = reconstruct_impedance(f, elements, tau, L_value=None)
+    np.testing.assert_allclose(Z_none, Z_default, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("fit_type", ['real', 'imag', 'complex'])
+def test_estimate_R_linear_recovers_series_C(fit_type):
+    # A series C has zero real part, so only include_C can represent it;
+    # on clean data the fitted C must match the true value.
+    from eis_analysis.fitting.voigt_chain import estimate_R_linear
+
+    f = np.logspace(-2, 4, 50)
+    Rs_true, C_true = 10.0, 1e-4
+    voigt_true = [(50.0, 1e-3), (30.0, 1e-1)]
+    Z = blocking_impedance(f, Rs_true, voigt_true, C_true)
+
+    elements, _, L_value, C_value = estimate_R_linear(
+        f, Z, np.array([1e-3, 1e-1]),
+        include_Rs=True, include_L=True, include_C=True,
+        fit_type=fit_type, allow_negative=True, weighting='modulus'
+    )
+
+    assert C_value is not None
+    assert abs(C_value - C_true) / C_true < 0.02, \
+        f"C = {C_value:.3e} (true {C_true:.3e}), fit_type={fit_type}"
+    # C stays out of the elements array: [R_s, R_1, R_2, L]
+    assert elements.shape[0] == 4
+
+
+def test_lin_kk_native_series_cap_reduces_lf_residuals():
+    # Regression (M136119, 2026-07-09): a blocking series capacitance makes
+    # the imaginary residuals grow toward low frequencies (real fit stays
+    # good) because the Voigt chain cannot represent a diverging Z''.
+    # include_C must fix this; without it the data look non-compliant.
+    # C=0.2 keeps 1/(omega*C) comparable to the Voigt part at f_min, and
+    # mu_threshold=0.7 admits enough elements (as in the compliant-data test).
+    f = np.logspace(-2, 5, 60)
+    C_true = 0.2
+    Z = blocking_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)], C=C_true)
+
+    off = lin_kk_native(f, Z, mu_threshold=0.7, auto_extend_decades=True,
+                        extend_decades_range=(0.0, 1.0))
+    on = lin_kk_native(f, Z, mu_threshold=0.7, include_C=True,
+                       auto_extend_decades=True, extend_decades_range=(0.0, 1.0))
+
+    assert off.mean_residual_imag > 5.0           # spurious without series C
+    assert off.mean_residual_real < 1.0           # ...while the real fit is good
+    assert on.mean_residual_imag < 0.5            # compliant with series C
+    assert on.capacitance == pytest.approx(C_true, rel=0.02)
+
+
+def test_lin_kk_native_include_C_default_off():
+    f = np.logspace(-1, 5, 50)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    r = lin_kk_native(f, Z)
+    assert r.capacitance is None
+
+
+# =============================================================================
 # mu semantics in the CLI log (regression, KK audit 2026-07-03, K2)
 # =============================================================================
 
@@ -337,7 +419,7 @@ def test_kk_cli_log_explains_mu(caplog):
     Z = voigt_impedance(freq, 100.0, [(5000.0, 5e-3)])
     args = argparse.Namespace(
         no_kk=False, mu_threshold=0.85, auto_extend=True,
-        extend_decades_max=1.0, save=None, format='png',
+        extend_decades_max=1.0, kk_series_c=False, save=None, format='png',
     )
 
     with caplog.at_level(logging.INFO,

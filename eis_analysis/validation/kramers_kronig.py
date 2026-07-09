@@ -45,6 +45,8 @@ class KKResult:
         Tau range extension in decades (0.0 = no extension)
     inductance : Optional[float]
         Fitted series inductance [H]
+    capacitance : Optional[float]
+        Fitted series capacitance [F] (None unless include_C was requested)
     figure : Optional[plt.Figure]
         Visualization figure
     warnings : List[str]
@@ -61,6 +63,7 @@ class KKResult:
     noise_estimate: float = 0.0
     extend_decades: float = 0.0
     inductance: Optional[float] = None
+    capacitance: Optional[float] = None
     figure: Optional[plt.Figure] = None
     warnings: List[str] = field(default_factory=list)
     error: Optional[str] = None
@@ -125,6 +128,9 @@ class LinKKResult:
         Time constants [s]
     weighting : str
         Weighting scheme used
+    capacitance : Optional[float]
+        Fitted series capacitance [F] (None unless include_C was requested;
+        not part of the elements array)
     """
     M: int
     mu: float
@@ -138,6 +144,7 @@ class LinKKResult:
     elements: NDArray[np.float64]
     tau: NDArray[np.float64]
     weighting: str = 'modulus'
+    capacitance: Optional[float] = None
 
     @property
     def mean_residual_real(self) -> float:
@@ -217,7 +224,8 @@ def reconstruct_impedance(
     elements: NDArray[np.float64],
     tau: NDArray[np.float64],
     L_value: Optional[float],
-    include_L: bool = True
+    include_L: bool = True,
+    C_value: Optional[float] = None
 ) -> NDArray[np.complex128]:
     """
     Reconstruct impedance from fitted Voigt elements.
@@ -234,6 +242,9 @@ def reconstruct_impedance(
         Inductance value [H]
     include_L : bool
         Whether inductance is included in elements array
+    C_value : float or None, optional
+        Series capacitance [F]; adds 1/(j*omega*C). Unlike L, it is never
+        part of the elements array (default: None = no series C term).
 
     Returns
     -------
@@ -252,6 +263,9 @@ def reconstruct_impedance(
     if include_L and L_value is not None:
         Z_fit += 1j * omega * L_value
 
+    if C_value is not None:
+        Z_fit += 1.0 / (1j * omega * C_value)
+
     return Z_fit
 
 
@@ -262,9 +276,10 @@ def find_optimal_extend_decades(
     search_range: Tuple[float, float] = (0.0, 1.0),
     n_evaluations: int = 11,
     include_L: bool = True,
+    include_C: bool = False,
     fit_type: str = 'real',
     weighting: str = 'modulus'
-) -> Tuple[float, float, NDArray[np.float64], NDArray[np.float64], Optional[float]]:
+) -> Tuple[float, float, NDArray[np.float64], NDArray[np.float64], Optional[float], Optional[float]]:
     """
     Find optimal extend_decades that minimizes pseudo chi-squared.
 
@@ -284,6 +299,8 @@ def find_optimal_extend_decades(
         Number of grid points
     include_L : bool
         Include series inductance
+    include_C : bool
+        Include series capacitance (blocking low-frequency behavior)
     fit_type : str
         Fit type ('real', 'imag', 'complex')
     weighting : str
@@ -301,6 +318,8 @@ def find_optimal_extend_decades(
         Fitted elements for optimal extend_decades
     L_value : float or None
         Inductance for optimal extend_decades
+    C_value : float or None
+        Series capacitance for optimal extend_decades
     """
     from ..fitting.voigt_chain import generate_tau_grid_fixed_M, estimate_R_linear
 
@@ -309,23 +328,23 @@ def find_optimal_extend_decades(
 
     for ext_dec in candidates:
         tau = generate_tau_grid_fixed_M(frequencies, M, extend_decades=ext_dec)
-        elements, residual, L_value = estimate_R_linear(
+        elements, residual, L_value, C_value = estimate_R_linear(
             frequencies, Z, tau,
-            include_Rs=True, include_L=include_L,
+            include_Rs=True, include_L=include_L, include_C=include_C,
             fit_type=fit_type, allow_negative=True,
             weighting=weighting
         )
 
-        Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L)
+        Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)
         chi2 = compute_pseudo_chisqr(Z, Z_fit)
-        results.append((ext_dec, chi2, tau, elements, L_value))
+        results.append((ext_dec, chi2, tau, elements, L_value, C_value))
 
     # Find minimum chi^2
     min_chi2 = min(r[1] for r in results)
     tolerance = 0.001 * min_chi2
     near_optimal = [r for r in results if r[1] <= min_chi2 + tolerance]
     best = min(near_optimal, key=lambda x: abs(x[0]))
-    return best[0], best[1], best[2], best[3], best[4]
+    return best[0], best[1], best[2], best[3], best[4], best[5]
 
 
 def lin_kk_native(
@@ -334,6 +353,7 @@ def lin_kk_native(
     mu_threshold: float = 0.85,
     max_M: int = 50,
     include_L: bool = True,
+    include_C: bool = False,
     fit_type: str = 'real',
     weighting: str = 'modulus',
     auto_extend_decades: bool = False,
@@ -357,6 +377,11 @@ def lin_kk_native(
         Maximum number of Voigt elements to try (default: 50)
     include_L : bool, optional
         Include series inductance L (default: True)
+    include_C : bool, optional
+        Include series capacitance C (default: False). Captures blocking
+        (capacitive) low-frequency behavior, e.g. two-electrode cells
+        (Schonleber Lin-KK 'add_cap'). A series C is KK-compliant but has
+        zero real part, so the Voigt chain cannot represent it.
     fit_type : str, optional
         Fit type: 'real', 'imag', or 'complex'
     weighting : str, optional
@@ -383,13 +408,14 @@ def lin_kk_native(
     from ..fitting.voigt_chain import find_optimal_M_mu
 
     # Find optimal M using mu metric
-    M, mu, tau, elements, L_value = find_optimal_M_mu(
+    M, mu, tau, elements, L_value, C_value = find_optimal_M_mu(
         frequencies, Z,
         mu_threshold=mu_threshold,
         max_M=max_M,
         extend_decades=0.0,
         include_Rs=True,
         include_L=include_L,
+        include_C=include_C,
         fit_type=fit_type,
         allow_negative=True,
         weighting=weighting
@@ -399,17 +425,18 @@ def lin_kk_native(
 
     # Optionally optimize extend_decades
     if auto_extend_decades:
-        extend_decades, chi2_opt, tau, elements, L_value = find_optimal_extend_decades(
+        extend_decades, chi2_opt, tau, elements, L_value, C_value = find_optimal_extend_decades(
             frequencies, Z, M,
             search_range=extend_decades_range,
             n_evaluations=11,
             include_L=include_L,
+            include_C=include_C,
             fit_type=fit_type,
             weighting=weighting
         )
 
     # Reconstruct Z_fit from fitted parameters
-    Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L)
+    Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)
 
     # Calculate residuals normalized by |Z|
     Z_mag = np.abs(Z)
@@ -434,7 +461,8 @@ def lin_kk_native(
         inductance=L_value,
         elements=elements,
         tau=tau,
-        weighting=weighting
+        weighting=weighting,
+        capacitance=C_value
     )
 
 
@@ -444,7 +472,8 @@ def kramers_kronig_validation(
     mu_threshold: float = 0.85,
     max_M: int = 50,
     auto_extend_decades: bool = True,
-    extend_decades_range: Tuple[float, float] = (0.0, 1.0)
+    extend_decades_range: Tuple[float, float] = (0.0, 1.0),
+    include_C: bool = False
 ) -> KKResult:
     """
     Perform Kramers-Kronig validation test on EIS data.
@@ -468,6 +497,11 @@ def kramers_kronig_validation(
         capacitive/inductive tails (Schönleber et al. 2014).
     extend_decades_range : tuple of float, optional
         Search range for extend_decades optimization
+    include_C : bool, optional
+        Include a series capacitance term 1/(j*omega*C) in the Lin-KK model
+        (default: False; Schonleber 'add_cap'). Use for blocking (capacitive)
+        low-frequency behavior, e.g. two-electrode cells, where the standard
+        Voigt chain produces spurious imaginary residuals at low frequencies.
 
     Returns
     -------
@@ -485,6 +519,7 @@ def kramers_kronig_validation(
             mu_threshold=mu_threshold,
             max_M=max_M,
             include_L=True,
+            include_C=include_C,
             fit_type='real',
             weighting='modulus',
             auto_extend_decades=auto_extend_decades,
@@ -504,7 +539,8 @@ def kramers_kronig_validation(
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()
     freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = reconstruct_impedance(freq_plot, lkk.elements, lkk.tau, lkk.inductance, include_L=True)
+    Z_fit_plot = reconstruct_impedance(freq_plot, lkk.elements, lkk.tau, lkk.inductance, include_L=True,
+                                       C_value=lkk.capacitance)
 
     # Visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -545,6 +581,7 @@ def kramers_kronig_validation(
         noise_estimate=lkk.noise_estimate,
         extend_decades=lkk.extend_decades,
         inductance=lkk.inductance,
+        capacitance=lkk.capacitance,
         figure=fig,
         warnings=warnings
     )

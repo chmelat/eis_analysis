@@ -29,19 +29,20 @@ def estimate_R_linear(
     tau: NDArray[np.float64],
     include_Rs: bool = True,
     include_L: bool = True,
+    include_C: bool = False,
     fit_type: str = 'complex',
     allow_negative: bool = False,
     weighting: str = 'modulus'
-) -> Tuple[NDArray[np.float64], float, Optional[float]]:
+) -> Tuple[NDArray[np.float64], float, Optional[float], Optional[float]]:
     """
     Estimate R_i values using least squares (Lin-KK compatible).
 
     Implements the linear Kramers-Kronig test from Schonleber et al. (2014).
     The model includes series resistance R_s, M Voigt elements (R_k, tau_k),
-    and optionally series inductance L.
+    and optionally series inductance L and series capacitance C.
 
     Model:
-        Z(omega) = R_s + sum R_k/(1 + j*omega*tau_k) + j*omega*L
+        Z(omega) = R_s + sum R_k/(1 + j*omega*tau_k) + j*omega*L + 1/(j*omega*C)
 
     Parameters
     ----------
@@ -56,9 +57,16 @@ def estimate_R_linear(
     include_L : bool, optional
         If True, include series inductance L in the model (default: True)
         This captures measurement system artifacts (Lin-KK standard).
+    include_C : bool, optional
+        If True, include series capacitance C in the model (default: False).
+        Captures blocking (capacitive) low-frequency behavior, e.g. in
+        two-electrode cells (Schonleber Lin-KK 'add_cap'). Like L, a series
+        C has zero real part, so in 'real' mode it is extracted from the
+        imaginary residual.
     fit_type : str, optional
         Which components to fit:
-        - 'real': Fit only real part Z', then extract L from imaginary residual
+        - 'real': Fit only real part Z', then extract L (and C) from
+          imaginary residual
         - 'imag': Fit only imaginary part Z''
         - 'complex': Fit both parts simultaneously (default)
     allow_negative : bool, optional
@@ -80,6 +88,10 @@ def estimate_R_linear(
         Residual norm
     L_value : float or None
         Estimated inductance [H] if include_L=True, else None
+    C_value : float or None
+        Estimated series capacitance [F] if include_C=True, else None.
+        The linear fit coefficient is D = 1/C; C_value = 1/D (None if D=0).
+        Never stored inside the elements array (unlike L).
 
     Notes
     -----
@@ -130,7 +142,7 @@ def estimate_R_linear(
     weights = weights / np.mean(weights)
 
     # Determine matrix dimensions
-    # Columns: [R_s (optional), R_1, R_2, ..., R_N, L (optional)]
+    # Columns: [R_s (optional), R_1, R_2, ..., R_N, L (optional), D=1/C (optional)]
     n_cols = n_tau
     col_offset = 0
 
@@ -138,9 +150,17 @@ def estimate_R_linear(
         n_cols += 1
         col_offset = 1
 
+    # Number of resistive columns (R_s + R_i) - everything before L/C tail
+    n_R_cols = n_cols
+
     L_col = None
     if include_L:
         L_col = n_cols
+        n_cols += 1
+
+    C_col = None
+    if include_C:
+        C_col = n_cols
         n_cols += 1
 
     # Build design matrices with weighting applied
@@ -168,6 +188,12 @@ def estimate_R_linear(
         A_real[:, L_col] = 0.0
         A_imag[:, L_col] = omega * weights
 
+    # Series capacitance column: Z_C = -j*D/omega with D = 1/C
+    # -> real=0, imag=-D/omega (linear in D)
+    if include_C:
+        A_real[:, C_col] = 0.0
+        A_imag[:, C_col] = (-1.0 / omega) * weights
+
     # Weighted target vectors
     b_real = Z_real * weights
     b_imag = Z_imag * weights
@@ -175,26 +201,20 @@ def estimate_R_linear(
     # Solve based on fit_type
     if fit_type == 'real':
         # Fit only real part (Lin-KK default mode)
-        # L doesn't contribute to real part, so exclude it from real fit
-        if include_L:
-            A_real_fit = A_real[:, :L_col]
-        else:
-            A_real_fit = A_real
+        # L and C don't contribute to real part, so exclude them from real fit
+        A_real_fit = A_real[:, :n_R_cols]
 
         if allow_negative:
             elements = np.linalg.pinv(A_real_fit) @ b_real
         else:
             elements, _ = robust_nnls(A_real_fit, b_real)
 
-        # Extract L from imaginary residual (Schonleber et al. approach)
+        # Extract L and C from imaginary residual (Schonleber et al. approach)
         L_value = None
-        if include_L:
-            # Reconstruct fit without L
-            R_full = np.zeros(n_cols)
-            R_full[:L_col] = elements
-
+        C_value = None
+        if include_L or include_C:
             # Compute Z_fit imaginary part from R_k only (unweighted)
-            A_imag_unweighted = np.zeros((n_freq, L_col))
+            A_imag_unweighted = np.zeros((n_freq, n_R_cols))
             for i, tau_i in enumerate(tau):
                 tau_omega = tau_i * omega
                 tau_omega_sq = tau_omega ** 2
@@ -205,17 +225,27 @@ def estimate_R_linear(
 
             Z_fit_imag = A_imag_unweighted @ elements
 
-            # Fit L from residual: Z_imag - Z_fit_imag = omega*L
-            a_L = omega * weights
-            b_L = (Z_imag - Z_fit_imag) * weights
+            # Fit tail terms from residual:
+            # Z_imag - Z_fit_imag = omega*L - D/omega  (D = 1/C)
+            tail_cols = []
+            if include_L:
+                tail_cols.append(omega * weights)
+            if include_C:
+                tail_cols.append((-1.0 / omega) * weights)
+            A_tail = np.column_stack(tail_cols)
+            b_tail = (Z_imag - Z_fit_imag) * weights
 
-            L_value = np.linalg.pinv(a_L.reshape(-1, 1)) @ b_L
-            L_value = float(L_value.item())
+            tail = np.linalg.pinv(A_tail) @ b_tail
 
-            # Add L to elements
-            elements = np.append(elements, L_value)
+            if include_L:
+                L_value = float(tail[0])
+                # Add L to elements (C is kept out of the elements array)
+                elements = np.append(elements, L_value)
+            if include_C:
+                D = float(tail[-1])
+                C_value = 1.0 / D if D != 0.0 else None
 
-        residual = np.linalg.norm(A_real_fit @ elements[:L_col] - b_real)
+        residual = np.linalg.norm(A_real_fit @ elements[:n_R_cols] - b_real)
 
     elif fit_type == 'imag':
         # Fit only imaginary part
@@ -237,6 +267,13 @@ def estimate_R_linear(
 
         residual = np.linalg.norm(A_imag @ elements - b_imag)
         L_value = float(elements[L_col]) if include_L else None
+
+        # Pop D = 1/C off the solution vector (C is kept out of elements)
+        C_value = None
+        if include_C:
+            D = float(elements[C_col])
+            C_value = 1.0 / D if D != 0.0 else None
+            elements = elements[:C_col]
 
     elif fit_type == 'complex':
         # Fit both parts simultaneously (analytical normal equations)
@@ -262,6 +299,13 @@ def estimate_R_linear(
         residual = np.sqrt(np.sum(res_real**2) + np.sum(res_imag**2))
         L_value = float(elements[L_col]) if include_L else None
 
+        # Pop D = 1/C off the solution vector (C is kept out of elements)
+        C_value = None
+        if include_C:
+            D = float(elements[C_col])
+            C_value = 1.0 / D if D != 0.0 else None
+            elements = elements[:C_col]
+
     else:
         raise ValueError(f"Unknown fit_type: {fit_type}. Use 'real', 'imag', or 'complex'.")
 
@@ -273,6 +317,8 @@ def estimate_R_linear(
         logger.debug(f"  R_s: {elements[0]:.3e} Ohm")
     if include_L and L_value is not None:
         logger.debug(f"  L: {L_value:.3e} H")
+    if include_C and C_value is not None:
+        logger.debug(f"  C (series): {C_value:.3e} F")
 
     # Check for negative R_i (overfit indicator)
     R_start = 1 if include_Rs else 0
@@ -282,7 +328,7 @@ def estimate_R_linear(
     if n_negative > 0:
         logger.debug(f"  Negative R_i: {n_negative}/{len(R_i)}")
 
-    return elements, residual, L_value
+    return elements, residual, L_value, C_value
 
 
 def fit_voigt_chain_linear(
@@ -370,7 +416,7 @@ def fit_voigt_chain_linear(
 
         # Use mu optimization to find optimal M (Lin-KK style)
         logger.info("Step 1: Auto-optimizing M using mu metric (Lin-KK)")
-        M_opt, mu_final, tau, elements_mu, L_value_mu = find_optimal_M_mu(
+        M_opt, mu_final, tau, elements_mu, L_value_mu, _ = find_optimal_M_mu(
             frequencies, Z,
             mu_threshold=mu_threshold,
             max_M=max_M,
@@ -385,7 +431,7 @@ def fit_voigt_chain_linear(
 
         # Step 2: Refit with NNLS to get physically meaningful R values
         logger.info("Step 2: Refit with NNLS (R_i >= 0) for physical circuit")
-        elements, residual, L_value = estimate_R_linear(
+        elements, residual, L_value, _ = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=include_Rs,
             include_L=include_L,
@@ -424,7 +470,7 @@ def fit_voigt_chain_linear(
         }
         logger.info(f"Step 2: Linear regression (method: {method_str}, fit_type: {fit_type})")
         logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
-        elements, residual, L_value = estimate_R_linear(
+        elements, residual, L_value, _ = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=include_Rs,
             include_L=include_L,

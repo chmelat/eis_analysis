@@ -332,6 +332,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 - `--mu-threshold` (default: 0.85) - Stopping threshold of the Lin-KK M-iteration: elements are added until mu drops below this value. Lower values allow more Voigt elements (higher overfit tolerance). It controls the fit, not data quality - quality is judged by the residuals.
 - `--auto-extend` / `--no-auto-extend` (default: on) - Automatically optimize extend_decades for KK validation (minimizes pseudo chi-squared). On by default to avoid tau-truncation bias that produces spurious imaginary-part residuals on data with strong capacitive/inductive tails. Use `--no-auto-extend` to disable.
 - `--extend-decades-max` (default: 1.0) - Maximum extend_decades for `--auto-extend` search range.
+- `--kk-series-c` - Include a series capacitance `1/(jwC)` in the Lin-KK model (Schonleber `add_cap`). Use for blocking/capacitive low-frequency behavior (e.g. two-electrode cells, blocking oxides): a series C is KK-compliant but has zero real part, so the standard Voigt chain cannot represent it and imaginary residuals grow toward low frequencies while the real fit stays good. Off by default so results stay comparable with earlier analyses; the fitted C is printed in the KK summary.
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
 
 ### Z-HIT validation

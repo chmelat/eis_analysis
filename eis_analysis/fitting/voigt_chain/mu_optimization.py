@@ -73,10 +73,11 @@ def find_optimal_M_mu(
     extend_decades: float = 0.0,
     include_Rs: bool = True,
     include_L: bool = True,
+    include_C: bool = False,
     fit_type: str = 'complex',
     allow_negative: bool = True,
     weighting: str = 'modulus'
-) -> Tuple[int, float, NDArray[np.float64], NDArray[np.float64], Optional[float]]:
+) -> Tuple[int, float, NDArray[np.float64], NDArray[np.float64], Optional[float], Optional[float]]:
     """
     Find optimal number of Voigt elements using mu metric (Lin-KK style).
 
@@ -100,6 +101,9 @@ def find_optimal_M_mu(
         Include series resistance R_s (default: True)
     include_L : bool, optional
         Include series inductance L (default: True for Lin-KK)
+    include_C : bool, optional
+        Include series capacitance C for blocking low-frequency behavior
+        (default: False; Schonleber Lin-KK 'add_cap')
     fit_type : str, optional
         Fit type: 'real', 'imag', or 'complex' (default: 'complex')
     allow_negative : bool, optional
@@ -122,6 +126,9 @@ def find_optimal_M_mu(
         Optimal element values [R_s, R_1, ..., R_M, L] or subset
     L_value : float or None
         Estimated inductance [H] if include_L=True
+    C_value : float or None
+        Estimated series capacitance [F] if include_C=True
+        (not part of the elements array)
 
     Notes
     -----
@@ -152,6 +159,8 @@ def find_optimal_M_mu(
     logger.info(f"  Fit type: {fit_type}")
     logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
     logger.info(f"  Include L: {include_L}")
+    if include_C:
+        logger.info(f"  Include C (series): {include_C}")
     logger.info(f"  Allow negative R_i: {allow_negative}")
     if not allow_negative:
         logger.warning("  NOTE: mu metric is designed for allow_negative=True (Lin-KK)")
@@ -162,6 +171,7 @@ def find_optimal_M_mu(
     mu = 1.0
     iteration = 0
     L_value = None
+    C_value = None
     tau = None
     elements = None
     R_i = np.array([])
@@ -174,10 +184,11 @@ def find_optimal_M_mu(
         tau = generate_tau_grid_fixed_M(frequencies, M, extend_decades)
 
         # Fit using specified method
-        elements, residual, L_value = estimate_R_linear(
+        elements, residual, L_value, C_value = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=include_Rs,
             include_L=include_L,
+            include_C=include_C,
             fit_type=fit_type,
             allow_negative=allow_negative,
             weighting=weighting
@@ -215,7 +226,7 @@ def find_optimal_M_mu(
 
     logger.info("="*60)
 
-    return M, mu, tau, elements, L_value
+    return M, mu, tau, elements, L_value, C_value
 
 
 __all__ = ['calc_mu', 'find_optimal_M_mu']

@@ -38,7 +38,8 @@ def run_kk_validation(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: no_kk, mu_threshold, auto_extend, extend_decades_max, save, format)
+        CLI arguments (uses: no_kk, mu_threshold, auto_extend, extend_decades_max,
+        kk_series_c, save, format)
 
     Returns
     -------
@@ -56,7 +57,8 @@ def run_kk_validation(
         frequencies, Z,
         mu_threshold=args.mu_threshold,
         auto_extend_decades=args.auto_extend,
-        extend_decades_range=(0.0, args.extend_decades_max)
+        extend_decades_range=(0.0, args.extend_decades_max),
+        include_C=args.kk_series_c
     )
     if not result.success:
         logger.warning(f"KK validation failed: {result.error}")
@@ -70,11 +72,22 @@ def run_kk_validation(
     logger.info(f"  Mean |res_imag|: {result.mean_residual_imag:.2f}%")
     logger.info(f"  Pseudo chi^2: {result.pseudo_chisqr:.2e}")
     logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
+    if result.capacitance is not None:
+        logger.info(f"  Series C: {result.capacitance:.2e} F")
 
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
     log_fn = logger.info if result.is_valid else logger.warning
     log_fn(f"Data quality: {_quality_label(mean_abs_residual)} "
            f"(max mean |res|={mean_abs_residual:.2f}%, threshold=5.0%)")
+
+    # Signature of a missing series term (L or C): the real part fits well
+    # while imaginary residuals dominate - typical for blocking/2-electrode
+    # cells whose series capacitance the Voigt chain cannot represent.
+    if (not result.is_valid and not args.kk_series_c
+            and result.mean_residual_imag > 5.0
+            and result.mean_residual_real < 1.0):
+        logger.info("Hint: imag residuals dominate while the real fit is good - "
+                    "try --kk-series-c (blocking/2-electrode behavior)")
 
     save_figure(result.figure, args.save, 'kk', args.format)
     return result.figure

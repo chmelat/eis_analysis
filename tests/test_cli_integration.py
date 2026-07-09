@@ -74,6 +74,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'mu_threshold': 0.85,
         'auto_extend': True,
         'extend_decades_max': 1.0,
+        'kk_series_c': False,
 
         # Z-HIT
         'no_zhit': True,  # Skip by default for speed

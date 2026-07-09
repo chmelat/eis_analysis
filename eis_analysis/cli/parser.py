@@ -162,6 +162,12 @@ Examples:
     kk_group.add_argument('--extend-decades-max', type=float, default=1.0,
                           help='Maximum extend_decades for --auto-extend search range '
                                '(searches from -max to +max, default: 1.0)')
+    kk_group.add_argument('--kk-series-c', action='store_true',
+                          help='Include a series capacitance in the Lin-KK model '
+                               '(Schonleber add_cap). Use for blocking/capacitive '
+                               'low-frequency behavior (e.g. two-electrode cells), '
+                               'where imaginary residuals otherwise grow toward '
+                               'low frequencies while the real fit stays good.')
 
     # ==========================================================================
     # Z-HIT Validation Group

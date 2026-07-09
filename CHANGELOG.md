@@ -4,6 +4,35 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.17.0 (2026-07-09)
+
+### Added
+
+- **Optional series capacitance in the Lin-KK model (`--kk-series-c`).**
+  Blocking (capacitive) low-frequency behavior — e.g. two-electrode cells
+  where the counter electrode contributes a series interfacial capacitance —
+  is KK-compliant but cannot be represented by the Voigt chain: a series C
+  has zero real part and diverging Z'', so the real-part Lin-KK fit produces
+  imaginary residuals that grow toward low frequencies while the real fit
+  stays good (observed on sample M136119: mean |res_imag| 8.7 % without the
+  term, 0.13 % with it). The new term `1/(j*omega*C)` is fitted from the
+  imaginary residual exactly like the series inductance L (Schonleber
+  Lin-KK `add_cap`). Off by default so existing KK results stay comparable.
+  - CLI: `--kk-series-c` flag; fitted C is printed in the KK summary, and a
+    hint suggests the flag when the residual pattern matches (imaginary
+    residuals dominate, real fit good).
+  - API: `include_C` parameter on `kramers_kronig_validation`,
+    `lin_kk_native`, `find_optimal_M_mu` and `estimate_R_linear`;
+    new `capacitance` field on `KKResult`/`LinKKResult`.
+
+### Breaking (API only, CLI unaffected)
+
+- `estimate_R_linear` returns a 4-tuple `(elements, residual, L_value,
+  C_value)` instead of a 3-tuple. `C_value` is never part of the
+  `elements` array (unlike L).
+- `find_optimal_M_mu` and `find_optimal_extend_decades` return a 6-tuple
+  (appended `C_value`) instead of a 5-tuple.
+
 ## Version 0.16.23 (2026-07-08)
 
 ### Fixed (CLI parser audit 2026-07-08, finding P1)

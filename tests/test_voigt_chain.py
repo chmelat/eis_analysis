@@ -78,7 +78,7 @@ def test_estimate_R_linear_perfect_recovery(two_voigt_data):
     freq, Z, (R_s_true, R_true, tau_true) = two_voigt_data
 
     # Estimate with exact tau values
-    R_est, residual, L_value = estimate_R_linear(
+    R_est, residual, L_value, C_value = estimate_R_linear(
         freq, Z, np.array(tau_true), include_Rs=True, include_L=False
     )
 
@@ -211,7 +211,7 @@ def test_imag_fit_recovers_Rs_all_weightings(weighting):
     Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
     tau = generate_tau_grid_fixed_M(freq, 15)
 
-    elements, _, _ = estimate_R_linear(
+    elements, _, _, _ = estimate_R_linear(
         freq, Z, tau, include_Rs=True, include_L=False,
         fit_type='imag', allow_negative=True, weighting=weighting
     )
@@ -227,7 +227,7 @@ def test_imag_fit_Rs_low_impedance_data():
     Z = _single_voigt(1e-3, 5e-2, 5e-3, freq)
     tau = generate_tau_grid_fixed_M(freq, 15)
 
-    elements, _, _ = estimate_R_linear(
+    elements, _, _, _ = estimate_R_linear(
         freq, Z, tau, include_Rs=True, include_L=False,
         fit_type='imag', allow_negative=True, weighting='modulus'
     )

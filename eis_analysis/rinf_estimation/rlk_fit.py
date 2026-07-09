@@ -260,7 +260,7 @@ def fit_rlk_model(
 
     # Linear fit
     estimate_R_linear = _get_estimate_R_linear()
-    elements, residual, L_value = estimate_R_linear(
+    elements, residual, L_value, _ = estimate_R_linear(
         f_high, Z_high, tau,
         include_Rs=True,
         include_L=True,
