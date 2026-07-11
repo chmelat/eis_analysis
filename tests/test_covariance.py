@@ -104,3 +104,38 @@ def test_full_rank_stderr_finite():
     r = np.array([0.1, 0.2])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert np.all(np.isfinite(result.stderr))
+
+
+def test_integration_real_fit_has_finite_stderr():
+    """Regression (v0.17.1): a good fit of a realistic circuit must yield
+    finite standard errors.
+
+    Replicates the demo scenario Rs - (R0||Q0) - (R1||Q1): the parameters span
+    >10 decades (R ~ 1e5, Q ~ 1e-6, n ~ 0.5), so the raw Jacobian columns are
+    scale-disparate and the pre-fix rank test on the unscaled Jacobian reported
+    rank 5/7 -> all stderr inf, despite every parameter being identifiable.
+    """
+    from eis_analysis.fitting import R, Q, fit_equivalent_circuit
+
+    circuit = R(10) - (R(1e5) | Q(1e-6, 0.6)) - (R(8e5) | Q(3e-5, 0.43))
+    freq = np.logspace(5, -2, 70)
+    true_params = [10.0, 1e5, 1e-6, 0.6, 8e5, 3e-5, 0.43]
+    Z_true = circuit.impedance(freq, true_params)
+
+    rng = np.random.RandomState(42)
+    noise = 0.01 * np.abs(Z_true) * (rng.randn(len(freq)) + 1j * rng.randn(len(freq)))
+    Z_noisy = Z_true + noise
+
+    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
+
+    assert result.fit_error_rel < 5.0, \
+        f"Fit itself failed (error {result.fit_error_rel:.1f}%), test is inconclusive"
+    assert np.all(np.isfinite(result.params_stderr)), \
+        f"Good fit reported non-finite stderr: {result.params_stderr}"
+    n_params = len(result.params_opt)
+    assert result.diagnostics.covariance_rank == n_params, \
+        f"Full-rank problem reported rank {result.diagnostics.covariance_rank}/{n_params}"
+    # Stderr must also be informative, not just finite: well below the
+    # parameter magnitudes for 1% noise on 70 points.
+    rel_err = result.params_stderr / np.abs(result.params_opt)
+    assert np.all(rel_err < 1.0), f"Implausibly large relative stderr: {rel_err}"
