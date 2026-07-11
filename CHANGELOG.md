@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.18.0 (2026-07-11)
+
+### Changed
+
+- **Log-space confidence intervals for positive scale parameters.** The
+  symmetric Wald interval `p +/- t*se` produces physically meaningless
+  negative bounds for positive scale parameters when the standard error is
+  comparable to the value (e.g. `R = 14.2 +/- 7.4 -> CI [-0.43, 28.7]`,
+  a resistance CI containing negative values). Scale parameters (R, C, Q, L,
+  sigma, tau, ...) now get the delta-method CI on ln(p):
+  `CI = (p/f, p*f)` with `f = exp(t*se/p)` -- always positive,
+  multiplicatively symmetric, converging to the linear interval for
+  `se/p -> 0`. Which parameters are scale-like is decided by the same
+  criterion `classify_bound_status` already uses (positive lower bound and
+  bounds spanning more than 6 decades), so the CPE exponent `n` (0.3-1.0)
+  keeps the symmetric linear-space CI.
+  - API: `compute_confidence_interval` gains an optional `log_scale` mask
+    (default None = previous symmetric behavior); new helper
+    `bounds.log_scale_ci_mask`; new constant `bounds.LOG_SCALE_BOUND_RATIO`.
+
+- **Per-parameter inf on rank-deficient covariance.** Previously a
+  rank-deficient Jacobian made every free parameter report `stderr = inf`,
+  losing the information which parameter is the problem. Now only parameters
+  whose direction overlaps the null space of J^T J (more than
+  `NULLSPACE_OVERLAP_TOL = 1e-3` of the direction's norm) are reported as
+  non-identifiable (`inf`); the rest get their variance from the
+  Moore-Penrose pseudo-inverse restricted to the identifiable subspace. The
+  covariance warning names the non-identifiable parameters. One
+  non-identifiable parameter no longer destroys the confidence intervals of
+  the others (`params_ci_95/99` are now per-parameter).
+
+---
+
 ## Version 0.17.1 (2026-07-11)
 
 ### Fixed
