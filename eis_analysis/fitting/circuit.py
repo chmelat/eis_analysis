@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
-from .bounds import generate_simple_bounds, build_bound_status
+from .bounds import generate_simple_bounds, build_bound_status, log_scale_ci_mask
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
@@ -101,6 +101,9 @@ class FitResult:
     _dof : int
         Residual degrees of freedom (internal, for CI computation).
         Matches CovarianceResult.dof = n_residuals - n_free_params.
+    _ci_log_scale : list of bool or None
+        Per-parameter mask for log-space CI (internal); True for positive
+        scale parameters. None = no bound info, all CIs linear/symmetric.
     """
     circuit: Circuit
     params_opt: NDArray[np.float64]
@@ -117,30 +120,31 @@ class FitResult:
     # Aligned with params_opt; None means caller did not supply bound info.
     bound_status: Optional[List[str]] = None
     _dof: int = 0
+    # Per-parameter mask: True for positive scale parameters whose CI is
+    # computed in log space (see compute_confidence_interval). None means
+    # no bound info was available; all CIs stay linear/symmetric.
+    _ci_log_scale: Optional[List[bool]] = None
+
+    def _ci(self, confidence_level: float) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
+            return (
+                np.full_like(self.params_opt, -np.inf),
+                np.full_like(self.params_opt, np.inf)
+            )
+        return compute_confidence_interval(
+            self.params_opt, self.params_stderr, self._dof, confidence_level,
+            log_scale=self._ci_log_scale
+        )
 
     @property
     def params_ci_95(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """95% confidence intervals for parameters."""
-        if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
-            return (
-                np.full_like(self.params_opt, -np.inf),
-                np.full_like(self.params_opt, np.inf)
-            )
-        return compute_confidence_interval(
-            self.params_opt, self.params_stderr, self._dof, 0.95
-        )
+        return self._ci(0.95)
 
     @property
     def params_ci_99(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """99% confidence intervals for parameters."""
-        if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
-            return (
-                np.full_like(self.params_opt, -np.inf),
-                np.full_like(self.params_opt, np.inf)
-            )
-        return compute_confidence_interval(
-            self.params_opt, self.params_stderr, self._dof, 0.99
-        )
+        return self._ci(0.99)
 
     @property
     def all_warnings(self) -> List[str]:
@@ -502,7 +506,8 @@ def fit_equivalent_circuit(
             diagnostics=diagnostics,
             param_labels=param_labels,
             bound_status=bound_status,
-            _dof=cov_result.dof
+            _dof=cov_result.dof,
+            _ci_log_scale=log_scale_ci_mask(lower_bounds, upper_bounds)
         )
 
     except Exception as e:

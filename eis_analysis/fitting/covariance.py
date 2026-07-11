@@ -282,7 +282,8 @@ def compute_confidence_interval(
     params_opt: NDArray[np.float64],
     params_stderr: NDArray[np.float64],
     dof: int,
-    confidence_level: float = 0.95
+    confidence_level: float = 0.95,
+    log_scale: Optional[List[bool]] = None
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Compute confidence intervals for parameters using t-distribution.
@@ -299,6 +300,11 @@ def compute_confidence_interval(
         compute_covariance_matrix; available as CovarianceResult.dof.
     confidence_level : float, optional
         Confidence level (0.95 for 95% CI, 0.99 for 99% CI), default 0.95
+    log_scale : list of bool, optional
+        Per-parameter mask: True for positive scale parameters (R, C, Q,
+        tau, ...) whose CI is computed in log space (see Notes). None
+        (default) keeps the symmetric linear-space CI for all parameters.
+        Use `bounds.log_scale_ci_mask` to build the mask from bounds.
 
     Returns
     -------
@@ -312,15 +318,38 @@ def compute_confidence_interval(
     Uses the t-distribution with `dof` degrees of freedom. For large dof
     (> 30) t approximates the normal distribution (1.96 for 95%); for small
     dof it is more conservative (wider CI).
+
+    Linear (default): ci = p +/- t * se. For a positive scale parameter with
+    se comparable to p this produces a physically meaningless negative lower
+    bound (e.g. a resistance CI containing negative values).
+
+    Log-space (masked parameters): delta method on ln(p) gives
+    se_ln = se / p, so ci = (p / f, p * f) with f = exp(t * se / p).
+    Always positive and multiplicatively symmetric; for se/p -> 0 it
+    converges to the linear interval. Applied only where the mask is True,
+    the parameter is positive, and se is finite.
     """
     dof = max(int(dof), 1)
 
     alpha = 1 - confidence_level
     t_critical = t.ppf(1 - alpha/2, dof)
 
+    params_opt = np.asarray(params_opt, dtype=float)
+    params_stderr = np.asarray(params_stderr, dtype=float)
+
     margin = t_critical * params_stderr
     ci_low = params_opt - margin
     ci_high = params_opt + margin
+
+    if log_scale is not None:
+        mask = (np.asarray(log_scale, dtype=bool)
+                & (params_opt > 0)
+                & np.isfinite(params_stderr))
+        if np.any(mask):
+            p = params_opt[mask]
+            factor = np.exp(t_critical * params_stderr[mask] / p)
+            ci_low[mask] = p / factor
+            ci_high[mask] = p * factor
 
     return ci_low, ci_high
 

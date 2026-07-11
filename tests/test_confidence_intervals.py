@@ -91,9 +91,90 @@ def test_ci_dof_matches_covariance_residual_dof():
 
     ci_low, ci_high = result.params_ci_95
     # Recover the t-multiplier from a parameter with finite, positive stderr.
+    # R and C are positive scale parameters, so the CI is log-space:
+    # ci_high = p * exp(t * se / p) -> t = ln(ci_high / p) * p / se.
     i = int(np.argmax(np.isfinite(result.params_stderr) & (result.params_stderr > 0)))
-    t_used = (ci_high[i] - result.params_opt[i]) / result.params_stderr[i]
+    p, se = result.params_opt[i], result.params_stderr[i]
+    t_used = np.log(ci_high[i] / p) * p / se
     assert t_used == pytest.approx(t.ppf(0.975, expected_dof), rel=1e-9)
+
+
+def test_log_space_ci_positive_for_scale_params():
+    """Regression: log-space CI of a positive scale parameter never crosses
+    zero, even when stderr is comparable to the parameter value.
+
+    Pre-fix the symmetric Wald interval p +/- t*se gave e.g.
+    R = 14.2 +/- 7.4 -> CI [-0.43, 28.7] (negative resistance).
+    """
+    params = np.array([14.2])
+    stderr = np.array([7.38])
+    dof = 133
+
+    ci_low, ci_high = compute_confidence_interval(
+        params, stderr, dof, 0.95, log_scale=[True]
+    )
+
+    assert ci_low[0] > 0, f"Log-space CI lower bound must be positive, got {ci_low[0]}"
+    assert ci_high[0] > params[0]
+    # Multiplicative symmetry: ci_high / p == p / ci_low
+    assert ci_high[0] / params[0] == pytest.approx(params[0] / ci_low[0], rel=1e-12)
+
+
+def test_log_space_ci_converges_to_linear_for_small_stderr():
+    """For se/p << 1 the log-space CI converges to the symmetric interval."""
+    params = np.array([1e5])
+    stderr = np.array([1e2])  # se/p = 0.1%
+    dof = 100
+
+    ci_lin_low, ci_lin_high = compute_confidence_interval(params, stderr, dof, 0.95)
+    ci_log_low, ci_log_high = compute_confidence_interval(
+        params, stderr, dof, 0.95, log_scale=[True]
+    )
+
+    # Agreement to first order in se/p (relative difference ~ (t*se/p)^2 / 2)
+    assert ci_log_low[0] == pytest.approx(ci_lin_low[0], rel=1e-5)
+    assert ci_log_high[0] == pytest.approx(ci_lin_high[0], rel=1e-5)
+
+
+def test_log_space_mask_selects_per_parameter():
+    """Only masked parameters get log-space CI; unmasked keep symmetric CI."""
+    params = np.array([100.0, 0.6])   # scale param R, exponent n
+    stderr = np.array([80.0, 0.05])
+    dof = 50
+    t_crit = t.ppf(0.975, dof)
+
+    ci_low, ci_high = compute_confidence_interval(
+        params, stderr, dof, 0.95, log_scale=[True, False]
+    )
+
+    # R (masked): positive, multiplicative
+    assert ci_low[0] > 0
+    # n (unmasked): exactly symmetric p +/- t*se
+    assert ci_low[1] == pytest.approx(params[1] - t_crit * stderr[1], rel=1e-12)
+    assert ci_high[1] == pytest.approx(params[1] + t_crit * stderr[1], rel=1e-12)
+
+
+def test_fit_result_ci_log_scale_mask_from_bounds():
+    """fit_equivalent_circuit builds the log-scale mask from bounds: R/C/Q
+    get log-space CI (positive lower bound), CPE exponent n stays linear."""
+    from eis_analysis.fitting import Q
+
+    circuit = R(100) - (R(5000) | Q(1e-6, 0.8))
+    freq = np.logspace(4, -1, 30)
+    Z_true = circuit.impedance(freq, [100.0, 5000.0, 1e-6, 0.8])
+
+    np.random.seed(7)
+    noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq))
+                                     + 1j * np.random.randn(len(freq)))
+    result, _, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit, plot=False)
+
+    # Labels: R, R, Q, n -> mask True, True, True, False
+    assert result._ci_log_scale == [True, True, True, False]
+
+    ci_low, _ = result.params_ci_95
+    # Scale parameters (R, R, Q): CI strictly positive
+    for i in (0, 1, 2):
+        assert ci_low[i] > 0, f"Param {i}: log-space CI must be positive"
 
 
 def test_invalid_stderr_returns_inf_ci():

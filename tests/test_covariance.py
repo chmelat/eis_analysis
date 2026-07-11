@@ -139,3 +139,10 @@ def test_integration_real_fit_has_finite_stderr():
     # parameter magnitudes for 1% noise on 70 points.
     rel_err = result.params_stderr / np.abs(result.params_opt)
     assert np.all(rel_err < 1.0), f"Implausibly large relative stderr: {rel_err}"
+    # Scale parameters (all except the two CPE exponents n) get log-space
+    # CIs, which must never cross zero.
+    ci_low, _ = result.params_ci_95
+    scale_idx = [i for i, is_log in enumerate(result._ci_log_scale) if is_log]
+    assert len(scale_idx) == 5  # Rs, R0, Q0, R1, Q1
+    for i in scale_idx:
+        assert ci_low[i] > 0, f"Param {i}: scale-parameter CI crosses zero"

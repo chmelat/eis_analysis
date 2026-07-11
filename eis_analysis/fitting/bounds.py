@@ -49,6 +49,13 @@ PARAMETER_BOUNDS = {
 
 DEFAULT_BOUNDS = (1e-15, 1e15)
 
+# A parameter whose bounds span more than this ratio is treated as a
+# positive scale parameter (log-scale semantics): bound proximity is
+# measured in decades and confidence intervals are computed in log space.
+# 1e6 = 6 decades separates scale parameters (R, C, Q, tau, ...; >=9 decades
+# each) from linear-range parameters like the CPE exponent n (0.3-1.0).
+LOG_SCALE_BOUND_RATIO = 1e6
+
 
 def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[float]]:
     """
@@ -113,7 +120,7 @@ def classify_bound_status(
     """
     if not (np.isfinite(lower) and np.isfinite(upper)):
         return ''
-    if lower > 0 and upper / lower > 1e6:
+    if lower > 0 and upper / lower > LOG_SCALE_BOUND_RATIO:
         if value <= 0:
             return 'lower'
         log_val = np.log10(value)
@@ -131,6 +138,41 @@ def classify_bound_status(
         if upper - value < 0.01 * rng:
             return 'upper'
     return ''
+
+
+def log_scale_ci_mask(
+    lower_bounds: Optional[List[float]],
+    upper_bounds: Optional[List[float]]
+) -> Optional[List[bool]]:
+    """
+    Determine which parameters should get log-space confidence intervals.
+
+    A parameter is a positive scale parameter -- its uncertainty is
+    multiplicative, so the CI is computed in log space (see
+    `compute_confidence_interval`) -- when its lower bound is strictly
+    positive and its bounds span more than LOG_SCALE_BOUND_RATIO. This is
+    the same criterion `classify_bound_status` uses for its log-scale
+    branch, so CI semantics and bound-proximity semantics agree: R, C, Q,
+    L, sigma, tau get log-space CIs; the CPE exponent n (0.3-1.0) keeps
+    the symmetric linear-space CI.
+
+    Parameters
+    ----------
+    lower_bounds, upper_bounds : list of float or None
+        Bounds in full parameter space; None if no bound info available
+
+    Returns
+    -------
+    mask : list of bool or None
+        True for parameters with log-space CI; None if bounds unavailable
+        (all CIs stay linear/symmetric)
+    """
+    if lower_bounds is None or upper_bounds is None:
+        return None
+    return [
+        lb > 0 and ub / lb > LOG_SCALE_BOUND_RATIO
+        for lb, ub in zip(lower_bounds, upper_bounds)
+    ]
 
 
 def build_bound_status(
@@ -179,5 +221,7 @@ __all__ = [
     'generate_simple_bounds',
     'build_bound_status',
     'classify_bound_status',
+    'log_scale_ci_mask',
     'PARAMETER_BOUNDS',
+    'LOG_SCALE_BOUND_RATIO',
 ]

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
-from .bounds import generate_simple_bounds, build_bound_status
+from .bounds import generate_simple_bounds, build_bound_status, log_scale_ci_mask
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
@@ -470,7 +470,8 @@ def fit_circuit_diffevo(
         diagnostics=fit_diagnostics,
         param_labels=param_labels_indexed,
         bound_status=bound_status,
-        _dof=cov_result.dof if cov_result is not None else 0
+        _dof=cov_result.dof if cov_result is not None else 0,
+        _ci_log_scale=log_scale_ci_mask(lower_bounds_full, upper_bounds_full)
     )
 
     # Build DiffEvoDiagnostics
