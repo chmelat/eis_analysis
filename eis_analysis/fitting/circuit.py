@@ -88,10 +88,12 @@ class FitResult:
     quality : str
         Fit quality: 'excellent', 'good', 'acceptable', or 'poor'
     condition_number : float
-        Condition number of the normal matrix J^T J = cond(J)^2
-        (high = ill-conditioned)
+        Condition number of the column-scaled normal matrix
+        J_s^T J_s = cond(J_s)^2, where J_s has unit-norm columns
+        (high = ill-conditioned). Scale-invariant: reflects genuine
+        parameter correlation, not unit disparity between parameters.
     is_well_conditioned : bool
-        True if cond(J^T J) < 1e10 (covariance reliable)
+        True if cond(J_s^T J_s) < 1e10 (covariance reliable)
     cov : ndarray of float or None
         Covariance matrix of parameters (None if computation failed)
     diagnostics : FitDiagnostics or None

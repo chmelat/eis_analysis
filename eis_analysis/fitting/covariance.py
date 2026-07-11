@@ -29,13 +29,16 @@ class CovarianceResult:
     stderr : ndarray
         Standard errors of parameters (inf if computation failed)
     condition_number : float
-        Condition number of the normal matrix J^T @ J = cond(J)^2
-        (high = ill-conditioned). Governs reliability of the (J^T J)^{-1}
+        Condition number of the column-scaled normal matrix
+        J_s^T @ J_s = cond(J_s)^2, where J_s has unit-norm columns
+        (high = ill-conditioned). Scale-invariant: unit disparity between
+        parameters (R ~ 1e5 vs Q ~ 1e-6) does not inflate it; only genuine
+        parameter correlation does. Governs reliability of the (J^T J)^{-1}
         used for the covariance.
     rank : int
-        Numerical rank of Jacobian
+        Numerical rank of the column-scaled Jacobian (scale-invariant)
     is_well_conditioned : bool
-        True if cond(J^T J) < 1e10
+        True if cond(J_s^T J_s) < 1e10
     warning_message : str or None
         Warning message if any issues detected
     dof : int
