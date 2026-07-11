@@ -126,11 +126,8 @@ class FitResult:
     _ci_log_scale: Optional[List[bool]] = None
 
     def _ci(self, confidence_level: float) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-        if np.any(np.isinf(self.params_stderr)) or np.any(np.isnan(self.params_stderr)):
-            return (
-                np.full_like(self.params_opt, -np.inf),
-                np.full_like(self.params_opt, np.inf)
-            )
+        # Non-finite stderr yields (-inf, +inf) per parameter inside
+        # compute_confidence_interval; other parameters keep finite CIs.
         return compute_confidence_interval(
             self.params_opt, self.params_stderr, self._dof, confidence_level,
             log_scale=self._ci_log_scale

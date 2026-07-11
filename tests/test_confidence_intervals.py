@@ -177,6 +177,26 @@ def test_fit_result_ci_log_scale_mask_from_bounds():
         assert ci_low[i] > 0, f"Param {i}: log-space CI must be positive"
 
 
+def test_mixed_stderr_per_parameter_ci():
+    """One inf stderr must not destroy the CIs of the other parameters:
+    only the affected parameter gets (-inf, +inf)."""
+    circuit = R(100) - (R(5000) | C(1e-6))
+    freq = np.logspace(4, -1, 30)
+    Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
+
+    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+
+    stderr_mixed = np.array(result.params_stderr, dtype=float)
+    stderr_mixed[1] = np.inf
+    result_mixed = replace(result, params_stderr=stderr_mixed)
+
+    ci_low, ci_high = result_mixed.params_ci_95
+    assert np.isneginf(ci_low[1]) and np.isposinf(ci_high[1])
+    for i in (0, 2):
+        assert np.isfinite(ci_low[i]) and np.isfinite(ci_high[i]), \
+            f"Param {i} CI destroyed by another parameter's inf stderr"
+
+
 def test_invalid_stderr_returns_inf_ci():
     """Test that invalid (inf) stderr returns +/-inf CI."""
     circuit = R(100) - (R(5000) | C(1e-6))

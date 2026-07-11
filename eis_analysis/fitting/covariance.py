@@ -16,6 +16,16 @@ from scipy.stats import t
 
 logger = logging.getLogger(__name__)
 
+# When the Jacobian is rank-deficient, a parameter counts as non-identifiable
+# (stderr = inf) if more than this fraction of its direction's norm lies in
+# the null space of J^T J. Below the tolerance the neglected null component
+# carries < tol^2 = 1e-6 of the direction's energy, so the pseudo-inverse
+# variance (restricted to the identifiable subspace) is an accurate estimate.
+# In exact arithmetic any nonzero overlap means infinite variance, but
+# numerically the SVD basis carries O(machine-eps) noise, so a tolerance is
+# required; 1e-3 sits far above that noise floor.
+NULLSPACE_OVERLAP_TOL = 1e-3
+
 
 @dataclass
 class CovarianceResult:
@@ -85,10 +95,13 @@ def compute_covariance_matrix(
         (J_w^T @ J_w)^{-1} = V @ S^{-2} @ V^T
 
     If the Jacobian is rank-deficient (any singular value < rcond * max(S)),
-    J^T J is singular and the covariance does not exist. In that case the
-    covariance and standard errors of the affected (free) parameters are
-    reported as infinite -- the scipy.optimize.curve_fit convention -- rather
-    than substituting an arbitrary regularized value.
+    J^T J is singular and the full covariance does not exist. Parameters
+    whose direction overlaps the null space (more than NULLSPACE_OVERLAP_TOL
+    of the direction's norm) are non-identifiable: their covariance and
+    standard error are reported as infinite rather than substituting an
+    arbitrary regularized value. The remaining parameters get their variance
+    from the Moore-Penrose pseudo-inverse restricted to the identifiable
+    subspace, which is exact for directions orthogonal to the null space.
 
     Parameters
     ----------
@@ -172,16 +185,42 @@ def compute_covariance_matrix(
         # Check conditioning
         is_well_conditioned = condition_number < 1e10
 
-        # Rank-deficient: J^T J is singular, so the covariance does not exist.
-        # Report it as infinite (the scipy.optimize.curve_fit convention) rather
-        # than substituting an arbitrary regularized value: the honest statement
-        # is that the uncertainty is not estimable for the affected parameters.
-        # Fixed parameters keep zero variance (they are known exactly).
+        # Rank-deficient: J^T J is singular, so the full covariance does not
+        # exist. Rather than reporting inf for every free parameter (the
+        # scipy.optimize.curve_fit convention), identify WHICH parameter
+        # directions lie in the null space: only those have truly
+        # non-estimable (infinite) variance. The remaining parameters get
+        # their variance from the Moore-Penrose pseudo-inverse restricted to
+        # the identifiable subspace, which is exact for directions orthogonal
+        # to the null space. Fixed parameters keep zero variance.
         if rank < n_free_params:
-            warning_message = (
-                f"Rank-deficient Jacobian (rank={rank}/{n_free_params}). "
-                f"Some parameters are not identifiable; covariance not estimable."
-            )
+            # Null-space basis of the scaled Jacobian: rows of Vt whose
+            # singular value is below the rank threshold. Column scaling D is
+            # diagonal and positive, so a parameter direction e_i overlaps
+            # null(J) iff it overlaps null(J_scaled): the identifiability
+            # mask is scale-invariant.
+            null_rows = S <= threshold
+            V_null = Vt[null_rows, :]                     # (k, n_free)
+            overlap = np.linalg.norm(V_null, axis=0)      # per free param
+
+            # Parameter i is non-identifiable when more than
+            # NULLSPACE_OVERLAP_TOL of its direction lies in the null space
+            # (see the constant's rationale above).
+            non_identifiable = overlap > NULLSPACE_OVERLAP_TOL
+
+            # Pseudo-inverse over the identifiable subspace, rescaled to
+            # original parameter units (same identity as the full-rank path).
+            S_r = S[~null_rows]
+            Vt_r = Vt[~null_rows, :]
+            JsTJs_pinv = Vt_r.T @ np.diag(1.0 / (S_r * S_r)) @ Vt_r
+            inv_scale = 1.0 / col_scale
+            JtJ_pinv = (inv_scale[:, None] * JsTJs_pinv) * inv_scale[None, :]
+            cov_free = residual_variance * JtJ_pinv
+            stderr_free = np.sqrt(np.abs(np.diag(cov_free)))
+            stderr_free[non_identifiable] = np.inf
+            cov_free[non_identifiable, :] = np.inf
+            cov_free[:, non_identifiable] = np.inf
+
             if fixed_params is not None and any(fixed_params):
                 n_total = len(fixed_params)
                 free_indices = [i for i, f in enumerate(fixed_params) if not f]
@@ -189,12 +228,21 @@ def compute_covariance_matrix(
                 n_total = n_free_params
                 free_indices = list(range(n_free_params))
 
+            # Full-parameter-space indices of the non-identifiable parameters
+            bad_full = [free_indices[i] for i in np.where(non_identifiable)[0]]
+            warning_message = (
+                f"Rank-deficient Jacobian (rank={rank}/{n_free_params}). "
+                f"Non-identifiable parameter(s) {bad_full}: "
+                f"covariance not estimable (stderr=inf); remaining parameters "
+                f"estimated on the identifiable subspace."
+            )
+
             cov = np.zeros((n_total, n_total))
-            for i_full in free_indices:
-                for j_full in free_indices:
-                    cov[i_full, j_full] = np.inf
+            for i_free, i_full in enumerate(free_indices):
+                for j_free, j_full in enumerate(free_indices):
+                    cov[i_full, j_full] = cov_free[i_free, j_free]
             stderr = np.zeros(n_total)
-            stderr[free_indices] = np.inf
+            stderr[free_indices] = stderr_free
 
             return CovarianceResult(
                 cov=cov,
@@ -350,6 +398,14 @@ def compute_confidence_interval(
             factor = np.exp(t_critical * params_stderr[mask] / p)
             ci_low[mask] = p / factor
             ci_high[mask] = p * factor
+
+    # Non-finite stderr -> uncertainty not estimable -> CI (-inf, +inf) for
+    # that parameter only, so one non-identifiable parameter does not
+    # destroy the CIs of the others.
+    bad = ~np.isfinite(params_stderr)
+    if np.any(bad):
+        ci_low[bad] = -np.inf
+        ci_high[bad] = np.inf
 
     return ci_low, ci_high
 

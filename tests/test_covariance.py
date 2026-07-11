@@ -98,6 +98,48 @@ def test_rank_deficient_with_fixed_params():
     assert np.all(np.isinf(result.stderr[1:]))  # free, rank-deficient
 
 
+def test_partial_rank_deficiency_per_parameter():
+    """Only parameters overlapping the null space get inf; the rest get
+    finite stderr from the pseudo-inverse over the identifiable subspace.
+
+    col1 = col2 (collinear pair), col0 orthogonal to both. The null vector
+    (0, 1, -1)/sqrt(2) involves params 1 and 2 only, so param 0 must keep a
+    finite, exact stderr.
+    """
+    c0 = np.array([1.0, 0.0, 0.0, 0.0])
+    c1 = np.array([0.0, 1.0, 1.0, 0.0])
+    J = np.column_stack([c0, c1, c1.copy()])
+    r = np.array([0.1, 0.2, 0.1, 0.05])
+    result = compute_covariance_matrix(J, r, n_params=3)
+
+    assert result.rank == 2
+    # Params 1, 2 span the null space -> non-identifiable
+    assert np.isinf(result.stderr[1]) and np.isinf(result.stderr[2])
+    assert np.all(np.isinf(result.cov[1, :])) and np.all(np.isinf(result.cov[:, 2]))
+    # Param 0 is orthogonal to the null space -> exact finite stderr:
+    # s^2 = rss/dof = 0.0625/1, unit column -> stderr = sqrt(0.0625) = 0.25
+    assert result.stderr[0] == pytest.approx(0.25, rel=1e-12)
+    assert result.cov[0, 0] == pytest.approx(0.0625, rel=1e-12)
+    # Warning names the non-identifiable parameters
+    assert "[1, 2]" in result.warning_message
+
+
+def test_partial_rank_deficiency_with_fixed_params():
+    """Non-identifiable indices in the warning are in FULL parameter space
+    when fixed parameters shift the free-parameter indexing."""
+    c0 = np.array([1.0, 0.0, 0.0, 0.0])
+    c1 = np.array([0.0, 1.0, 1.0, 0.0])
+    J = np.column_stack([c0, c1, c1.copy()])   # 3 free columns
+    r = np.array([0.1, 0.2, 0.1, 0.05])
+    fixed = [True, False, False, False]         # full params: 0 fixed, 1..3 free
+    result = compute_covariance_matrix(J, r, n_params=4, fixed_params=fixed)
+
+    assert result.stderr[0] == 0.0                     # fixed -> known exactly
+    assert result.stderr[1] == pytest.approx(0.25)     # identifiable free
+    assert np.isinf(result.stderr[2]) and np.isinf(result.stderr[3])
+    assert "[2, 3]" in result.warning_message          # full-space indices
+
+
 def test_full_rank_stderr_finite():
     # Full rank -> covariance estimable, finite standard errors.
     J = np.diag([2.0, 0.5])
