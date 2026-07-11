@@ -141,8 +141,8 @@ def test_g_fixed_parameters():
     """Test fixed parameter handling."""
     # One fixed
     g_fixed = G("100", 1e-3)
-    assert g_fixed.fixed_params[0] == True
-    assert g_fixed.fixed_params[1] == False
+    assert g_fixed.fixed_params[0]
+    assert not g_fixed.fixed_params[1]
 
     # Both fixed
     g_both = G("100", "1e-3")

@@ -22,7 +22,6 @@ import os
 import argparse
 import tempfile
 import logging
-from typing import Optional
 
 import numpy as np
 
@@ -165,7 +164,7 @@ def test_synthetic_data_basic():
     print("\n[Test 1] Synthetic data - basic workflow")
     print("-" * 70)
 
-    from eis_analysis.cli import load_eis_data, filter_by_frequency
+    from eis_analysis.cli import load_eis_data
 
     args = create_test_args()
 
@@ -293,7 +292,7 @@ def test_drt_peak_count_matches_listing(caplog):
         caplog.clear()
         with caplog.at_level(logging.INFO,
                              logger='eis_analysis.cli.handlers.drt'):
-            result = run_drt_analysis(frequencies, Z, args, None, method)
+            run_drt_analysis(frequencies, Z, args, None, method)
 
         messages = [rec.getMessage() for rec in caplog.records]
 
@@ -737,7 +736,7 @@ def test_combined_workflow():
     fit_result, fig_fit = run_circuit_fitting(data.frequencies, data.Z, fit_args)
     assert fit_result is not None, "Fit should produce result"
 
-    print(f"  KK: figure generated")
+    print("  KK: figure generated")
     print(f"  DRT: lambda={drt_result.lambda_used:.2e}")
     print(f"  Fit: error={fit_result.fit_error_rel:.2f}%")
 
@@ -778,7 +777,7 @@ def test_save_output():
             print(f"  Saved: {os.path.basename(expected_file)} ({file_size} bytes)")
             assert file_size > 0, "Saved file should not be empty"
         else:
-            print(f"  Note: File not saved (save_figure may be disabled in handler)")
+            print("  Note: File not saved (save_figure may be disabled in handler)")
 
     print("  [OK] Save output test completed")
 
@@ -849,7 +848,6 @@ def run_all_tests():
 
     passed = 0
     failed = 0
-    skipped = 0
 
     for name, test_func in tests:
         try:

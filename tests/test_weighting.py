@@ -52,6 +52,6 @@ def test_weighting_recovers_parameters(synthetic_voigt_data, weighting):
     R_s_fit, R1_fit, C1_fit = result.params_opt
 
     # Allow 15% tolerance due to noise
-    assert abs(R_s_fit - R_s_true) / R_s_true < 0.15, f"R_s error too high"
-    assert abs(R1_fit - R1_true) / R1_true < 0.15, f"R1 error too high"
-    assert abs(C1_fit - C1_true) / C1_true < 0.15, f"C1 error too high"
+    assert abs(R_s_fit - R_s_true) / R_s_true < 0.15, "R_s error too high"
+    assert abs(R1_fit - R1_true) / R1_true < 0.15, "R1 error too high"
+    assert abs(C1_fit - C1_true) / C1_true < 0.15, "C1 error too high"
