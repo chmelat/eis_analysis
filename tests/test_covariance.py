@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Tests for covariance computation (fitting/covariance.py).
 
-Focus: condition_number reports cond(J^T J) = cond(J)^2 and the
-is_well_conditioned threshold is applied to that value (audit finding #3).
+Focus: condition_number reports cond(J^T J) = cond(J)^2 of the *column-scaled*
+Jacobian, and the is_well_conditioned threshold is applied to that
+scale-invariant value (audit finding #3, corrected for column scaling).
 
-Diagonal Jacobians are used so the singular values (hence cond(J)) are known
-exactly.
+Column scaling is essential for EIS: parameters span many orders of magnitude
+(R ~ 1e5, Q ~ 1e-6, n ~ 0.5), so the raw Jacobian columns differ by >10 decades
+and cond(J) exceeds 1e10 purely from those units -- a scaling artifact that must
+NOT be reported as ill-conditioning or rank deficiency.
 """
 
 import numpy as np
@@ -14,27 +17,53 @@ import pytest
 from eis_analysis.fitting.covariance import compute_covariance_matrix
 
 
+def _equal_norm_correlated_J(d):
+    # Two unit-norm columns with Gram off-diagonal d, so column scaling is a
+    # no-op and cond(J^T J) = (1 + d) / (1 - d) reflects genuine correlation.
+    a = np.sqrt((1.0 + d) / 2.0)
+    b = np.sqrt((1.0 - d) / 2.0)
+    return np.column_stack([[a, b], [a, -b]])
+
+
 def test_condition_number_is_cond_of_JtJ():
-    # Singular values {2.0, 0.5} -> cond(J) = 4 -> cond(J^T J) = 16.
-    J = np.diag([2.0, 0.5])
+    # Equal-norm correlated columns, d = 0.5 -> cond(J^T J) = 1.5 / 0.5 = 3.
+    J = _equal_norm_correlated_J(0.5)
     r = np.array([0.1, 0.2])
     result = compute_covariance_matrix(J, r, n_params=2)
-    assert result.condition_number == pytest.approx(16.0)
+    assert result.condition_number == pytest.approx(3.0)
 
 
-def test_well_conditioned_threshold_on_JtJ():
-    # cond(J) = 1e6 (< 1e10) but cond(J^T J) = 1e12 (> 1e10): the problem is
-    # NOT well-conditioned for the covariance inverse.
+def test_scale_disparate_orthogonal_is_well_conditioned():
+    # Orthogonal columns differing by 6 decades in units (cond of RAW J^T J is
+    # 1e12) are perfectly identifiable: after column scaling they are the
+    # identity, so the problem is well-conditioned and both stderrs are finite.
+    # This is the EIS regression: unit disparity must not be read as ill
+    # conditioning.
     J = np.diag([1.0, 1e-6])
     r = np.array([0.1, 0.2])
     result = compute_covariance_matrix(J, r, n_params=2)
-    assert result.condition_number == pytest.approx(1e12, rel=1e-6)
+    assert result.condition_number == pytest.approx(1.0)
+    assert result.is_well_conditioned
+    assert np.all(np.isfinite(result.stderr))
+    # cov = s^2 (J^T J)^{-1} = s^2 diag([1, 1e12]); the small-sensitivity
+    # parameter gets a large but finite (estimable) stderr.
+    assert result.stderr[1] / result.stderr[0] == pytest.approx(1e6, rel=1e-6)
+
+
+def test_genuine_ill_conditioning_flagged():
+    # Correlation-driven ill conditioning that column scaling cannot remove:
+    # d -> 1 gives cond(J^T J) = (1 + d) / (1 - d) > 1e10.
+    d = 1.0 - 2e-11
+    J = _equal_norm_correlated_J(d)
+    r = np.array([0.1, 0.2])
+    result = compute_covariance_matrix(J, r, n_params=2)
+    assert result.condition_number > 1e10
     assert not result.is_well_conditioned
 
 
 def test_well_conditioned_true_for_benign_jacobian():
-    # cond(J) = 4 -> cond(J^T J) = 16, comfortably below 1e10.
-    J = np.diag([2.0, 0.5])
+    # Equal-norm, weakly correlated columns -> cond(J^T J) = 3, below 1e10.
+    J = _equal_norm_correlated_J(0.5)
     r = np.array([0.1, 0.2])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert result.is_well_conditioned

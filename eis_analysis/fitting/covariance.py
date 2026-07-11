@@ -135,16 +135,34 @@ def compute_covariance_matrix(
     warning_message = None
 
     try:
-        # SVD decomposition: J = U @ S @ V^T
-        U, S, Vt = np.linalg.svd(jacobian, full_matrices=False)
+        # Column-scale the Jacobian before analysing rank and conditioning.
+        # EIS parameters span many orders of magnitude (R ~ 1e5 Ohm, Q ~ 1e-6,
+        # n ~ 0.5), so the raw Jacobian columns differ by >10 decades and
+        # cond(J) exceeds 1e10 purely from those units -- a scaling artifact,
+        # not genuine non-identifiability. Scaling each column to unit norm
+        # (van der Sluis preconditioning) makes the rank and condition number
+        # scale-invariant, so only true rank deficiency (linearly dependent
+        # columns) is flagged. The covariance is computed in the scaled space
+        # and rescaled: with D = diag(col_norms), J = J_scaled @ D and
+        # (J^T J)^{-1} = D^{-1} (J_scaled^T J_scaled)^{-1} D^{-1}.
+        col_norms = np.linalg.norm(jacobian, axis=0)
+        # A zero-norm column means the parameter has no effect on the residual
+        # (genuinely non-identifiable). Use unit scale to avoid div-by-zero;
+        # the resulting zero singular value drops the rank -> inf below.
+        col_scale = np.where(col_norms > 0, col_norms, 1.0)
+        J_scaled = jacobian / col_scale
 
-        # Condition number of the normal matrix J^T J = cond(J)^2.
-        # The covariance is s^2 (J^T J)^{-1}, so the reliability of that
-        # inverse is governed by cond(J^T J), not cond(J).
+        # SVD of the scaled Jacobian: J_scaled = U @ S @ V^T
+        U, S, Vt = np.linalg.svd(J_scaled, full_matrices=False)
+
+        # Condition number of the scaled normal matrix J_scaled^T J_scaled =
+        # cond(J_scaled)^2. The covariance is s^2 (J^T J)^{-1}; its reliability
+        # in terms of relative parameter uncertainties is governed by this
+        # scale-invariant condition number, not the unit-dependent raw cond(J).
         cond_J = S[0] / S[-1] if S[-1] > 0 else np.inf
         condition_number = cond_J ** 2
 
-        # Numerical rank (singular values above threshold)
+        # Numerical rank (scaled singular values above threshold)
         threshold = rcond * S[0]
         rank = np.sum(S > threshold)
 
@@ -191,11 +209,15 @@ def compute_covariance_matrix(
                 f"Covariance estimates may be unreliable."
             )
 
-        # Full rank here: every singular value is above the threshold.
-        # Compute (J^T @ J)^{-1} = V @ S^{-2} @ V^T using SVD.
+        # Full rank here: every scaled singular value is above the threshold.
+        # Invert the scaled normal matrix, (J_scaled^T J_scaled)^{-1} =
+        # V @ S^{-2} @ V^T, then rescale by D^{-1} on both sides to recover
+        # (J^T J)^{-1} in the original parameter units.
         S_inv_sq = 1.0 / (S * S)
         V = Vt.T
-        JtJ_inv_free = V @ np.diag(S_inv_sq) @ Vt
+        JsTJs_inv = V @ np.diag(S_inv_sq) @ Vt
+        inv_scale = 1.0 / col_scale
+        JtJ_inv_free = (inv_scale[:, None] * JsTJs_inv) * inv_scale[None, :]
 
         # Covariance matrix for free parameters
         cov_free = residual_variance * JtJ_inv_free

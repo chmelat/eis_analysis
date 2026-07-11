@@ -4,6 +4,28 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.17.1 (2026-07-11)
+
+### Fixed
+
+- **Regression: parameter confidence intervals reported as `+/- inf` on
+  essentially every fit (including the built-in demo).** The rank and
+  condition-number checks in `compute_covariance_matrix` ran on the *raw*
+  Jacobian. EIS parameters span many orders of magnitude (R ~ 1e5 Ohm,
+  Q ~ 1e-6, n ~ 0.5), so the Jacobian columns differ by >10 decades and
+  `cond(J)` exceeds the 1e10 threshold purely from those units — a scaling
+  artifact, not genuine non-identifiability. Since audit #4 (0.16.x) reports
+  rank-deficient covariance as infinite, this surfaced as `+/- inf` standard
+  errors on well-determined parameters. The Jacobian is now column-scaled to
+  unit norm (van der Sluis preconditioning) before the rank and conditioning
+  analysis, making both scale-invariant; the covariance is inverted in the
+  scaled space and rescaled via `(J^T J)^{-1} = D^{-1} (J_s^T J_s)^{-1} D^{-1}`.
+  Genuinely rank-deficient Jacobians (linearly dependent columns) still report
+  `inf`, preserving the audit #4 behavior. The reported `condition_number` is
+  now the scale-invariant `cond(J_s^T J_s)`.
+
+---
+
 ## Version 0.17.0 (2026-07-09)
 
 ### Added
