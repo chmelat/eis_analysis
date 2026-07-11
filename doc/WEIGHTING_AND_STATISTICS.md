@@ -282,9 +282,10 @@ SE(theta_i) = sqrt(diag_i(Cov(theta)))
 where:
   Cov(theta) = s^2 * (J^T * J)^(-1)
   s^2 = RSS / dof ... residual variance estimate
-  RSS = SUM(r_i^2) ... residual sum of squares
-  dof = N - p ... degrees of freedom (data points - parameters)
-  J = Jacobian matrix (matrix of derivatives)
+  RSS = SUM(r_i^2) ... residual sum of squares (weighted residuals)
+  dof = 2N - p ... degrees of freedom (N frequencies give 2N real
+                   residuals: real + imaginary part; p = free parameters)
+  J = weighted Jacobian matrix (matrix of derivatives)
 ```
 
 **Interpretation:**
@@ -302,16 +303,29 @@ where:
 **Condition number** (of the normal matrix J^T J, which governs the
 covariance inverse):
 ```
-cond(J^T J) = (S_max / S_min)^2  (S from SVD of the Jacobian J)
+cond(J_s^T J_s) = (S_max / S_min)^2  (S from SVD of the column-scaled
+                                      Jacobian J_s with unit-norm columns)
 ```
-- cond(J^T J) < 10^10: Well-conditioned problem, SE are reliable
-- cond(J^T J) > 10^10: Ill-conditioned problem, SE may be unreliable
+The Jacobian is column-scaled to unit norm before the analysis: EIS
+parameters span many orders of magnitude (R ~ 1e5 Ohm, Q ~ 1e-6), so the
+raw cond(J) would exceed any threshold purely from those units. The scaled
+condition number is scale-invariant and reflects genuine parameter
+correlation only.
+- cond(J_s^T J_s) < 10^10: Well-conditioned problem, SE are reliable
+- cond(J_s^T J_s) > 10^10: Ill-conditioned problem, SE may be unreliable
+
+**Rank deficiency:** if some singular values are (numerically) zero, the
+covariance does not exist in the affected directions. Parameters whose
+direction overlaps the null space are reported with SE = inf
+(non-identifiable); the remaining parameters get their SE from the
+pseudo-inverse restricted to the identifiable subspace, so one degenerate
+parameter does not destroy the uncertainty estimates of the others.
 
 ---
 
 ### 3.6 Confidence Interval (95% CI)
 
-**Definition:**
+**Definition (linear-range parameters, e.g. the CPE exponent n):**
 
 ```
 CI_low = theta - t_(alpha/2, dof) * SE(theta)
@@ -322,8 +336,25 @@ where:
   SE(theta) = standard error
   t_(alpha/2, dof) = critical value of t-distribution
   alpha = 1 - confidence level (for 95% CI: alpha = 0.05)
-  dof = N - p ... degrees of freedom
+  dof = 2N - p ... degrees of freedom (same dof as the s^2 estimate)
 ```
+
+**Positive scale parameters (R, C, Q, L, sigma, tau, ...):** the symmetric
+interval above can cross zero when SE is comparable to the value -- a
+physically meaningless negative resistance or capacitance. For these
+parameters the CI is therefore computed in log space (delta method on
+ln(theta)):
+
+```
+f = exp(t_(alpha/2, dof) * SE(theta) / theta)
+CI = (theta / f, theta * f)
+```
+
+Always positive and multiplicatively symmetric; for SE/theta -> 0 it
+converges to the linear interval. A parameter counts as a scale parameter
+when its lower bound is positive and its bounds span more than 6 decades
+(the same criterion used for bound-proximity checks), so the CPE exponent
+n (0.3-1.0) keeps the symmetric linear-space CI.
 
 **Why t-distribution (not normal)?**
 - For small datasets, t-distribution is more conservative

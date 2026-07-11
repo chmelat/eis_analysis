@@ -395,15 +395,18 @@ result, Z_fit, fig = fit_equivalent_circuit(
 
 ```python
 result.params_opt      # Optimal parameters (ndarray)
-result.params_stderr   # Standard errors of parameters (ndarray)
-result.params_ci_95    # 95% confidence intervals (tuple of ndarray)
-result.params_ci_99    # 99% confidence intervals (tuple of ndarray)
+result.params_stderr   # Standard errors (ndarray; inf = not identifiable)
+result.params_ci_95    # 95% confidence intervals (tuple of ndarray;
+                       #   log-space (always positive) for scale parameters
+                       #   R/C/Q/L/sigma/tau, symmetric for exponent n)
+result.params_ci_99    # 99% confidence intervals (same semantics)
 result.param_labels    # Parameter labels ['R0', 'R1', 'Q0', 'n0', ...]
 result.fit_error_rel   # Relative fit error [%]
 result.fit_error_abs   # Absolute fit error [Ohm]
 result.quality         # 'excellent', 'good', 'acceptable', 'poor'
-result.condition_number # Condition number of J^T J (= cond(J)^2)
-result.is_well_conditioned # True if cond(J^T J) < 1e10
+result.condition_number # cond(J_s^T J_s) of the column-scaled (unit-norm
+                        #   columns) Jacobian; scale-invariant
+result.is_well_conditioned # True if cond(J_s^T J_s) < 1e10
 result.cov             # Covariance matrix (ndarray or None)
 result.diagnostics     # FitDiagnostics dataclass
 result.all_warnings    # List of all warnings (convenience property)
@@ -414,9 +417,11 @@ result.diagnostics.optimizer_message   # Optimizer message
 result.diagnostics.optimizer_success   # True if converged
 result.diagnostics.n_function_evals    # Number of function evaluations
 result.diagnostics.jacobian_type       # 'analytic' or 'numeric'
-result.diagnostics.condition_number    # cond(J^T J) (= cond(J)^2)
-result.diagnostics.covariance_rank     # Rank of covariance matrix
-result.diagnostics.covariance_warning  # Warning if ill-conditioned
+result.diagnostics.condition_number    # cond(J_s^T J_s), column-scaled
+result.diagnostics.covariance_rank     # Numerical rank of the (scaled) Jacobian
+result.diagnostics.covariance_warning  # Warning if ill-conditioned or
+                                       #   rank-deficient (names the
+                                       #   non-identifiable parameters)
 result.diagnostics.params_at_bounds    # List of param indices at bounds
 result.diagnostics.warnings            # List of general warnings
 ```
