@@ -10,6 +10,9 @@ from .core import (
     LambdaSelection,
     NNLSSolution,
     DRTMatrices,
+    LambdaProbePoint,
+    PeakStability,
+    StabilityDiagnostics,
 )
 from .gcv import (
     compute_gcv_score,
@@ -31,6 +34,9 @@ __all__ = [
     'LambdaSelection',
     'NNLSSolution',
     'DRTMatrices',
+    'LambdaProbePoint',
+    'PeakStability',
+    'StabilityDiagnostics',
     # GCV functions
     'compute_gcv_score',
     'find_optimal_lambda_gcv',

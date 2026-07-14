@@ -7,7 +7,7 @@ and (for the GMM method) per-peak deconvolution and BIC model-selection panels.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
@@ -21,9 +21,14 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
                           normalize_rpol: bool,
                           peak_method: str,
                           peaks_result: Optional[List[Dict]],
-                          bic_scores: Optional[List[float]]) -> plt.Figure:
+                          bic_scores: Optional[List[float]],
+                          probe_curves: Optional[List[Tuple[float, NDArray]]] = None
+                          ) -> plt.Figure:
     """
     Create DRT visualization figure.
+
+    probe_curves: optional (lambda, gamma) pairs from the lambda-probe
+    stability diagnostics, drawn as thin overlays on the DRT spectrum.
     """
     use_gmm = (peak_method == 'gmm' and
                peaks_result is not None and len(peaks_result) > 0)
@@ -37,6 +42,10 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
         ax1, ax2 = axes[0], axes[1]
 
     # === DRT Spectrum ===
+    if probe_curves:
+        for probe_lambda, probe_gamma in probe_curves:
+            ax1.semilogx(tau, probe_gamma, '-', linewidth=1, alpha=0.35,
+                         label=f'lambda = {probe_lambda:.1e}')
     ax1.semilogx(tau, gamma, 'b-', linewidth=2, label='DRT gamma(tau)')
     ax1.fill_between(tau, 0, gamma, alpha=0.3)
     ax1.set_xlabel("tau [s]")
@@ -57,6 +66,9 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
             ax1.plot(tau[peaks_idx], gamma[peaks_idx], 'ro', markersize=8,
                     label=f'{len(peaks_idx)} peaks', zorder=5)
             ax1.legend()
+
+    if probe_curves:
+        ax1.legend(fontsize=8)
 
     # === Nyquist Comparison ===
     ax2.plot(Z.real, -Z.imag, 'o', label='Data', markersize=5)

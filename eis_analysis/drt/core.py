@@ -23,6 +23,9 @@ from .results import (
     DRTDiagnostics,
     DRTMatrices,
     DRTResult,
+    LambdaProbePoint,
+    PeakStability,
+    StabilityDiagnostics,
 )
 from .estimation import (
     _rpol_from_gamma,
@@ -38,6 +41,7 @@ from .linear_system import (
 )
 from .plotting import _create_visualization
 from .peaks import gmm_peak_detection
+from .stability import probe_lambda_stability
 from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS
 
 logger = logging.getLogger(__name__)
@@ -52,6 +56,9 @@ __all__ = [
     'LambdaSelection',
     'NNLSSolution',
     'DRTMatrices',
+    'LambdaProbePoint',
+    'PeakStability',
+    'StabilityDiagnostics',
 ]
 
 # Constants
@@ -121,7 +128,8 @@ def calculate_drt(
     use_voigt_fit: bool = False,
     peak_method: str = 'scipy',
     r_inf_preset: Optional[float] = None,
-    gmm_bic_threshold: float = 10.0
+    gmm_bic_threshold: float = 10.0,
+    lambda_probe: bool = False
 ) -> DRTResult:
     """
     Calculate DRT (Distribution of Relaxation Times) using Tikhonov regularization.
@@ -150,6 +158,9 @@ def calculate_drt(
         Preset R_inf value
     gmm_bic_threshold : float
         BIC threshold for GMM peak detection
+    lambda_probe : bool
+        Re-solve the DRT at lambdas around the selected one and report
+        per-peak stability (see drt.stability)
 
     Returns
     -------
@@ -279,13 +290,41 @@ def calculate_drt(
             f"for reliable DRT shape"
         )
 
+    # === Step 8c: Lambda-probe peak stability (opt-in) ===
+    # Track the reported peaks across lambdas around the selected one; peaks
+    # that vanish or drift under a modest lambda change are likely
+    # regularization artifacts. Reference peaks and probe run on the physical
+    # gamma [Ohm].
+    stability = None
+    probe_curves = None
+    if lambda_probe:
+        if peaks_result:
+            reference_peaks = [(p['tau_center'], p['R_estimate'])
+                               for p in peaks_result]
+        else:
+            reference_peaks = [(p['tau'], p['R_estimate'])
+                               for p in (scipy_peaks or [])]
+        stability = probe_lambda_stability(
+            matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf,
+            n_tau
+        )
+        # Overlay curves for the DRT figure; match the normalization of the
+        # displayed gamma.
+        scale = R_pol_from_gamma if normalized else 1.0
+        probe_curves = [
+            (p.lambda_value, p.gamma / scale)
+            for p in stability.probe_points
+            if p.success and p.gamma is not None
+        ]
+
     # === Step 9: Visualization ===
     fig = _create_visualization(
         matrices.tau, gamma, gamma_original,
         Z, Z_reconstructed,
         R_inf, lambda_sel.lambda_value,
         normalized, peak_method,
-        peaks_result, bic_scores
+        peaks_result, bic_scores,
+        probe_curves=probe_curves
     )
 
     # === Build diagnostics ===
@@ -307,7 +346,8 @@ def calculate_drt(
         peak_method=peak_method,
         n_peaks=n_peaks,
         scipy_peaks=scipy_peaks,
-        n_effective_bins=n_eff
+        n_effective_bins=n_eff,
+        stability=stability
     )
 
     return DRTResult(

@@ -58,6 +58,40 @@ class NNLSSolution:
 
 
 @dataclass
+class LambdaProbePoint:
+    """DRT solution summary at one probe lambda (stability diagnostics)."""
+    lambda_value: float
+    success: bool
+    gamma: Optional[NDArray[np.float64]] = None  # physical [Ohm]; for overlay plot
+    gamma_max: Optional[float] = None
+    reconstruction_error_rel: Optional[float] = None
+    peaks: List[Dict] = field(default_factory=list)  # {'tau', 'R_estimate'}
+    error: Optional[str] = None  # solver failure message
+
+
+@dataclass
+class PeakStability:
+    """Stability of one reference peak across the lambda probe."""
+    tau_ref: float                # tau of the peak in the main solution [s]
+    f_ref: float                  # corresponding frequency [Hz]
+    R_ref: float                  # R_estimate in the main solution [Ohm]
+    persistence: int              # number of probe solutions containing the peak
+    n_probes: int                 # number of successful probe solutions
+    tau_drift_decades: float      # max |log10(tau_probe/tau_ref)| over matches
+    R_variation_rel: float        # max relative deviation of R_estimate from R_ref
+    verdict: str                  # 'stable' | 'marginal' | 'artifact'
+
+
+@dataclass
+class StabilityDiagnostics:
+    """Result of the lambda-probe peak stability analysis."""
+    lambda_star: float
+    probe_points: List[LambdaProbePoint] = field(default_factory=list)
+    peak_stability: List[PeakStability] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
 class DRTDiagnostics:
     """Comprehensive DRT diagnostics."""
     # Frequency info
@@ -95,6 +129,9 @@ class DRTDiagnostics:
 
     # Shape diagnostics (F3): effective number of gamma bins (participation ratio)
     n_effective_bins: Optional[float] = None
+
+    # Lambda-probe peak stability (only when requested via lambda_probe=True)
+    stability: Optional[StabilityDiagnostics] = None
 
 
 @dataclass

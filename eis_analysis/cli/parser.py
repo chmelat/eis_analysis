@@ -137,6 +137,10 @@ Examples:
                            metavar='THRESHOLD',
                            help='BIC threshold for GMM peak detection. Lower values detect more peaks. '
                                 'Typical range: 2-20. Default: 10.0 (conservative)')
+    drt_group.add_argument('--lambda-probe', action='store_true',
+                           help='Re-solve DRT at lambda*10^(+-0.5) and lambda*10^(+-1) and report '
+                                'per-peak stability (stable/marginal/artifact). Helps distinguish '
+                                'real relaxation processes from regularization artifacts.')
 
     # R_inf estimation
     drt_group.add_argument('--ri-fit', action='store_true',

@@ -323,6 +323,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 - `--normalize-rpol` - Normalize gamma(tau) by polarization resistance so that integral = 1. Useful for comparing samples with different R_pol.
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.
+- `--lambda-probe` - Peak stability diagnostics: re-solves the DRT at lambda*10^(+-0.5) and lambda*10^(+-1) around the selected lambda and tracks each detected peak across the solutions. Reports per-peak persistence, position drift (decades of tau), R variation, and a verdict (STABLE / MARGINAL / ARTIFACT). A peak that appears only in a narrow lambda window is likely a regularization artifact rather than a real relaxation process. The probe solutions are also drawn as thin overlay curves in the DRT plot. Example: `eis data.DTA --lambda-probe`.
 - `--ri-fit` - Robust R_inf estimation using R+L+K model fit on high-frequency data. Suitable for data with inductive loop.
 - `--no-drt` - Skip DRT analysis. Useful if you only want circuit fitting.
 

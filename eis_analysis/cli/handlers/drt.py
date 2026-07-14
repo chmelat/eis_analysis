@@ -133,6 +133,38 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
                         f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
 
+    # Lambda-probe peak stability
+    if diag.stability is not None:
+        stability = diag.stability
+        log_separator()
+        logger.info("Peak stability (lambda probe)")
+        log_separator()
+        logger.info(f"Reference lambda* = {stability.lambda_star:.2e}")
+
+        for point in stability.probe_points:
+            if point.success:
+                logger.info(f"  lambda = {point.lambda_value:.2e}: "
+                            f"{len(point.peaks)} peaks, "
+                            f"gamma_max = {point.gamma_max:.3g} Ohm, "
+                            f"reconstruction error = {point.reconstruction_error_rel:.1f}%")
+            else:
+                logger.warning(f"  lambda = {point.lambda_value:.2e}: "
+                               f"solver failed ({point.error})")
+
+        for i, peak_stab in enumerate(stability.peak_stability):
+            line = (f"  Peak {i+1}: tau = {peak_stab.tau_ref:.2e} s  "
+                    f"persistence {peak_stab.persistence}/{peak_stab.n_probes}  "
+                    f"drift {peak_stab.tau_drift_decades:.2f} dec  "
+                    f"R var {peak_stab.R_variation_rel*100:.0f}%  "
+                    f"{peak_stab.verdict.upper()}")
+            if peak_stab.verdict == 'artifact':
+                logger.warning(line)
+            else:
+                logger.info(line)
+
+        for warning in stability.warnings:
+            logger.warning(f"  {warning}")
+
     log_separator()
 
 
@@ -154,7 +186,7 @@ def run_drt_analysis(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol, ri_fit,
-                       gmm_bic_threshold, save, format)
+                       gmm_bic_threshold, lambda_probe, save, format)
     R_inf_computed : float or None
         Pre-computed R_inf from --ri-fit
     peak_method : str
@@ -180,7 +212,8 @@ def run_drt_analysis(
         use_rl_fit=False,
         use_voigt_fit=args.ri_fit,
         r_inf_preset=R_inf_computed,
-        gmm_bic_threshold=args.gmm_bic_threshold
+        gmm_bic_threshold=args.gmm_bic_threshold,
+        lambda_probe=args.lambda_probe
     )
 
     # Log diagnostics

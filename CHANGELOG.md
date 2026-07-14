@@ -4,6 +4,27 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Lambda-probe peak stability diagnostics (`--lambda-probe`).** Opt-in
+  DRT diagnostic inspired by (and extending) the lambda-sensitivity probe of
+  Auto DRT Analyzer: the regularized NNLS problem is re-solved at
+  `lambda* x 10^(+-0.5)` and `lambda* x 10^(+-1)` around the selected
+  lambda*, and each peak of the main solution is tracked across the probe
+  solutions by proximity in log10(tau). Each peak gets a persistence count,
+  a position drift in decades, a relative R variation, and a verdict:
+  `stable` (present in every probe, drift < 0.2 dec, R variation < 25%),
+  `artifact` (missing from more than half of the probes), or `marginal`.
+  Probe curves are drawn as thin overlays in the DRT figure. New module
+  `drt/stability.py`; results in `DRTDiagnostics.stability`
+  (`StabilityDiagnostics`, `PeakStability`, `LambdaProbePoint`); Python API
+  via `calculate_drt(..., lambda_probe=True)`. Default behavior is
+  unchanged (probe runs only when requested).
+
+---
+
 ## Version 0.18.0 (2026-07-11)
 
 ### Changed

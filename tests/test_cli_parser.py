@@ -48,3 +48,8 @@ def test_multistart_must_be_positive(monkeypatch):
     for n in ('0', '-5'):
         with pytest.raises(SystemExit):
             parse(monkeypatch, '--multistart', n)
+
+
+def test_lambda_probe_flag(monkeypatch):
+    assert parse(monkeypatch).lambda_probe is False
+    assert parse(monkeypatch, '--lambda-probe').lambda_probe is True
