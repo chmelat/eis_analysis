@@ -39,6 +39,8 @@ pip install -e .
 
 After installation, the `eis` command is available system-wide.
 
+**Windows users:** Python and Git are not preinstalled on Windows - see the step-by-step guide in [Installation on Windows](#installation-on-windows).
+
 For alternative installation methods, see [Installation options](#installation-options).
 
 ### Basic usage
@@ -407,26 +409,7 @@ pip install -e .    # Editable install (for development)
 pip install .       # Standard install
 ```
 
-Windows:
-
-```powershell
-# Create virtual environment
-python -m venv eis_env
-
-# Activate environment (may require execution policy, see below)
-eis_env\Scripts\Activate.ps1
-
-# Install
-git clone https://github.com/chmelat/eis_analysis
-cd eis_analysis
-pip install -e .
-```
-
-For Windows, you may need to set the execution policy:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+Windows: see the dedicated step-by-step guide in [Installation on Windows](#installation-on-windows).
 
 **Without virtual environment (direct installation):**
 
@@ -445,6 +428,51 @@ eis --help
 eis data.DTA
 ```
 
+### Installation on Windows
+
+Step-by-step guide, no prior Python experience needed.
+
+**1. Install prerequisites** (one-time setup):
+
+- **Python** - download from [python.org/downloads](https://www.python.org/downloads/) and run the installer. **Important:** check *"Add python.exe to PATH"* on the first installer screen.
+- **Git** (optional) - download from [git-scm.com](https://git-scm.com/download/win). If you don't want to install Git, download the project as a ZIP instead: on the [GitHub page](https://github.com/chmelat/eis_analysis) click *Code -> Download ZIP* and extract it.
+
+**2. Open PowerShell** (Start menu -> type "PowerShell") and get the project:
+
+```powershell
+git clone https://github.com/chmelat/eis_analysis
+cd eis_analysis
+```
+
+(If you downloaded the ZIP, use `cd` to enter the extracted folder instead.)
+
+**3. Create and activate a virtual environment** (recommended - keeps the installation isolated):
+
+```powershell
+python -m venv eis_env
+eis_env\Scripts\Activate.ps1
+```
+
+If activation fails with an error about scripts being disabled, allow local scripts first (one-time setting), then retry:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+If you use the classic Command Prompt (cmd.exe) instead of PowerShell, activate with `eis_env\Scripts\activate.bat`.
+
+**4. Install and run:**
+
+```powershell
+pip install .
+eis --help
+eis data.DTA
+```
+
+The `(eis_env)` prefix in the prompt shows the environment is active. When you open a new PowerShell window later, activate it again with `eis_env\Scripts\Activate.ps1` before running `eis`.
+
+**Note:** If you install without a virtual environment and Windows reports `eis` is not recognized, the Python `Scripts` folder is not in your PATH (pip prints a warning about this during installation). Either use the virtual environment as shown above, or run the tool as `python eis.py` from the project folder.
+
 ### Option 2: Run without installation
 
 If you prefer not to install the package, you can run the script directly:
@@ -453,6 +481,12 @@ If you prefer not to install the package, you can run the script directly:
 pip install numpy scipy matplotlib   # Install dependencies
 python3 eis.py --help                 # Run script directly
 python3 eis.py data.DTA
+```
+
+On Windows, use `python` instead of `python3` (the `python3` command does not exist there by default):
+
+```powershell
+python eis.py --help
 ```
 
 ### Option 3: System packages (Debian/Ubuntu)
@@ -469,15 +503,6 @@ pip install -e .    # Then install the package
 pip install -e ".[dev]"
 ```
 
-### Windows
-
-```powershell
-git clone https://github.com/chmelat/eis_analysis
-cd eis_analysis
-pip install -e .
-eis data.DTA
-```
-
 ---
 
 ## Testing
@@ -491,6 +516,8 @@ python3 -m pytest tests/ -q        # Quiet mode
 python3 -m pytest tests/test_drt_recovery.py   # Single file
 python3 -m pytest tests/ -k "voigt"   # Tests matching pattern
 ```
+
+On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 
 ---
 
