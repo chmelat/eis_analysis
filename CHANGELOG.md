@@ -8,6 +8,11 @@ Complete change history for all project versions.
 
 ### Added
 
+- **Standalone script `oxide_permittivity.py`.** Computes oxide layer
+  relative permittivity from effective capacitance, sample area, and known
+  layer thickness (parallel plate capacitor model, using `EPSILON_0` from
+  `eis_analysis.analysis.config`).
+
 - **Lambda-probe peak stability diagnostics (`--lambda-probe`).** Opt-in
   DRT diagnostic inspired by (and extending) the lambda-sensitivity probe of
   Auto DRT Analyzer: the regularized NNLS problem is re-solved at
