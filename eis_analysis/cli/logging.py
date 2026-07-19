@@ -19,32 +19,18 @@ logger = logging.getLogger(__name__)
 # Custom Formatters
 # =============================================================================
 
-class InfoFormatter(logging.Formatter):
-    """Formatter for INFO level - no prefix, clean output."""
+class PrefixFormatter(logging.Formatter):
+    """Level-specific prefix formatter - INFO stays clean (no prefix)."""
+
+    PREFIXES = {
+        logging.WARNING: "! ",
+        logging.ERROR: "!! ",
+        logging.CRITICAL: "!! ",
+        logging.DEBUG: "[DEBUG] ",
+    }
 
     def format(self, record):
-        return record.getMessage()
-
-
-class WarningFormatter(logging.Formatter):
-    """Formatter for WARNING level - prefix with '!'."""
-
-    def format(self, record):
-        return f"! {record.getMessage()}"
-
-
-class ErrorFormatter(logging.Formatter):
-    """Formatter for ERROR/CRITICAL level - prefix with '!!'."""
-
-    def format(self, record):
-        return f"!! {record.getMessage()}"
-
-
-class DebugFormatter(logging.Formatter):
-    """Formatter for DEBUG level - prefix with '[DEBUG]'."""
-
-    def format(self, record):
-        return f"[DEBUG] {record.getMessage()}"
+        return self.PREFIXES.get(record.levelno, "") + record.getMessage()
 
 
 class LevelFilter(logging.Filter):
@@ -92,20 +78,20 @@ def setup_logging(args: argparse.Namespace) -> None:
         info_handler = logging.StreamHandler(sys.stdout)
         info_handler.setLevel(logging.INFO)
         info_handler.addFilter(LevelFilter(logging.INFO))
-        info_handler.setFormatter(InfoFormatter())
+        info_handler.setFormatter(PrefixFormatter())
         root_logger.addHandler(info_handler)
 
     # Handler for WARNING -> stdout (prefix "!")
     warning_handler = logging.StreamHandler(sys.stdout)
     warning_handler.setLevel(logging.WARNING)
     warning_handler.addFilter(LevelFilter(logging.WARNING))
-    warning_handler.setFormatter(WarningFormatter())
+    warning_handler.setFormatter(PrefixFormatter())
     root_logger.addHandler(warning_handler)
 
     # Handler for ERROR/CRITICAL -> stderr (prefix "!!")
     error_handler = logging.StreamHandler(sys.stderr)
     error_handler.setLevel(logging.ERROR)
-    error_handler.setFormatter(ErrorFormatter())
+    error_handler.setFormatter(PrefixFormatter())
     root_logger.addHandler(error_handler)
 
     # Handler for DEBUG -> stderr (prefix "[DEBUG]")
@@ -113,7 +99,7 @@ def setup_logging(args: argparse.Namespace) -> None:
         debug_handler = logging.StreamHandler(sys.stderr)
         debug_handler.setLevel(logging.DEBUG)
         debug_handler.addFilter(LevelFilter(logging.DEBUG))
-        debug_handler.setFormatter(DebugFormatter())
+        debug_handler.setFormatter(PrefixFormatter())
         root_logger.addHandler(debug_handler)
 
 

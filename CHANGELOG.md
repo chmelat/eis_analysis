@@ -6,6 +6,29 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Removed
+
+- **Dead configuration constants** `DRT_PEAK_MIN_SPACING_DECADES`,
+  `DEFAULT_R0_GUESS`, `DEFAULT_Q_N_GUESS` from
+  `eis_analysis/fitting/config.py` (ponytail audit finding #1,
+  see `doc/PONYTAIL_AUDIT.md`). None of them was referenced anywhere
+  in the codebase.
+
+- **Duplicate data files in repository root** `example_eis_data.csv` and
+  `real_gamry_example.DTA` — identical copies remain in `example/`
+  (ponytail audit finding #3).
+
+- **`requirements.txt`** — duplicated the dependency list from
+  `pyproject.toml`; install with `pip install .` instead
+  (ponytail audit finding #4).
+
+### Changed
+
+- **CLI logging formatters consolidated** — the four per-level formatter
+  classes in `eis_analysis/cli/logging.py` replaced by a single
+  `PrefixFormatter` with a level-to-prefix table; output is unchanged
+  (ponytail audit finding #2).
+
 ### Added
 
 - **Brug (2D) comparison estimate in oxide analysis.** For a dominant

@@ -10,8 +10,6 @@ References
        "A package for impedance/admittance data analysis"
 .. [2] T. Reshetenko et al., J. Power Sources 269 (2014) 344-362
        "Determination of polarization resistance from DRT"
-.. [3] M. Orazem, B. Tribollet, "Electrochemical Impedance Spectroscopy" (2008)
-       Wiley, ISBN: 978-0-470-04140-6
 """
 
 # =============================================================================
@@ -58,14 +56,6 @@ Prominence measures how much a peak stands out from its surroundings.
 Prevents detection of small bumps as separate peaks.
 Value 1.5% is a very sensitive setting for very subtle peaks.
 WARNING: Small fluctuations in data may be detected as peaks.
-"""
-
-DRT_PEAK_MIN_SPACING_DECADES = 0.5
-"""
-Minimum distance between peaks in log(tau) [decades].
-
-Two peaks closer than 0.5 decades (factor 3.16x) are difficult to separate
-experimentally and likely represent a single process.
 """
 
 GMM_PEAK_HEIGHT_FACTOR = 0.05
@@ -143,33 +133,6 @@ If sum of R_i from peaks is >200% of R_pol from data:
 """
 
 # =============================================================================
-# Initial Guess Estimation
-# =============================================================================
-
-DEFAULT_R0_GUESS = 100
-"""
-Default estimate for series resistance R0 [Ohm].
-
-Typical value for aqueous electrolytes at cm scale:
-- Very good electrolyte: ~10 Ohm
-- Average electrolyte: ~100 Ohm
-- Poor electrolyte: ~1000 Ohm
-"""
-
-DEFAULT_Q_N_GUESS = 0.7
-"""
-Default estimate for Q (CPE) exponent n (dimensionless).
-
-Typical values in electrochemical systems [3]:
-- Double layer capacitance: n ~ 0.9-1.0 (nearly ideal)
-- Porous electrodes: n ~ 0.7-0.9
-- Pore diffusion: n ~ 0.5-0.7
-- Warburg diffusion: n = 0.5
-
-n=0.7 is a reasonable compromise for initial guess.
-"""
-
-# =============================================================================
 # Grid and Plotting
 # =============================================================================
 
@@ -189,7 +152,6 @@ __all__ = [
     'DRT_PEAK_HEIGHT_THRESHOLD',
     'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
-    'DRT_PEAK_MIN_SPACING_DECADES',
     'GMM_PEAK_HEIGHT_FACTOR',
 
     # Fit Quality Assessment
@@ -201,10 +163,6 @@ __all__ = [
     'PEAK_INTEGRATION_TOLERANCE',
     'RPOL_RATIO_WARNING_THRESHOLD_LOW',
     'RPOL_RATIO_WARNING_THRESHOLD_HIGH',
-
-    # Initial Guess Estimation
-    'DEFAULT_R0_GUESS',
-    'DEFAULT_Q_N_GUESS',
 
     # Plotting
     'PLOT_GRID_ALPHA',
