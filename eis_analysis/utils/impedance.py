@@ -94,6 +94,10 @@ def sort_by_frequency(
     """
     Sort impedance data by frequency in ascending order.
 
+    Instruments save spectra in either direction; callers that assume
+    ascending order (edge-point selection in R_inf estimation, R_pol
+    from sorted data) normalize through this function first.
+
     Parameters
     ----------
     frequencies : ndarray of float
@@ -103,33 +107,8 @@ def sort_by_frequency(
 
     Returns
     -------
-    frequencies_sorted : ndarray of float
-        Frequencies sorted in ascending order [Hz]
-    Z_sorted : ndarray of complex
-        Impedance sorted by frequency [Ω]
-
-    Notes
-    -----
-    Some EIS instruments save data in descending order (from high frequencies),
-    others in ascending order. This function ensures consistent ordering (ascending)
-    for further processing.
-
-    Ascending order is preferred because:
-    - Corresponds to time axis (low f = slow processes)
-    - Consistent with DRT calculations (integrals over log(f))
-    - Easier selection of edge points (first = low freq, last = high freq)
-
-    Examples
-    --------
-    >>> freq = np.array([1000, 100, 10, 1])  # Descending
-    >>> Z = np.array([10+1j, 10+5j, 10+20j, 10+50j])
-    >>> freq_sorted, Z_sorted = sort_by_frequency(freq, Z)
-    >>> print(freq_sorted)
-    [1 10 100 1000]
-
-    See Also
-    --------
-    calculate_rpol : Calculate R_pol (prefers sorted data for speed)
+    frequencies_sorted, Z_sorted : ndarray
+        Both arrays sorted by ascending frequency
     """
     sort_idx = np.argsort(frequencies)
     return frequencies[sort_idx], Z[sort_idx]

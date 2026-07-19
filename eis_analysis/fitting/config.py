@@ -2,7 +2,7 @@
 Configuration constants for circuit fitting.
 
 All values are physically justified or empirically determined based on
-typical EIS experiments. See AUDIT_REPORT.md for detailed rationale.
+typical EIS experiments.
 
 References
 ----------

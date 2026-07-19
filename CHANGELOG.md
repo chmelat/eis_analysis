@@ -29,6 +29,10 @@ Complete change history for all project versions.
   `PrefixFormatter` with a level-to-prefix table; output is unchanged
   (ponytail audit finding #2).
 
+- **Docstring cleanup** — trimmed the oversized `sort_by_frequency`
+  docstring and dropped a stale `AUDIT_REPORT.md` reference from
+  `eis_analysis/fitting/config.py` (ponytail audit findings #5, #6).
+
 ### Added
 
 - **Brug (2D) comparison estimate in oxide analysis.** For a dominant

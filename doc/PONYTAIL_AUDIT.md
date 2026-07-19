@@ -22,8 +22,8 @@ Repo je na svůj rozsah štíhlé:
 | 2 | shrink | **[APLIKOVÁNO 2026-07-19]** 4 formatter třídy (`InfoFormatter`, `WarningFormatter`, `ErrorFormatter`, `DebugFormatter`) — stejná logika, jiný prefix | jedna třída `PrefixFormatter` s dict `{WARNING: "! ", ERROR: "!! ", DEBUG: "[DEBUG] "}` | `eis_analysis/cli/logging.py` |
 | 3 | delete | **[APLIKOVÁNO 2026-07-19]** Duplicitní datové soubory v rootu: `example_eis_data.csv`, `real_gamry_example.DTA` — identické kopie verzované v `example/` | nic; příklady odkazovat na `example/` | `./` |
 | 4 | delete | **[APLIKOVÁNO 2026-07-19]** `requirements.txt` — 3 řádky duplikující dependencies z `pyproject.toml` (porušení single source of truth); v README ani CI neodkazovaný | `pip install .` | `requirements.txt` |
-| 5 | shrink | `sort_by_frequency` — 45řádkový docstring na 2řádkovém wrapperu kolem `np.argsort` | zdůvodnění ascending pořadí ve 3 větách (~-30 řádků) | `eis_analysis/utils/impedance.py:90` |
-| 6 | delete | Odkaz na neexistující `AUDIT_REPORT.md` v docstringu modulu | nic | `eis_analysis/fitting/config.py:5` |
+| 5 | shrink | **[APLIKOVÁNO 2026-07-19]** `sort_by_frequency` — 45řádkový docstring na 2řádkovém wrapperu kolem `np.argsort` | zdůvodnění ascending pořadí ve 2 větách (-21 řádků) | `eis_analysis/utils/impedance.py` |
+| 6 | delete | **[APLIKOVÁNO 2026-07-19]** Odkaz na neexistující `AUDIT_REPORT.md` v docstringu modulu | nic | `eis_analysis/fitting/config.py` |
 
 ## Mimo bodování
 
@@ -36,6 +36,5 @@ rozhodnout, zda je commitovat, nebo přidat do `.gitignore`.
 
 **net: -110 řádků, -0 závislostí.**
 
-Audit je one-shot report. Nálezy #1-#4 aplikovány 2026-07-19
-(-46 řádků kódu, -3 duplicitní soubory, chování beze změny);
-nálezy #5-#6 zatím neaplikovány.
+Audit je one-shot report. Všechny nálezy #1-#6 aplikovány 2026-07-19
+(-68 řádků, -3 duplicitní soubory, chování beze změny).
