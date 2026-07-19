@@ -34,6 +34,11 @@ class OxideAnalysisResult:
     element_R: Optional[float]  # Associated resistance [Ω]
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters
+    # Brug (2D) comparison values - set only for a dominant Q element
+    # when a series resistance is present in the circuit
+    capacitance_brug: Optional[float] = None          # Brug C_eff [F]
+    capacitance_specific_brug: Optional[float] = None # Brug C_eff/area [F/cm²]
+    thickness_brug_nm: Optional[float] = None         # Thickness from Brug C [nm]
 
 
 def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
@@ -133,6 +138,50 @@ def _estimate_cpe_capacitance(Q_val: float, n: float, R_val: float) -> float:
     return C_eff
 
 
+def _estimate_cpe_capacitance_brug(
+    Q_val: float, n: float, R_ct: float, R_s: float
+) -> float:
+    """
+    Estimate effective capacitance of a Q (CPE) element by the Brug formula:
+
+        C_eff = Q^(1/n) × (1/Rs + 1/Rct)^((n-1)/n)
+
+    Assumes a surface (2D, lateral) distribution of time constants.
+    Reported alongside the Hsu-Mansfeld (3D) value as a comparison;
+    the spread between the two brackets the model uncertainty of C_eff.
+
+    Reference: Brug et al., J. Electroanal. Chem. 176, 275 (1984).
+    """
+    C_eff = Q_val ** (1.0 / n) * (1.0 / R_s + 1.0 / R_ct) ** ((n - 1.0) / n)
+    logger.debug(f"Q C_eff (Brug): {C_eff:.3e} F")
+    return C_eff
+
+
+def _find_series_resistance(circuit) -> Optional[float]:
+    """
+    Sum of R elements on the series path of the circuit (outside any
+    parallel combination) — the ohmic/electrolyte resistance Rs needed
+    by the Brug formula.
+
+    Returns None if no such element exists or the sum is not positive.
+    """
+    total = 0.0
+    found = False
+
+    def traverse(node):
+        nonlocal total, found
+        if isinstance(node, R):
+            total += node.params[0]
+            found = True
+        elif isinstance(node, Series):
+            for elem in node.elements:
+                traverse(elem)
+        # Parallel, K, C, Q: not part of the series path
+
+    traverse(circuit)
+    return total if found and total > 0 else None
+
+
 def _extract_capacitance(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
@@ -192,6 +241,7 @@ def _extract_capacitance(
                             "also have the largest R)")
 
                 # Get capacitance
+                C_eff_brug = None
                 if dominant['type'] in ('C', 'K'):
                     C_eff = dominant['C']
                     tau = dominant['tau']
@@ -208,7 +258,19 @@ def _extract_capacitance(
                     tau = dominant['R'] * C_eff
                     dominant['tau'] = tau
 
+                    # Brug (2D) comparison estimate - needs series resistance
+                    R_s = _find_series_resistance(circuit)
+                    if R_s is not None:
+                        C_eff_brug = _estimate_cpe_capacitance_brug(
+                            dominant['Q'], dominant['n'], dominant['R'], R_s
+                        )
+                    else:
+                        logger.info("No series R element in circuit - "
+                                    "Brug (2D) estimate not available")
+
                 C_specific = C_eff / area_cm2
+                C_specific_brug = (C_eff_brug / area_cm2
+                                   if C_eff_brug is not None else None)
 
                 # Log element info (thickness/permittivity logged by caller)
                 logger.info("")
@@ -216,6 +278,9 @@ def _extract_capacitance(
                 logger.info(f"  Element type:       {dominant['type']}")
                 logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
                 logger.info(f"  Capacitance:        {C_eff:.3e} F")
+                if C_eff_brug is not None:
+                    logger.info(f"  C (Brug, 2D):       {C_eff_brug:.3e} F "
+                                f"(comparison; primary value is Hsu-Mansfeld, 3D)")
                 logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
                 logger.info(f"  Time constant:      {tau:.3e} s")
                 logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
@@ -223,6 +288,8 @@ def _extract_capacitance(
                 return {
                     'C_eff': C_eff,
                     'C_specific': C_specific,
+                    'C_eff_brug': C_eff_brug,
+                    'C_specific_brug': C_specific_brug,
                     'element_type': dominant['type'],
                     'element_R': dominant['R'],
                     'element_tau': tau,
@@ -279,6 +346,8 @@ def _extract_capacitance(
     return {
         'C_eff': C_estimate,
         'C_specific': C_specific,
+        'C_eff_brug': None,
+        'C_specific_brug': None,
         'element_type': 'estimate',
         'element_R': None,
         'element_tau': None,
@@ -325,7 +394,12 @@ def analyze_oxide_layer(
 
     For Q elements, effective capacitance is estimated using the
     Hsu-Mansfeld formula: C_eff = (R × Q)^(1/n) / R
-    (assumes a normal/3D distribution of time constants)
+    (assumes a normal/3D distribution of time constants).
+    When the circuit also contains a series resistance, the Brug (1984)
+    formula (surface/2D distribution) is evaluated as well and reported
+    in capacitance_brug / thickness_brug_nm for comparison; the spread
+    between the two estimates brackets the model uncertainty.
+    See doc/OXIDE_ANALYSIS_GUIDE.md for the 2D vs 3D discussion.
 
     Examples
     --------
@@ -346,7 +420,16 @@ def analyze_oxide_layer(
     d_cm = EPSILON_0 * epsilon_r / C_specific
     d_nm = d_cm * 1e7
 
+    # Brug (2D) comparison thickness, when available
+    C_specific_brug = extracted['C_specific_brug']
+    d_brug_nm = None
+    if C_specific_brug is not None:
+        d_brug_nm = EPSILON_0 * epsilon_r / C_specific_brug * 1e7
+
     logger.info(f"  Oxide thickness:    {d_nm:.1f} nm")
+    if d_brug_nm is not None:
+        logger.info(f"  Thickness (Brug):   {d_brug_nm:.1f} nm "
+                    f"(2D model, for comparison)")
     logger.info(f"  (assuming ε_r={epsilon_r}, area={area_cm2} cm²)")
     logger.info("=" * 50)
 
@@ -357,7 +440,10 @@ def analyze_oxide_layer(
         element_type=extracted['element_type'],
         element_R=extracted['element_R'],
         element_tau=extracted['element_tau'],
-        element_params=extracted['element_params']
+        element_params=extracted['element_params'],
+        capacitance_brug=extracted['C_eff_brug'],
+        capacitance_specific_brug=C_specific_brug,
+        thickness_brug_nm=d_brug_nm
     )
 
 

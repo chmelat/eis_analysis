@@ -8,6 +8,19 @@ Complete change history for all project versions.
 
 ### Added
 
+- **Brug (2D) comparison estimate in oxide analysis.** For a dominant
+  R||Q element, `analyze_oxide_layer()` now also evaluates the Brug
+  (1984) effective capacitance `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)`
+  (surface/2D distribution of time constants) and the corresponding
+  thickness, alongside the primary Hsu-Mansfeld (normal/3D) values.
+  Rs is taken from the series path of the fitted circuit; without a
+  series R the new `OxideAnalysisResult` fields (`capacitance_brug`,
+  `capacitance_specific_brug`, `thickness_brug_nm`) stay `None`.
+  The spread between the two estimates brackets the model uncertainty
+  of the CPE-to-capacitance conversion. Theory discussion (2D vs 3D
+  distributions, sensitivity to R, power-law model, Zr oxide context)
+  added to `doc/OXIDE_ANALYSIS_GUIDE.md`.
+
 - **Standalone script `oxide_permittivity.py`.** Computes oxide layer
   relative permittivity from effective capacitance, sample area, and known
   layer thickness (parallel plate capacitor model, using `EPSILON_0` from

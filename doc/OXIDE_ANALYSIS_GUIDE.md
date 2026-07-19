@@ -12,7 +12,9 @@ Two complementary functions for oxide layer analysis:
 **Key features:**
 - Finds dominant Voigt (R||C), K, or R||Q element (largest R = main barrier)
 - Uses parallel plate capacitor model
-- For Q: uses Hsu-Mansfeld formula for effective capacitance
+- For Q: uses Hsu-Mansfeld formula for effective capacitance (primary,
+  3D model); the Brug (2D) estimate and thickness are reported alongside
+  for comparison when the circuit contains a series resistance
 - Returns structured `OxideAnalysisResult` dataclass
 
 ---
@@ -125,6 +127,11 @@ class OxideAnalysisResult:
     element_R: Optional[float]  # Associated resistance [Ohm]
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict        # All element parameters
+    # Brug (2D) comparison values - only for a dominant Q element
+    # when the circuit contains a series resistance; otherwise None
+    capacitance_brug: Optional[float]          # Brug C_eff [F]
+    capacitance_specific_brug: Optional[float] # Brug C_eff/area [F/cm^2]
+    thickness_brug_nm: Optional[float]         # Thickness from Brug C [nm]
 ```
 
 ---
@@ -186,6 +193,12 @@ C_eff = (R * Q)^(1/n) / R
 ```
 
 This is more accurate than simple `C_eff = Q` approximation.
+
+When the circuit also contains a series resistance Rs, the Brug (2D)
+estimate `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)` and its thickness are
+computed as well and returned in `capacitance_brug` /
+`thickness_brug_nm` (see "2D vs 3D Distribution of Time Constants"
+below). Hsu-Mansfeld remains the primary value.
 
 ### 4. Thickness Calculation
 
@@ -273,6 +286,9 @@ result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Type: {oxide.element_type}")           # 'Q'
 print(f"C_eff (Hsu-Mansfeld): {oxide.capacitance:.2e} F")
+print(f"C_eff (Brug):         {oxide.capacitance_brug:.2e} F")   # 2D comparison
+print(f"d (H-M):  {oxide.thickness_nm:.1f} nm")
+print(f"d (Brug): {oxide.thickness_brug_nm:.1f} nm")
 ```
 
 ### Example 4: K Element (tau parametrization)
@@ -403,29 +419,101 @@ This formula accounts for:
 - Q exponent n (0 < n < 1)
 - Parallel resistance R
 
-**Model assumption (3D vs 2D distribution):** The Hsu-Mansfeld conversion
-corresponds to a *normal* (3D, through-layer) distribution of time
-constants, which is the appropriate model for oxide layers with thickness
-or resistivity variations across the film. The alternative Brug (1984)
-formula, `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)`, corresponds to a
-*surface* (2D) distribution and additionally involves the series
-resistance Rs. For n around 0.8 the two can differ by tens of percent,
-which propagates directly into the thickness estimate. This toolkit
-deliberately uses the 3D (Hsu-Mansfeld) model.
+### 2D vs 3D Distribution of Time Constants
+
+CPE behavior means the sample has a *distribution* of time constants
+rather than a single RC. The correct conversion from (Q, n) to an
+effective capacitance depends on *where* that distribution physically
+lives (classification by Hirschorn et al., 2010):
+
+- **Surface (2D, lateral) distribution** - properties vary *along* the
+  electrode surface (grain orientation, roughness, local coverage,
+  lateral thickness variation). The appropriate conversion is the
+  **Brug (1984)** formula, which involves the series (electrolyte)
+  resistance Rs:
+
+  ```
+  C_eff = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)
+  ```
+
+- **Normal (3D, through-layer) distribution** - properties vary *across*
+  the film thickness (resistivity/stoichiometry gradient from the
+  metal/oxide interface to the outer surface). The appropriate
+  conversion is the **Hsu-Mansfeld (2001)** formula, which involves the
+  parallel (film) resistance R:
+
+  ```
+  C_eff = (R * Q)^(1/n) / R
+  ```
+
+These are not two approximations of the same quantity but two different
+physical assumptions - using the wrong one gives a systematically
+shifted value, not just a less precise one. The difference grows as n
+decreases: for n close to 1 all conversions converge to C = Q, while
+around n = 0.8 they can differ by tens of percent to a factor of a few,
+which propagates directly into the thickness estimate.
+
+**Which model for thin oxide layers?** For compact barrier oxides
+(passive films, anodic oxides, the barrier layer on Zr alloys), the
+dominant source of dispersion is usually the steep resistivity gradient
+across the film - e.g. substoichiometric, more conductive oxide near
+the metal interface vs nearly stoichiometric oxide outside. That is a
+normal (3D) distribution, so **Hsu-Mansfeld is the physically better
+default for oxide layers and is the primary value in this toolkit.**
+Real films always contain some lateral (2D) component as well
+(undulated metal/oxide interface, local thickness variation, cracks and
+porosity after transition), which is why the Brug value is reported
+alongside for comparison.
+
+**Practical caveats:**
+
+1. **Sensitivity to R.** An error in R propagates into C_eff with
+   exponent (1-n)/n. For a protective oxide the film resistance is
+   large (often 1e6-1e9 Ohm cm^2) and the low-frequency plateau may lie
+   below the measured range, making R poorly conditioned. At n = 0.9 a
+   factor-of-10 error in R gives ~30% error in C_eff; at n = 0.8
+   already ~80%. Brug uses the well-determined Rs instead - a
+   *practical* (not physical) advantage.
+
+2. **Interpretation of the spread.** The difference between the
+   Hsu-Mansfeld and Brug values brackets the model uncertainty of
+   C_eff. If both agree within your tolerance, the choice of model does
+   not matter for your data. If they diverge strongly, treat the
+   absolute thickness with caution and prefer comparisons within a
+   sample series (same model, same conditions), where the systematic
+   model bias cancels.
+
+3. **Neither formula is the last word.** For a realistic power-law
+   resistivity profile across the film, Hirschorn et al. (2010) derived
+   a more rigorous "power-law model"
+   (`C_eff = g * Q * (rho_delta * eps * eps_0)^(1-n)`); Hsu-Mansfeld
+   with the film resistance can misestimate thickness when the
+   low-frequency R is not purely the dielectric film response (e.g.
+   mixed with a faradaic process). The power-law model is not
+   implemented in this toolkit.
+
+4. **Cross-validate absolute values.** For Zr alloys, check EIS
+   thickness at least once against weight gain (~15 mg/dm^2 per um of
+   ZrO2) or metallography/SEM. Always report n: as n approaches 0.8 the
+   2D/3D difference stops being academic and the thickness becomes soft.
 
 A warning is logged when the dominant element has n < 0.8: the
 distribution of time constants is then too broad for a single effective
 capacitance to be well-defined, and the thickness estimate may be
 unreliable.
 
-**Reference:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
-cf. Brug et al., J. Electroanal. Chem. 176, 275 (1984)
+**References:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
+Brug et al., J. Electroanal. Chem. 176, 275 (1984);
+Hirschorn et al., Electrochim. Acta 55, 6218 (2010).
 
-The parallel resistance R needed for the conversion is always available:
-the dominant element is selected only among candidates with R > 0, so the
-Hsu-Mansfeld formula is used unconditionally. (Fallback conversions for
-R-less CPEs existed up to v0.16.16 but were unreachable and have been
-removed.)
+**Implementation notes:** The parallel resistance R needed for the
+Hsu-Mansfeld conversion is always available: the dominant element is
+selected only among candidates with R > 0, so the formula is used
+unconditionally. (Fallback conversions for R-less CPEs existed up to
+v0.16.16 but were unreachable and have been removed.) The Rs for the
+Brug comparison is taken as the sum of R elements on the series path of
+the fitted circuit (outside any parallel combination); if there is
+none, the Brug estimate is skipped and the result fields stay None.
 
 ---
 
@@ -472,9 +560,11 @@ removed.)
 
 - Hsu & Mansfeld (2001): Q effective capacitance formula (3D distribution)
 - Brug et al. (1984): alternative Q conversion for surface (2D) distribution
+- Hirschorn et al., Electrochim. Acta 55, 6218 (2010): 2D/3D classification,
+  power-law model for normal resistivity distributions
 - Orazem & Tribollet (2008): "Electrochemical Impedance Spectroscopy"
 - Bojinov et al.: "EIS of passive films on metals"
 
 ---
 
-*Last updated: 2026-07-03*
+*Last updated: 2026-07-19*

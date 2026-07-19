@@ -208,6 +208,60 @@ def test_cpe_hsu_mansfeld_conversion():
     assert abs(oxide.element_tau - tau_expected) / tau_expected < 1e-9
 
 
+def test_cpe_brug_conversion():
+    """Brug (2D) comparison: C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)."""
+    freq, Z = _synthetic_voigt()
+    n = 0.9
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=_fit_result_voigt_q(n))
+
+    assert oxide is not None
+    C_brug_expected = Q_VAL ** (1.0 / n) * (1.0 / R_S + 1.0 / R_P) ** ((n - 1.0) / n)
+    assert abs(oxide.capacitance_brug - C_brug_expected) / C_brug_expected < 1e-9
+
+    d_brug_expected = EPSILON_0 * 22.0 / C_brug_expected * 1e7
+    assert abs(oxide.thickness_brug_nm - d_brug_expected) / d_brug_expected < 1e-9
+
+
+def test_cpe_brug_equals_hsu_mansfeld_at_n_one():
+    """At n = 1 both conversions must reduce to C = Q."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=_fit_result_voigt_q(1.0))
+
+    assert oxide is not None
+    assert abs(oxide.capacitance - Q_VAL) / Q_VAL < 1e-9
+    assert abs(oxide.capacitance_brug - Q_VAL) / Q_VAL < 1e-9
+
+
+def test_cpe_brug_unavailable_without_series_R(caplog):
+    """No series R in circuit -> Brug fields None, informative log."""
+    freq, Z = _synthetic_voigt()
+    n = 0.9
+    circuit = R(R_P) | Q(Q_VAL, n)
+    fit_result = _fit_result(circuit, [R_P, Q_VAL, n])
+
+    with caplog.at_level(logging.INFO, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert oxide.capacitance_brug is None
+    assert oxide.thickness_brug_nm is None
+    assert 'Brug (2D) estimate not available' in caplog.text
+
+
+def test_voigt_c_element_has_no_brug_fields():
+    """Brug conversion applies only to Q elements - ideal C gets None."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=_fit_result_voigt())
+
+    assert oxide is not None
+    assert oxide.capacitance_brug is None
+    assert oxide.capacitance_specific_brug is None
+    assert oxide.thickness_brug_nm is None
+
+
 def test_mixed_voigt_k_traversal():
     """Voigt and K candidates in series are both found; larger R wins."""
     freq, Z = _synthetic_voigt()
