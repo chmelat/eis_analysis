@@ -122,7 +122,6 @@ def calculate_drt(
     auto_lambda: bool = False,
     normalize_rpol: bool = False,
     use_rl_fit: bool = False,
-    use_voigt_fit: bool = False,
     peak_method: str = 'scipy',
     r_inf_preset: Optional[float] = None,
     gmm_bic_threshold: float = 10.0,
@@ -146,9 +145,7 @@ def calculate_drt(
     normalize_rpol : bool
         Normalize gamma by R_pol
     use_rl_fit : bool
-        Use R+L fit for R_inf estimation
-    use_voigt_fit : bool
-        Use Voigt fit for R_inf estimation
+        Use R-L-K fit for R_inf estimation instead of the HF median
     peak_method : str
         Peak detection method ('scipy' or 'gmm')
     r_inf_preset : float, optional
@@ -178,7 +175,6 @@ def calculate_drt(
     rinf_est = _estimate_r_inf(
         frequencies, Z,
         use_rl_fit=use_rl_fit,
-        use_voigt_fit=use_voigt_fit,
         r_inf_preset=r_inf_preset
     )
     R_inf = rinf_est.R_inf

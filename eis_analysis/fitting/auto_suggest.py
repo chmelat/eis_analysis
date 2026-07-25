@@ -12,7 +12,11 @@ from typing import List, Optional, Dict, Any
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
-from ..utils.compat import np_trapz
+try:
+    from numpy import trapezoid as np_trapz
+except ImportError:  # NumPy < 2.0
+    from numpy import trapz as np_trapz
+
 from ..utils.impedance import calculate_rpol
 from .config import (
     DRT_PEAK_HEIGHT_THRESHOLD,

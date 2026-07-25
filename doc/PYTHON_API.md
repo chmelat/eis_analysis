@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.19.0
+**Current version:** v0.20.0
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -233,26 +233,35 @@ more detailed diagnostics (M, mu, inductance).
 ```python
 from eis_analysis.rinf_estimation import estimate_rinf_with_inductance
 
-R_inf, L, circuit, diagnostics, fig = estimate_rinf_with_inductance(
+fit, fig = estimate_rinf_with_inductance(
     frequencies,
     Z,
     max_L_nH=1000.0,     # Maximum reasonable inductance [nH]
-    verbose=True,        # Log fitting progress
     plot=True            # Create diagnostic plot
 )
 
-# R_inf: High-frequency resistance [Ohm]
-# L: Inductance [H]
-# circuit: None (legacy placeholder)
-# diagnostics: dict with fitting details
-# fig: matplotlib Figure with R-L-K fit diagnostics
+# fit: RLKFitResult dataclass
+# fig: matplotlib Figure with R-L-K fit diagnostics (None if plot=False)
 
-# diagnostics contains:
-#   'n_points_used': number of HF points used
-#   'R_squared': coefficient of determination
-#   'method': 'zero_crossing', 'polynomial', 'rlk_linear', etc.
-#   'R_inf_poly': polynomial extrapolation result (for capacitive data)
-#   'R_inf_hf': Re(Z) at highest frequency
+fit.R_inf          # High-frequency resistance [Ohm]
+fit.L, fit.L_nH    # Inductance [H] / [nH]
+fit.R_k, fit.tau   # K element of the R-L-K model
+fit.R_squared      # Coefficient of determination
+fit.rel_error      # Relative fit error [%]
+fit.n_points_used  # Number of HF points used
+fit.freq_range     # (f_min, f_max) of the fitted window [Hz]
+fit.behavior       # 'purely_capacitive' | 'purely_inductive' | 'mixed_with_crossing'
+fit.method         # 'zero_crossing_*', 'capacitive_*', 'rlk_linear_*', 'fallback_*'
+fit.warnings       # List of warnings (high/negative inductance, ...)
+
+# A failed estimate is not an exception: fit_success is False and R_inf falls
+# back to the median of Re(Z), so the result is always usable.
+if not fit.fit_success:
+    print(fit.method, fit.warnings)
+
+# Branch-specific extras, None when not applicable:
+#   fit.R_inf_poly, fit.R_inf_hf, fit.poly_coeffs  (capacitive branch)
+#   fit.f_zero_crossing                            (zero-crossing branch)
 ```
 
 ### eis_analysis.drt
@@ -269,8 +278,7 @@ result = calculate_drt(
     lambda_reg=None,       # Regularization parameter (None = auto)
     auto_lambda=True,      # Automatic lambda selection via GCV
     normalize_rpol=False,  # Normalize gamma(tau) by R_pol
-    use_rl_fit=False,      # R+L fit for R_inf (deprecated)
-    use_voigt_fit=False,   # Voigt fit for R_inf
+    use_rl_fit=False,      # R-L-K fit for R_inf instead of the HF median
     peak_method='scipy',   # Peak detection: 'scipy' or 'gmm'
     r_inf_preset=None,     # Preset R_inf value (optional)
     gmm_bic_threshold=10.0 # BIC threshold for GMM (default: 10.0)

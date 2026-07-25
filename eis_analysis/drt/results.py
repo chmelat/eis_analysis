@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 class RinfEstimate:
     """Result of R_inf estimation."""
     R_inf: float
-    method: str  # 'preset', 'median', 'rl_fit', 'voigt_fit'
+    method: str  # 'preset', 'median', 'rl_fit'
     R_inf_median: Optional[float] = None  # For comparison
     figure: Optional[plt.Figure] = None
 
@@ -25,9 +25,6 @@ class RinfEstimate:
     n_points_used: Optional[int] = None
     R_squared: Optional[float] = None
     L_nH: Optional[float] = None
-    R_ct: Optional[float] = None
-    C_nF: Optional[float] = None
-    f_characteristic: Optional[float] = None
 
     warnings: List[str] = field(default_factory=list)
 

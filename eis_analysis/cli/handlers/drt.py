@@ -38,8 +38,7 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     method_names = {
         'preset': 'Preset value',
         'median': 'Median of HF points',
-        'rl_fit': 'R-L fit (auto-detection)',
-        'voigt_fit': 'Voigt fit'
+        'rl_fit': 'R-L fit (auto-detection)'
     }
     logger.info(f"Method: {method_names.get(rinf.method, rinf.method)}")
 
@@ -55,10 +54,6 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         logger.info(f"  Quality: R^2 = {rinf.R_squared:.4f}")
     if rinf.L_nH and rinf.L_nH > 0:
         logger.info(f"  Inductance: L = {rinf.L_nH:.2f} nH")
-    if rinf.R_ct and rinf.C_nF:
-        logger.info(f"  Voigt params: R_ct = {rinf.R_ct:.2f} Ohm, C = {rinf.C_nF:.2f} nF")
-        if rinf.f_characteristic:
-            logger.info(f"  Characteristic freq: f_char = {rinf.f_characteristic/1e6:.3f} MHz")
 
     if rinf.R_inf_median and rinf.method != 'median':
         diff_abs = rinf.R_inf - rinf.R_inf_median
@@ -209,8 +204,7 @@ def run_drt_analysis(
         auto_lambda=use_auto_lambda,
         normalize_rpol=args.normalize_rpol,
         peak_method=peak_method,
-        use_rl_fit=False,
-        use_voigt_fit=args.ri_fit,
+        use_rl_fit=args.ri_fit,
         r_inf_preset=R_inf_computed,
         gmm_bic_threshold=args.gmm_bic_threshold,
         lambda_probe=args.lambda_probe

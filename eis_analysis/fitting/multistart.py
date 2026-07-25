@@ -163,7 +163,6 @@ def fit_circuit_multistart(
     weighting: str = 'modulus',
     parallel: bool = False,
     max_workers: int = 4,
-    verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True
 ) -> Tuple[MultistartResult, NDArray[np.complex128], Any]:
     """
@@ -187,8 +186,6 @@ def fit_circuit_multistart(
         Use parallel execution (default: False)
     max_workers : int, optional
         Maximum parallel workers (default: 4)
-    verbose : bool, optional
-        Ignored (kept for backward compatibility)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian (default: True)
 

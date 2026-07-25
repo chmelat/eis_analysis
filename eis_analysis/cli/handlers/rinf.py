@@ -51,45 +51,32 @@ def run_rinf_estimation(
     log_separator()
 
     try:
-        R_inf, L_fit, circuit_rl, diag_rl, fig = estimate_rinf_with_inductance(
-            frequencies, Z, verbose=False, plot=True
-        )
+        fit, fig = estimate_rinf_with_inductance(frequencies, Z, plot=True)
 
         # Print results
-        method = diag_rl.get('method', 'unknown')
-        logger.info(f"R_inf = {R_inf:.3f} Ohm ({diag_rl['n_points_used']} HF points)")
+        logger.info(f"R_inf = {fit.R_inf:.3f} Ohm ({fit.n_points_used} HF points)")
 
-        if 'r_squared' in diag_rl and diag_rl['r_squared'] > 0:
-            logger.info(f"  Quality: R^2 = {diag_rl['r_squared']:.4f}")
-        if 'L_nH' in diag_rl and diag_rl['L_nH'] > 0:
-            logger.info(f"  Inductance: L = {diag_rl['L_nH']:.2f} nH")
-
-        # For Voigt fit: show R_ct and C
-        if 'voigt' in method and 'R_ct' in diag_rl and 'C_nF' in diag_rl:
-            logger.info(f"  Voigt params: R_ct = {diag_rl['R_ct']:.2f} Ohm, "
-                        f"C = {diag_rl['C_nF']:.2f} nF")
-            if 'f_characteristic' in diag_rl:
-                logger.info(f"  Characteristic freq: f_char = "
-                            f"{diag_rl['f_characteristic']/1e6:.3f} MHz")
+        if fit.R_squared > 0:
+            logger.info(f"  Quality: R^2 = {fit.R_squared:.4f}")
+        if fit.L_nH > 0:
+            logger.info(f"  Inductance: L = {fit.L_nH:.2f} nH")
 
         # Comparison with median
         n_avg = min(5, max(1, len(frequencies) // 10))
         high_freq_indices = np.argsort(frequencies)[-n_avg:]
         R_inf_median = np.median(Z.real[high_freq_indices])
-        diff_abs = R_inf - R_inf_median
+        diff_abs = fit.R_inf - R_inf_median
         diff_pct = (diff_abs / R_inf_median * 100) if R_inf_median != 0 else 0
         logger.info(f"  For comparison: median = {R_inf_median:.3f} Ohm "
                     f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
 
-        # Warnings
-        if diag_rl.get('warnings'):
-            for warning in diag_rl['warnings']:
-                logger.warning(f"  {warning}")
+        for warning in fit.warnings:
+            logger.warning(f"  {warning}")
 
         log_separator()
         save_figure(fig, args.save, 'ri_fit', args.format)
 
-        return R_inf, fig
+        return fit.R_inf, fig
 
     except Exception as e:
         logger.error(f"R_inf estimation failed: {e}")

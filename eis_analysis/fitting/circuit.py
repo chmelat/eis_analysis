@@ -251,7 +251,6 @@ def fit_equivalent_circuit(
     weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
     plot: bool = True,
-    verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True
 ) -> Tuple[FitResult, NDArray[np.complex128], Optional[plt.Figure]]:
     """
@@ -271,8 +270,6 @@ def fit_equivalent_circuit(
         Override initial guess for parameters
     plot : bool, optional
         Create visualization plot (default: True)
-    verbose : bool, optional
-        Ignored (kept for backward compatibility)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian (default: True)
 

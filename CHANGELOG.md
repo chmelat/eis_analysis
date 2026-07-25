@@ -4,6 +4,63 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.20.0 (2026-07-25)
+
+Completes the ponytail audit of 2026-07-25 (`doc/PONYTAIL_AUDIT_2026-07-25.md`)
+with findings #2, #4-#7 — the group that changes public signatures. Backward
+compatibility was deliberately not preserved.
+
+### Changed
+
+- **BREAKING: `estimate_rinf_with_inductance()` returns `(RLKFitResult, fig)`**
+  instead of the 5-tuple `(R_inf, L, circuit, diagnostics, fig)`. The `L` slot
+  was bound and dropped by both callers, `circuit` was documented as "Always
+  None (legacy placeholder)", and `diagnostics` was a lossy re-projection of
+  `RLKFitResult` into a dict (plus an `r_squared`/`R_squared` alias pair).
+  Read the fields off the dataclass instead: `fit.R_inf`, `fit.L_nH`,
+  `fit.R_squared`, `fit.n_points_used`, ... (audit finding #5).
+
+  `RLKFitResult` now defaults its non-core fields and gains a
+  `RLKFitResult.failed()` constructor, so the two failure paths (fewer than
+  3 points, exception during the fit) return the *same type* rather than a
+  differently shaped dict. `fit_success` distinguishes them; `R_inf` still
+  falls back to the median of Re(Z) and stays usable.
+
+- **Fixed as a side effect:** `run_rinf_estimation()` read
+  `diagnostics['n_points_used']` unguarded, but the fit-exception fallback
+  never set that key. The resulting `KeyError` was swallowed by a broad
+  `except Exception` that reported "R_inf estimation failed" even though a
+  usable R_inf had been computed. With a single return type the failure mode
+  is gone; such a run now reports the R_inf and the warning.
+
+### Removed
+
+- **BREAKING: `use_voigt_fit` parameter** from `calculate_drt()`,
+  `_estimate_r_inf()` and `estimate_rinf_with_inductance()`. It was ignored at
+  the bottom of the chain and its only remaining effect was selecting the
+  cosmetic label `method='voigt_fit'`. Since `use_rl_fit=True` was never
+  passed by anything, the two flags together only chose between two strings.
+  The CLI now passes `use_rl_fit=args.ri_fit`; `'voigt_fit'` is gone from
+  `RinfEstimate.method` and from the CLI label table (finding #2).
+
+- **BREAKING: `RinfEstimate.R_ct`, `.C_nF`, `.f_characteristic`** — always
+  `None`, because the producer read diagnostics keys that never existed. The
+  two print blocks guarded by them were unreachable, as was the
+  `'voigt' in method` branch in the `--ri-fit` handler (finding #4).
+
+- **BREAKING: ignored `verbose` parameter** from `fit_equivalent_circuit()`,
+  `fit_circuit_diffevo()`, `fit_circuit_multistart()` and
+  `estimate_rinf_with_inductance()`, plus the four call sites that still
+  passed it. Logging level is the actual control. The `-v/--verbose` CLI flag
+  is unaffected (finding #7).
+
+- **BREAKING: `eis_analysis.utils.compat` module and the `np_trapz`
+  re-export** from `eis_analysis.utils`. 32 lines (26 of them docstring)
+  wrapping a 4-line import shim with a single consumer. The shim itself is
+  still required — `numpy.trapezoid` only exists in NumPy >= 2.0 while the
+  project floor is `numpy>=1.20` — so it now lives inline in its one consumer,
+  `fitting/auto_suggest.py` (finding #6).
+
 ## Version 0.19.0 (2026-07-25)
 
 ### Removed

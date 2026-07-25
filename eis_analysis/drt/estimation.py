@@ -81,7 +81,6 @@ def _effective_bins(gamma: NDArray) -> float:
 
 def _estimate_r_inf(frequencies: NDArray, Z: NDArray,
                     use_rl_fit: bool = False,
-                    use_voigt_fit: bool = False,
                     r_inf_preset: Optional[float] = None) -> RinfEstimate:
     """
     Estimate high-frequency resistance R_inf.
@@ -99,30 +98,23 @@ def _estimate_r_inf(frequencies: NDArray, Z: NDArray,
             R_inf_median=R_inf_median
         )
 
-    if use_rl_fit or use_voigt_fit:
+    if use_rl_fit:
         try:
-            R_inf, L_fit, circuit_rl, diag, fig_rl = estimate_rinf_with_inductance(
-                frequencies, Z, use_voigt_fit=use_voigt_fit, verbose=False, plot=True
-            )
+            fit, fig_rl = estimate_rinf_with_inductance(frequencies, Z, plot=True)
 
-            warnings = []
-            if diag.get('warnings'):
-                warnings.extend(diag['warnings'])
-            if diag.get('L_nH', 0) > 500:
-                warnings.append(f"High inductance L = {diag['L_nH']:.1f} nH detected")
+            warnings = list(fit.warnings)
+            if fit.L_nH > 500:
+                warnings.append(f"High inductance L = {fit.L_nH:.1f} nH detected")
 
             return RinfEstimate(
-                R_inf=R_inf,
-                method='voigt_fit' if use_voigt_fit else 'rl_fit',
+                R_inf=fit.R_inf,
+                method='rl_fit',
                 R_inf_median=R_inf_median,
                 figure=fig_rl,
-                behavior=diag.get('behavior'),
-                n_points_used=diag.get('n_points_used'),
-                R_squared=diag.get('r_squared'),
-                L_nH=diag.get('L_nH'),
-                R_ct=diag.get('R_ct'),
-                C_nF=diag.get('C_nF'),
-                f_characteristic=diag.get('f_characteristic'),
+                behavior=fit.behavior,
+                n_points_used=fit.n_points_used,
+                R_squared=fit.R_squared,
+                L_nH=fit.L_nH,
                 warnings=warnings
             )
         except Exception as e:

@@ -153,7 +153,6 @@ def fit_circuit_diffevo(
     tol: float = 0.01,
     workers: int = 1,
     weighting: str = 'modulus',
-    verbose: bool = True,  # Kept for backward compatibility, ignored
     use_analytic_jacobian: bool = True,
     seed: Optional[int] = None
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128], Any]:
@@ -180,8 +179,6 @@ def fit_circuit_diffevo(
         Number of parallel workers (default: 1)
     weighting : str, optional
         Weighting scheme
-    verbose : bool, optional
-        Ignored (kept for backward compatibility)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian for refinement (default: True)
     seed : int, optional

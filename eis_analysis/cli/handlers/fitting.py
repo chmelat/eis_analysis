@@ -383,7 +383,6 @@ def _fit_standard_circuit(
                 tol=args.de_tol,
                 workers=args.de_workers,
                 weighting=args.weighting,
-                verbose=True,
                 use_analytic_jacobian=not args.numeric_jacobian
             )
             result = diffevo_result.best_result
@@ -401,7 +400,6 @@ def _fit_standard_circuit(
                 n_restarts=n_restarts,
                 scale=args.multistart_scale,
                 weighting=args.weighting,
-                verbose=True,
                 use_analytic_jacobian=not args.numeric_jacobian
             )
             result = multistart_result.best_result

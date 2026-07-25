@@ -326,7 +326,6 @@ result, Z_fit, fig = fit_circuit_multistart(
     weighting='sqrt',   # Vážení
     parallel=False,     # Sekvenční běh
     max_workers=4,      # Workers pro paralelní
-    verbose=True,       # Logovat průběh
     use_analytic_jacobian=True  # Analytický Jacobián (rychlejší, přesnější)
 )
 
@@ -640,8 +639,7 @@ circuit = R(100) - (R(5000) | C(1e-6))
 result, Z_fit, fig = fit_circuit_multistart(
     circuit, freq, Z,
     n_restarts=20,
-    scale=2.0,
-    verbose=True
+    scale=2.0
 )
 
 # Analýza rozptylu výsledků

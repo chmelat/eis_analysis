@@ -12,7 +12,7 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 import numpy as np
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Any, List, Optional, Tuple
 from numpy.typing import NDArray
 
 from .data_selection import select_highest_decade
@@ -36,29 +36,37 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RLKFitResult:
-    """Result of R-L-K() linear fit."""
+    """Result of R-L-K() linear fit.
+
+    Only R_inf and method are always meaningful: a failed estimate still has
+    an R_inf (from the median fallback) and a method label saying how it was
+    reached. Everything else defaults to a neutral value so that the failure
+    paths can build the same type via `failed()` instead of a separate,
+    differently shaped payload.
+    """
     # Core results
     R_inf: float
-    L: float  # [H]
-    R_k: float  # [Ohm]
-    tau: float  # [s]
-    Z_fit: NDArray[np.complex128]
-
-    # Quality metrics
-    R_squared: float
-    rel_error: float  # [%]
-    residual: float
-
-    # Data info
-    n_points_used: int
-    freq_range: tuple  # (f_min, f_max) [Hz]
-    behavior: str  # 'purely_capacitive', 'purely_inductive', 'mixed_with_crossing'
     method: str
 
+    L: float = 0.0  # [H]
+    R_k: float = 0.0  # [Ohm]
+    tau: float = 0.0  # [s]
+    Z_fit: Optional[NDArray[np.complex128]] = None
+
+    # Quality metrics
+    R_squared: float = 0.0
+    rel_error: float = 0.0  # [%]
+    residual: float = 0.0
+
+    # Data info
+    n_points_used: int = 0
+    freq_range: Optional[tuple] = None  # (f_min, f_max) [Hz]
+    behavior: str = 'unknown'  # 'purely_capacitive', 'purely_inductive', 'mixed_with_crossing'
+
     # Derived values
-    L_nH: float  # Inductance [nH]
-    tau_us: float  # Time constant [us]
-    f_char_kHz: float  # Characteristic frequency [kHz]
+    L_nH: float = 0.0  # Inductance [nH]
+    tau_us: float = 0.0  # Time constant [us]
+    f_char_kHz: float = 0.0  # Characteristic frequency [kHz]
 
     # Optional extras
     R_inf_hf: Optional[float] = None  # R_inf at highest frequency
@@ -69,6 +77,22 @@ class RLKFitResult:
     # Status
     fit_success: bool = True
     warnings: List[str] = field(default_factory=list)
+
+    @classmethod
+    def failed(cls, R_inf: float, method: str, warnings: List[str],
+               n_points_used: int = 0) -> 'RLKFitResult':
+        """Result for a path where no fit was performed.
+
+        R_inf comes from the median fallback, so it is still usable; callers
+        distinguish it via `fit_success`, not by a different return shape.
+        """
+        return cls(
+            R_inf=R_inf,
+            method=method,
+            n_points_used=n_points_used,
+            fit_success=False,
+            warnings=warnings
+        )
 
 
 def _estimate_tau_from_data(
@@ -308,11 +332,9 @@ def estimate_rinf_with_inductance(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     max_L_nH: float = 1000.0,
-    verbose: bool = True,  # Kept for backward compatibility, ignored
     plot: bool = False,
-    save_plot: Optional[str] = None,
-    use_voigt_fit: bool = False  # Kept for backward compatibility, ignored
-) -> tuple:
+    save_plot: Optional[str] = None
+) -> Tuple['RLKFitResult', Optional[Any]]:
     """
     Estimate R_inf using R-L-K() linear fit.
 
@@ -324,52 +346,37 @@ def estimate_rinf_with_inductance(
         Complex impedance [Ohm]
     max_L_nH : float
         Maximum reasonable inductance [nH] for warning (default: 1000)
-    verbose : bool
-        Ignored (kept for backward compatibility)
     plot : bool
         Create diagnostic plot (default: False)
     save_plot : str, optional
         Path to save plot
-    use_voigt_fit : bool
-        Ignored (kept for backward compatibility)
 
     Returns
     -------
-    R_inf : float
-        High-frequency resistance [Ohm]
-    L : float
-        Inductance [H]
-    circuit : None
-        Always None (legacy placeholder)
-    diagnostics : dict
-        Fitting diagnostics
+    result : RLKFitResult
+        Fit result. Always usable: on a failed fit `fit_success` is False and
+        `R_inf` falls back to the median of Re(Z).
     fig : matplotlib.Figure or None
         Diagnostic plot if plot=True
     """
     # Validate input
     if len(frequencies) < 3:
-        diagnostics = {
-            'n_points_used': len(frequencies),
-            'fit_success': False,
-            'warnings': ['Insufficient data (< 3 points)'],
-            'method': 'fallback_insufficient_data',
-            'behavior': 'unknown'
-        }
-        R_inf = float(np.median(Z.real)) if len(Z) > 0 else 0.0
-        return R_inf, 0.0, None, diagnostics, None
+        return RLKFitResult.failed(
+            R_inf=float(np.median(Z.real)) if len(Z) > 0 else 0.0,
+            method='fallback_insufficient_data',
+            warnings=['Insufficient data (< 3 points)'],
+            n_points_used=len(frequencies)
+        ), None
 
     # Perform fit
     try:
         result = fit_rlk_model(frequencies, Z)
     except Exception as e:
-        diagnostics = {
-            'fit_success': False,
-            'warnings': [str(e)],
-            'method': 'fallback_fit_error',
-            'behavior': 'unknown'
-        }
-        R_inf = float(np.median(Z.real))
-        return R_inf, 0.0, None, diagnostics, None
+        return RLKFitResult.failed(
+            R_inf=float(np.median(Z.real)),
+            method='fallback_fit_error',
+            warnings=[str(e)]
+        ), None
 
     # Validate inductance
     if result.L_nH > max_L_nH:
@@ -377,37 +384,6 @@ def estimate_rinf_with_inductance(
 
     if result.L < 0:
         result.warnings.append(f"Negative inductance L = {result.L_nH:.1f} nH (non-physical)")
-
-    # Build diagnostics dict for backward compatibility
-    diagnostics = {
-        'n_points_used': result.n_points_used,
-        'freq_range': result.freq_range,
-        'R_squared': result.R_squared,
-        'r_squared': result.R_squared,  # Alias
-        'rel_error': result.rel_error,
-        'R_inf': result.R_inf,
-        'L': result.L,
-        'L_nH': result.L_nH,
-        'R_k': result.R_k,
-        'tau': result.tau,
-        'tau_us': result.tau_us,
-        'f_char_kHz': result.f_char_kHz,
-        'method': result.method,
-        'residual': result.residual,
-        'warnings': result.warnings,
-        'fit_success': result.fit_success,
-        'behavior': result.behavior
-    }
-
-    # Add optional fields if present
-    if result.R_inf_hf is not None:
-        diagnostics['R_inf_hf'] = result.R_inf_hf
-    if result.R_inf_poly is not None:
-        diagnostics['R_inf_poly'] = result.R_inf_poly
-    if result.f_zero_crossing is not None:
-        diagnostics['f_zero_crossing'] = result.f_zero_crossing
-    if result.poly_coeffs is not None:
-        diagnostics['poly_coeffs'] = result.poly_coeffs
 
     # Plot if requested
     fig = None
@@ -417,7 +393,7 @@ def estimate_rinf_with_inductance(
         except Exception as e:
             logger.debug(f"Visualization failed: {e}")
 
-    return result.R_inf, result.L, None, diagnostics, fig
+    return result, fig
 
 
 def _plot_rlk_fit(
