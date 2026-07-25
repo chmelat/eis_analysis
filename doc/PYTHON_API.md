@@ -680,21 +680,6 @@ if ocv_data is not None:
     fig = visualize_ocv(ocv_data, title='OCV Curve')
 ```
 
-**R+L fit diagnostics:**
-
-```python
-from eis_analysis.visualization import plot_rl_fit_diagnostics
-
-fig = plot_rl_fit_diagnostics(
-    frequencies,
-    Z,
-    R_inf,
-    L,
-    cutoff_freq
-)
-# Plots high-frequency R+L fit diagnostics
-```
-
 ## Usage Examples
 
 ### Example 1: Basic DRT Analysis

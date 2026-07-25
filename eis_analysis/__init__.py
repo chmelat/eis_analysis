@@ -81,7 +81,6 @@ from .analysis import (
 from .visualization import (
     visualize_data,
     visualize_ocv,
-    plot_rl_fit_diagnostics,
 )
 
 __all__ = [
@@ -127,5 +126,4 @@ __all__ = [
     # Visualization
     'visualize_data',
     'visualize_ocv',
-    'plot_rl_fit_diagnostics',
 ]

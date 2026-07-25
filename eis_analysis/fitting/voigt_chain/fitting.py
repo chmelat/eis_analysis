@@ -344,7 +344,6 @@ def fit_voigt_chain_linear(
     auto_optimize_M: bool = False,
     mu_threshold: float = 0.85,
     max_M: int = 50,
-    refit_positive: bool = False,
     weighting: str = 'modulus'
 ) -> Tuple[Circuit, List[float]]:
     """
@@ -383,8 +382,6 @@ def fit_voigt_chain_linear(
         Threshold for mu metric when auto_optimize_M=True (default: 0.85)
     max_M : int, optional
         Maximum number of elements to try when auto_optimize_M=True (default: 50)
-    refit_positive : bool, optional
-        Unused parameter for backward compatibility
     weighting : str, optional
         Point weighting scheme (default: 'modulus' = Lin-KK standard)
 

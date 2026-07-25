@@ -457,20 +457,10 @@ def _detect_delimiter(header_line: str) -> str:
     """
     Auto-detect CSV delimiter from header line.
 
-    Tries common delimiters: tab, semicolon, comma.
-    Returns the one that produces most columns.
+    Returns whichever of comma, tab, semicolon occurs most often. Comma is
+    listed first so it wins the all-zero case (single-column header).
     """
-    delimiters = ['\t', ';', ',']
-    best_delimiter = ','
-    max_columns = 0
-
-    for delim in delimiters:
-        columns = len(header_line.split(delim))
-        if columns > max_columns:
-            max_columns = columns
-            best_delimiter = delim
-
-    return best_delimiter
+    return max(',', '\t', ';', key=header_line.count)
 
 
 def _find_column_index(headers: List[str], patterns: List[str]) -> Optional[int]:

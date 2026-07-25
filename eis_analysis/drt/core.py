@@ -61,9 +61,6 @@ __all__ = [
     'StabilityDiagnostics',
 ]
 
-# Constants
-DRT_TOLERANCE = 1e-10        # Unused (pre-existing); retained for API stability
-GAMMA_MIN_REASONABLE = 1e-15  # Unused (pre-existing); retained for API stability
 
 
 # =============================================================================
@@ -321,7 +318,7 @@ def calculate_drt(
     fig = _create_visualization(
         matrices.tau, gamma, gamma_original,
         Z, Z_reconstructed,
-        R_inf, lambda_sel.lambda_value,
+        lambda_sel.lambda_value,
         normalized, peak_method,
         peaks_result, bic_scores,
         probe_curves=probe_curves

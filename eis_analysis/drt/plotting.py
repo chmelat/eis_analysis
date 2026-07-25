@@ -17,7 +17,7 @@ from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
 def _create_visualization(tau: NDArray, gamma: NDArray,
                           gamma_original: Optional[NDArray],
                           Z: NDArray, Z_reconstructed: NDArray,
-                          R_inf: float, lambda_reg: float,
+                          lambda_reg: float,
                           normalize_rpol: bool,
                           peak_method: str,
                           peaks_result: Optional[List[Dict]],

@@ -15,45 +15,6 @@ import argparse
 from ..version import get_version_string
 
 
-class OnePerLineHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    """Custom formatter that puts each option on a separate line in usage."""
-
-    def _format_usage(self, usage, actions, groups, prefix):
-        if prefix is None:
-            prefix = 'usage: '
-
-        # If custom usage is provided, use it
-        if usage is not None:
-            usage = usage % dict(prog=self._prog)
-            return f'{prefix}{usage}\n\n'
-
-        # Otherwise build usage with one option per line
-        prog = '%(prog)s' % dict(prog=self._prog)
-        lines = [f'{prefix}{prog}']
-
-        for action in actions:
-            if action.option_strings:
-                # Optional argument
-                option = action.option_strings[0]
-                if action.nargs == 0:
-                    # Flag (store_true/store_false)
-                    lines.append(f'              [{option}]')
-                elif action.metavar:
-                    lines.append(f'              [{option} {action.metavar}]')
-                elif action.dest:
-                    lines.append(f'              [{option} {action.dest.upper()}]')
-                else:
-                    lines.append(f'              [{option}]')
-            elif not action.option_strings and action.dest != 'help':
-                # Positional argument
-                if action.nargs == '?':
-                    lines.append(f'              [{action.dest}]')
-                else:
-                    lines.append(f'              {action.dest}')
-
-        return '\n'.join(lines) + '\n\n'
-
-
 def parse_arguments() -> argparse.Namespace:
     """
     Parse command line arguments.
@@ -66,7 +27,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=f'EIS analysis with DRT ({get_version_string()})',
         usage='eis [input] [options]',
-        formatter_class=OnePerLineHelpFormatter,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   eis                                Synthetic data demo

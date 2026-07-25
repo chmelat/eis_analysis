@@ -185,7 +185,7 @@ class OptimizationSetup:
     clipped_params: List[int] = field(default_factory=list)
 
 
-def _prepare_optimization(circuit: Circuit, weighting: str) -> OptimizationSetup:
+def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     """
     Prepare optimization setup: extract parameters, labels, bounds.
 
@@ -290,7 +290,7 @@ def fit_equivalent_circuit(
         raise ValueError(f"weighting must be one of {VALID_WEIGHTINGS}, got '{weighting}'")
 
     # Step 1: Prepare optimization
-    setup = _prepare_optimization(circuit, weighting)
+    setup = _prepare_optimization(circuit)
 
     # Save original circuit values for fixed parameters
     circuit_values = list(circuit.get_all_params())

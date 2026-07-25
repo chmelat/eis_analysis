@@ -8,6 +8,37 @@ Complete change history for all project versions.
 
 ### Removed
 
+- **BREAKING: `plot_rl_fit_diagnostics()` removed from the public API.**
+  The function and its module `eis_analysis/visualization/diagnostics.py`
+  (224 lines) had zero call sites — it was superseded by `_plot_rlk_fit()`
+  in `eis_analysis/rinf_estimation/rlk_fit.py`, which is what `--ri-fit`
+  actually renders. Removed from `eis_analysis.__all__` and from
+  `eis_analysis.visualization.__all__`; the stale `PYTHON_API.md` example
+  (which documented a signature the function never had) is gone too.
+  CLI behaviour is unaffected. Code importing this symbol must switch to
+  the `--ri-fit` diagnostic figure returned by
+  `estimate_rinf_with_inductance(..., plot=True)`
+  (ponytail audit 2026-07-25 finding #1, see
+  `doc/PONYTAIL_AUDIT_2026-07-25.md`).
+
+- **`OnePerLineHelpFormatter`** from `eis_analysis/cli/parser.py` — 37 lines
+  that never executed, because the parser sets `usage=` explicitly and the
+  formatter's `_format_usage()` therefore always took its early-return
+  branch. Replaced by `argparse.RawDescriptionHelpFormatter` (its base
+  class); `--help` output is byte-identical (finding #3).
+
+- **Unused parameter `refit_positive`** from `fit_voigt_chain_linear()`,
+  whose own docstring described it as "Unused parameter for backward
+  compatibility". No caller passed it (finding #9).
+
+- **Dead constants** `DRT_TOLERANCE`, `GAMMA_MIN_REASONABLE` from
+  `eis_analysis/drt/core.py` — both were annotated "Unused (pre-existing)"
+  and were in no `__all__` (finding #10).
+
+- **Unused parameters in private helpers** — `weighting` from
+  `_prepare_optimization()` and `R_inf` from `_create_visualization()`;
+  neither was read in the function body (finding #11).
+
 - **Dead configuration constants** `DRT_PEAK_MIN_SPACING_DECADES`,
   `DEFAULT_R0_GUESS`, `DEFAULT_Q_N_GUESS` from
   `eis_analysis/fitting/config.py` (ponytail audit finding #1,
@@ -23,6 +54,12 @@ Complete change history for all project versions.
   (ponytail audit finding #4).
 
 ### Changed
+
+- **CSV delimiter auto-detection simplified** — `_detect_delimiter()` is now
+  a single `max(',', '\t', ';', key=header_line.count)`. Detection of comma,
+  semicolon and tab headers is unchanged; a header containing none of the
+  three now yields `','` (the documented default) instead of `'\t'`
+  (ponytail audit 2026-07-25 finding #8).
 
 - **CLI logging formatters consolidated** — the four per-level formatter
   classes in `eis_analysis/cli/logging.py` replaced by a single
