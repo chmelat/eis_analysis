@@ -4,6 +4,15 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.20.2 (2026-07-25)
+
+### Removed
+
+- **`md2pdf.sh`** — local documentation build helper, not part of the
+  toolkit and not distributed by `pyproject.toml`. Nothing in the repository
+  referenced it: no README instructions, no CI step, no other script.
+  Recoverable with `git show 8aade2b:md2pdf.sh`.
+
 ## Version 0.20.1 (2026-07-25)
 
 Documentation only; no code changes.
