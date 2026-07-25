@@ -4,6 +4,30 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Incorrect `--ri-fit` description in README.** It claimed the flag was
+  "suitable for data with inductive loop" and used "R+L+K model fit", but the
+  estimator has three branches and the R-L-K least-squares fit is only one of
+  them: a zero crossing of Im(Z) inside the top decade is interpolated
+  directly, and purely capacitive data are extrapolated to Im=0 by a
+  2nd-degree polynomial in the Nyquist plane. The flag handles both inductive
+  and capacitive high-frequency ends.
+
+- **Undocumented default R_inf method.** The median of Re(Z) over the (up to
+  5) highest-frequency points is what nearly every run uses, and it appeared
+  in neither README nor any `doc/*.md`.
+
+### Added
+
+- **`doc/RINF_ESTIMATION.md`** — the R_inf estimation module had no
+  documentation, unlike every other algorithm in the toolkit. Covers both
+  methods, the decade selection window, all three `--ri-fit` branches with
+  their guards, the warnings, the failure paths, and why `--ri-fit` makes the
+  DRT report `Method: Preset value`.
+
 ## Version 0.20.0 (2026-07-25)
 
 Completes the ponytail audit of 2026-07-25 (`doc/PONYTAIL_AUDIT_2026-07-25.md`)

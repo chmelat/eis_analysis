@@ -167,11 +167,15 @@ eis data.DTA --lambda 1e-3
 # GMM peak detection (more robust)
 eis data.DTA --peak-method gmm
 
-# Robust R_inf estimation for inductive data
+# R_inf from the highest frequency decade instead of the HF median
 eis data.DTA --ri-fit
 ```
 
-**Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md)
+By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
+points, which assumes the spectrum has already flattened onto the real axis at
+f_max. Use `--ri-fit` when it has not.
+
+**Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md), [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)
 
 ### Circuit fitting
 
@@ -326,7 +330,7 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.
 - `--lambda-probe` - Peak stability diagnostics: re-solves the DRT at lambda*10^(+-0.5) and lambda*10^(+-1) around the selected lambda and tracks each detected peak across the solutions. Reports per-peak persistence, position drift (decades of tau), R variation, and a verdict (STABLE / MARGINAL / ARTIFACT). A peak that appears only in a narrow lambda window is likely a regularization artifact rather than a real relaxation process. The probe solutions are also drawn as thin overlay curves in the DRT plot. Example: `eis data.DTA --lambda-probe`.
-- `--ri-fit` - Robust R_inf estimation using R+L+K model fit on high-frequency data. Suitable for data with inductive loop.
+- `--ri-fit` - Estimate R_inf from the highest frequency decade (`f >= f_max/10`) instead of the default median of the (up to 5) highest-frequency points. Handles both inductive and capacitive high-frequency ends: if Im(Z) changes sign inside the decade the real-axis intercept is interpolated at the crossing, purely capacitive data are extrapolated to Im=0 by a 2nd-degree polynomial in the Nyquist plane, and otherwise an R-L-K model `R_s + jwL + R_k/(1+jw*tau)` is fitted by linear least squares. Use it when the spectrum has not yet flattened onto the real axis at f_max — an inductive tail from the cabling, or an arc that is not closed. The CLI prints the default median next to the result for comparison. See [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md).
 - `--no-drt` - Skip DRT analysis. Useful if you only want circuit fitting.
 
 ### Kramers-Kronig validation
@@ -541,6 +545,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 | [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md) | Lambda selection (GCV + L-curve) documentation |
 | [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md) | GMM peak detection |
 | [doc/DRT_METHOD_ANALYSIS.md](doc/DRT_METHOD_ANALYSIS.md) | DRT method analysis |
+| [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md) | R_inf (ohmic resistance) estimation |
 | [doc/VOIGT_CHAIN_MATH.md](doc/VOIGT_CHAIN_MATH.md) | Voigt chain mathematics |
 | [doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md) | Differential Evolution |
 | [doc/MULTISTART_OPTIMIZATION.md](doc/MULTISTART_OPTIMIZATION.md) | Multi-start optimization |
