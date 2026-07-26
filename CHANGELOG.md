@@ -4,6 +4,46 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.20.4 (2026-07-26)
+
+Build configuration only; no code changes.
+
+### Fixed
+
+- **CI `lint` job red since 2026-07-25 without any code change.** The project
+  had no `[tool.ruff]` section in `pyproject.toml`, so it inherited whatever
+  the newest `ruff` release happened to consider its default rule set - and CI
+  installs `ruff` unpinned (`pip install ruff`). `ruff 0.16.0`, released
+  2026-07-23, widened that default substantially, and the first push afterwards
+  (`f0f55a5`, v0.20.0) turned the lint job red. Every commit since inherited the
+  failure, including both release commits. The timeline confirms the cause: CI
+  was green on `99b09f6` (2026-07-19, ruff 0.15.x) and has failed on every run
+  after ruff 0.16.0 shipped.
+
+  Reproduced locally with ruff 0.16.0: **578 findings**, none of them
+  correctness issues. The bulk is typing modernization and import hygiene -
+  `UP006` non-PEP585 annotations (193), `FA100` missing
+  `from __future__ import annotations` (158), `I001` unsorted imports (57),
+  `UP035` deprecated `typing` imports (56), `UP037` quoted annotations (35),
+  `RUF022` unsorted `__all__` (28), `UP007` non-PEP604 unions (18).
+
+  The rule set is now pinned explicitly to `["E4", "E7", "E9", "F"]` - which is
+  what the project has in fact been linted against all along (ruff's historical
+  default: pycodestyle errors plus pyflakes). No source file changed. Adopting
+  the wider set remains possible, but it is a deliberate decision rather than
+  something a dependency upgrade imposes: `UP007` wants `X | None`, which on the
+  supported Python 3.9 floor requires `from __future__ import annotations` in
+  every module - precisely what `FA100` is asking for.
+
+### Known issues
+
+- The CI `typecheck` job also reports a failure (exit code 2). It runs with
+  `continue-on-error: true`, so it does not fail the workflow. This was not
+  reproduced locally: `mypy 2.3.0` produces the same 34 errors as `1.19.1` and
+  exits 1, not 2, so something in the CI environment (Python 3.12, a freshly
+  resolved numpy 2.x) differs and has not been diagnosed. Unchanged by this
+  release.
+
 ## Version 0.20.3 (2026-07-26)
 
 ### Fixed
