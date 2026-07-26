@@ -4,6 +4,30 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.20.3 (2026-07-26)
+
+### Fixed
+
+- **Silently wrong `R_inf` when the top frequency decade has fewer than 3
+  points.** The purely capacitive branch of `--ri-fit` extrapolates `Re(Z)`
+  to `Im(Z) = 0` by fitting a 2nd-degree polynomial `Re = a*Im^2 + b*Im + c`
+  to the points in the highest frequency decade. A 2nd-degree polynomial has
+  3 coefficients, so with only 1 or 2 points the system is underdetermined
+  and `numpy.polyfit` silently returns a least-norm solution that looks like
+  a valid fit but is not one. Reproduced on synthetic data with a known
+  answer: true `R_inf = 5.0` Ohm, 2 points in the top decade, reported
+  `R_inf = 4.32` Ohm (a 14% error), with `fit_success=True`, an empty
+  `warnings` list, and a `method` string claiming the polynomial fit
+  succeeded. `R_inf` feeds directly into DRT analysis, so the wrong value
+  propagated into downstream results without any indication something was
+  off. The fit now checks the point count before calling `polyfit`: with
+  fewer than 3 points it falls back to the measured highest-frequency
+  `Re(Z)` (the same fallback already used when the polynomial overshoots),
+  labels the result `capacitive_hf_too_few_points_*`, and appends a warning
+  naming the point count. `R_inf_poly` and `poly_coeffs` are `None` in this
+  case instead of holding values from a fit that was never actually
+  performed.
+
 ## Version 0.20.2 (2026-07-25)
 
 ### Removed

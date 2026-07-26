@@ -223,23 +223,37 @@ def fit_rlk_model(
         im_hf = Z_high.imag
         re_hf = Z_high.real
 
-        # Fit Re = f(Im), constant term is Re at Im=0
-        coeffs = np.polyfit(im_hf, re_hf, 2)  # Re = a*Im² + b*Im + c
-        R_inf_poly = coeffs[2]  # Re at Im = 0
-
         idx_max = np.argmax(f_high)
         R_inf_hf = float(Z_high[idx_max].real)
 
-        if R_inf_poly <= 0:
-            R_inf = 1.0
-            extrap_method = "near_zero_fallback"
-        elif R_inf_poly > R_inf_hf:
-            # Extrapolation overshoots - use HF value
+        # A 2nd-degree polynomial has 3 coefficients, so fewer than 3 points
+        # leaves the system underdetermined: np.polyfit still returns a
+        # least-norm solution that looks like a valid fit but isn't one.
+        # Fall back to the measured highest-frequency Re(Z) instead.
+        if len(im_hf) < 3:
             R_inf = R_inf_hf
-            extrap_method = "hf_fallback"
+            R_inf_poly = None
+            coeffs = None
+            extrap_method = "hf_too_few_points"
+            warnings.append(
+                f"Only {len(im_hf)} point(s) in top decade - too few for "
+                "polynomial extrapolation (need >= 3); using highest-frequency Re(Z)"
+            )
         else:
-            R_inf = float(R_inf_poly)
-            extrap_method = "polynomial"
+            # Fit Re = f(Im), constant term is Re at Im=0
+            coeffs = np.polyfit(im_hf, re_hf, 2)  # Re = a*Im² + b*Im + c
+            R_inf_poly = coeffs[2]  # Re at Im = 0
+
+            if R_inf_poly <= 0:
+                R_inf = 1.0
+                extrap_method = "near_zero_fallback"
+            elif R_inf_poly > R_inf_hf:
+                # Extrapolation overshoots - use HF value
+                R_inf = R_inf_hf
+                extrap_method = "hf_fallback"
+            else:
+                R_inf = float(R_inf_poly)
+                extrap_method = "polynomial"
 
         tau_val = 1.0 / (2 * np.pi * f_high.max())
         Z_fit = np.full_like(Z_high, R_inf)
@@ -266,8 +280,8 @@ def fit_rlk_model(
             tau_us=tau_val * 1e6,
             f_char_kHz=float(f_high.max()) / 1e3,
             R_inf_hf=R_inf_hf,
-            R_inf_poly=float(R_inf_poly),
-            poly_coeffs=coeffs.tolist(),
+            R_inf_poly=float(R_inf_poly) if R_inf_poly is not None else None,
+            poly_coeffs=coeffs.tolist() if coeffs is not None else None,
             warnings=warnings
         )
 
