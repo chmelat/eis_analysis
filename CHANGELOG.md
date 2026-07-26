@@ -4,6 +4,34 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.20.5 (2026-07-26)
+
+Build configuration only; no code changes.
+
+### Fixed
+
+- **CI `typecheck` job aborting with a fatal config error instead of type
+  checking.** `mypy` 2.x rejects `python_version = "3.9"` outright
+  (`Python 3.9 is not supported (must be 3.10 or higher)`) and exits 2 without
+  checking anything - so the job had not actually been type checking since
+  `mypy` 2.0 reached CI, it had merely been failing early. The `continue-on-error`
+  flag on that job hid the difference: a red mark either way.
+
+  The `dev` extra now pins `mypy<2`. The project still declares
+  `requires-python = ">=3.9"` and CI runs the test matrix on 3.9, so holding
+  the checker back is the option consistent with that promise; raising
+  `python_version` to `"3.10"` would have silenced the message while quietly
+  dropping 3.9 from what gets verified. Verified with `mypy` 1.20.2: exit
+  code 1 and the same 34 pre-existing errors, with no fatal config error.
+
+  Those 34 remain non-blocking and are mostly numpy dtype variance the checker
+  cannot see through. Two are worth a note, both in `fitting/circuit.py`
+  (lines 336 and 441): an `Optional[List[float]]` used without being narrowed.
+  Neither is reachable today - `lower_bounds` and `upper_bounds` are always
+  assigned together in `_prepare_optimization`, and `build_bound_status()`
+  returns no `'lower'`/`'upper'` status when bounds are absent - but both rely
+  on invariants that nothing enforces.
+
 ## Version 0.20.4 (2026-07-26)
 
 Build configuration only; no code changes.
@@ -38,11 +66,8 @@ Build configuration only; no code changes.
 ### Known issues
 
 - The CI `typecheck` job also reports a failure (exit code 2). It runs with
-  `continue-on-error: true`, so it does not fail the workflow. This was not
-  reproduced locally: `mypy 2.3.0` produces the same 34 errors as `1.19.1` and
-  exits 1, not 2, so something in the CI environment (Python 3.12, a freshly
-  resolved numpy 2.x) differs and has not been diagnosed. Unchanged by this
-  release.
+  `continue-on-error: true`, so it does not fail the workflow. Unchanged by
+  this release; diagnosed and fixed in 0.20.5.
 
 ## Version 0.20.3 (2026-07-26)
 

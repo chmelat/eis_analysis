@@ -18,7 +18,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff",
-    "mypy",
+    # mypy 2.x refuses python_version = "3.9" ("must be 3.10 or higher") and
+    # exits with a fatal config error instead of type-checking. The project
+    # still supports 3.9 (see requires-python), so the checker is held back
+    # rather than the floor raised. Lift this pin when the 3.9 floor is
+    # dropped, not before.
+    "mypy<2",
     "pytest",
 ]
 
