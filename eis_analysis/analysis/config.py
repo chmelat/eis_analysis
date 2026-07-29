@@ -12,6 +12,12 @@ EPSILON_0 = 8.854e-14
 # SiO₂ ~ 3.9), so the default is only a starting point.
 DEFAULT_EPSILON_R = 22.0
 
+# Electrode area assumed when neither the caller nor the DTA metadata
+# supplies one. Unit area means the specific capacitance equals the
+# measured capacitance, so results are reported per whatever area the
+# measurement actually had - correct only if that area really was 1 cm².
+DEFAULT_AREA_CM2 = 1.0
+
 # CPE exponent below which the effective-capacitance conversion
 # (Hsu-Mansfeld) is not well-defined: the distribution of time constants
 # is too broad for a single C_eff to be meaningful.
@@ -32,6 +38,7 @@ HF_C_SPREAD_MAX_RATIO = 1.2
 __all__ = [
     'EPSILON_0',
     'DEFAULT_EPSILON_R',
+    'DEFAULT_AREA_CM2',
     'CPE_N_RELIABLE_MIN',
     'HF_ESTIMATE_DECADE_FACTOR',
     'HF_C_SPREAD_MAX_RATIO',

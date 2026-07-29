@@ -4,6 +4,33 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.1 (2026-07-29)
+
+### Fixed
+
+- **An explicit `--area 1.0` was silently overridden by DTA metadata**
+  (`cli/handlers/oxide.py`). The handler used `args.area == 1.0` as a
+  proxy for "the flag was not given", which argparse cannot distinguish
+  from an explicitly passed 1.0. On a DTA file carrying its own `AREA`
+  header, 1.0 was therefore the one value a user could not force.
+
+  Area scales the result directly - `C_specific = C_eff / area` and
+  `d = epsilon_0 * epsilon_r * area / C_eff` - so a file declaring
+  `AREA = 0.5` silently halved a thickness the user had asked to be
+  computed for 1 cm². The log did say `Using area from DTA metadata`,
+  but that reads as routine information rather than as "your value was
+  discarded".
+
+  `--area` now defaults to `None`, the same sentinel-free pattern applied
+  to `--epsilon-r` in 0.21.0: an explicit value always wins, metadata
+  fills in only when the flag is absent, and `DEFAULT_AREA_CM2` (1.0, new
+  documented constant in `analysis/config.py`) applies when there is
+  neither. `--help` now states the real default.
+
+  - Regression tests in `tests/test_cli_integration.py`: explicit
+    `--area 1.0` beats metadata 0.5, and an omitted flag still picks the
+    metadata value. Both were verified to fail against the old handler.
+
 ## Version 0.21.0 (2026-07-29)
 
 ### Added

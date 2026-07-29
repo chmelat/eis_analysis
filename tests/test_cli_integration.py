@@ -110,7 +110,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'analyze_oxide': False,
         'epsilon_r': None,
         'thickness': None,
-        'area': 1.0,
+        'area': None,
 
         # Visualization
         'ocv': False,
@@ -861,6 +861,52 @@ def test_oxide_inverse_mode_warns_on_epsilon_r(caplog):
 
     assert '--epsilon-r 9 ignored' in caplog.text, "Should warn about ignored flag"
     print("  [OK] Conflicting --epsilon-r warned about")
+
+
+# =============================================================================
+# Test 15: Oxide Analysis - Area Resolution
+# =============================================================================
+
+def test_oxide_explicit_area_one_beats_metadata(caplog):
+    """Regression: an explicit --area 1.0 must not be read as 'not given'.
+
+    The handler used to test `args.area == 1.0` as a proxy for "flag
+    omitted", which made 1.0 the one value a user could not force on a
+    DTA file carrying its own AREA. Area scales the result directly
+    (d = eps_0 * eps_r * area / C_eff), so being overridden here is a
+    silent factor-of-two error when metadata says 0.5.
+    """
+    print("\n[Test 15] Oxide analysis - explicit area vs metadata")
+    print("-" * 70)
+
+    from eis_analysis.cli import run_oxide_analysis
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(analyze_oxide=True, area=1.0)
+
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.oxide'):
+        run_oxide_analysis(frequencies, Z, args, None, {'area': 0.5})
+
+    assert 'Using explicitly specified area: 1.0000' in caplog.text
+    assert 'Using area from DTA metadata' not in caplog.text
+    print("  [OK] Explicit --area 1.0 honored over metadata")
+
+
+def test_oxide_area_falls_back_to_metadata(caplog):
+    """--area omitted -> DTA metadata still fills it in."""
+    print("\n[Test 15b] Oxide analysis - area from metadata")
+    print("-" * 70)
+
+    from eis_analysis.cli import run_oxide_analysis
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(analyze_oxide=True)
+
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.oxide'):
+        run_oxide_analysis(frequencies, Z, args, None, {'area': 0.5})
+
+    assert 'Using area from DTA metadata: 0.5000' in caplog.text
+    print("  [OK] Metadata area used when flag omitted")
 
 
 

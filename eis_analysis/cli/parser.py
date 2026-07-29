@@ -226,8 +226,9 @@ Examples:
     oxide_group.add_argument('--thickness', type=float, default=None,
                              help='Known oxide thickness [nm] - switches '
                                   '--analyze-oxide to permittivity estimation')
-    oxide_group.add_argument('--area', type=float, default=1.0,
-                             help='Electrode area in cm^2 (default: 1.0)')
+    oxide_group.add_argument('--area', type=float, default=None,
+                             help='Electrode area in cm^2 (default: from DTA '
+                                  'metadata, else 1.0)')
 
     # ==========================================================================
     # Visualization Group

@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.21.0 (2026-07-29)
+**Version:** v0.21.1 (2026-07-29)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -377,7 +377,7 @@ chosen equivalent circuit is physically consistent.
 - `--analyze-oxide` - Perform oxide layer analysis - thickness calculation from capacitance.
 - `--epsilon-r` (default: 22.0) - Relative permittivity of oxide. Default 22 for ZrO2. Other oxides: Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9. Ignored (with a warning) when `--thickness` is given.
 - `--thickness` - Known oxide thickness [nm], e.g. from SEM/TEM. Reverses the analysis: the thickness becomes the input and the relative permittivity the estimated quantity.
-- `--area` (default: 1.0) - Electrode area [cm^2]. Required for correct thickness calculation.
+- `--area` (default: from DTA metadata, else 1.0) - Electrode area [cm^2]. Required for correct thickness calculation. An explicit value always takes precedence over the DTA metadata.
 
 ### Jacobian
 

@@ -12,7 +12,7 @@ from typing import Optional
 from numpy.typing import NDArray
 
 from ...analysis import analyze_oxide_layer, estimate_permittivity
-from ...analysis.config import DEFAULT_EPSILON_R
+from ...analysis.config import DEFAULT_AREA_CM2, DEFAULT_EPSILON_R
 from ...fitting import FitResult
 
 logger = logging.getLogger(__name__)
@@ -47,15 +47,20 @@ def run_oxide_analysis(
     if not args.analyze_oxide:
         return
 
-    # Use area from metadata if available and not explicitly specified
-    area_to_use = args.area
-    if metadata is not None and metadata.get('area') is not None:
-        if args.area == 1.0:  # Default value was not changed
-            area_to_use = metadata['area']
-            logger.info(f"Using area from DTA metadata: {area_to_use:.4f} cm^2")
-        else:
+    # An explicit --area always wins; metadata only fills in when the flag
+    # was omitted (args.area is None), so that --area 1.0 is honored like
+    # any other value rather than being mistaken for the default
+    area_from_metadata = metadata.get('area') if metadata is not None else None
+    if args.area is not None:
+        area_to_use = args.area
+        if area_from_metadata is not None:
             logger.info(f"Using explicitly specified area: {area_to_use:.4f} cm^2 "
-                        f"(metadata: {metadata['area']:.4f} cm^2)")
+                        f"(metadata: {area_from_metadata:.4f} cm^2)")
+    elif area_from_metadata is not None:
+        area_to_use = area_from_metadata
+        logger.info(f"Using area from DTA metadata: {area_to_use:.4f} cm^2")
+    else:
+        area_to_use = DEFAULT_AREA_CM2
 
     if args.thickness is not None:
         if args.epsilon_r is not None:

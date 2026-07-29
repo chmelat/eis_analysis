@@ -153,16 +153,15 @@ class OxideAnalysisResult:
 | `--analyze-oxide` | - | Enable oxide layer analysis |
 | `--epsilon-r` | 22.0 | Relative permittivity of oxide |
 | `--thickness` | - | Known oxide thickness [nm] - switches to permittivity estimation |
-| `--area` | 1.0 | Electrode area [cm^2] |
+| `--area` | DTA metadata, else 1.0 | Electrode area [cm^2] |
 
 **Note:** `--thickness` reverses the analysis: the thickness becomes the
 input and epsilon_r the estimated quantity. `--epsilon-r` is then
 meaningless and is ignored with a warning.
 
-**Note:** Area is automatically loaded from DTA file metadata whenever
-`--area` is left at its default (1.0). An explicit `--area 1.0` cannot be
-distinguished from the default and is therefore overridden by metadata;
-any other explicit value takes precedence.
+**Note:** Area is loaded automatically from DTA file metadata whenever
+`--area` is omitted. Any explicit `--area` value takes precedence over
+metadata, including `--area 1.0`. Without either, 1.0 cm^2 is assumed.
 
 ---
 
