@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.20.5
+**Current version:** v0.21.0
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -657,9 +657,29 @@ result.element_R             # Resistance of dominant element [Ohm]
 result.element_tau           # Time constant [s]
 ```
 
+**Inverse direction (permittivity from known thickness):**
+
+```python
+from eis_analysis.analysis import estimate_permittivity
+
+inverse = estimate_permittivity(
+    frequencies,
+    Z,
+    thickness_nm=25.0,       # Known thickness [nm] (SEM/TEM)
+    area_cm2=1.0,
+    fit_result=fit_result
+)
+
+# Also an OxideAnalysisResult, with input and output swapped:
+inverse.permittivity         # Estimated relative permittivity
+inverse.permittivity_brug    # Brug (2D) comparison, or None
+inverse.thickness_nm         # The thickness that was passed in
+```
+
 **Formulas:**
 ```
 d = epsilon_0 * epsilon_r / C_specific     (analyze_oxide_layer)
+epsilon_r = d * C_specific / epsilon_0     (estimate_permittivity)
 ```
 
 ### eis_analysis.visualization

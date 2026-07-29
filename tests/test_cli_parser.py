@@ -53,3 +53,17 @@ def test_multistart_must_be_positive(monkeypatch):
 def test_lambda_probe_flag(monkeypatch):
     assert parse(monkeypatch).lambda_probe is False
     assert parse(monkeypatch, '--lambda-probe').lambda_probe is True
+
+
+def test_oxide_defaults_are_none(monkeypatch):
+    """None defaults let the handler tell "not given" from an explicit value."""
+    args = parse(monkeypatch)
+    assert args.thickness is None
+    assert args.epsilon_r is None
+
+
+def test_thickness_and_epsilon_r_parse_together(monkeypatch):
+    """Conflicting flags are not a parse error - the handler warns instead."""
+    args = parse(monkeypatch, '--analyze-oxide', '--thickness', '20', '--epsilon-r', '9')
+    assert args.thickness == 20.0
+    assert args.epsilon_r == 9.0

@@ -16,6 +16,7 @@ from ..fitting.circuit_elements import R, C, Q, K
 from ..fitting.circuit_builder import Series, Parallel
 from .config import (
     EPSILON_0,
+    DEFAULT_EPSILON_R,
     CPE_N_RELIABLE_MIN,
     HF_ESTIMATE_DECADE_FACTOR,
     HF_C_SPREAD_MAX_RATIO,
@@ -39,6 +40,10 @@ class OxideAnalysisResult:
     capacitance_brug: Optional[float] = None          # Brug C_eff [F]
     capacitance_specific_brug: Optional[float] = None # Brug C_eff/area [F/cm²]
     thickness_brug_nm: Optional[float] = None         # Thickness from Brug C [nm]
+    # Inverse mode - set only by estimate_permittivity(), where the
+    # thickness is the input and the permittivity the derived quantity
+    permittivity: Optional[float] = None       # ε_r from known thickness
+    permittivity_brug: Optional[float] = None  # ε_r from Brug C_eff
 
 
 def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
@@ -358,7 +363,7 @@ def _extract_capacitance(
 def analyze_oxide_layer(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    epsilon_r: float = 22.0,
+    epsilon_r: float = DEFAULT_EPSILON_R,
     area_cm2: float = 1.0,
     fit_result: Optional[FitResult] = None
 ) -> Optional[OxideAnalysisResult]:
@@ -453,7 +458,7 @@ def estimate_permittivity(
     thickness_nm: float,
     area_cm2: float = 1.0,
     fit_result: Optional[FitResult] = None
-) -> Optional[float]:
+) -> Optional[OxideAnalysisResult]:
     """
     Estimate relative permittivity from known oxide thickness.
 
@@ -475,19 +480,28 @@ def estimate_permittivity(
 
     Returns
     -------
-    epsilon_r : float or None
-        Estimated relative permittivity, or None if failed.
+    result : OxideAnalysisResult or None
+        Analysis result with capacitance and permittivity, or None if
+        failed. The estimate is in `permittivity`; `thickness_nm` holds
+        the thickness that was passed in, since here it is the input.
 
     Notes
     -----
     Formula (from parallel plate capacitor model):
         ε_r = d × C_specific / ε₀
 
+    For Q elements the capacitance conversion is the same as in
+    analyze_oxide_layer(): Hsu-Mansfeld (normal/3D distribution) as the
+    primary value, and the Brug (1984) formula (surface/2D distribution)
+    reported in permittivity_brug for comparison when the circuit also
+    contains a series resistance. The spread between the two brackets
+    the model uncertainty. See doc/OXIDE_ANALYSIS_GUIDE.md.
+
     Examples
     --------
     >>> result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
-    >>> eps_r = estimate_permittivity(freq, Z, thickness_nm=20, fit_result=result)
-    >>> print(f"Permittivity: {eps_r:.1f}")
+    >>> oxide = estimate_permittivity(freq, Z, thickness_nm=20, fit_result=result)
+    >>> print(f"Permittivity: {oxide.permittivity:.1f}")
     """
     logger.info("=" * 50)
     logger.info("Permittivity estimation from known thickness")
@@ -507,12 +521,35 @@ def estimate_permittivity(
     C_specific = extracted['C_specific']
     epsilon_r = d_cm * C_specific / EPSILON_0
 
+    # Brug (2D) comparison permittivity, when available
+    C_specific_brug = extracted['C_specific_brug']
+    eps_r_brug = None
+    if C_specific_brug is not None:
+        eps_r_brug = d_cm * C_specific_brug / EPSILON_0
+
     logger.info(f"  Known thickness:    {thickness_nm:.1f} nm")
     logger.info(f"  Permittivity ε_r:   {epsilon_r:.1f}")
+    if eps_r_brug is not None:
+        # .3g, not .1f: when n is far from 1 the two CPE models diverge by
+        # orders of magnitude and a fixed-point format would print "0.0"
+        logger.info(f"  ε_r (Brug):         {eps_r_brug:.3g} "
+                    f"(2D model, for comparison)")
     logger.info(f"  (area={area_cm2} cm²)")
     logger.info("=" * 50)
 
-    return epsilon_r
+    return OxideAnalysisResult(
+        capacitance=extracted['C_eff'],
+        capacitance_specific=C_specific,
+        thickness_nm=thickness_nm,
+        element_type=extracted['element_type'],
+        element_R=extracted['element_R'],
+        element_tau=extracted['element_tau'],
+        element_params=extracted['element_params'],
+        capacitance_brug=extracted['C_eff_brug'],
+        capacitance_specific_brug=C_specific_brug,
+        permittivity=epsilon_r,
+        permittivity_brug=eps_r_brug
+    )
 
 
 __all__ = ['analyze_oxide_layer', 'estimate_permittivity', 'OxideAnalysisResult']

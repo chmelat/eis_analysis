@@ -221,8 +221,11 @@ Examples:
 
     oxide_group.add_argument('--analyze-oxide', action='store_true',
                              help='Perform oxide layer analysis')
-    oxide_group.add_argument('--epsilon-r', type=float, default=22.0,
+    oxide_group.add_argument('--epsilon-r', type=float, default=None,
                              help='Relative permittivity of oxide (default: 22 for ZrO2)')
+    oxide_group.add_argument('--thickness', type=float, default=None,
+                             help='Known oxide thickness [nm] - switches '
+                                  '--analyze-oxide to permittivity estimation')
     oxide_group.add_argument('--area', type=float, default=1.0,
                              help='Electrode area in cm^2 (default: 1.0)')
 

@@ -62,11 +62,11 @@ def test_estimate_permittivity_does_not_log_thickness(caplog):
     freq, Z = _synthetic_voigt()
 
     with caplog.at_level(logging.INFO, logger=OXIDE_LOGGER):
-        eps_r = estimate_permittivity(
+        result = estimate_permittivity(
             freq, Z, thickness_nm=19.5, fit_result=_fit_result_voigt()
         )
 
-    assert eps_r is not None
+    assert result is not None and result.permittivity is not None
     assert 'Oxide thickness' not in caplog.text
     assert 'Permittivity' in caplog.text
 
@@ -76,9 +76,9 @@ def test_estimate_permittivity_fallback_does_not_log_thickness(caplog):
     freq, Z = _synthetic_voigt()
 
     with caplog.at_level(logging.INFO, logger=OXIDE_LOGGER):
-        eps_r = estimate_permittivity(freq, Z, thickness_nm=19.5)
+        result = estimate_permittivity(freq, Z, thickness_nm=19.5)
 
-    assert eps_r is not None
+    assert result is not None and result.permittivity is not None
     assert 'Oxide thickness' not in caplog.text
 
 
@@ -88,11 +88,56 @@ def test_permittivity_thickness_roundtrip():
     fit_result = _fit_result_voigt()
 
     oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
-    eps_r = estimate_permittivity(
+    inverse = estimate_permittivity(
         freq, Z, thickness_nm=oxide.thickness_nm, fit_result=fit_result
     )
 
-    assert abs(eps_r - 22.0) / 22.0 < 1e-9
+    assert abs(inverse.permittivity - 22.0) / 22.0 < 1e-9
+
+
+def test_permittivity_result_carries_input_thickness():
+    """In inverse mode the thickness is the input, not a derived value."""
+    freq, Z = _synthetic_voigt()
+
+    result = estimate_permittivity(
+        freq, Z, thickness_nm=19.5, fit_result=_fit_result_voigt()
+    )
+
+    assert result is not None
+    assert result.thickness_nm == 19.5
+    assert result.thickness_brug_nm is None
+    assert result.element_type == 'C'
+
+
+def test_permittivity_brug_comparison():
+    """Brug ε_r is reported alongside Hsu-Mansfeld and scales with C."""
+    freq, Z = _synthetic_voigt()
+
+    result = estimate_permittivity(
+        freq, Z, thickness_nm=19.5, fit_result=_fit_result_voigt_q(0.9)
+    )
+
+    assert result is not None
+    assert result.permittivity_brug is not None
+    # ε_r is linear in C_specific, so both ratios must agree exactly
+    eps_ratio = result.permittivity_brug / result.permittivity
+    C_ratio = result.capacitance_specific_brug / result.capacitance_specific
+    assert abs(eps_ratio - C_ratio) / C_ratio < 1e-9
+
+
+def test_permittivity_brug_none_without_series_R():
+    """No series R -> no Brug ε_r, mirroring the thickness path."""
+    freq, Z = _synthetic_voigt()
+    n = 0.9
+    fit_result = _fit_result(R(R_P) | Q(Q_VAL, n), [R_P, Q_VAL, n])
+
+    result = estimate_permittivity(
+        freq, Z, thickness_nm=19.5, fit_result=fit_result
+    )
+
+    assert result is not None
+    assert result.permittivity is not None
+    assert result.permittivity_brug is None
 
 
 # --- Audit O3: candidate listing and selection assumption ---

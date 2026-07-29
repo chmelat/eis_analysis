@@ -6,6 +6,12 @@ Configuration constants for oxide layer analysis.
 # Standard: ε₀ = 8.854×10⁻¹² F/m = 8.854×10⁻¹⁴ F/cm
 EPSILON_0 = 8.854e-14
 
+# Relative permittivity assumed when the caller does not supply one.
+# 22 is the commonly quoted value for ZrO₂, the oxide this toolkit is
+# primarily used on. Other oxides differ widely (Al₂O₃ ~ 9, TiO₂ ~ 80,
+# SiO₂ ~ 3.9), so the default is only a starting point.
+DEFAULT_EPSILON_R = 22.0
+
 # CPE exponent below which the effective-capacitance conversion
 # (Hsu-Mansfeld) is not well-defined: the distribution of time constants
 # is too broad for a single C_eff to be meaningful.
@@ -25,6 +31,7 @@ HF_C_SPREAD_MAX_RATIO = 1.2
 
 __all__ = [
     'EPSILON_0',
+    'DEFAULT_EPSILON_R',
     'CPE_N_RELIABLE_MIN',
     'HF_ESTIMATE_DECADE_FACTOR',
     'HF_C_SPREAD_MAX_RATIO',

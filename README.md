@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.20.5 (2026-07-26)
+**Version:** v0.21.0 (2026-07-29)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -102,6 +102,9 @@ eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))" --analyze-oxide
 
 # With custom parameters
 eis data.DTA --circuit "..." --analyze-oxide --epsilon-r 22 --area 0.5
+
+# Inverse: permittivity from a known thickness (SEM/TEM)
+eis data.DTA --circuit "..." --analyze-oxide --thickness 25
 ```
 
 ### Batch processing
@@ -271,7 +274,8 @@ eis data.DTA --circuit "..." --optimizer multistart --multistart-scale 3.0
 
 ### Oxide layer analysis
 
-Oxide layer thickness calculation from capacitance.
+Oxide layer thickness calculation from capacitance, or the inverse -
+relative permittivity from an independently known thickness.
 
 ```bash
 # Automatic analysis
@@ -279,9 +283,16 @@ eis data.DTA --circuit "..." --analyze-oxide
 
 # Custom permittivity and area
 eis data.DTA --circuit "..." --analyze-oxide --epsilon-r 9 --area 0.5
+
+# Inverse: thickness known from SEM/TEM, estimate permittivity
+eis data.DTA --circuit "..." --analyze-oxide --thickness 25
 ```
 
 Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
+
+The inverse direction is useful for cross-validation: if the estimated
+permittivity lands near the literature value for the expected oxide, the
+chosen equivalent circuit is physically consistent.
 
 **Detailed documentation:** [doc/OXIDE_ANALYSIS_GUIDE.md](doc/OXIDE_ANALYSIS_GUIDE.md)
 
@@ -364,7 +375,8 @@ Common permittivities: ZrO2 ~ 22, Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9
 ### Oxide layer analysis
 
 - `--analyze-oxide` - Perform oxide layer analysis - thickness calculation from capacitance.
-- `--epsilon-r` (default: 22.0) - Relative permittivity of oxide. Default 22 for ZrO2. Other oxides: Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9.
+- `--epsilon-r` (default: 22.0) - Relative permittivity of oxide. Default 22 for ZrO2. Other oxides: Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9. Ignored (with a warning) when `--thickness` is given.
+- `--thickness` - Known oxide thickness [nm], e.g. from SEM/TEM. Reverses the analysis: the thickness becomes the input and the relative permittivity the estimated quantity.
 - `--area` (default: 1.0) - Electrode area [cm^2]. Required for correct thickness calculation.
 
 ### Jacobian

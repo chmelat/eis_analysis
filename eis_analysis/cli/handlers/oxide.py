@@ -1,7 +1,8 @@
 """
 Oxide layer analysis handler for the EIS CLI.
 
-- run_oxide_analysis: oxide thickness estimation from capacitance
+- run_oxide_analysis: oxide thickness estimation from capacitance, or the
+  inverse (permittivity from a known thickness) when --thickness is given
 """
 
 import argparse
@@ -10,7 +11,8 @@ from typing import Optional
 
 from numpy.typing import NDArray
 
-from ...analysis import analyze_oxide_layer
+from ...analysis import analyze_oxide_layer, estimate_permittivity
+from ...analysis.config import DEFAULT_EPSILON_R
 from ...fitting import FitResult
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,9 @@ def run_oxide_analysis(
     """
     Run oxide layer analysis.
 
+    With --thickness the analysis runs in reverse: the thickness becomes
+    the input and the relative permittivity the estimated quantity.
+
     Parameters
     ----------
     frequencies : ndarray
@@ -33,7 +38,7 @@ def run_oxide_analysis(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: analyze_oxide, epsilon_r, area)
+        CLI arguments (uses: analyze_oxide, epsilon_r, thickness, area)
     fitted_result : FitResult or None
         Circuit fitting result
     metadata : dict or None
@@ -52,9 +57,21 @@ def run_oxide_analysis(
             logger.info(f"Using explicitly specified area: {area_to_use:.4f} cm^2 "
                         f"(metadata: {metadata['area']:.4f} cm^2)")
 
-    analyze_oxide_layer(
-        frequencies, Z,
-        epsilon_r=args.epsilon_r,
-        area_cm2=area_to_use,
-        fit_result=fitted_result
-    )
+    if args.thickness is not None:
+        if args.epsilon_r is not None:
+            logger.warning(f"--epsilon-r {args.epsilon_r:g} ignored: --thickness "
+                           f"given, permittivity is the estimated quantity")
+        estimate_permittivity(
+            frequencies, Z,
+            thickness_nm=args.thickness,
+            area_cm2=area_to_use,
+            fit_result=fitted_result
+        )
+    else:
+        analyze_oxide_layer(
+            frequencies, Z,
+            epsilon_r=args.epsilon_r if args.epsilon_r is not None
+                      else DEFAULT_EPSILON_R,
+            area_cm2=area_to_use,
+            fit_result=fitted_result
+        )

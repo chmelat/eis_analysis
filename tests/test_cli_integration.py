@@ -108,7 +108,8 @@ def create_test_args(**kwargs) -> argparse.Namespace:
 
         # Oxide Analysis
         'analyze_oxide': False,
-        'epsilon_r': 22.0,
+        'epsilon_r': None,
+        'thickness': None,
         'area': 1.0,
 
         # Visualization
@@ -819,6 +820,47 @@ def test_error_handling():
         os.unlink(tmp_path)
 
     print("  [OK] Error handling works correctly")
+
+
+
+# =============================================================================
+# Test 14: Oxide Analysis - Inverse Mode (permittivity from thickness)
+# =============================================================================
+
+def test_oxide_inverse_mode(caplog):
+    """--thickness switches the oxide handler to permittivity estimation."""
+    print("\n[Test 14] Oxide analysis - inverse mode")
+    print("-" * 70)
+
+    from eis_analysis.cli import run_oxide_analysis
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(analyze_oxide=True, thickness=20.0)
+
+    with caplog.at_level(logging.INFO, logger='eis_analysis.analysis.oxide'):
+        run_oxide_analysis(frequencies, Z, args, None, None)
+
+    assert 'Permittivity' in caplog.text, "Should report permittivity"
+    assert 'Oxide thickness' not in caplog.text, "Should not report thickness"
+    print("  [OK] Permittivity reported, thickness suppressed")
+
+
+def test_oxide_inverse_mode_warns_on_epsilon_r(caplog):
+    """--epsilon-r together with --thickness is ignored, but not silently."""
+    print("\n[Test 14b] Oxide analysis - conflicting flags")
+    print("-" * 70)
+
+    from eis_analysis.cli import run_oxide_analysis
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(analyze_oxide=True, thickness=20.0, epsilon_r=9.0)
+
+    with caplog.at_level(logging.WARNING,
+                         logger='eis_analysis.cli.handlers.oxide'):
+        run_oxide_analysis(frequencies, Z, args, None, None)
+
+    assert '--epsilon-r 9 ignored' in caplog.text, "Should warn about ignored flag"
+    print("  [OK] Conflicting --epsilon-r warned about")
 
 
 

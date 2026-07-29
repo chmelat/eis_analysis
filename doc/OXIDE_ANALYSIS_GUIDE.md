@@ -37,8 +37,8 @@ oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Thickness: {oxide.thickness_nm:.1f} nm")
 
 # Option 2: Known thickness (from SEM) -> estimate permittivity
-eps_r = estimate_permittivity(freq, Z, thickness_nm=20.0, fit_result=result)
-print(f"Permittivity: {eps_r:.1f}")
+inverse = estimate_permittivity(freq, Z, thickness_nm=20.0, fit_result=result)
+print(f"Permittivity: {inverse.permittivity:.1f}")
 ```
 
 ### CLI
@@ -53,6 +53,10 @@ python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
 
 # Using Voigt chain for automatic circuit
 python3 eis.py data.DTA --voigt-chain --analyze-oxide
+
+# Inverse: thickness known from SEM/TEM, estimate permittivity instead
+python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+    --analyze-oxide --thickness 25
 ```
 
 **Note:** For oxide analysis with custom data, you must specify `--circuit` or `--voigt-chain`.
@@ -94,7 +98,7 @@ def estimate_permittivity(
     thickness_nm: float,
     area_cm2: float = 1.0,
     fit_result: Optional[FitResult] = None
-) -> Optional[float]
+) -> Optional[OxideAnalysisResult]
 ```
 
 **Parameters:**
@@ -104,15 +108,18 @@ def estimate_permittivity(
 - `area_cm2` - Electrode area [cm^2] (default: 1.0)
 - `fit_result` - Result from `fit_equivalent_circuit()` (recommended)
 
-**Returns:** Estimated relative permittivity epsilon_r, or `None` if failed.
+**Returns:** `OxideAnalysisResult` with the estimate in `permittivity`
+(and `permittivity_brug` for a dominant Q element with series R), or
+`None` if failed. Here `thickness_nm` holds the value that was passed
+in, since in this direction the thickness is the input.
 
 **Example:**
 ```python
 from eis_analysis.analysis import estimate_permittivity
 
 # Thickness known from SEM measurement
-eps_r = estimate_permittivity(freq, Z, thickness_nm=20.0, fit_result=result)
-print(f"Permittivity: {eps_r:.1f}")  # e.g., 22.0
+oxide = estimate_permittivity(freq, Z, thickness_nm=20.0, fit_result=result)
+print(f"Permittivity: {oxide.permittivity:.1f}")  # e.g., 22.0
 ```
 
 ### OxideAnalysisResult
@@ -132,6 +139,9 @@ class OxideAnalysisResult:
     capacitance_brug: Optional[float]          # Brug C_eff [F]
     capacitance_specific_brug: Optional[float] # Brug C_eff/area [F/cm^2]
     thickness_brug_nm: Optional[float]         # Thickness from Brug C [nm]
+    # Inverse mode - set only by estimate_permittivity()
+    permittivity: Optional[float]              # epsilon_r from known thickness
+    permittivity_brug: Optional[float]         # epsilon_r from Brug C_eff
 ```
 
 ---
@@ -142,7 +152,12 @@ class OxideAnalysisResult:
 |----------|---------|-------------|
 | `--analyze-oxide` | - | Enable oxide layer analysis |
 | `--epsilon-r` | 22.0 | Relative permittivity of oxide |
+| `--thickness` | - | Known oxide thickness [nm] - switches to permittivity estimation |
 | `--area` | 1.0 | Electrode area [cm^2] |
+
+**Note:** `--thickness` reverses the analysis: the thickness becomes the
+input and epsilon_r the estimated quantity. `--epsilon-r` is then
+meaningless and is ignored with a warning.
 
 **Note:** Area is automatically loaded from DTA file metadata whenever
 `--area` is left at its default (1.0). An explicit `--area 1.0` cannot be
@@ -323,14 +338,25 @@ from eis_analysis.analysis import estimate_permittivity
 # Thickness measured by SEM/TEM/ellipsometry
 thickness_from_sem = 25.0  # nm
 
-eps_r = estimate_permittivity(
+oxide = estimate_permittivity(
     freq, Z,
     thickness_nm=thickness_from_sem,
     area_cm2=1.0,
     fit_result=result
 )
-print(f"Estimated permittivity: {eps_r:.1f}")
+print(f"Estimated permittivity: {oxide.permittivity:.1f}")
 # Compare with literature: ZrO2 ~ 20-25
+
+# For a Q element with series R, the 2D model gives a second bracket
+if oxide.permittivity_brug is not None:
+    print(f"Brug (2D) comparison: {oxide.permittivity_brug:.3g}")
+```
+
+The same analysis from the CLI:
+
+```bash
+python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+    --analyze-oxide --thickness 25
 ```
 
 ### Example 7: Cross-validation
@@ -343,8 +369,8 @@ oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Assuming eps_r=22: d = {oxide.thickness_nm:.1f} nm")
 
 # Method 2: Use thickness from SEM, get epsilon_r
-eps_r = estimate_permittivity(freq, Z, thickness_nm=30.0, fit_result=result)
-print(f"From SEM d=30nm: eps_r = {eps_r:.1f}")
+inverse = estimate_permittivity(freq, Z, thickness_nm=30.0, fit_result=result)
+print(f"From SEM d=30nm: eps_r = {inverse.permittivity:.1f}")
 
 # If eps_r is reasonable (15-30 for ZrO2), the model is consistent
 ```
@@ -527,6 +553,9 @@ none, the Brug estimate is skipped and the result fields stay None.
    - epsilon_r varies with oxide phase, microstructure
    - Porous oxide has lower effective epsilon_r
    - Uncertainty in epsilon_r directly affects thickness estimate
+   - The dependence is linear, so it flows the other way too: in the
+     inverse direction a 10% error in the measured thickness gives a
+     10% error in the estimated epsilon_r
 
 3. **Single dominant element**
    - Only analyzes element with largest R
@@ -549,6 +578,14 @@ none, the Brug estimate is skipped and the result fields stay None.
 - Check electrode area
 - Verify fit quality
 - Consider if selected element really represents oxide
+
+**Implausible epsilon_r (inverse mode)**
+- Most dielectrics fall in roughly 1-100; far outside that range the
+  model, not the material, is usually wrong
+- Check the measured thickness and the electrode area
+- Check whether the selected element really represents the oxide
+- A very low CPE exponent n makes C_eff ill-defined (see the warning in
+  the log), which propagates straight into epsilon_r
 
 **Different result than expected**
 - Function selects largest R - verify this is correct element

@@ -4,6 +4,77 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.0 (2026-07-29)
+
+### Added
+
+- **Inverse oxide analysis from the CLI: `--thickness`.** With a thickness
+  known independently (SEM/TEM cross-section, ellipsometry), the analysis
+  now runs backwards - the thickness is the input and the relative
+  permittivity the estimated quantity:
+
+  ```bash
+  eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))" \
+      --analyze-oxide --thickness 25
+  ```
+
+  This is a cross-validation step: an estimated epsilon_r near the
+  literature value for the expected oxide (ZrO2 ~ 20-25) indicates the
+  chosen equivalent circuit is physically consistent, while a wild value
+  points at the circuit or the element selection rather than the material.
+
+  The computation itself is not new - `estimate_permittivity()` has
+  implemented `epsilon_r = d * C_specific / epsilon_0` since 0.16.x and
+  shares its element-selection core with `analyze_oxide_layer()`. It was
+  simply unreachable from the CLI, available only through the Python API
+  or the ad-hoc `oxide_permittivity.py` script.
+
+- **Brug (2D) comparison permittivity.** The inverse direction now reports
+  a second epsilon_r derived from the Brug effective capacitance, matching
+  what the thickness direction has done since 0.20.0. Available for a
+  dominant Q element when the circuit contains a series resistance;
+  exposed as `OxideAnalysisResult.permittivity_brug` and logged as
+  `ε_r (Brug)`. The spread between the two CPE-distribution models
+  brackets the model uncertainty, and it is as relevant in one direction
+  as the other. Printed with `.3g` rather than a fixed-point format:
+  when n is far from 1 the two models diverge by orders of magnitude and
+  `.1f` would render a small-but-nonzero value as a misleading `0.0`.
+
+### Changed
+
+- **BREAKING: `estimate_permittivity()` returns `OxideAnalysisResult`**
+  instead of a bare `float` (`analysis/oxide.py`). Returning a scalar left
+  nowhere to put the Brug comparison value, and made the function
+  asymmetric with `analyze_oxide_layer()`, which has always returned the
+  full dataclass. The result object carries the same capacitance and
+  element fields as the forward direction, with the roles of input and
+  output swapped: `thickness_nm` holds the value that was passed in, and
+  `permittivity` holds the estimate. `thickness_brug_nm` stays `None`
+  here, since in this direction the thickness is not derived.
+
+  Migration: `eps_r = estimate_permittivity(...)` becomes
+  `result = estimate_permittivity(...)`, then `result.permittivity`.
+
+- **`--epsilon-r` now defaults to `None`**, resolved to
+  `DEFAULT_EPSILON_R` (22.0, new documented constant in
+  `analysis/config.py`) by the oxide handler. The previous `default=22.0`
+  made an explicit `--epsilon-r 22` indistinguishable from the flag being
+  absent - the same sentinel weakness `--area` still has. Distinguishing
+  them is what allows the handler to warn, rather than silently ignore,
+  when `--epsilon-r` is combined with `--thickness`, where the
+  permittivity is the estimated quantity and any supplied value is
+  meaningless. In the spirit of audit finding O3 (2026-07-02): no silent
+  assumptions.
+
+  User-visible default is unchanged; `--help` still reports 22 for ZrO2.
+
+  - Tests added to `tests/test_oxide.py` (Brug permittivity present and
+    scaling linearly with C, absent without a series R, input thickness
+    carried through), `tests/test_cli_parser.py` (None defaults, and that
+    conflicting flags parse rather than erroring) and
+    `tests/test_cli_integration.py` (inverse mode reports permittivity and
+    not thickness; conflicting `--epsilon-r` warns).
+
 ## Version 0.20.5 (2026-07-26)
 
 Build configuration only; no code changes.
