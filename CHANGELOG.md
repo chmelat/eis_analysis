@@ -4,6 +4,20 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.2 (2026-07-29)
+
+Documentation only; no behavior change.
+
+### Fixed
+
+- **`_extract_capacitance()` docstring understated its return value**
+  (`analysis/oxide.py`). Both return paths have included `C_eff_brug` and
+  `C_specific_brug` since 0.20.0, but the documented key list never
+  mentioned them. Since 0.21.0 both callers read those keys, so a reader
+  following the docstring would conclude the Brug values came from
+  somewhere else. The list now names all eight keys and states when the
+  optional ones are None.
+
 ## Version 0.21.1 (2026-07-29)
 
 ### Fixed

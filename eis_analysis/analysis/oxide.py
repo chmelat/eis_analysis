@@ -204,8 +204,12 @@ def _extract_capacitance(
     Returns
     -------
     extracted : dict or None
-        Keys: 'C_eff' [F], 'C_specific' [F/cm²], 'element_type',
-        'element_R', 'element_tau', 'element_params'.
+        Keys: 'C_eff' [F], 'C_specific' [F/cm²], 'C_eff_brug' [F],
+        'C_specific_brug' [F/cm²], 'element_type', 'element_R',
+        'element_tau', 'element_params'.
+        The two Brug (2D) keys are always present but None unless the
+        dominant element is a Q and the circuit has a series resistance;
+        in fallback mode 'element_R' and 'element_tau' are None too.
         None if capacitance could not be extracted.
     """
     # === Mode 1: From fitted circuit (preferred) ===
