@@ -35,6 +35,24 @@ HF_ESTIMATE_DECADE_FACTOR = 10.0
 # bottom of the decade (C_i = C·(1 + 1/(ωRC)²) for R||C).
 HF_C_SPREAD_MAX_RATIO = 1.2
 
+# Series resistance below which the Brug (2D) effective capacitance is not
+# reported. The default optimizer floor for an R parameter is 0.1 mOhm, and a
+# CPE with n < 1 mimics a series resistance at high frequency, so a degenerate
+# fit drives R_s to that floor instead of to the true ohmic resistance. Brug
+# gives C_eff ~ R_s^((1-n)/n), so a floored R_s yields an arbitrarily small
+# capacitance (and permittivity) with no warning. 10 mOhm sits far below the
+# ohmic resistance of any real electrochemical cell (electrolyte + leads), so
+# a value under it means "not identified by the fit", not "highly conductive".
+BRUG_RS_MIN_OHM = 1e-2
+
+# Ratio C_eff(Hsu-Mansfeld) / C_eff(Brug) above which the two CPE models are
+# flagged as diverging rather than bracketing C_eff. The ratio is exactly
+# (1 + R_ct/R_s)^((1-n)/n), so it grows both with a blocking layer (large
+# R_ct) and with a poorly determined R_s. Within one order of magnitude the
+# pair still brackets a useful C_eff; beyond that the spread is dominated by
+# how well R_s is known and the "comparison" carries no information.
+BRUG_HM_DIVERGENCE_MAX = 10.0
+
 __all__ = [
     'EPSILON_0',
     'DEFAULT_EPSILON_R',
@@ -42,4 +60,6 @@ __all__ = [
     'CPE_N_RELIABLE_MIN',
     'HF_ESTIMATE_DECADE_FACTOR',
     'HF_C_SPREAD_MAX_RATIO',
+    'BRUG_RS_MIN_OHM',
+    'BRUG_HM_DIVERGENCE_MAX',
 ]

@@ -12,7 +12,7 @@ import logging
 
 import numpy as np
 
-from eis_analysis.analysis.config import EPSILON_0
+from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.circuit_elements import C, K, Q, R
@@ -430,3 +430,68 @@ def test_hf_fallback_inductive_data(caplog):
 
     assert oxide is not None  # pre-0.16.16 behavior preserved
     assert 'inductive' in caplog.text
+
+
+def test_brug_suppressed_when_series_R_at_optimizer_floor(caplog):
+    """R_s driven to the optimizer floor -> Brug suppressed, not silently absurd.
+
+    Regression for the ZrO2 permittivity report of 2026-08-18: a CPE with
+    n < 1 mimics a series resistance at high frequency, so R_s collapsed to
+    its 1e-4 Ohm lower bound. Brug's C ~ R_s^((1-n)/n) then differed from
+    Hsu-Mansfeld by 233x and yielded eps_r = 1.55 (near vacuum) with no
+    warning at all.
+    """
+    freq, Z = _synthetic_voigt()
+    n = 0.819
+    R_s_floored = 1e-4
+    circuit = R(R_s_floored) - (R(R_P) | Q(Q_VAL, n))
+    fit_result = _fit_result(circuit, [R_s_floored, R_P, Q_VAL, n])
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = estimate_permittivity(freq, Z, thickness_nm=1925.0,
+                                      fit_result=fit_result)
+
+    # Hsu-Mansfeld (3D) is unaffected - it never uses R_s
+    assert oxide is not None
+    assert oxide.permittivity is not None
+    # Brug is suppressed rather than reported as a bogus comparison
+    assert oxide.capacitance_brug is None
+    assert oxide.capacitance_specific_brug is None
+    assert oxide.permittivity_brug is None
+    assert 'did not identify it' in caplog.text
+
+
+def test_brug_divergence_warning_above_threshold(caplog):
+    """Plausible R_s but huge R_ct/R_s -> value kept, divergence flagged."""
+    freq, Z = _synthetic_voigt()
+    n = 0.819
+    R_s_small, R_ct_large = 0.05, 2.6e7  # ratio^((1-n)/n) is far above 10x
+    circuit = R(R_s_small) - (R(R_ct_large) | Q(Q_VAL, n))
+    fit_result = _fit_result(circuit, [R_s_small, R_ct_large, Q_VAL, n])
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert oxide.capacitance_brug is not None  # above the R_s floor, still reported
+    ratio = oxide.capacitance / oxide.capacitance_brug
+    assert ratio > BRUG_HM_DIVERGENCE_MAX
+    # The ratio is exactly (1 + R_ct/R_s)^((1-n)/n)
+    expected = (1.0 + R_ct_large / R_s_small) ** ((1.0 - n) / n)
+    assert abs(ratio - expected) / expected < 1e-9
+    assert 'do not bracket a single C_eff' in caplog.text
+
+
+def test_brug_no_divergence_warning_for_healthy_fit(caplog):
+    """Well-determined R_s and moderate R_ct -> no divergence warning."""
+    freq, Z = _synthetic_voigt()
+    n = 0.95  # near-ideal CPE keeps the two models close
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_voigt_q(n))
+
+    assert oxide is not None
+    assert oxide.capacitance_brug is not None
+    assert oxide.capacitance / oxide.capacitance_brug < BRUG_HM_DIVERGENCE_MAX
+    assert 'do not bracket a single C_eff' not in caplog.text

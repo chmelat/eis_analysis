@@ -4,6 +4,29 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.3 (2026-08-18)
+
+### Fixed
+
+- **The Brug (2D) capacitance was reported even when the fit had not
+  identified the series resistance** (`analysis/oxide.py`). A CPE with
+  n < 1 mimics a series resistance at high frequency, so R_s is often
+  unidentifiable and the optimizer drives it to its 0.1 mOhm lower bound.
+  Brug scales as `C ~ R_s^((1-n)/n)`, so a floored R_s produced an
+  arbitrarily small capacitance: on a ZrO2 sample it differed from
+  Hsu-Mansfeld by 233x and yielded eps_r = 1.55 (near vacuum) with no
+  warning. Below `BRUG_RS_MIN_OHM` (10 mOhm) the Brug estimate is now
+  suppressed and a warning names the cause and the check (compare the
+  fitted R_s against Re(Z) at the highest measured frequency).
+  Hsu-Mansfeld, which never uses R_s, is unaffected.
+
+- **A large Hsu-Mansfeld/Brug spread was presented as a comparison**
+  (`analysis/oxide.py`). The ratio is exactly `(1 + R_ct/R_s)^((1-n)/n)`;
+  past `BRUG_HM_DIVERGENCE_MAX` (10x) the pair no longer brackets a single
+  C_eff and the spread only reflects how well R_s is known. The two values
+  are still printed, now with a warning that any derived thickness or
+  permittivity is an order-of-magnitude estimate.
+
 ## Version 0.21.2 (2026-07-29)
 
 Documentation only; no behavior change.

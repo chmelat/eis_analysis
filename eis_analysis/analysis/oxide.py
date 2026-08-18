@@ -20,6 +20,8 @@ from .config import (
     CPE_N_RELIABLE_MIN,
     HF_ESTIMATE_DECADE_FACTOR,
     HF_C_SPREAD_MAX_RATIO,
+    BRUG_RS_MIN_OHM,
+    BRUG_HM_DIVERGENCE_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -208,7 +210,9 @@ def _extract_capacitance(
         'C_specific_brug' [F/cm²], 'element_type', 'element_R',
         'element_tau', 'element_params'.
         The two Brug (2D) keys are always present but None unless the
-        dominant element is a Q and the circuit has a series resistance;
+        dominant element is a Q and the circuit has a series resistance
+        of at least BRUG_RS_MIN_OHM (below that the fit has not identified
+        R_s and Brug's R_s^((1-n)/n) scaling makes the value meaningless);
         in fallback mode 'element_R' and 'element_tau' are None too.
         None if capacitance could not be extracted.
     """
@@ -269,13 +273,26 @@ def _extract_capacitance(
 
                     # Brug (2D) comparison estimate - needs series resistance
                     R_s = _find_series_resistance(circuit)
-                    if R_s is not None:
+                    if R_s is None:
+                        logger.info("No series R element in circuit - "
+                                    "Brug (2D) estimate not available")
+                    elif R_s < BRUG_RS_MIN_OHM:
+                        # A CPE with n < 1 mimics a series resistance at high
+                        # frequency, so R_s is often unidentifiable and the fit
+                        # drives it to the optimizer floor. Brug's
+                        # C ~ R_s^((1-n)/n) would then be arbitrarily small.
+                        logger.warning(
+                            f"Series resistance R_s = {R_s:.3e} Ohm < "
+                            f"{BRUG_RS_MIN_OHM:.3g} Ohm: the fit did not identify it "
+                            "(a CPE with n < 1 mimics a series resistance at high "
+                            "frequency, so R_s collapses to its lower bound). "
+                            "Brug (2D) estimate suppressed - it would scale as "
+                            "R_s^((1-n)/n) and be meaningless. Check the fitted "
+                            "R_s against Re(Z) at the highest measured frequency.")
+                    else:
                         C_eff_brug = _estimate_cpe_capacitance_brug(
                             dominant['Q'], dominant['n'], dominant['R'], R_s
                         )
-                    else:
-                        logger.info("No series R element in circuit - "
-                                    "Brug (2D) estimate not available")
 
                 C_specific = C_eff / area_cm2
                 C_specific_brug = (C_eff_brug / area_cm2
@@ -290,6 +307,19 @@ def _extract_capacitance(
                 if C_eff_brug is not None:
                     logger.info(f"  C (Brug, 2D):       {C_eff_brug:.3e} F "
                                 f"(comparison; primary value is Hsu-Mansfeld, 3D)")
+                    # Ratio is exactly (1 + R_ct/R_s)^((1-n)/n) and is always
+                    # >= 1 for n <= 1; a large value means the pair no longer
+                    # brackets C_eff, it just reflects how well R_s is known.
+                    divergence = C_eff / C_eff_brug
+                    if divergence > BRUG_HM_DIVERGENCE_MAX:
+                        logger.warning(
+                            f"Hsu-Mansfeld and Brug C_eff differ by {divergence:.0f}x "
+                            f"(> {BRUG_HM_DIVERGENCE_MAX:.0f}x): the two CPE models do "
+                            "not bracket a single C_eff here. The ratio is "
+                            "(1 + R_ct/R_s)^((1-n)/n), so it is driven by the large "
+                            "R_ct/R_s and by n far from 1 - treat both values, and "
+                            "any thickness or permittivity derived from them, as "
+                            "order-of-magnitude estimates only.")
                 logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
                 logger.info(f"  Time constant:      {tau:.3e} s")
                 logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
