@@ -13,6 +13,7 @@ from typing import Tuple, Optional, List, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 
 from .circuit import fit_equivalent_circuit, FitResult, Circuit
 from .bounds import generate_simple_bounds
@@ -208,10 +209,11 @@ def fit_circuit_multistart(
 
     jacobian_type = 'analytic' if use_analytic_jacobian else 'numeric'
 
-    # Step 1: Initial fit
+    # Step 1: Initial fit (on a copy too, so every result owns its circuit -
+    # see run_single_fit; the caller's circuit is synced to the best fit at the end)
     try:
         result0, Z_fit0, _ = fit_equivalent_circuit(
-            frequencies, Z, circuit, weighting=weighting, plot=False,
+            frequencies, Z, deepcopy(circuit), weighting=weighting, plot=False,
             use_analytic_jacobian=use_analytic_jacobian
         )
         all_results.append(result0)
@@ -238,8 +240,13 @@ def fit_circuit_multistart(
     # Step 2: Generate perturbations and run additional fits
     def run_single_fit(start_idx: int, initial_params: NDArray) -> Optional[FitResult]:
         try:
+            # Each restart fits its OWN copy of the circuit: fit_equivalent_circuit()
+            # writes its parameters into the circuit object it is given, so a shared
+            # circuit would be overwritten by every restart in turn (and, in parallel
+            # mode, concurrently by several threads at once - a data race, since
+            # impedance() reads the same parameters it is being written into).
             result, _, _ = fit_equivalent_circuit(
-                frequencies, Z, circuit,
+                frequencies, Z, deepcopy(circuit),
                 weighting=weighting,
                 initial_guess=list(initial_params),
                 plot=False,
@@ -330,6 +337,14 @@ def fit_circuit_multistart(
         warnings=diag_warnings,
         failed_errors=failed_errors
     )
+
+    # best_result.circuit already holds the best parameters (every fit ran on
+    # its own circuit copy). The circuit the caller passed in was left at its
+    # initial guesses, so sync it to the best fit as the single-fit and DE
+    # paths do - consumers that read parameters from the circuit tree
+    # (e.g. oxide capacitance/permittivity extraction) rely on it.
+    if hasattr(circuit, 'update_params'):
+        circuit.update_params(list(best_result.params_opt))
 
     # Create visualization for best result
     from ..visualization.plots import plot_circuit_fit

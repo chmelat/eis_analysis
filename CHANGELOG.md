@@ -8,6 +8,22 @@ Complete change history for all project versions.
 
 ### Fixed
 
+- **Multi-start returned a best fit whose circuit held the wrong parameters**
+  (`fitting/multistart.py`). Every restart fitted the same `Circuit` object and
+  `fit_equivalent_circuit()` writes its parameters into it at the end, so the
+  circuit - and therefore `best_result.circuit` - ended up holding the
+  parameters of whichever restart ran last. Consumers that read parameters
+  from the circuit tree rather than from `params_opt` (oxide capacitance, and
+  thus `--thickness` permittivity and thickness estimates) silently used a
+  non-optimal fit; on a two-Voigt test case eps_r came out 64.8 instead of
+  58.8. In parallel mode (`parallel=True`, library API only - the CLI runs
+  sequentially) the same sharing was also a data race: several threads wrote
+  the circuit's parameters while `impedance()` read them. Each fit now runs on
+  its own copy of the circuit, so every result's circuit matches its own
+  parameters, and the circuit passed in by the caller is synced to the best
+  fit at the end, as the single-fit and DE paths already did. Fits with
+  `--optimizer single` / `de` were never affected.
+
 - **The Brug (2D) capacitance was reported even when the fit had not
   identified the series resistance** (`analysis/oxide.py`). A CPE with
   n < 1 mimics a series resistance at high frequency, so R_s is often

@@ -1,4 +1,4 @@
-"""Regression tests for multi-start best_start_index reporting.
+"""Regression tests for multi-start result reporting.
 
 Bug (fixed): in parallel mode the winning restart was identified by the
 position of its error inside ``all_errors``, which is filled in *completion*
@@ -62,6 +62,10 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
             cov=None,
             is_well_conditioned=False,
         )
+        # fit_equivalent_circuit() writes its parameters into the shared
+        # circuit object; mimic that so the circuit-sync test is meaningful.
+        if hasattr(circuit, "update_params"):
+            circuit.update_params(list(params))
         Z_fit = np.ones(len(frequencies), dtype=complex)
         return res, Z_fit, None
 
@@ -116,3 +120,71 @@ def test_best_start_index_initial_fit_wins(monkeypatch):
 
     assert result.diagnostics.best_start_index == 1
     assert result.diagnostics.best_error == pytest.approx(0.05)
+
+
+class _RecordingCircuit(_FakeCircuit):
+    """Circuit stub that stores the parameters written into it, as the real
+    Circuit does via update_params()."""
+
+    def __init__(self):
+        self.params = None
+
+    def update_params(self, params):
+        self.params = list(params)
+        return len(self.params)
+
+
+def test_best_result_circuit_holds_best_params(monkeypatch):
+    """best_result.circuit must carry the BEST parameters, not the last fit's.
+
+    Bug (fixed): every restart fits the same Circuit object, and each fit
+    writes its own parameters into it, so the circuit ended up holding the
+    parameters of the restart that happened to run last. Consumers reading
+    parameters from the circuit tree (oxide capacitance -> thickness /
+    permittivity) then used the wrong fit.
+    """
+    freq = np.logspace(5, -1, 20)
+    Z = np.ones_like(freq) + 0j
+
+    errors = {1: 0.50, 2: 0.10, 3: 0.30, 4: 0.40}  # restart #2 wins, #4 runs last
+    _install_deterministic_mocks(monkeypatch, errors, sleeps={})
+
+    circuit = _RecordingCircuit()
+    result, _, _ = ms.fit_circuit_multistart(
+        circuit, freq, Z, n_restarts=4, parallel=False
+    )
+
+    assert result.best_result.params_opt[0] == pytest.approx(2.0)
+    assert circuit.params[0] == pytest.approx(2.0)  # not 4.0 (the last restart)
+    assert result.best_result.circuit.params == circuit.params
+
+
+def test_parallel_restarts_do_not_share_circuit(monkeypatch):
+    """Each restart must fit its own circuit copy.
+
+    Bug (fixed): all restarts fitted the one circuit object the caller passed
+    in, and each fit writes its parameters into it - so in parallel mode
+    several threads wrote (and impedance() read) the same parameters at once,
+    and every result's circuit ended up holding whatever ran last.
+    """
+    freq = np.logspace(5, -1, 20)
+    Z = np.ones_like(freq) + 0j
+
+    errors = {1: 0.50, 2: 0.30, 3: 0.10, 4: 0.40}  # restart #3 wins
+    sleeps = {2: 0.0, 3: 0.15, 4: 0.0}             # ... and completes last
+    _install_deterministic_mocks(monkeypatch, errors, sleeps)
+
+    circuit = _RecordingCircuit()
+    result, _, _ = ms.fit_circuit_multistart(
+        circuit, freq, Z, n_restarts=4, parallel=True, max_workers=4
+    )
+
+    circuits = [r.circuit for r in result.all_results]
+    assert len({id(c) for c in circuits}) == len(circuits)  # no shared object
+
+    # Each restart's circuit holds that restart's own parameters
+    for r in result.all_results:
+        assert r.circuit.params[0] == pytest.approx(r.params_opt[0])
+
+    assert result.best_result.params_opt[0] == pytest.approx(3.0)
+    assert circuit.params[0] == pytest.approx(3.0)  # caller's circuit = best fit
