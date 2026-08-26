@@ -23,6 +23,7 @@ from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_ma
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
+from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,27 @@ class _DECostFunction:
         return np.sum(residuals_real**2 + residuals_imag**2)
 
 
+def _to_linear(x, log_mask: NDArray[np.bool_]) -> NDArray[np.float64]:
+    """Map a DE search vector back to physical parameters (10**x where masked)."""
+    x = np.asarray(x, dtype=float)
+    return np.where(log_mask, 10.0 ** x, x)
+
+
+class _LogSpaceCost:
+    """Picklable adapter that lets DE search log10 of the masked parameters.
+
+    A closure would not survive pickling for workers > 1, hence a class -
+    same reason _DECostFunction is one.
+    """
+
+    def __init__(self, cost_function: _DECostFunction, log_mask: NDArray[np.bool_]):
+        self.cost_function = cost_function
+        self.log_mask = log_mask
+
+    def __call__(self, params):
+        return self.cost_function(_to_linear(params, self.log_mask))
+
+
 @dataclass
 class DiffEvoDiagnostics:
     """Diagnostics from differential evolution optimization."""
@@ -100,6 +122,10 @@ class DiffEvoDiagnostics:
     # Fixed params info
     n_fixed_params: int = 0
     fixed_param_indices: List[int] = field(default_factory=list)
+
+    # Free parameters DE searched as log10(value) - those whose bounds span
+    # enough decades that a linear population would sample only the top one.
+    log_search_params: List[str] = field(default_factory=list)
 
     # Initial guess passed to DE (full parameter vector, including fixed).
     # Captured before the optimizer runs so it survives circuit.update_params()
@@ -253,6 +279,27 @@ def fit_circuit_diffevo(
     # Clip initial guess to bounds
     initial_guess = np.clip(initial_guess, lower_bounds, upper_bounds)
 
+    # DE samples its population uniformly over the bounds, so a scale parameter
+    # whose bounds span decades (R: 1e-4..1e10, C: 1e-15..1e-1) would be drawn
+    # almost exclusively from its top decade: the parallel branches are then
+    # shorted, every member predicts the series resistance alone, and the
+    # population energies are so nearly equal that DE's convergence test
+    # (std <= tol * |mean|) can fire after the first generation. Searching
+    # log10 of those parameters spreads the population over the decades
+    # instead. The CPE exponent n (0.3-1.0) keeps its linear scale.
+    log_mask = np.array(
+        log_scale_ci_mask(list(lower_bounds), list(upper_bounds)),
+        dtype=bool
+    )
+    # Labels of the log-searched parameters, for the diagnostics line. The mask
+    # is in free-parameter space; map it back to full-space labels.
+    free_indices = [i for i, f in enumerate(fixed_params or [False] * len(initial_guess_full))
+                    if not f]
+    log_search_params = [
+        (param_labels_indexed[full_i] if param_labels_indexed is not None else str(full_i))
+        for free_i, full_i in enumerate(free_indices) if log_mask[free_i]
+    ]
+
     # Precompute weights
     weights = compute_weights(Z, weighting)
 
@@ -285,14 +332,20 @@ def fit_circuit_diffevo(
             (Z.imag - Z_pred.imag) * weights
         ])
 
-    # Step 1: Run Differential Evolution
+    # Step 1: Run Differential Evolution, in the search space chosen above
+    de_objective = (_LogSpaceCost(cost_function, log_mask) if log_mask.any()
+                    else cost_function)
+    de_bounds = [(np.log10(lb) if m else lb, np.log10(ub) if m else ub)
+                 for (lb, ub), m in zip(bounds, log_mask)]
+    de_x0 = np.where(log_mask, np.log10(initial_guess), initial_guess)
+
     try:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             de_result = differential_evolution(
-                cost_function,
-                bounds,
-                x0=initial_guess,
+                de_objective,
+                de_bounds,
+                x0=de_x0,
                 strategy=strategy_name,
                 popsize=popsize,
                 maxiter=maxiter,
@@ -305,6 +358,11 @@ def fit_circuit_diffevo(
             )
     except Exception as e:
         raise RuntimeError(f"DE optimization failed: {e}") from e
+
+    # Back to physical parameters right away: everything below (refinement
+    # start, cost comparison, diagnostics, DiffEvoResult.de_result) works in
+    # the linear parameter space and stays unaware of the DE transform.
+    de_result.x = _to_linear(de_result.x, log_mask)
 
     # Compute DE error
     de_params_full = reconstruct_params(de_result.x)
@@ -384,6 +442,19 @@ def fit_circuit_diffevo(
             diag_warnings.append("Refinement worsened fit, using DE result")
 
     fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
+
+    # The global stage is only useful if it actually explored. When it ends far
+    # from the data and the local refinement then improves by an order of
+    # magnitude, the reported fit came from that single local run, not from DE.
+    if (used_refinement and de_error_rel > DE_STALLED_ERROR_PCT
+            and ls_error_rel * DE_STALLED_IMPROVEMENT_FACTOR < de_error_rel):
+        diag_warnings.append(
+            f"Global search contributed nothing: DE stopped after "
+            f"{de_result.nit} iteration(s) at {de_error_rel:.1f}% error and the "
+            f"local refinement reached {ls_error_rel:.1f}% on its own. The fit "
+            "rests on that single local run. Check that the circuit suits the "
+            "data, then raise --de-maxiter or lower --de-tol"
+        )
 
     # Step 3: Compute covariance
     # Both the residuals and the Jacobian must be evaluated at the *chosen*
@@ -497,6 +568,7 @@ def fit_circuit_diffevo(
         refinement_improved=used_refinement,
         total_evaluations=de_result.nfev + (ls_result.nfev if refinement_ran else 0),
         n_fixed_params=len(fixed_param_indices),
+        log_search_params=log_search_params,
         fixed_param_indices=fixed_param_indices,
         initial_guess=list(initial_guess_full),
         warnings=diag_warnings

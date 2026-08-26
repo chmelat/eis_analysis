@@ -59,6 +59,9 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     result = diffevo_result.best_result
     n_free = len(result.params_opt) - diag.n_fixed_params
     logger.info(f"  Parameters: {n_free} (free)")
+    if diag.log_search_params:
+        logger.info(f"  Search space: log10 for {', '.join(diag.log_search_params)} "
+                    "(bounds span many decades)")
 
     # Initial guess captured before DE ran (circuit.update_params overwrote
     # circuit.get_all_params() with the final fit, so we read the snapshot

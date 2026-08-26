@@ -87,6 +87,31 @@ Relative error 1-10% is typical for good fits in real systems.
 """
 
 # =============================================================================
+# Differential Evolution Diagnostics
+# =============================================================================
+
+DE_STALLED_ERROR_PCT = 50.0
+"""
+Fit error [%] above which the DE stage is considered to have found nothing.
+
+A weighted mean relative error of 50% means the model reproduces neither the
+magnitude nor the shape of the spectrum: the population never left the region
+where the prediction is dominated by a single element. The reported fit then
+rests entirely on the local refinement, i.e. on a single starting point, which
+is exactly what the global optimizer was supposed to avoid. Paired with a
+refinement at least DE_STALLED_IMPROVEMENT_FACTOR times better, this is
+reported as a warning rather than passing silently.
+"""
+
+DE_STALLED_IMPROVEMENT_FACTOR = 10.0
+"""
+How much better the refinement must be to call the DE stage stalled.
+
+An order of magnitude separates "DE landed near the basin and least_squares
+polished it" from "DE contributed nothing and least_squares did the fitting".
+"""
+
+# =============================================================================
 # Automatic Circuit Suggestion
 # =============================================================================
 
@@ -157,6 +182,8 @@ __all__ = [
     # Fit Quality Assessment
     'FIT_QUALITY_EXCELLENT_ERROR',
     'FIT_QUALITY_GOOD_ERROR',
+    'DE_STALLED_ERROR_PCT',
+    'DE_STALLED_IMPROVEMENT_FACTOR',
 
     # Automatic Circuit Suggestion
     'MAX_VOIGT_ELEMENTS',

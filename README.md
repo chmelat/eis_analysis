@@ -322,6 +322,13 @@ chosen equivalent circuit is physically consistent.
 
 ### Differential Evolution (global optimization)
 
+Parameters whose bounds span many decades (R, C, Q, L) are searched as
+`log10(value)`, so the population spreads over the decades instead of being
+drawn almost entirely from the top one; the CPE exponent `n` stays linear.
+If DE still ends far from the data and only the local refinement gets there,
+the fit reports `Global search contributed nothing` - see
+[doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md) section 7.3.
+
 - `--de-strategy` (default: 1) - DE strategy: 1=randtobest1bin (balanced, default), 2=best1bin (fast convergence), 3=rand1bin (more exploration).
 - `--de-popsize` (default: 15) - Population size as multiple of parameter count. Higher = better exploration but slower.
 - `--de-maxiter` (default: 1000) - Maximum number of generations. Increase if optimization doesn't converge.

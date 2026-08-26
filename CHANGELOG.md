@@ -4,6 +4,41 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.5 (2026-08-26)
+
+### Changed
+
+- **Differential Evolution now searches `log10` of the scale parameters**
+  (`fitting/diffevo.py`). DE sampled its population uniformly over bounds
+  spanning 6-14 decades (`R: 1e-4..1e10`, `Q: 1e-12..1e-1`,
+  `C: 1e-15..1e-1`), so nearly every member was drawn from the top decade:
+  the parallel branches were shorted, every member predicted the series
+  resistance alone, and the population energies were so nearly equal that
+  scipy's convergence test (`std <= tol * |mean|`) could fire after the
+  first generation. On a high-impedance oxide sample DE reported
+  "converged" after **1 iteration at 99.970% error** and the whole fit came
+  from the local refinement - which is what left parameters unidentifiable
+  (`R_ct = 2.99e8 +/- 2.58e8`, rank-deficient Jacobians with `+/- inf` CIs).
+  Parameters whose bounds span more than `LOG_SCALE_BOUND_RATIO` (6 decades)
+  are now searched logarithmically; the CPE exponent `n` (0.3-1.0) stays
+  linear. Measured on that sample: 99.970% -> **19.109%** after the DE stage
+  alone (and 66.1% -> 19.25% on the unscaled spectrum). The refinement and
+  the analytic Jacobian are unchanged - they still work in linear space, and
+  `DiffEvoResult.de_result.x` is still reported in physical units.
+  **DE fit results shift** for circuits with decade-spanning parameters.
+
+### Added
+
+- **A warning when the global search contributed nothing**
+  (`fitting/diffevo.py`, `config.py`). If DE ends above
+  `DE_STALLED_ERROR_PCT` (50%) and the local refinement is at least
+  `DE_STALLED_IMPROVEMENT_FACTOR` (10x) better, the fit rests on that single
+  local run, not on the global search - now said out loud, with the DE
+  iteration count and both errors.
+
+- **The DE diagnostics name the log-searched parameters**
+  (`cli/handlers/fitting.py`): `Search space: log10 for R1, Q0, C0`.
+
 ## Version 0.21.4 (2026-08-26)
 
 ### Fixed

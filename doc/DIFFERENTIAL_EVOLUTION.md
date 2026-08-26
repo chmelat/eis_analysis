@@ -214,12 +214,16 @@ print(f"Improvement: {result.improvement:.1f}%")
 ```
 1. Inicializace
    - Načtení bounds z definice obvodu (PARAMETER_BOUNDS)
+   - Volba prohledávaného prostoru: parametry, jejichž meze pokrývají
+     > 6 dekád (R, C, Q, L, sigma, tau), se hledají jako log10(hodnota);
+     exponent CPE n zůstává lineárně (viz 8.1)
    - Vytvoření cost function pro DE (skalární)
    - Vytvoření residual function pro least_squares (vektorová)
 
 2. Globální hledání (DE)
-   - differential_evolution(cost_function, bounds, ...)
+   - differential_evolution(cost_function, bounds, ...) v log prostoru
    - polish=False (vlastní refinement)
+   - Zpětný převod 10**x, takže vše dál pracuje s fyzikálními hodnotami
    - Výstup: přibližná pozice globálního minima
 
 3. Lokální refinement (least_squares)
@@ -443,6 +447,22 @@ Možné příčiny a řešení:
 3. **Bounds příliš široké**
    - Zkontrolujte rozsahy parametrů
 
+**Problém: "Global search contributed nothing"**
+
+Toto varování znamená, že DE skončila daleko od dat (chyba > 50 %) a
+o řád lepší výsledek vyrobil až lokální refinement. Fit pak stojí na
+jediném lokálním běhu z jednoho startovního bodu - přesně tomu se mělo
+globální hledání vyhnout. Typicky s tím jde ruku v ruce `DE iterations: 1`
+nebo pár iterací. Postup:
+
+1. **Sedí obvod na data?** Nejčastější příčina. Zkontrolujte Nyquista
+   a počet oblouků.
+2. **Zvyšte průzkum**: `--de-maxiter 2000`, `--de-popsize 25`.
+3. **Zpřísněte konvergenci**: `--de-tol 0.001` (výchozí 0.01 zastaví
+   populaci, jakmile jsou její ceny podobné).
+4. Zkontrolujte nejistoty parametrů ve výpisu - výsledek z takového běhu
+   bývá špatně identifikovaný (`+/- inf`, rank-deficient Jacobián).
+
 **Problém: DE je příliš pomalá**
 
 Řešení:
@@ -484,6 +504,41 @@ PARAMETER_BOUNDS = {
     ...
 }
 ```
+
+**Lineární vs. logaritmické vzorkování**
+
+Tyto meze pokrývají 6-14 dekád. Kdyby se populace vzorkovala rovnoměrně
+lineárně, pochází prakticky každý jedinec z nejvyšší dekády: `C ~ 1e-2 F`,
+`Q ~ 1e-2`, `R ~ 1e9 Ohm`. Paralelní větve jsou pak zkratované, model predikuje
+jen sériový odpor a **celá populace má prakticky stejnou cenu** danou daty.
+Konvergenční test scipy
+
+```
+std(energie populace) <= atol + tol * |mean(energie populace)|
+```
+
+se pak splní hned po první generaci - DE ohlásí `converged: True` po jedné
+iteraci s chybou blízkou 100 % a veškerou práci odvede až lokální refinement.
+Čím vyšší impedanci vzorek má, tím plošší to plató je.
+
+Proto se škálové parametry hledají v `log10`:
+
+```python
+log_mask = log_scale_ci_mask(lower_bounds, upper_bounds)  # lb > 0 a ub/lb > 1e6
+de_bounds = [(log10(lb), log10(ub)) if m else (lb, ub) ...]
+x_fyz = np.where(log_mask, 10.0 ** x_hledany, x_hledany)
+```
+
+Populace je tím rozprostřená přes dekády. Naměřeno na oxidovém vzorku
+(`R("7")-(R()|Q()|C())`, popsize 200):
+
+| | DE iterací | chyba po DE |
+|---|---|---|
+| lineární vzorkování | 1 | 99.970 % |
+| logaritmické vzorkování | 50 | 19.109 % |
+
+Lokální refinement i analytický Jacobián pracují dál v lineárním prostoru -
+transformace se týká jen vlastního běhu DE.
 
 ### 8.2 Cost function vs Residual function
 
