@@ -4,9 +4,30 @@ Complete change history for all project versions.
 
 ---
 
-## Version 0.21.3 (2026-08-18)
+## Version 0.21.4 (2026-08-26)
 
 ### Fixed
+
+- **A circuit with every parameter fixed crashed with an opaque scipy
+  message** (`fitting/bounds.py`, `circuit.py`, `diffevo.py`). The
+  free-parameter vector is then empty: DE reported "bounds should be a
+  sequence containing finite real valued (min, max) pairs", the local fit
+  "index -1 is out of bounds for axis 0 with size 0". All optimizers now
+  share `validate_fixed_params()` and say what is wrong ("All 4 circuit
+  parameters are fixed - there is nothing to fit").
+
+- **The local fit silently clipped fixed values into the free-parameter
+  bounds** (`fitting/circuit.py`). `R("1e-9")` was fitted as R = 1e-4 and
+  `R("1e12")` as 1e10 with `--optimizer single` / `multistart`, while DE
+  kept the value as given. Fixed parameters are never optimized, so the
+  bounds do not apply to them; they are no longer clipped, and all three
+  optimizers now return the value that was fixed.
+
+- **A fixed value outside the physically reasonable range passed silently**
+  (`fitting/bounds.py`). Fixing bypasses `PARAMETER_BOUNDS`, so `R("-5")`
+  (negative resistance) or a CPE exponent `n = 1.5` entered the fit without
+  comment. Such values are still honored - they are the caller's choice -
+  but now produce a warning naming the parameter and the range.
 
 - **Multi-start returned a best fit whose circuit held the wrong parameters**
   (`fitting/multistart.py`). Every restart fitted the same `Circuit` object and
@@ -23,6 +44,10 @@ Complete change history for all project versions.
   parameters, and the circuit passed in by the caller is synced to the best
   fit at the end, as the single-fit and DE paths already did. Fits with
   `--optimizer single` / `de` were never affected.
+
+## Version 0.21.3 (2026-08-18)
+
+### Fixed
 
 - **The Brug (2D) capacitance was reported even when the fit had not
   identified the series resistance** (`analysis/oxide.py`). A CPE with

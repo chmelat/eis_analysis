@@ -18,7 +18,8 @@ from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
-from .bounds import generate_simple_bounds, build_bound_status, log_scale_ci_mask
+from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
+                     validate_fixed_params)
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
@@ -217,6 +218,25 @@ def fit_circuit_diffevo(
         fixed_params = circuit.get_all_fixed_params()
         fixed_param_indices = [i for i, f in enumerate(fixed_params) if f]
 
+    # Create indexed param labels
+    if param_labels is not None:
+        label_counts = {}
+        param_labels_indexed = []
+        for label in param_labels:
+            if label in label_counts:
+                label_counts[label] += 1
+            else:
+                label_counts[label] = 0
+            param_labels_indexed.append(f"{label}{label_counts[label]}")
+    else:
+        param_labels_indexed = None
+
+    # Raises when every parameter is fixed (empty optimization vector)
+    diag_warnings.extend(validate_fixed_params(
+        initial_guess_full, lower_bounds_full, upper_bounds_full,
+        fixed_params, param_labels_indexed
+    ))
+
     # Filter to free parameters only
     if fixed_params is not None and any(fixed_params):
         initial_guess = [v for v, f in zip(initial_guess_full, fixed_params) if not f]
@@ -401,19 +421,6 @@ def fit_circuit_diffevo(
     # Step 4: Update circuit with fitted parameters
     if hasattr(circuit, 'update_params'):
         circuit.update_params(list(params_opt))
-
-    # Create indexed param labels
-    if param_labels is not None:
-        label_counts = {}
-        param_labels_indexed = []
-        for label in param_labels:
-            if label in label_counts:
-                label_counts[label] += 1
-            else:
-                label_counts[label] = 0
-            param_labels_indexed.append(f"{label}{label_counts[label]}")
-    else:
-        param_labels_indexed = None
 
     # Per-parameter bound status and derived warnings — same contract as
     # fit_equivalent_circuit (full-space indices, classify_bound_status

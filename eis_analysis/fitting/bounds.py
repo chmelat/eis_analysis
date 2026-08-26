@@ -175,6 +175,77 @@ def log_scale_ci_mask(
     ]
 
 
+def validate_fixed_params(
+    values: List[float],
+    lower_bounds: Optional[List[float]],
+    upper_bounds: Optional[List[float]],
+    fixed_params: Optional[List[bool]],
+    param_labels: Optional[List[str]] = None
+) -> List[str]:
+    """
+    Validate the fixed-parameter set before optimization.
+
+    Shared by every optimizer (local fit, multi-start, DE), so that fixing
+    parameters behaves identically in all of them.
+
+    Parameters
+    ----------
+    values : list of float
+        All parameter values (full space, including fixed)
+    lower_bounds, upper_bounds : list of float or None
+        Bounds in full parameter space; if None, the range check is skipped
+    fixed_params : list of bool or None
+        Which parameters are fixed (True = fixed)
+    param_labels : list of str, optional
+        Parameter names for the messages; indices are used if absent
+
+    Returns
+    -------
+    warnings : list of str
+        One warning per fixed value outside the bounds the fitter enforces
+        for free parameters. Fixing a parameter removes it from the
+        optimization vector, so those bounds never apply to it and a
+        nonphysical value (R = -5 Ohm, CPE n = 1.5) would otherwise pass
+        silently into the fit.
+
+    Raises
+    ------
+    ValueError
+        If every parameter is fixed. There is then nothing to optimize and
+        the free-parameter vector is empty, which scipy rejects with an
+        opaque message ("bounds should be a sequence containing finite real
+        valued (min, max) pairs" from differential_evolution, "index -1 is
+        out of bounds" from least_squares).
+    """
+    if not fixed_params or not any(fixed_params):
+        return []
+
+    if all(fixed_params):
+        raise ValueError(
+            f"All {len(fixed_params)} circuit parameters are fixed - there is "
+            "nothing to fit. Remove the quotes from at least one value to make "
+            'it a free parameter (R(15) is fitted, R("15") is held fixed).'
+        )
+
+    if lower_bounds is None or upper_bounds is None:
+        return []
+
+    warnings = []
+    for i, is_fixed in enumerate(fixed_params):
+        if not is_fixed:
+            continue
+        lb, ub = lower_bounds[i], upper_bounds[i]
+        if lb <= values[i] <= ub:
+            continue
+        name = param_labels[i] if param_labels is not None else str(i)
+        warnings.append(
+            f"Fixed parameter {name} = {values[i]:.3e} is outside the range "
+            f"[{lb:.1e}, {ub:.1e}] used for free parameters - fixing bypasses "
+            "the bounds, so this value enters the fit as given"
+        )
+    return warnings
+
+
 def build_bound_status(
     params_opt: NDArray[np.float64],
     lower_bounds: Optional[List[float]],
@@ -219,6 +290,7 @@ def build_bound_status(
 
 __all__ = [
     'generate_simple_bounds',
+    'validate_fixed_params',
     'build_bound_status',
     'classify_bound_status',
     'log_scale_ci_mask',

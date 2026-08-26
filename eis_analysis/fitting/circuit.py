@@ -27,7 +27,8 @@ from dataclasses import dataclass, field
 from .circuit_elements import CircuitElement
 from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
-from .bounds import generate_simple_bounds, build_bound_status, log_scale_ci_mask
+from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
+                     validate_fixed_params)
 from .diagnostics import compute_weights, compute_fit_metrics
 from .jacobian import make_jacobian_function
 
@@ -218,10 +219,16 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     if param_labels_raw is not None:
         lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
 
-        # Clip initial guess to bounds
+        # Clip initial guess to bounds. Fixed parameters are exempt: they are
+        # never optimized, so the bounds do not apply to them and clipping
+        # would silently fit a value the caller did not ask for (DE keeps the
+        # fixed value as given; validate_fixed_params() warns instead).
+        fixed = fixed_params or [False] * len(initial_guess)
         initial_guess_clipped = []
         for i, (ig, lb, ub) in enumerate(zip(initial_guess, lower_bounds, upper_bounds)):
-            if ig < lb:
+            if fixed[i]:
+                initial_guess_clipped.append(ig)
+            elif ig < lb:
                 initial_guess_clipped.append(lb)
                 clipped_params.append(i)
             elif ig > ub:
@@ -320,6 +327,11 @@ def fit_equivalent_circuit(
     fixed_params = setup.fixed_params
     param_labels = setup.param_labels_indexed
 
+    # Raises when every parameter is fixed (empty optimization vector)
+    fixed_warnings = validate_fixed_params(
+        initial_guess_list, lower_bounds, upper_bounds, fixed_params, param_labels
+    )
+
     # Step 2: Create residual function
     initial_guess_for_opt = initial_guess_list
     bounds_for_opt = lower_bounds, upper_bounds
@@ -376,7 +388,7 @@ def fit_equivalent_circuit(
         jacobian_type = 'numeric'
 
     # Step 3: Run optimization
-    diag_warnings = []
+    diag_warnings = list(fixed_warnings)
 
     # Report initial-guess values clipped into bounds by _prepare_optimization
     # (audit D3). With an explicit initial_guess override the clipped values
