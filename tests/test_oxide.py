@@ -15,7 +15,7 @@ import numpy as np
 from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.fitting.circuit import FitResult
-from eis_analysis.fitting.circuit_elements import C, K, Q, R
+from eis_analysis.fitting.circuit_elements import C, CC, K, Q, R
 
 OXIDE_LOGGER = 'eis_analysis.analysis.oxide'
 
@@ -495,3 +495,127 @@ def test_brug_no_divergence_warning_for_healthy_fit(caplog):
     assert oxide.capacitance_brug is not None
     assert oxide.capacitance / oxide.capacitance_brug < BRUG_HM_DIVERGENCE_MAX
     assert 'do not bracket a single C_eff' not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Cole-Cole element (added 2026-08-27): a blocking dielectric, so it carries
+# no parallel resistance and the largest-R selection rule cannot apply to it.
+# ---------------------------------------------------------------------------
+
+CC_C_INF = 5e-8    # High-frequency capacitance [F]
+CC_DC = 9.5e-7     # Relaxation strength [F]
+CC_TAU = 2e-3      # Relaxation time [s]
+CC_ALPHA = 0.25    # Broadening exponent
+
+
+def _fit_result_cc(extra=None):
+    """R_S - CC(...), optionally with an extra element in series."""
+    cc = CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA)
+    circuit = R(R_S) - cc if extra is None else R(R_S) - cc - extra
+    return _fit_result(circuit, circuit.get_all_params())
+
+
+def test_cc_element_traversal_uses_static_capacitance():
+    """CC is found, and its capacitance is C_s = C_inf + dC, not C_inf."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=_fit_result_cc())
+
+    assert oxide is not None
+    assert oxide.element_type == 'CC'
+    C_expected = CC_C_INF + CC_DC
+    assert abs(oxide.capacitance - C_expected) / C_expected < 1e-12
+    assert abs(oxide.element_tau - CC_TAU) < 1e-15
+
+
+def test_cc_element_reports_no_resistance():
+    """A blocking dielectric has no DC path; element_R must be None, not 0."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=_fit_result_cc())
+
+    assert oxide is not None
+    assert oxide.element_R is None
+
+
+def test_cc_thickness_round_trips():
+    """A film built to be 20 nm at eps_r = 22 is measured back as 20 nm."""
+    freq, Z = _synthetic_voigt()
+    eps_r, area_cm2, d_nm = 22.0, 1.0, 20.0
+    C_s = EPSILON_0 * eps_r * area_cm2 / (d_nm * 1e-7)
+
+    circuit = R(R_S) - CC(0.05 * C_s, 0.95 * C_s, CC_TAU, CC_ALPHA)
+    fit_result = _fit_result(circuit, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=eps_r, area_cm2=area_cm2,
+                                fit_result=fit_result)
+
+    assert oxide is not None
+    assert abs(oxide.thickness_nm - d_nm) / d_nm < 1e-9
+
+
+def test_cc_wins_over_a_larger_r_voigt_element():
+    """An explicit CC is the dielectric; the largest-R heuristic does not override it."""
+    freq, Z = _synthetic_voigt()
+    # A Voigt element with a resistance far larger than anything else present
+    circuit = R(R_S) - CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA) - (R(1e9) | C(1e-9))
+    fit_result = _fit_result(circuit, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert oxide.element_type == 'CC'
+    assert abs(oxide.capacitance - (CC_C_INF + CC_DC)) / (CC_C_INF + CC_DC) < 1e-12
+
+
+def test_multiple_cc_elements_warn_and_pick_largest(caplog):
+    """Two dielectric relaxations: largest C_s wins, and the user is told."""
+    freq, Z = _synthetic_voigt()
+    small = CC(1e-9, 1e-8, 1e-4, 0.1)
+    big = CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA)
+    circuit = R(R_S) - small - big
+    fit_result = _fit_result(circuit, circuit.get_all_params())
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert abs(oxide.capacitance - (CC_C_INF + CC_DC)) / (CC_C_INF + CC_DC) < 1e-12
+    assert any("2 Cole-Cole elements" in r.message for r in caplog.records)
+
+
+def test_cc_uses_fitted_values_not_the_initial_guess():
+    """Regression: the traversal must read node.params, not node.C_inf/.dC.
+
+    update_params() rewrites params but leaves the named attributes (and the
+    C_static property) at their construction-time values, so reading the
+    attributes reported the initial guess and the thickness came out wrong.
+    """
+    freq, Z = _synthetic_voigt()
+    # Initial guess an order of magnitude off, so the two are unmistakable
+    guess_C_inf, guess_dC, guess_tau = 1e-9, 1e-8, 1e-5
+    circuit = R(R_S) - CC(guess_C_inf, guess_dC, guess_tau, 0.05)
+    fitted = [R_S, CC_C_INF, CC_DC, CC_TAU, CC_ALPHA]
+    circuit.update_params(fitted)
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit, fitted))
+
+    assert oxide is not None
+    C_fitted = CC_C_INF + CC_DC
+    assert abs(oxide.capacitance - C_fitted) / C_fitted < 1e-12
+    assert oxide.capacitance > 10 * (guess_C_inf + guess_dC)   # not the guess
+    assert abs(oxide.element_tau - CC_TAU) < 1e-15
+
+
+def test_cc_inside_a_parallel_leakage_branch_is_found():
+    """R_leak || CC still reports the CC - the traversal recurses into Parallel."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - (R(1e7) | CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA))
+    fit_result = _fit_result(circuit, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert oxide.element_type == 'CC'
+    assert oxide.element_R is None

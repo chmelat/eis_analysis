@@ -303,7 +303,11 @@ bounds) enforces C_s > C_inf on its own; box bounds cannot express a coupling
 between two parameters.
 
 It carries no geometry - the parameters are capacitances, not permittivities.
-Convert with eps_r = C*d/(eps_0*A) in the analysis layer.
+Convert with eps_r = C*d/(eps_0*A) in the analysis layer: `--analyze-oxide`
+recognises a CC and uses its static capacitance C_inf + dC, so
+`--circuit "R(20) - CC(...)" --analyze-oxide --epsilon-r 22 --area 1.0`
+reports the film thickness directly. See
+[OXIDE_ANALYSIS_GUIDE.md](OXIDE_ANALYSIS_GUIDE.md).
 
 Exactly equivalent to a composite of existing elements:
 

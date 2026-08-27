@@ -4,6 +4,46 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.24.0 (2026-08-27)
+
+### Added
+
+- **`--analyze-oxide` now recognises the Cole-Cole element** (`analysis/oxide.py`).
+  Fitting an oxide film with `CC` and then asking for its thickness used to
+  report `No Voigt (R||C), K, or R||Q elements found` and fall back to the
+  high-frequency estimate - the one element written for dielectric films was
+  the one the oxide analysis could not see.
+
+  The capacitance used is the static one, `C_s = C_inf + dC`. Unlike the Q
+  case this is exact rather than effective: `C_s` is the `omega -> 0` limit of
+  `C*(omega)` for any `alpha`, so no Hsu-Mansfeld / Brug modelling choice
+  arises and no exponent-threshold warning is needed. It is also the
+  capacitance that pairs with a *static* permittivity such as `eps_r = 22` for
+  ZrO2; `C_inf` would give the high-frequency value.
+
+- **A `CC` in the circuit takes precedence over the largest-R heuristic.**
+  That heuristic exists to tell a compact oxide apart from a charge-transfer
+  process when both appear as R||C arcs; a Cole-Cole element models the
+  dielectric relaxation explicitly, so there is nothing to disambiguate. With
+  more than one `CC` the largest static capacitance is used and a warning is
+  logged - assigning several relaxations to layers is the operator's call.
+
+  A `CC` is a blocking dielectric with no DC path, so it reports
+  `element_R = None` (the log says `n/a`) and its time constant is the
+  relaxation time, not `R*C`. `element_type` gains the value `'CC'`.
+
+### Notes
+
+- `_find_parallel_rc_elements()` reads `node.params`, never an element's
+  named attributes. `update_params()` rewrites `params` but leaves attributes
+  such as `K.R`, `G.sigma` and `CC.C_inf` - and the properties derived from
+  them, `K.capacitance`, `G.characteristic_freq`, `CC.C_static` - at their
+  construction-time values, so those still hold the initial guess after a fit.
+  `tests/test_oxide.py::test_cc_uses_fitted_values_not_the_initial_guess`
+  pins this.
+
+---
+
 ## Version 0.23.0 (2026-08-27)
 
 ### Removed

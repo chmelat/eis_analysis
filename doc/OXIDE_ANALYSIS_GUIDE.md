@@ -10,7 +10,8 @@ Two complementary functions for oxide layer analysis:
 | `estimate_permittivity()` | thickness | epsilon_r | Known thickness (SEM/TEM), estimate permittivity |
 
 **Key features:**
-- Finds dominant Voigt (R||C), K, or R||Q element (largest R = main barrier)
+- Finds dominant Voigt (R||C), K, R||Q or CC element (largest R = main barrier;
+  an explicit Cole-Cole element takes precedence, see below)
 - Uses parallel plate capacitor model
 - For Q: uses Hsu-Mansfeld formula for effective capacitance (primary,
   3D model); the Brug (2D) estimate and thickness are reported alongside
@@ -173,6 +174,8 @@ The function traverses the circuit tree and finds:
 - `Parallel(R, C)` combinations (Voigt elements)
 - `Parallel(R, Q)` combinations
 - `K` elements (Voigt with tau parametrization)
+- `CC` elements (Cole-Cole dielectric relaxation), wherever they sit in the
+  tree - including inside a parallel branch with a leakage resistance
 
 Malformed or ambiguous circuits are handled with a warning:
 - a K element with R <= 0 is skipped (C = tau/R is undefined there);
@@ -181,7 +184,15 @@ Malformed or ambiguous circuits are handled with a warning:
 
 ### 2. Dominant Element Selection
 
-Selects element with **largest resistance R**.
+**A `CC` element wins outright.** A Cole-Cole element models the dielectric
+relaxation explicitly, so it *is* the film - there is nothing to disambiguate.
+The largest-R rule below exists only to tell a compact oxide apart from a
+charge-transfer process when both appear as R||C arcs, and that ambiguity does
+not arise for a CC. With more than one CC in the circuit the largest static
+capacitance is used and a warning is logged: assigning several dielectric
+relaxations to layers is the operator's call, not the tool's.
+
+Otherwise, selects the element with **largest resistance R**.
 
 **Physical justification:**
 - Compact oxide = excellent insulator = dominant resistance barrier
@@ -207,6 +218,22 @@ C_eff = (R * Q)^(1/n) / R
 ```
 
 This is more accurate than simple `C_eff = Q` approximation.
+
+**For CC elements:**
+```
+C_s = C_inf + dC   (static, fully relaxed capacitance)
+```
+
+Unlike Q, this is exact rather than an effective value: `C_s` is the
+`omega -> 0` limit of `C*(omega)` for any broadening `alpha`, so no
+Hsu-Mansfeld / Brug modelling choice arises and no `alpha` threshold warning
+is needed. `C_s` is also the capacitance that pairs with a *static*
+permittivity such as `eps_r = 22` for ZrO2 - `C_inf` would correspond to the
+high-frequency value instead.
+
+A CC is a blocking dielectric with no DC path, so it has no parallel
+resistance: `element_R` is `None` and the log reports `n/a`. The reported
+time constant is the relaxation time `tau`, not `R*C`.
 
 When the circuit also contains a series resistance Rs, the Brug (2D)
 estimate `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)` and its thickness are
@@ -250,6 +277,7 @@ highest-frequency point is used (pre-0.16.16 behavior).
 | `R(x) \| C(y)` | Parallel R-C | C directly |
 | `R(x) \| Q(Q, n)` | Parallel R-Q | Hsu-Mansfeld: (R*Q)^(1/n)/R |
 | `K(R, tau)` | K element | tau/R |
+| `CC(C_inf, dC, tau, alpha)` | CC element (wins outright) | C_inf + dC (static, exact) |
 
 **Note:** Series R elements are ignored (they don't form RC time constants).
 

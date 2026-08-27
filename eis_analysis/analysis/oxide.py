@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from numpy.typing import NDArray
 
 from ..fitting.circuit import FitResult
-from ..fitting.circuit_elements import R, C, Q, K
+from ..fitting.circuit_elements import R, C, Q, K, CC
 from ..fitting.circuit_builder import Series, Parallel
 from .config import (
     EPSILON_0,
@@ -33,8 +33,8 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', or 'estimate' (HF fallback)
-    element_R: Optional[float]  # Associated resistance [Ω]
+    element_type: str           # 'C', 'K', 'Q', 'CC', or 'estimate' (HF fallback)
+    element_R: Optional[float]  # Associated resistance [Ω] (None for CC)
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters
     # Brug (2D) comparison values - set only for a dominant Q element
@@ -50,9 +50,11 @@ class OxideAnalysisResult:
 
 def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
     """
-    Find all parallel R-C, R-Q combinations and K elements in circuit.
+    Find all parallel R-C, R-Q combinations, K and CC elements in circuit.
 
-    Returns list of dicts with keys: 'type', 'R', 'C' or 'Q'/'n', 'tau'
+    Returns list of dicts with keys: 'type', 'R', 'C' or 'Q'/'n', 'tau'.
+    A CC entry has 'R' = None: a Cole-Cole element is a blocking dielectric
+    with no DC path, so it has no parallel resistance to report.
     """
     results = []
 
@@ -119,6 +121,26 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
                 'R': R_val,
                 'C': C_val,
                 'tau': tau_val
+            })
+
+        elif isinstance(node, CC):
+            # Read node.params, never the named attributes: update_params()
+            # rewrites params but leaves node.C_inf / node.dC / node.tau at
+            # their construction-time values, so the attributes (and the
+            # C_static property) still hold the initial guess after a fit.
+            C_inf_val, dC_val = node.params[0], node.params[1]
+            tau_val, alpha_val = node.params[2], node.params[3]
+            # The static (fully relaxed) capacitance is the one that pairs
+            # with a static permittivity such as eps_r = 22 for ZrO2;
+            # C_inf alone would give the high-frequency value.
+            results.append({
+                'type': 'CC',
+                'R': None,          # blocking dielectric - no DC path
+                'C': C_inf_val + dC_val,
+                'tau': tau_val,
+                'C_inf': C_inf_val,
+                'dC': dC_val,
+                'alpha': alpha_val,
             })
 
     traverse(circuit)
@@ -213,7 +235,9 @@ def _extract_capacitance(
         dominant element is a Q and the circuit has a series resistance
         of at least BRUG_RS_MIN_OHM (below that the fit has not identified
         R_s and Brug's R_s^((1-n)/n) scaling makes the value meaningless);
-        in fallback mode 'element_R' and 'element_tau' are None too.
+        in fallback mode 'element_R' and 'element_tau' are None too,
+        and 'element_R' is None for a CC (a blocking dielectric has
+        no parallel resistance).
         None if capacitance could not be extracted.
     """
     # === Mode 1: From fitted circuit (preferred) ===
@@ -224,7 +248,7 @@ def _extract_capacitance(
         elements = _find_parallel_rc_elements(circuit)
 
         if not elements:
-            logger.warning("No Voigt (R||C), K, or R||Q elements found in circuit")
+            logger.warning("No Voigt (R||C), K, CC, or R||Q elements found in circuit")
             logger.warning("Falling back to high-frequency estimate...")
             fit_result = None
         else:
@@ -235,16 +259,37 @@ def _extract_capacitance(
                 if e['type'] == 'Q':
                     logger.info(f"  [{i}] Q: R = {e['R']:.1f} Ω, "
                                 f"Q = {e['Q']:.3e}, n = {e['n']:.3f}")
+                elif e['type'] == 'CC':
+                    logger.info(f"  [{i}] CC: C_s = {e['C']:.3e} F "
+                                f"(C_inf = {e['C_inf']:.3e} + ΔC = {e['dC']:.3e}), "
+                                f"tau = {e['tau']:.2e} s, alpha = {e['alpha']:.3f}")
                 else:
                     logger.info(f"  [{i}] {e['type']}: R = {e['R']:.1f} Ω, "
                                 f"C = {e['C']:.3e} F, tau = {e['tau']:.2e} s")
 
-            # Find element with largest R (dominant barrier = compact oxide)
+            # A Cole-Cole element is an explicit model of the dielectric
+            # relaxation, so it is the film - no heuristic needed. The
+            # largest-R rule below exists only to tell an oxide barrier
+            # apart from a charge-transfer process when both are R||C arcs;
+            # a CC carries no such ambiguity.
+            cc_elements = [e for e in elements if e['type'] == 'CC']
             elements_with_R = [e for e in elements if e.get('R') is not None and e['R'] > 0]
 
-            if not elements_with_R:
+            if cc_elements:
+                if len(cc_elements) > 1:
+                    logger.warning(
+                        f"{len(cc_elements)} Cole-Cole elements in circuit - using "
+                        "the one with the largest static capacitance. With several "
+                        "dielectric relaxations the layer assignment is yours to make.")
+                dominant = max(cc_elements, key=lambda e: e['C'])
+                logger.info(f"Dominant element: CC with C_s = {dominant['C']:.3e} F")
+                logger.info("Selected because the circuit models the dielectric "
+                            "relaxation explicitly; the largest-R heuristic used for "
+                            "R||C / R||Q / K elements does not apply")
+            elif not elements_with_R:
                 logger.warning("No elements with valid resistance found")
                 fit_result = None
+                dominant = None
             else:
                 dominant = max(elements_with_R, key=lambda e: e['R'])
 
@@ -253,9 +298,14 @@ def _extract_capacitance(
                             "oxide barrier (verify: a charge-transfer process can "
                             "also have the largest R)")
 
+            if dominant is not None:
+
                 # Get capacitance
                 C_eff_brug = None
-                if dominant['type'] in ('C', 'K'):
+                if dominant['type'] in ('C', 'K', 'CC'):
+                    # For CC this is exact, not an effective capacitance:
+                    # C_s = C_inf + dC is the omega -> 0 limit of C*(omega),
+                    # for any alpha. No Hsu-Mansfeld / Brug choice arises.
                     C_eff = dominant['C']
                     tau = dominant['tau']
                 else:  # Q
@@ -302,8 +352,16 @@ def _extract_capacitance(
                 logger.info("")
                 logger.info("Results:")
                 logger.info(f"  Element type:       {dominant['type']}")
-                logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
-                logger.info(f"  Capacitance:        {C_eff:.3e} F")
+                if dominant['R'] is not None:
+                    logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
+                else:
+                    logger.info("  Resistance:         n/a (blocking dielectric)")
+                if dominant['type'] == 'CC':
+                    logger.info(f"  Broadening alpha:   {dominant['alpha']:.3f}")
+                    logger.info(f"  C_inf / ΔC:         {dominant['C_inf']:.3e} F / "
+                                f"{dominant['dC']:.3e} F")
+                logger.info(f"  Capacitance:        {C_eff:.3e} F"
+                            + ("  (static, C_inf + ΔC)" if dominant['type'] == 'CC' else ""))
                 if C_eff_brug is not None:
                     logger.info(f"  C (Brug, 2D):       {C_eff_brug:.3e} F "
                                 f"(comparison; primary value is Hsu-Mansfeld, 3D)")
