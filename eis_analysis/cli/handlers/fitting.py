@@ -81,8 +81,11 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     jac_type = "analytic" if diag.jacobian_type == "analytic" else "numeric"
     logger.info(f"Refining with least_squares ({jac_type} Jacobian)...")
     logger.info(f"  Refined error: {diag.refined_error:.3f}%")
-    improvement = (diag.de_error - diag.refined_error) / diag.de_error * 100 if diag.de_error > 0 else 0
-    logger.info(f"  Improvement: {improvement:+.1f}%")
+    # Improvement is measured on the optimized objective (weighted SSR), which
+    # is what the DE/refinement selection uses. The error above is a weighted
+    # relative error and can move the other way; reporting it as "improvement"
+    # would contradict the choice the optimizer actually made.
+    logger.info(f"  Improvement (SSR): {diffevo_result.improvement:+.3f}%")
     logger.info("")
 
     # Summary

@@ -400,7 +400,7 @@ Running differential evolution...
 
 Refining with least_squares (analytic Jacobian)...
   Refined error: 1.320%
-  Improvement: +1.6%
+  Improvement (SSR): +1.632%
 
 ==================================================
 Differential Evolution results
@@ -429,9 +429,20 @@ Fit results:
 - Velký rozdíl (>10%) - DE našla oblast, ale ne přesné minimum
 - Malý rozdíl (<2%) - DE už byla blízko
 
-**Improvement:**
-- Pozitivní - refinement zlepšil výsledek
-- Negativní/nulový - DE už byla optimální (vzácné)
+**Improvement (SSR):**
+
+Měří se na optimalizovaném kritériu - váženém SSR (`S = sum w^2 |dZ|^2`), ne
+na zobrazované relativní chybě. Podle něj se také vybírá mezi DE a refinement.
+
+- Pozitivní - refinement zlepšil výsledek (obvyklý případ)
+- Nulový - refinement skončil ve stejném bodě, nebo selhal
+- Negativní - refinement výsledek zhoršil; vrací se DE bod a fit hlásí
+  `Refinement worsened fit, using DE result` (velmi vzácné)
+
+Zobrazená `DE error` a `Refined error` jsou vážené **relativní** chyby (L1),
+zatímco se minimalizuje SSR (L2). Ty dvě metriky se můžou pohnout proti sobě:
+refinement může snížit SSR a přitom relativní chybu nepatrně zvýšit. Rozhoduje
+SSR - proto se `Improvement` uvádí na něm.
 
 ### 7.3 Řešení problémů
 

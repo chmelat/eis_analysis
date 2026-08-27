@@ -367,7 +367,8 @@ def fit_circuit_diffevo(
     # Compute DE error
     de_params_full = reconstruct_params(de_result.x)
     Z_fit_de = circuit.impedance(frequencies, de_params_full)
-    de_error_rel, _, _ = compute_fit_metrics(Z, Z_fit_de, weighting)
+    de_metrics = compute_fit_metrics(Z, Z_fit_de, weighting)
+    de_error_rel = de_metrics[0]
 
     # Step 2: Refine with least_squares
     jacobian_type = 'analytic'
@@ -414,7 +415,8 @@ def fit_circuit_diffevo(
 
     # Compute refined fit error
     Z_fit_ls = circuit.impedance(frequencies, list(ls_params_full))
-    ls_error_rel, _, _ = compute_fit_metrics(Z, Z_fit_ls, weighting)
+    ls_metrics = compute_fit_metrics(Z, Z_fit_ls, weighting)
+    ls_error_rel = ls_metrics[0]
 
     # Selection and improvement use the *optimized* objective (weighted SSR,
     # S = sum w^2 |dZ|^2), not the weighted mean relative error: DE and
@@ -432,16 +434,20 @@ def fit_circuit_diffevo(
         params_opt_free = ls_params_free
         params_opt = ls_params_full
         Z_fit = Z_fit_ls
+        fit_metrics = ls_metrics
         used_refinement = True
     else:
         params_opt_free = np.array(de_result.x)
         params_opt = np.array(de_params_full)
         Z_fit = Z_fit_de
+        fit_metrics = de_metrics
         used_refinement = False
         if refinement_ran:
             diag_warnings.append("Refinement worsened fit, using DE result")
 
-    fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
+    # The chosen point is always one of the two evaluated above, so its
+    # metrics are already computed - no third pass over the spectrum.
+    fit_error_rel, fit_error_abs, quality = fit_metrics
 
     # The global stage is only useful if it actually explored. When it ends far
     # from the data and the local refinement then improves by an order of

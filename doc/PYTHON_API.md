@@ -497,7 +497,7 @@ de_result.de_error       # Error after DE (before refinement) [%]
 de_result.final_error    # Error after refinement [%]
 de_result.n_evaluations  # Total number of evaluations
 de_result.strategy       # Strategy used
-de_result.improvement    # Improvement DE -> refinement [%]
+de_result.improvement    # Improvement DE -> refinement, on the weighted SSR [%]
 de_result.diagnostics    # DiffEvoDiagnostics dataclass
 
 # DiffEvoDiagnostics contains:

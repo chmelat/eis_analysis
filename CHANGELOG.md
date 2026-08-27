@@ -4,6 +4,36 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.21.6 (2026-08-27)
+
+### Changed
+
+- **The DE `Improvement` line now reports the optimized objective**
+  (`cli/handlers/fitting.py`). It recomputed its own value from the two
+  weighted relative errors, while `DiffEvoResult.improvement` - computed
+  from the weighted SSR, which is what the DE/refinement selection actually
+  uses - sat unused. The two can move in opposite directions: on a
+  high-impedance oxide sample the SSR fell from `1.247761e9` to `1.247604e9`
+  (the refinement genuinely improved the fit) while the relative error rose
+  from 2.827% to 2.830%, so the log reported `Improvement: -0.1%` for a fit
+  that had got better. The line now reads `Improvement (SSR)` and uses the
+  prepared field. **Only this displayed number changes** - the selection,
+  the reported errors and the fit results are untouched.
+
+### Refactored
+
+- **`estimate_R_linear` no longer carries its own copy of `compute_weights`**
+  (`fitting/voigt_chain/fitting.py`). The same four weighting branches and
+  the same mean-1 normalization existed twice; the only divergent branch
+  (a silent fallback to modulus) was unreachable, since the function already
+  validates `weighting` against those four values and raises otherwise.
+  Weights are bit-for-bit identical on all four weighting types.
+
+- **`fit_circuit_diffevo` computes the fit metrics twice instead of three
+  times** (`fitting/diffevo.py`). The chosen point is always either the DE
+  or the refined one, both already evaluated, so the third pass over the
+  spectrum recomputed a known result.
+
 ## Version 0.21.5 (2026-08-26)
 
 ### Changed

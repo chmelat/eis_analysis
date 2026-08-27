@@ -15,6 +15,7 @@ from .tau_grid import generate_tau_grid
 from .solvers import robust_nnls
 
 from ..circuit_elements import R, K, L
+from ..diagnostics import compute_weights
 from ..circuit_builder import Series, Circuit
 
 logger = logging.getLogger(__name__)
@@ -123,23 +124,9 @@ def estimate_R_linear(
     n_freq = len(frequencies)
     n_tau = len(tau)
 
-    # Compute weights based on weighting scheme
-    Z_mag = np.abs(Z)
-    Z_mag_safe = np.maximum(Z_mag, 1e-15)
-
-    if weighting == 'uniform':
-        weights = np.ones_like(Z_mag)
-    elif weighting == 'sqrt':
-        weights = 1.0 / np.sqrt(Z_mag_safe)
-    elif weighting == 'modulus':
-        weights = 1.0 / Z_mag_safe  # Lin-KK standard
-    elif weighting == 'proportional':
-        weights = 1.0 / (Z_mag_safe ** 2)
-    else:
-        weights = 1.0 / Z_mag_safe  # Fallback to modulus
-
-    # Normalize weights so mean = 1 (for numerical stability)
-    weights = weights / np.mean(weights)
+    # Weights (normalized to mean = 1 for numerical stability). Shared with
+    # circuit fitting so both paths weight a spectrum identically.
+    weights = compute_weights(Z, weighting)
 
     # Determine matrix dimensions
     # Columns: [R_s (optional), R_1, R_2, ..., R_N, L (optional), D=1/C (optional)]
