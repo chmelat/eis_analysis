@@ -4,6 +4,46 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.22.0 (2026-08-27)
+
+### Added
+
+- **Cole-Cole element `CC(C_inf, dC, tau, alpha)`** for dielectric relaxation
+  (`fitting/circuit_elements/distributed.py`). Its impedance is
+  `Z = 1/(j*omega*C*)` with `C* = C_inf + dC/(1 + (j*omega*tau)^(1-alpha))`,
+  so it models a *distribution* of relaxation times as a depressed arc in the
+  complex capacitance (equivalently permittivity) plane. This is a different
+  quantity from what `Q` describes: `Q` depresses the arc in the impedance
+  plane, which is the right picture for a rough electrode but not for the
+  dielectric dispersion of an oxide or polymer film. `alpha = 0` recovers
+  Debye relaxation. The element carries no geometry - its parameters are
+  capacitances, so the conversion to a relative permittivity stays in the
+  analysis layer where the film thickness and electrode area are known.
+  Available from `--circuit`, from `eis_analysis` and `eis_analysis.fitting`,
+  and it has an analytic Jacobian for all four parameters.
+
+  Parametrised by the relaxation strength `dC = C_s - C_inf` rather than by
+  the static capacitance `C_s`, because `dC > 0` from the bounds then enforces
+  `C_s > C_inf` on its own; box bounds cannot express a coupling between two
+  parameters.
+
+  The element is exactly equivalent to
+  `C(C_inf) | (C(dC) - Q(dC/tau**(1-alpha), alpha))`, which the test suite
+  uses as an independent oracle. That composite is not a substitute for
+  fitting it directly: its CPE coefficient couples three parameters
+  non-linearly, so a fit would report `Q` and `n` with confidence intervals
+  on the wrong quantities, and `dC` would appear twice as two independent
+  free parameters.
+
+- **Bounds for the four Cole-Cole parameters** (`fitting/bounds.py`).
+  `alpha` is bounded `(0.0, 0.9)`; the lower bound is exactly `0.0` so that
+  `log_scale_ci_mask()` classifies it as a linear parameter, like the CPE
+  exponent `n`. Without an entry in `PARAMETER_BOUNDS` a new label silently
+  falls back to `(1e-15, 1e15)`, and DE would then have searched `log10(alpha)`
+  across 30 decades for an exponent that belongs in `[0, 1)`.
+
+---
+
 ## Version 0.21.6 (2026-08-27)
 
 ### Changed

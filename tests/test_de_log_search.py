@@ -19,8 +19,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from eis_analysis.fitting import R, Q
-from eis_analysis.fitting.bounds import log_scale_ci_mask
+from eis_analysis.fitting import R, Q, CC
+from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
 from eis_analysis.fitting.diagnostics import compute_weights
 from eis_analysis.fitting.diffevo import (
     _DECostFunction,
@@ -61,6 +61,12 @@ def test_log_mask_leaves_cpe_exponent_linear():
     lower = [1e-4, 1e-12, 0.3, 1e-15]   # R, Q, n, C
     upper = [1e10, 1e-1, 1.0, 1e-1]
     assert log_scale_ci_mask(lower, upper) == [True, True, False, True]
+
+
+def test_log_mask_leaves_cole_cole_exponent_linear():
+    """CC capacitances and tau are searched in log space; alpha is not."""
+    lower, upper = generate_simple_bounds(CC().get_param_labels())
+    assert log_scale_ci_mask(lower, upper) == [True, True, True, False]
 
 
 def test_to_linear_transforms_only_masked_entries():

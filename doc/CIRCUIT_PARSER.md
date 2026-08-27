@@ -264,6 +264,70 @@ G("100", 1e-3)      # sigma fixed, tau free
 G("100", "1e-3")    # both fixed
 ```
 
+### CC - Cole-Cole Element (dielectric relaxation)
+
+```python
+C_star = C_inf + dC / (1 + (j*omega*tau)^(1-alpha))
+Z_CC   = 1 / (j*omega*C_star)
+```
+
+Models a dielectric with a *distribution* of relaxation times. Unlike Q,
+which describes a depressed arc in the impedance plane, CC describes a
+depressed arc in the complex capacitance (equivalently permittivity) plane -
+which is where the physics of an oxide or polymer film lives.
+
+| Parameter | Unit | Default | Description                                 |
+|-----------|------|---------|---------------------------------------------|
+| C_inf     | F    | 1e-8    | High-frequency limit capacitance            |
+| dC        | F    | 1e-7    | Relaxation strength, dC = C_s - C_inf       |
+| tau       | s    | 1e-3    | Relaxation time                             |
+| alpha     | -    | 0.2     | Broadening exponent, 0 <= alpha < 1         |
+
+Applications:
+- Oxide and passive films (dielectric dispersion)
+- Polymers, glasses, biological tissue
+- Any system where the permittivity, not the impedance, is the quantity of
+  interest
+
+Special cases:
+- alpha = 0: Debye relaxation (a single relaxation time)
+- larger alpha: broader distribution; the C* arc centre sits alpha*90deg
+  below the real axis
+
+Key properties:
+- Static capacitance: C_s = C_inf + dC (available as `.C_static`)
+- Peak-loss frequency: f = 1/(2*pi*tau) (available as `.characteristic_freq`)
+- Blocking: |Z| diverges as omega -> 0, like a capacitor
+
+The element is parametrised by dC rather than C_s so that dC > 0 (from the
+bounds) enforces C_s > C_inf on its own; box bounds cannot express a coupling
+between two parameters.
+
+It carries no geometry - the parameters are capacitances, not permittivities.
+Convert with eps_r = C*d/(eps_0*A) in the analysis layer.
+
+Exactly equivalent to a composite of existing elements:
+
+```python
+CC(C_inf, dC, tau, alpha) == C(C_inf) | (C(dC) - Q(dC/tau**(1-alpha), alpha))
+CC(C_inf, dC, tau, 0)     == C(C_inf) | (C(dC) - R(tau/dC))   # Debye
+```
+
+The composite is not a substitute for fitting: its CPE coefficient
+`dC/tau^(1-alpha)` couples three parameters non-linearly, so a fit would
+report Q and n with confidence intervals on the wrong quantities, and dC
+would appear twice as two independent free parameters.
+
+Generalising to a second exponent gives Havriliak-Negami; see
+[LEVM_CIRCUITS.md](LEVM_CIRCUITS.md) (LEVM NDE = 6, 7).
+
+```python
+CC(1e-8, 1e-7, 1e-3, 0.2)         # depressed dielectric arc
+CC(1e-8, 1e-7, 1e-3, 0.0)         # Debye limit
+CC("1e-8", 1e-7, 1e-3, 0.2)       # C_inf fixed, rest free
+R(10) - CC(1e-8, 1e-7, 1e-3, 0.2) # with series electrolyte resistance
+```
+
 
 ## Fixed Parameters
 

@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.21.2 (2026-07-29)
+**Version:** v0.22.0 (2026-08-27)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -196,6 +196,7 @@ Elegant operator overloading syntax for circuit definition.
 | `Wo(R_W, tau)` | Warburg (bounded) | `Wo(100, 1.0)` |
 | `K(R, tau)` | Voigt with tau parametrization | `K(1000, 1e-4)` |
 | `G(sigma, tau)` | Gerischer (reaction-diffusion) | `G(100, 1e-3)` |
+| `CC(C_inf, dC, tau, alpha)` | Cole-Cole dielectric relaxation | `CC(1e-8, 1e-7, 1e-3, 0.2)` |
 
 Values in parentheses serve as initial guesses for the nonlinear fitting algorithm.
 Values in quotes (e.g., `R("100")`) are treated as fixed constants and will not be fitted.
@@ -312,7 +313,7 @@ chosen equivalent circuit is physically consistent.
 
 ### Circuit fitting
 
-- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K, G.
+- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K, G, CC.
 - `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 
@@ -324,7 +325,8 @@ chosen equivalent circuit is physically consistent.
 
 Parameters whose bounds span many decades (R, C, Q, L) are searched as
 `log10(value)`, so the population spreads over the decades instead of being
-drawn almost entirely from the top one; the CPE exponent `n` stays linear.
+drawn almost entirely from the top one; the exponents (`n` of the CPE and
+`alpha` of the Cole-Cole element) stay linear.
 If DE still ends far from the data and only the local refinement gets there,
 the fit reports `Global search contributed nothing` - see
 [doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md) section 7.3.

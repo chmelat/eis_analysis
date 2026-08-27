@@ -28,6 +28,11 @@ W:   Z = s(1-j)/sqrt(w) -> dZ/ds = Z/s
 Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = Z/Rw, dZ/dtau = complex formula
 K:   Z = R/(1+jwt)   -> dZ/dR = Z/R, dZ/dtau = -jw*Z^2/R
 G:   Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
+CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
+     P = dZ/dC* = -Z/C*
+     dZ/dC_inf = P;  dZ/ddC = P/D
+     dZ/dtau   = P*(-dC/D^2)*b*(jwt)^b/tau
+     dZ/dalpha = P*(-dC/D^2)*(-(jwt)^b*ln(jwt))
 
 Circuit Composition
 -------------------
@@ -41,7 +46,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, Q, W, Wo, K, G, CircuitElement
+from .circuit_elements import R, C, L, Q, W, Wo, K, G, CC, CircuitElement
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -172,6 +177,33 @@ def element_jacobian(
         dZ_dtau = -sigma_val * 1j * omega / (2 * (1 + 1j * omega * tau_val) ** 1.5)
 
         dZ = np.column_stack([dZ_dsigma, dZ_dtau])
+        return Z, dZ
+
+    # Cole-Cole: Z = 1/(jw*C*), C* = C_inf + dC/(1 + (jw*tau)^(1-alpha))
+    if isinstance(element, CC):
+        C_inf_val, dC_val = params[0], params[1]
+        tau_val, alpha_val = params[2], params[3]
+        beta = 1.0 - alpha_val
+        jwt_b = (1j * omega * tau_val) ** beta
+        D = 1 + jwt_b
+        C_star = C_inf_val + dC_val / D
+        Z = 1 / (1j * omega * C_star)
+
+        # dZ/dC* = -1/(jw*C*^2) = -Z/C*
+        dZ_dCstar = -Z / C_star
+        # dC*/dD = -dC/D^2, shared by the tau and alpha derivatives
+        dCstar_dD = -dC_val / D**2
+
+        dZ_dC_inf = dZ_dCstar
+        dZ_ddC = dZ_dCstar / D
+        # dD/dtau = beta*(jw*tau)^beta / tau
+        dZ_dtau = dZ_dCstar * dCstar_dD * beta * jwt_b / tau_val
+        # dD/dalpha = (jw*tau)^beta * ln(jw*tau) * dbeta/dalpha, dbeta/dalpha = -1
+        # ln(jw*tau) = ln(w*tau) + j*pi/2
+        ln_jwt = np.log(omega * tau_val) + 1j * np.pi / 2
+        dZ_dalpha = dZ_dCstar * dCstar_dD * (-jwt_b * ln_jwt)
+
+        dZ = np.column_stack([dZ_dC_inf, dZ_ddC, dZ_dtau, dZ_dalpha])
         return Z, dZ
 
     raise NotImplementedError(

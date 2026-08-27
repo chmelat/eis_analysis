@@ -22,6 +22,7 @@ Circuit Elements:
 - Wo: Warburg bounded diffusion
 - K: Voigt element with tau parametrization (R, tau)
 - G: Gerischer element for reaction-diffusion (sigma, tau)
+- CC: Cole-Cole dielectric relaxation (C_inf, dC, tau, alpha)
 
 Main Functions:
 - fit_equivalent_circuit: Fit circuit to impedance data
@@ -63,7 +64,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, W, Wo, K, G, CircuitElement
+from .circuit_elements import R, C, Q, L, W, Wo, K, G, CC, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -112,6 +113,7 @@ __all__ = [
     'Wo',
     'K',
     'G',
+    'CC',
     'CircuitElement',
 
     # Circuit builders

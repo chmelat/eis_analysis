@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.21.2
+**Current version:** v0.22.0
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -50,7 +50,7 @@ from eis_analysis import (
     # Oxide analysis
     analyze_oxide_layer,
     # Circuit elements for manual building
-    R, C, Q, L, W, Wo, K,
+    R, C, Q, L, W, Wo, K, CC,
 )
 
 # 1. Load data
@@ -361,7 +361,7 @@ result = calculate_drt(
 ```python
 from eis_analysis.fitting import (
     # Circuit elements
-    R, C, Q, L, W, Wo, K,
+    R, C, Q, L, W, Wo, K, CC,
     # Main functions
     fit_equivalent_circuit,
     fit_circuit_multistart,
@@ -560,7 +560,7 @@ All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, defau
 
 ```python
 # Supported elements for analytic Jacobian:
-# R, C, L, Q, W, Wo, K
+# R, C, L, Q, W, Wo, K, G, CC
 
 # For unsupported elements, the system automatically switches to numerical:
 result, Z_fit, fig = fit_equivalent_circuit(
@@ -590,6 +590,8 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 | W(sigma) | sigma [Ohm*s^(-1/2)] | Z = sigma*(1-j)/sqrt(omega) |
 | Wo(R, tau) | R [Ohm], tau [s] | Warburg bounded |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
+| G(sigma, tau) | sigma [Ohm*s^(-1/2)], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
+| CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |
 
 **Voigt element analysis from DRT:**
 

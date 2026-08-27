@@ -31,7 +31,7 @@ The element classes are organized into submodules:
 """
 from .base import CircuitElement
 from .basic import R, C, L
-from .distributed import Q, W, Wo
+from .distributed import Q, W, Wo, CC
 from .composite import K, G
 
-__all__ = ['R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'G', 'CircuitElement']
+__all__ = ['R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'G', 'CC', 'CircuitElement']

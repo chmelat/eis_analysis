@@ -45,6 +45,22 @@ PARAMETER_BOUNDS = {
 
     # Gerischer element - reaction time constant
     'τ_G': (1e-9, 1e4),
+
+    # Cole-Cole - high-frequency limit capacitance (same range as C)
+    'C_inf': (1e-15, 1e-1),
+
+    # Cole-Cole - relaxation strength dC = C_s - C_inf (same range as C)
+    'ΔC': (1e-15, 1e-1),
+
+    # Cole-Cole - relaxation time
+    'τ_CC': (1e-9, 1e4),
+
+    # Cole-Cole - broadening exponent. 0 = Debye (a single relaxation time);
+    # as alpha -> 1 the dispersion vanishes (C* -> C_inf + dC/2, frequency
+    # independent) and the model becomes unidentifiable, hence the 0.9 cap.
+    # The lower bound is exactly 0.0 so that log_scale_ci_mask()'s "lb > 0"
+    # test fails and alpha stays a LINEAR parameter, like the CPE exponent n.
+    'α_CC': (0.0, 0.9),
 }
 
 DEFAULT_BOUNDS = (1e-15, 1e15)
@@ -74,6 +90,9 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
     - R_W, tau_W (Warburg bounded): similar to R, tau
     - sigma_G, tau_G (Gerischer): similar to sigma, tau
+    - C_inf, dC (Cole-Cole capacitances): similar to C
+    - tau_CC (Cole-Cole relaxation time): similar to tau
+    - alpha_CC (Cole-Cole broadening exponent): 0.0 - 0.9
 
     Parameters
     ----------
