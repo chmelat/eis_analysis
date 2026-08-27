@@ -38,8 +38,8 @@ Circuit strings are parsed in the `eis.py` file using the `parse_circuit_express
 ```python
 def parse_circuit_expression(expr: str):
     safe_namespace = {
-        'R': R, 'C': C, 'Q': Q, 'L': L,
-        'W': W, 'Wo': Wo, 'K': K, 'G': G
+        'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
+        'Wo': Wo, 'K': K, 'G': G, 'CC': CC
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit

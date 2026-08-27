@@ -4,6 +4,36 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.1 (2026-08-27)
+
+### Fixed
+
+- **The Gerischer element `G` is finally reachable from `--circuit`**
+  (`cli/utils.py`). It has been fully implemented since v0.13.2 - impedance,
+  analytic Jacobian, `tests/test_G_element.py`, a row in the README element
+  table and its own section in `doc/CIRCUIT_PARSER.md` - but was missing from
+  the parser's `safe_namespace`, so `--circuit "G(100,1e-3)"` failed with
+  `name 'G' is not defined`. A user following the README hit a wall on a
+  feature the codebase already supported, for eight months.
+
+- **`from eis_analysis import G` works.** The same v0.13.2 commit also
+  omitted `G` from the top-level `__init__.py` import and `__all__`, so the
+  element was only reachable through `eis_analysis.fitting`.
+
+  The root cause of both is a duplicated registry: the element list exists in
+  `circuit_elements/__init__.py`'s `__all__`, again in `fitting/__init__.py`,
+  again in the top-level `__init__.py`, and again as the hand-written
+  `safe_namespace` dict. Adding an element means updating all four, and `G`
+  was missed in two of them. `tests/test_circuit_expression.py` is the guard
+  in the meantime: it parses every element the README documents and checks
+  each is exported top-level, so the next omission fails a test rather than
+  reaching a user.
+
+- `doc/CIRCUIT_PARSER.md`'s `safe_namespace` snippet listed `G` (which did
+  not exist there) and omitted `CC` (which did). It now matches the code.
+
+---
+
 ## Version 0.25.0 (2026-08-27)
 
 ### Fixed

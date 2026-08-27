@@ -54,7 +54,7 @@ from .drt import (
 # Fitting (new operator overloading approach)
 from .fitting import (
     # Circuit elements
-    R, C, Q, L, W, Wo, K, CC,
+    R, C, Q, L, W, Wo, K, G, CC,
     # Main functions
     fit_equivalent_circuit,
     fit_circuit_multistart,  # Multi-start optimization
@@ -107,7 +107,7 @@ __all__ = [
     'DRTResult',
     'DRTDiagnostics',
     # Fitting (circuit elements)
-    'R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'CC',
+    'R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'G', 'CC',
     # Fitting (main functions)
     'fit_equivalent_circuit',
     'fit_circuit_multistart',
