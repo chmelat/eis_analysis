@@ -17,6 +17,18 @@ if TYPE_CHECKING:
     Circuit = Union[Series, Parallel, 'CircuitElement']
 
 
+def param_property(index: int) -> property:
+    """Read-only named view of ``params[index]``.
+
+    Elements expose their parameters under physical names (``R``, ``tau``,
+    ``alpha``, ...). Binding those names to ``params`` instead of copying the
+    value in ``__init__`` means they cannot fall out of step with
+    ``update_params()``, which the fitter calls with the optimized values --
+    a copy made in ``__init__`` would still hold the initial guess after a fit.
+    """
+    return property(lambda self: self.params[index])
+
+
 class CircuitElement(ABC):
     """
     Abstract base class for all circuit elements.

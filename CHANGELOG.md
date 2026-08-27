@@ -4,6 +4,43 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.0 (2026-08-27)
+
+### Fixed
+
+- **Element parameter attributes no longer go stale after a fit**
+  (`fitting/circuit_elements/`). Every element copied its parameters into
+  named attributes in `__init__` (`self.R = self.params[0]`, ...).
+  `update_params()` - which the fitter calls with the optimized values -
+  rewrote `params` but left those copies untouched, so after a fit `K.R`,
+  `G.sigma`, `CC.C_inf` and the properties derived from them
+  (`K.capacitance`, `G.characteristic_freq`, `CC.C_static`) still returned
+  the initial guess. Nothing warned; the numbers simply came from before
+  the fit.
+
+  It was found the hard way in 0.24.0: `--analyze-oxide` reported a film
+  thickness of 17.7 nm against a true 25.0 because the Cole-Cole branch read
+  `node.C_static`. Every other branch in `analysis/oxide.py` reads
+  `node.params[i]`, which is precisely why they were unaffected - the
+  convention existed because the attributes could not be trusted.
+
+  The names are now read-only views of `params`, built by the new
+  `param_property()` helper in `circuit_elements/base.py`, so they cannot
+  fall out of step. `params` is the single source of truth. This also
+  removes 16 lines of copying from the nine `__init__` methods, and a new
+  element gets the behaviour by declaring `R = param_property(0)` rather
+  than by remembering to keep a copy in sync.
+
+### Changed
+
+- **BREAKING**: assigning to a parameter attribute (`element.R = 200`) now
+  raises `AttributeError`. It previously succeeded but changed only the
+  attribute, leaving `params` - and therefore the computed impedance -
+  untouched, so `repr(element)` and `element.impedance()` disagreed. Set
+  values through the constructor or `update_params()`.
+
+---
+
 ## Version 0.24.0 (2026-08-27)
 
 ### Added

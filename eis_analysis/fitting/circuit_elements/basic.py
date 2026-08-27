@@ -7,7 +7,7 @@ import numpy as np
 from typing import List, Union
 from numpy.typing import NDArray
 
-from .base import CircuitElement
+from .base import CircuitElement, param_property
 
 
 class R(CircuitElement):
@@ -29,9 +29,10 @@ class R(CircuitElement):
     >>> r = R("0.86") # Fixed R_inf = 0.86 Ω
     """
 
+    R = param_property(0)
+
     def __init__(self, R: Union[float, str] = 100.0):
         super().__init__(R)
-        self.R = self.params[0]  # Store as float
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -66,9 +67,10 @@ class C(CircuitElement):
     >>> c = C("1e-6")  # Fixed capacitance
     """
 
+    C = param_property(0)
+
     def __init__(self, C: Union[float, str] = 1e-6):
         super().__init__(C)
-        self.C = self.params[0]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -104,9 +106,10 @@ class L(CircuitElement):
     >>> l = L("1e-6")  # Fixed inductance
     """
 
+    L = param_property(0)
+
     def __init__(self, L: Union[float, str] = 1e-6):
         super().__init__(L)
-        self.L = self.params[0]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:

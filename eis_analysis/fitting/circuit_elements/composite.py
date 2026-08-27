@@ -8,7 +8,7 @@ import numpy as np
 from typing import List, Union, TYPE_CHECKING
 from numpy.typing import NDArray
 
-from .base import CircuitElement
+from .base import CircuitElement, param_property
 from .basic import R, C
 
 if TYPE_CHECKING:
@@ -70,10 +70,11 @@ class K(CircuitElement):
     linear Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20–27 (2014)
     """
 
+    R = param_property(0)
+    tau = param_property(1)
+
     def __init__(self, R: Union[float, str] = 1000.0, tau: Union[float, str] = 1e-4):
         super().__init__(R, tau)
-        self.R = self.params[0]
-        self.tau = self.params[1]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -171,11 +172,12 @@ class G(CircuitElement):
     Zeitschrift fur Physikalische Chemie, 198, 286-313 (1951)
     """
 
+    sigma = param_property(0)
+    tau = param_property(1)
+
     def __init__(self, sigma: Union[float, str] = 100.0,
                  tau: Union[float, str] = 1e-3):
         super().__init__(sigma, tau)
-        self.sigma = self.params[0]
-        self.tau = self.params[1]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:

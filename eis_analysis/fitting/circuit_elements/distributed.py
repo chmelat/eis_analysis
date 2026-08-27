@@ -8,7 +8,7 @@ import numpy as np
 from typing import List, Union
 from numpy.typing import NDArray
 
-from .base import CircuitElement
+from .base import CircuitElement, param_property
 
 
 class Q(CircuitElement):
@@ -37,10 +37,11 @@ class Q(CircuitElement):
     >>> q = Q()           # default values
     """
 
+    Q = param_property(0)
+    n = param_property(1)
+
     def __init__(self, Q_val: Union[float, str] = 1e-4, n: Union[float, str] = 0.8):
         super().__init__(Q_val, n)
-        self.Q = self.params[0]
-        self.n = self.params[1]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -76,9 +77,10 @@ class W(CircuitElement):
     >>> w = W("50")   # Fixed σ=50
     """
 
+    sigma = param_property(0)
+
     def __init__(self, sigma: Union[float, str] = 50.0):
         super().__init__(sigma)
-        self.sigma = self.params[0]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -117,10 +119,11 @@ class Wo(CircuitElement):
     >>> wo = Wo("100", "1.0")  # Both parameters fixed
     """
 
+    R_W = param_property(0)
+    tau_W = param_property(1)
+
     def __init__(self, R_W: Union[float, str] = 100.0, tau_W: Union[float, str] = 1.0):
         super().__init__(R_W, tau_W)
-        self.R_W = self.params[0]
-        self.tau_W = self.params[1]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
@@ -198,15 +201,16 @@ class CC(CircuitElement):
     >>> cc = CC(1e-8, 1e-7, 1e-3, 0.0)  # Debye limit
     """
 
+    C_inf = param_property(0)
+    dC = param_property(1)
+    tau = param_property(2)
+    alpha = param_property(3)
+
     def __init__(self, C_inf: Union[float, str] = 1e-8,
                  dC: Union[float, str] = 1e-7,
                  tau: Union[float, str] = 1e-3,
                  alpha: Union[float, str] = 0.2):
         super().__init__(C_inf, dC, tau, alpha)
-        self.C_inf = self.params[0]
-        self.dC = self.params[1]
-        self.tau = self.params[2]
-        self.alpha = self.params[3]
 
     def impedance(self, freq: NDArray[np.float64],
                   params: List[float]) -> NDArray[np.complex128]:
