@@ -35,7 +35,6 @@ class Q(CircuitElement):
     --------
     >>> q = Q(1e-4, 0.8)  # typical CPE
     >>> q = Q()           # default values
-    >>> q = Q(1e-4)**0.9  # change exponent
     """
 
     def __init__(self, Q_val: Union[float, str] = 1e-4, n: Union[float, str] = 0.8):
@@ -48,13 +47,6 @@ class Q(CircuitElement):
         Q_val, n_val = params[0], params[1]
         omega = 2 * np.pi * freq
         return 1 / (Q_val * (1j * omega) ** n_val)
-
-    def _scale(self, scalar: float) -> 'Q':
-        return Q(scalar * self.Q, self.n)
-
-    def __pow__(self, exponent: float) -> 'Q':
-        """Change CPE exponent: Q()**0.9"""
-        return Q(self.Q, exponent)
 
     def get_param_labels(self) -> List[str]:
         return ['Q', 'n']
@@ -93,9 +85,6 @@ class W(CircuitElement):
         sigma_val = params[0]
         omega = 2 * np.pi * freq
         return sigma_val / np.sqrt(omega) * (1 - 1j)
-
-    def _scale(self, scalar: float) -> 'W':
-        return W(scalar * self.sigma)
 
     def get_param_labels(self) -> List[str]:
         return ['σ']
@@ -139,9 +128,6 @@ class Wo(CircuitElement):
         omega = 2 * np.pi * freq
         arg = np.sqrt(1j * omega * tau_W_val)
         return R_W_val * np.tanh(arg) / arg
-
-    def _scale(self, scalar: float) -> 'Wo':
-        return Wo(scalar * self.R_W, self.tau_W)
 
     def get_param_labels(self) -> List[str]:
         return ['R_W', 'τ_W']
@@ -231,24 +217,6 @@ class CC(CircuitElement):
             C_inf_val + dC_val / (1 + (1j * omega * tau_val) ** (1.0 - alpha_val))
         )
         return 1 / (1j * omega * C_star)
-
-    def _scale(self, scalar: float) -> 'CC':
-        """Scale both capacitances, preserving tau and alpha.
-
-        Scaling a dielectric element means putting an identical one in
-        parallel, i.e. scaling the electrode area: the capacitances are
-        extensive, tau and alpha are intensive material properties.
-        """
-        new_C_inf = scalar * self.C_inf
-        new_dC = scalar * self.dC
-        # Preserve fixed status: the base class marks a parameter fixed when
-        # it arrives as a str, so pass the number through repr, not through
-        # quote characters (those would reach float() and raise).
-        C_inf_arg = str(new_C_inf) if self.fixed_params[0] else new_C_inf
-        dC_arg = str(new_dC) if self.fixed_params[1] else new_dC
-        tau_arg = str(self.tau) if self.fixed_params[2] else self.tau
-        alpha_arg = str(self.alpha) if self.fixed_params[3] else self.alpha
-        return CC(C_inf_arg, dC_arg, tau_arg, alpha_arg)
 
     def get_param_labels(self) -> List[str]:
         return ['C_inf', 'ΔC', 'τ_CC', 'α_CC']

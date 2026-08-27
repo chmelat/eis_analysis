@@ -60,7 +60,6 @@ applies, not the intuitive precedence for electrical circuits.
 
 | Precedence | Operator | Meaning in circuits |
 |------------|----------|-------------------|
-| 13         | `*`, `/` | Parameter scaling |
 | 12         | `-`, `+` | **Series connection** |
 | 8          | `|`      | **Parallel connection** |
 
@@ -372,19 +371,6 @@ R(10) - (R(100)|C(1e-6))            # R in series with Voigt
 ```python
 R(1000) | C(1e-6)                   # Voigt element
 R(100) | Q(1e-4, 0.8)               # R||Q
-```
-
-### Scaling (`*`)
-
-```python
-2 * R(100)      # = R(200)
-0.5 * C(1e-6)   # = C(5e-7)
-```
-
-### Exponent (`**`) - Q only
-
-```python
-Q(1e-4) ** 0.9    # changes n to 0.9
 ```
 
 

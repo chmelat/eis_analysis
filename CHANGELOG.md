@@ -4,6 +4,45 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.23.0 (2026-08-27)
+
+### Removed
+
+- **The element scaling operator `*` and the CPE exponent operator `**`.**
+  `2 * R(100)` was another way to write `R(200)`, and `Q(1e-4) ** 0.9`
+  another way to write `Q(1e-4, 0.9)`. Neither enabled anything; both were
+  a second spelling of a value you can type directly.
+
+  Their cost was not zero. `_scale()` was an `@abstractmethod`, so all nine
+  elements had to implement it just to keep the operator working - roughly
+  25 lines of ceremony, plus one more obligation on every element added
+  later. Nothing inside the package ever constructed a circuit by scaling.
+
+  They also carried a bug. Scaling discarded the fixed-parameter flags:
+  `2 * R("100")` returned a *free* 200 Ohm resistor, so a parameter pinned
+  on purpose - an `R_inf` from a separate estimate, an oxide capacitance
+  from a known thickness - would silently be refitted, with the degrees of
+  freedom (and therefore the confidence intervals) computed as if it were
+  free. `Q("1e-4", 0.8) ** 0.9` lost the coefficient's fixed status the same
+  way, though keeping it is the entire point of that operator. `G` was worse
+  still: `G._scale` wrapped values in literal quote *characters*, which
+  reached `float()` in `CircuitElement.__init__`, so `2 * G("100", 1e-3)`
+  raised `ValueError` outright.
+
+  Deleting the operators removes the defect rather than fixing it in nine
+  places. Building circuits with `-` (series) and `|` (parallel) is
+  unaffected.
+
+### Migration
+
+```python
+2 * R(100)          ->  R(200)
+0.5 * C(1e-6)       ->  C(5e-7)
+Q(1e-4) ** 0.9      ->  Q(1e-4, 0.9)
+```
+
+---
+
 ## Version 0.22.0 (2026-08-27)
 
 ### Added

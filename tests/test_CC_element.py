@@ -171,14 +171,9 @@ def test_cc_element_fitting(freq):
 
 
 def test_cc_fixed_parameters():
-    """String parameters are fixed, and scaling preserves that."""
+    """String parameters are fixed during fitting."""
     cc_elem = CC("1e-8", 1e-7, 1e-3, "0.2")
     assert cc_elem.fixed_params == [True, False, False, True]
 
-    # _scale must not silently free the fixed parameters (R/Q/K do lose them)
-    scaled = 2 * cc_elem
-    assert scaled.fixed_params == [True, False, False, True]
-    assert scaled.C_inf == pytest.approx(2e-8)
-    assert scaled.dC == pytest.approx(2e-7)
-    assert scaled.tau == pytest.approx(1e-3)
-    assert scaled.alpha == pytest.approx(0.2)
+    assert CC(1e-8, 1e-7, 1e-3, 0.2).fixed_params == [False] * 4
+    assert CC("1e-8", "1e-7", "1e-3", "0.2").fixed_params == [True] * 4

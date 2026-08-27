@@ -81,10 +81,6 @@ class K(CircuitElement):
         omega = 2 * np.pi * freq
         return R_val / (1 + 1j * omega * tau_val)
 
-    def _scale(self, scalar: float) -> 'K':
-        """Scale R while preserving τ (changes C = τ/R)"""
-        return K(scalar * self.R, self.tau)
-
     def get_param_labels(self) -> List[str]:
         return ['R', 'τ']
 
@@ -186,14 +182,6 @@ class G(CircuitElement):
         sigma_val, tau_val = params[0], params[1]
         omega = 2 * np.pi * freq
         return sigma_val / np.sqrt(1 + 1j * omega * tau_val)
-
-    def _scale(self, scalar: float) -> 'G':
-        """Scale sigma while preserving tau"""
-        new_sigma = scalar * self.sigma
-        # Preserve fixed status
-        sigma_arg = f'"{new_sigma}"' if self.fixed_params[0] else new_sigma
-        tau_arg = f'"{self.tau}"' if self.fixed_params[1] else self.tau
-        return G(sigma_arg, tau_arg)
 
     def get_param_labels(self) -> List[str]:
         return ['σ_G', 'τ_G']

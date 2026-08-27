@@ -38,9 +38,6 @@ class R(CircuitElement):
         R_val = params[0]
         return R_val * np.ones_like(freq, dtype=complex)
 
-    def _scale(self, scalar: float) -> 'R':
-        return R(scalar * self.R)
-
     def get_param_labels(self) -> List[str]:
         return ['R']
 
@@ -79,9 +76,6 @@ class C(CircuitElement):
         omega = 2 * np.pi * freq
         return 1 / (1j * omega * C_val)
 
-    def _scale(self, scalar: float) -> 'C':
-        return C(scalar * self.C)
-
     def get_param_labels(self) -> List[str]:
         return ['C']
 
@@ -119,9 +113,6 @@ class L(CircuitElement):
         L_val = params[0]
         omega = 2 * np.pi * freq
         return 1j * omega * L_val
-
-    def _scale(self, scalar: float) -> 'L':
-        return L(scalar * self.L)
 
     def get_param_labels(self) -> List[str]:
         return ['L']

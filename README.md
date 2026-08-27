@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.22.0 (2026-08-27)
+**Version:** v0.23.0 (2026-08-27)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 

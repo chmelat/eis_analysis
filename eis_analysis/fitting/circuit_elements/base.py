@@ -1,7 +1,7 @@
 """
 Abstract base class for circuit elements.
 
-Defines ``CircuitElement`` with the operator overloading (``-``, ``|``, ``*``)
+Defines ``CircuitElement`` with the operator overloading (``-``, ``|``)
 used to build circuits. Concrete elements live in the sibling modules
 ``basic``, ``distributed`` and ``composite``.
 """
@@ -67,11 +67,6 @@ class CircuitElement(ABC):
         pass
 
     @abstractmethod
-    def _scale(self, scalar: float) -> 'CircuitElement':
-        """Return scaled version of element (for * operator)"""
-        pass
-
-    @abstractmethod
     def __repr__(self) -> str:
         """String representation"""
         pass
@@ -86,14 +81,6 @@ class CircuitElement(ABC):
         """Parallel connection: 1/Z_total = 1/Z1 + 1/Z2"""
         from ..circuit_builder import Parallel
         return Parallel([self, other])
-
-    def __mul__(self, scalar: float) -> 'CircuitElement':
-        """Scale element parameter"""
-        return self._scale(scalar)
-
-    def __rmul__(self, scalar: float) -> 'CircuitElement':
-        """Allow 2*R syntax"""
-        return self.__mul__(scalar)
 
     def get_all_params(self) -> List[float]:
         """Get all parameters (for compatibility with Circuit class)"""
