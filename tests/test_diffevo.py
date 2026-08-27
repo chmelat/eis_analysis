@@ -230,8 +230,11 @@ def test_refinement_never_worse_than_de():
     Z = true_impedance()
     result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
     plt.close('all')
-    # The code keeps the better of DE / least_squares, so final <= de.
-    assert result.final_error <= result.de_error + 1e-9
+    # The code keeps the better of DE / least_squares on the *optimized*
+    # objective (weighted SSR). The reported relative error is a different
+    # metric and need not follow it, so it cannot be asserted here.
+    assert (weighted_ssr(result.best_result.params_opt, Z)
+            <= result.diagnostics.de_cost * (1 + 1e-9))
 
 
 def test_diagnostics_populated():
