@@ -4,6 +4,52 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.2 (2026-08-29)
+
+### Fixed
+
+- **`--analyze-oxide` no longer reports a Cole-Cole capacitance the data never
+  measured** (`analysis/oxide.py`, `analysis/config.py`). For a dominant `CC`
+  element the static capacitance `C_s = C_inf + dC` was reported
+  unconditionally. `C_s` is the exact `omega -> 0` limit of `C*(omega)`, but
+  only the *measured* one when the relaxation lies inside the frequency
+  window. A fit that landed on `tau = 1e4 s` - the upper bound of
+  `PARAMETER_BOUNDS['tau_CC']` - put `f_char = 1/(2*pi*tau) = 1.6e-5 Hz` three
+  decades below `f_min`, so every measured point sat at `omega*tau >> 1`, where
+  `C*(omega) -> C_inf`. `dC` was consequently unidentified (95% CI spanning a
+  factor of 4) yet dominated the reported `C_s = 1.611e-05 F`, giving
+  `eps_r = 3491` where the value the data support, `C_inf = 8.117e-08 F`,
+  gives 17.6 - matching the reference model's 17.4.
+
+  The reported capacitance now follows where `f_char` sits relative to
+  `[f_min, f_max]`:
+  - inside the window -> `C_s` (the relaxation is traced);
+  - below `f_min` -> `C_inf`, with a warning that `dC` is an extrapolation to
+    DC through a region with no data;
+  - above `f_max` -> `C_s`, with a warning that only the *sum* is identified,
+    not the `C_inf`/`dC` split;
+  - within one decade of either edge -> `C_s`, flagged as only marginally
+    determined (`CC_WINDOW_EDGE_MARGIN_DECADES`).
+
+  The dominant-CC selection (`max` over the static capacitances) uses the same
+  window-aware value, so the choice and the reported number cannot disagree.
+
+- **A Cole-Cole `tau` sitting on a fitting bound is now said out loud.** The
+  window test above happens to cover the reported case, but a parameter on its
+  bound always means the data did not determine it, so the check is explicit
+  rather than inferred from `f_char`. It reuses `classify_bound_status()` and
+  `PARAMETER_BOUNDS['tau_CC']` from `fitting/bounds.py` - the project-wide
+  definition of "at a bound" - and is skipped for a `tau` the user fixed
+  (`CC(..., tau="1e4")`), which is a choice rather than a failed fit.
+
+  Regression tests in `tests/test_oxide.py` cover the reported case end to end
+  (`eps_r` ~ 17.6 instead of 3491), the lower-bound case where the window rule
+  and the bound test point in opposite directions (`C_s` stands, the bound
+  still warns), the fixed-`tau` case, the near-edge case, and the in-window
+  path, which is unchanged.
+
+---
+
 ## Version 0.25.1 (2026-08-27)
 
 ### Fixed

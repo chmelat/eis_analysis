@@ -619,3 +619,139 @@ def test_cc_inside_a_parallel_leakage_branch_is_found():
     assert oxide is not None
     assert oxide.element_type == 'CC'
     assert oxide.element_R is None
+
+
+# ---------------------------------------------------------------------------
+# Cole-Cole capacitance vs. the measured frequency window (added 2026-08-29).
+#
+# C_s = C_inf + dC is the omega -> 0 limit of C*(omega) and is only what the
+# data determine when the relaxation is actually traced. _synthetic_voigt()
+# spans 1e-2 .. 1e5 Hz; CC_TAU = 2e-3 s puts f_char at ~80 Hz, well inside it,
+# so every test above keeps exercising the static path.
+#
+# Reported failure: a fit landed on tau = 1e4 s (the upper bound of
+# PARAMETER_BOUNDS['tau_CC']), i.e. f_char = 1.6e-5 Hz, three decades below
+# f_min. dC was unidentified (95% CI spanning a factor of 4) yet dominated
+# C_s, giving eps_r = 3491 where the high-frequency value C_inf gives 17.6.
+# ---------------------------------------------------------------------------
+
+# Values from the reported fit
+BUG_C_INF = 8.117e-08   # High-frequency capacitance [F]
+BUG_DC = 1.603e-05      # Relaxation strength [F] - unidentified in that fit
+BUG_TAU = 1e4           # Relaxation time [s] - at its upper fitting bound
+
+
+def _fit_result_cc_tau(tau, C_inf=BUG_C_INF, dC=BUG_DC):
+    """R_S - CC(C_inf, dC, tau, alpha) with tau given (may be a str = fixed)."""
+    circuit = R(R_S) - CC(C_inf, dC, tau, CC_ALPHA)
+    return _fit_result(circuit, circuit.get_all_params())
+
+
+def test_cc_below_window_reports_c_inf_not_static():
+    """tau on the upper bound: f_char is below f_min, so only C_inf is measured."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result_cc_tau(BUG_TAU))
+
+    assert oxide is not None
+    assert oxide.element_type == 'CC'
+    assert abs(oxide.capacitance - BUG_C_INF) / BUG_C_INF < 1e-12
+    # The static value would have been ~200x larger - that is the whole bug
+    assert oxide.capacitance < 0.01 * (BUG_C_INF + BUG_DC)
+
+
+def test_cc_below_window_permittivity_matches_reference_model():
+    """The reported case end to end: eps_r must come out ~17.6, not 3491.
+
+    192 nm at 1 cm2 is the geometry implied by the report - it turns the two
+    candidate capacitances into the two permittivities that were quoted there,
+    C_s -> 3491 (what was printed) and C_inf -> 17.6 (what the reference model
+    gives, 17.4).
+    """
+    freq, Z = _synthetic_voigt()
+
+    oxide = estimate_permittivity(freq, Z, thickness_nm=192.0, area_cm2=1.0,
+                                  fit_result=_fit_result_cc_tau(BUG_TAU))
+
+    assert oxide is not None
+    assert 17.0 < oxide.permittivity < 18.0
+    # What the static capacitance would have given, for contrast
+    eps_r_static = (BUG_C_INF + BUG_DC) * (192.0 * 1e-7) / (1.0 * EPSILON_0)
+    assert eps_r_static > 3000.0
+
+
+def test_cc_below_window_warns_about_window_and_bound(caplog):
+    """Both diagnostics fire, and they are separate statements."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                            fit_result=_fit_result_cc_tau(BUG_TAU))
+
+    text = caplog.text
+    assert 'BELOW the measured window' in text
+    assert 'extrapolation to DC' in text
+    assert 'upper fitting bound' in text
+
+
+def test_cc_above_window_keeps_static_capacitance(caplog):
+    """tau on the LOWER bound: the window sits at omega*tau << 1, so C_s holds."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_cc_tau(1e-9))
+
+    assert oxide is not None
+    C_s = BUG_C_INF + BUG_DC
+    assert abs(oxide.capacitance - C_s) / C_s < 1e-12
+    # The window rule drives the value; the bound test only warns
+    assert 'ABOVE the measured window' in caplog.text
+    assert 'lower fitting bound' in caplog.text
+    assert 'BELOW the measured window' not in caplog.text
+
+
+def test_cc_fixed_tau_warns_about_window_but_not_about_the_bound(caplog):
+    """A tau pinned by the user is a choice, not an undetermined parameter."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_cc_tau(str(BUG_TAU)))
+
+    assert oxide is not None
+    assert abs(oxide.capacitance - BUG_C_INF) / BUG_C_INF < 1e-12
+    assert 'BELOW the measured window' in caplog.text
+    assert 'fitting bound' not in caplog.text
+
+
+def test_cc_near_window_edge_keeps_static_but_warns(caplog):
+    """f_char half a decade inside f_min: C_s stands, its determination does not."""
+    freq, Z = _synthetic_voigt()
+    f_min = float(np.min(freq))
+    tau_edge = 1.0 / (2 * np.pi * f_min * 10 ** 0.5)   # f_char = f_min * 10^0.5
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_cc_tau(tau_edge))
+
+    assert oxide is not None
+    C_s = BUG_C_INF + BUG_DC
+    assert abs(oxide.capacitance - C_s) / C_s < 1e-12
+    assert 'marginally determined' in caplog.text
+
+
+def test_cc_inside_window_logs_no_capacitance_warning(caplog):
+    """The unchanged path: a traced relaxation reports C_s with no complaint."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_cc())
+
+    assert oxide is not None
+    C_s = CC_C_INF + CC_DC
+    assert abs(oxide.capacitance - C_s) / C_s < 1e-12
+    assert 'measured window' not in caplog.text
+    assert 'fitting bound' not in caplog.text

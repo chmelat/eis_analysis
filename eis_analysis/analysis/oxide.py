@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from numpy.typing import NDArray
 
+from ..fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
 from ..fitting.circuit import FitResult
 from ..fitting.circuit_elements import R, C, Q, K, CC
 from ..fitting.circuit_builder import Series, Parallel
@@ -22,6 +23,7 @@ from .config import (
     HF_C_SPREAD_MAX_RATIO,
     BRUG_RS_MIN_OHM,
     BRUG_HM_DIVERGENCE_MAX,
+    CC_WINDOW_EDGE_MARGIN_DECADES,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,13 +50,120 @@ class OxideAnalysisResult:
     permittivity_brug: Optional[float] = None  # ε_r from Brug C_eff
 
 
-def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
+def _cc_capacitance_regime(tau: float, frequencies: NDArray[np.float64]) -> str:
+    """
+    Which limit of C*(omega) the measured frequency window actually determines.
+
+    A Cole-Cole element disperses around f_char = 1/(2*pi*tau):
+
+        omega*tau << 1  ->  C*(omega) -> C_s = C_inf + dC   (static limit)
+        omega*tau >> 1  ->  C*(omega) -> C_inf              (high-frequency limit)
+
+    Returns
+    -------
+    'high_frequency'
+        f_char lies below the lowest measured frequency: every measured point
+        sits at omega*tau >> 1, so the data constrain only C_inf. dC is then
+        an extrapolation to DC through a region with no measurements and C_s
+        must not be reported as if it had been measured.
+    'static'
+        f_char lies inside the window (the relaxation is traced, C_s is the
+        exact omega -> 0 limit) or above it (the whole window sits at
+        omega*tau << 1, so C_s is measured - though only as a sum, the
+        C_inf/dC split being unidentified). Both cases report C_s.
+
+    A non-positive tau or an empty frequency array leaves no window test to
+    make; the static limit is the unconditional pre-0.25.2 behavior.
+    """
+    if tau <= 0 or frequencies.size == 0:
+        return 'static'
+    f_char = 1.0 / (2.0 * np.pi * tau)
+    return 'high_frequency' if f_char < float(np.min(frequencies)) else 'static'
+
+
+def _log_cc_capacitance_choice(
+    cc: Dict[str, Any],
+    frequencies: NDArray[np.float64]
+) -> None:
+    """
+    Explain which Cole-Cole capacitance was reported, and why.
+
+    Two independent checks, both worth logging:
+
+    1. Where f_char = 1/(2*pi*tau) sits relative to the measured window.
+       This is what selects the reported value in `_cc_capacitance_regime`;
+       outside the window (either side) at least one of C_inf / dC is not
+       determined by the data, and anything derived from it - thickness,
+       permittivity - inherits that.
+    2. Whether tau itself landed on a fitting bound. A parameter on its bound
+       always means the data did not determine it, so the test is made
+       explicitly rather than inferred from f_char. `classify_bound_status`
+       is the project-wide definition of "at a bound", and the bounds cannot
+       be overridden by a caller (`generate_simple_bounds` derives them from
+       the parameter labels), so PARAMETER_BOUNDS is authoritative here.
+    """
+    tau = cc['tau']
+    f_char = 1.0 / (2.0 * np.pi * tau) if tau > 0 else None
+    f_min = float(np.min(frequencies)) if frequencies.size else 0.0
+    f_max = float(np.max(frequencies)) if frequencies.size else 0.0
+
+    if cc['C_regime'] == 'high_frequency' and f_char is not None:
+        logger.warning(
+            f"Cole-Cole relaxation lies BELOW the measured window: "
+            f"f_char = 1/(2*pi*tau) = {f_char:.2e} Hz vs f_min = {f_min:.2e} Hz "
+            f"({np.log10(f_min / f_char):.1f} decades below it). Every measured "
+            f"point sits at omega*tau >> 1, where C*(omega) -> C_inf, so "
+            f"dC = {cc['dC']:.3e} F is an extrapolation to DC through a region "
+            f"with no data. Reporting C_inf = {cc['C_inf']:.3e} F instead of "
+            f"C_s = {cc['C_static']:.3e} F - the thickness/permittivity below is "
+            f"the high-frequency value. Extend the sweep to lower frequencies "
+            f"to determine dC.")
+    elif f_char is not None and frequencies.size > 0 and f_min > 0 and f_char > f_max:
+        logger.warning(
+            f"Cole-Cole relaxation lies ABOVE the measured window: "
+            f"f_char = {f_char:.2e} Hz vs f_max = {f_max:.2e} Hz. The whole "
+            f"window sits at omega*tau << 1, so the reported "
+            f"C_s = {cc['C_static']:.3e} F is what the data determine - but only "
+            f"as a sum: the split into C_inf = {cc['C_inf']:.3e} F and "
+            f"dC = {cc['dC']:.3e} F is not identified. Check their confidence "
+            f"intervals before reading either value on its own.")
+    elif (f_char is not None and frequencies.size > 0 and f_min > 0
+          and min(np.log10(f_char / f_min),
+                  np.log10(f_max / f_char)) < CC_WINDOW_EDGE_MARGIN_DECADES):
+        logger.warning(
+            f"Cole-Cole relaxation sits within "
+            f"{CC_WINDOW_EDGE_MARGIN_DECADES:g} decade(s) of the edge of the "
+            f"measured window (f_char = {f_char:.2e} Hz, window "
+            f"{f_min:.2e} .. {f_max:.2e} Hz). Only the tail of the dispersion is "
+            f"traced, so the C_inf/dC split rests on the last few points of the "
+            f"sweep; C_s = {cc['C_static']:.3e} F is reported but is only "
+            f"marginally determined.")
+
+    if not cc['tau_fixed']:
+        tau_lo, tau_hi = PARAMETER_BOUNDS['τ_CC']
+        status = classify_bound_status(tau, tau_lo, tau_hi)
+        if status:
+            logger.warning(
+                f"Cole-Cole tau = {tau:.2e} s sits at its {status} fitting bound "
+                f"({tau_lo:.0e} .. {tau_hi:.0e} s): the data did not determine "
+                f"it, so the relaxation strength dC and everything derived from "
+                f"it are unconstrained. Either extend the frequency range or fix "
+                f"tau to an independently known value.")
+
+
+def _find_parallel_rc_elements(
+    circuit,
+    frequencies: NDArray[np.float64]
+) -> List[Dict[str, Any]]:
     """
     Find all parallel R-C, R-Q combinations, K and CC elements in circuit.
 
     Returns list of dicts with keys: 'type', 'R', 'C' or 'Q'/'n', 'tau'.
     A CC entry has 'R' = None: a Cole-Cole element is a blocking dielectric
-    with no DC path, so it has no parallel resistance to report.
+    with no DC path, so it has no parallel resistance to report. Its 'C' is
+    the capacitance the measured window determines (see
+    `_cc_capacitance_regime`), which is why `frequencies` is needed here and
+    not only when the dominant element is finally reported.
     """
     results = []
 
@@ -124,22 +233,28 @@ def _find_parallel_rc_elements(circuit) -> List[Dict[str, Any]]:
             })
 
         elif isinstance(node, CC):
-            # Read node.params, never the named attributes: update_params()
-            # rewrites params but leaves node.C_inf / node.dC / node.tau at
-            # their construction-time values, so the attributes (and the
-            # C_static property) still hold the initial guess after a fit.
             C_inf_val, dC_val = node.params[0], node.params[1]
             tau_val, alpha_val = node.params[2], node.params[3]
             # The static (fully relaxed) capacitance is the one that pairs
-            # with a static permittivity such as eps_r = 22 for ZrO2;
-            # C_inf alone would give the high-frequency value.
+            # with a static permittivity such as eps_r = 22 for ZrO2 - but
+            # only when the data reach omega*tau << 1. With the relaxation
+            # below the measured window the fit determines C_inf alone, and
+            # C_s = C_inf + dC is an extrapolation to DC (see
+            # _cc_capacitance_regime and _log_cc_capacitance_choice).
+            regime = _cc_capacitance_regime(tau_val, frequencies)
             results.append({
                 'type': 'CC',
                 'R': None,          # blocking dielectric - no DC path
-                'C': C_inf_val + dC_val,
+                'C': C_inf_val if regime == 'high_frequency' else C_inf_val + dC_val,
                 'tau': tau_val,
                 'C_inf': C_inf_val,
                 'dC': dC_val,
+                'C_static': C_inf_val + dC_val,
+                'C_regime': regime,
+                # A tau pinned by the user (CC(..., tau="1e4")) is a choice,
+                # not an undetermined fit parameter - it must not raise the
+                # "parameter sits at its bound" warning.
+                'tau_fixed': bool(node.fixed_params[2]),
                 'alpha': alpha_val,
             })
 
@@ -245,7 +360,7 @@ def _extract_capacitance(
         circuit = fit_result.circuit
 
         # Find all parallel R-C/Q combinations and K elements
-        elements = _find_parallel_rc_elements(circuit)
+        elements = _find_parallel_rc_elements(circuit, frequencies)
 
         if not elements:
             logger.warning("No Voigt (R||C), K, CC, or R||Q elements found in circuit")
@@ -260,8 +375,9 @@ def _extract_capacitance(
                     logger.info(f"  [{i}] Q: R = {e['R']:.1f} Ω, "
                                 f"Q = {e['Q']:.3e}, n = {e['n']:.3f}")
                 elif e['type'] == 'CC':
-                    logger.info(f"  [{i}] CC: C_s = {e['C']:.3e} F "
-                                f"(C_inf = {e['C_inf']:.3e} + ΔC = {e['dC']:.3e}), "
+                    logger.info(f"  [{i}] CC: C_inf = {e['C_inf']:.3e} F, "
+                                f"ΔC = {e['dC']:.3e} F "
+                                f"(C_s = {e['C_static']:.3e} F), "
                                 f"tau = {e['tau']:.2e} s, alpha = {e['alpha']:.3f}")
                 else:
                     logger.info(f"  [{i}] {e['type']}: R = {e['R']:.1f} Ω, "
@@ -282,7 +398,7 @@ def _extract_capacitance(
                         "the one with the largest static capacitance. With several "
                         "dielectric relaxations the layer assignment is yours to make.")
                 dominant = max(cc_elements, key=lambda e: e['C'])
-                logger.info(f"Dominant element: CC with C_s = {dominant['C']:.3e} F")
+                logger.info(f"Dominant element: CC with C = {dominant['C']:.3e} F")
                 logger.info("Selected because the circuit models the dielectric "
                             "relaxation explicitly; the largest-R heuristic used for "
                             "R||C / R||Q / K elements does not apply")
@@ -303,9 +419,12 @@ def _extract_capacitance(
                 # Get capacitance
                 C_eff_brug = None
                 if dominant['type'] in ('C', 'K', 'CC'):
-                    # For CC this is exact, not an effective capacitance:
-                    # C_s = C_inf + dC is the omega -> 0 limit of C*(omega),
-                    # for any alpha. No Hsu-Mansfeld / Brug choice arises.
+                    # For CC this is exact, not an effective capacitance: both
+                    # C_s = C_inf + dC (the omega -> 0 limit of C*(omega), for
+                    # any alpha) and C_inf (the omega -> inf limit) are model
+                    # limits, not fits. No Hsu-Mansfeld / Brug choice arises;
+                    # which limit the data support was decided in
+                    # _cc_capacitance_regime.
                     C_eff = dominant['C']
                     tau = dominant['tau']
                 else:  # Q
@@ -360,8 +479,14 @@ def _extract_capacitance(
                     logger.info(f"  Broadening alpha:   {dominant['alpha']:.3f}")
                     logger.info(f"  C_inf / ΔC:         {dominant['C_inf']:.3e} F / "
                                 f"{dominant['dC']:.3e} F")
-                logger.info(f"  Capacitance:        {C_eff:.3e} F"
-                            + ("  (static, C_inf + ΔC)" if dominant['type'] == 'CC' else ""))
+                cc_suffix = ""
+                if dominant['type'] == 'CC':
+                    cc_suffix = ("  (C_inf, high-frequency limit)"
+                                 if dominant['C_regime'] == 'high_frequency'
+                                 else "  (static, C_inf + ΔC)")
+                logger.info(f"  Capacitance:        {C_eff:.3e} F{cc_suffix}")
+                if dominant['type'] == 'CC':
+                    _log_cc_capacitance_choice(dominant, frequencies)
                 if C_eff_brug is not None:
                     logger.info(f"  C (Brug, 2D):       {C_eff_brug:.3e} F "
                                 f"(comparison; primary value is Hsu-Mansfeld, 3D)")

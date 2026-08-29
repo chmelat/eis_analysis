@@ -219,17 +219,37 @@ C_eff = (R * Q)^(1/n) / R
 
 This is more accurate than simple `C_eff = Q` approximation.
 
-**For CC elements:**
+**For CC elements** the reported capacitance depends on where the relaxation
+sits relative to the measured frequency window. A Cole-Cole element disperses
+around `f_char = 1/(2*pi*tau)`, between two limits:
+
 ```
-C_s = C_inf + dC   (static, fully relaxed capacitance)
+omega*tau << 1  ->  C_s = C_inf + dC   (static, fully relaxed capacitance)
+omega*tau >> 1  ->  C_inf              (high-frequency capacitance)
 ```
 
-Unlike Q, this is exact rather than an effective value: `C_s` is the
-`omega -> 0` limit of `C*(omega)` for any broadening `alpha`, so no
-Hsu-Mansfeld / Brug modelling choice arises and no `alpha` threshold warning
-is needed. `C_s` is also the capacitance that pairs with a *static*
-permittivity such as `eps_r = 22` for ZrO2 - `C_inf` would correspond to the
-high-frequency value instead.
+Both are exact limits of `C*(omega)` for any broadening `alpha`, so unlike Q
+no Hsu-Mansfeld / Brug modelling choice arises and no `alpha` threshold
+warning is needed. What is *not* automatic is which of them the data actually
+determine:
+
+| `f_char` vs. window | Reported | Warning |
+|---------------------|----------|---------|
+| inside `[f_min, f_max]` | `C_s = C_inf + dC` | none (unless within one decade of an edge - only the tail of the dispersion is traced) |
+| below `f_min` | `C_inf` | relaxation below the window: every point sits at `omega*tau >> 1`, so `dC` is an extrapolation to DC through a region with no data |
+| above `f_max` | `C_s = C_inf + dC` | the whole window sits at `omega*tau << 1`, so `C_s` is measured - but only as a sum; the `C_inf`/`dC` split is unidentified |
+
+`C_s` is the capacitance that pairs with a *static* permittivity such as
+`eps_r = 22` for ZrO2, so it is the value to want - but only when the
+relaxation was measured. With `f_char` below the window, reporting `C_s`
+would inflate the permittivity by the ratio `C_s/C_inf`, which is exactly the
+unmeasured quantity.
+
+Independently of the window test, `tau` landing on a fitting bound
+(`1e-9 .. 1e4 s`) is reported as its own warning: a parameter on its bound was
+not determined by the data, so `dC` and everything derived from it are
+unconstrained. A `tau` the user fixed explicitly (`CC(..., tau="1e4")`) is a
+choice, not an undetermined parameter, and raises no bound warning.
 
 A CC is a blocking dielectric with no DC path, so it has no parallel
 resistance: `element_R` is `None` and the log reports `n/a`. The reported
@@ -277,7 +297,7 @@ highest-frequency point is used (pre-0.16.16 behavior).
 | `R(x) \| C(y)` | Parallel R-C | C directly |
 | `R(x) \| Q(Q, n)` | Parallel R-Q | Hsu-Mansfeld: (R*Q)^(1/n)/R |
 | `K(R, tau)` | K element | tau/R |
-| `CC(C_inf, dC, tau, alpha)` | CC element (wins outright) | C_inf + dC (static, exact) |
+| `CC(C_inf, dC, tau, alpha)` | CC element (wins outright) | C_inf + dC, or C_inf when the relaxation is below the measured window (both exact limits) |
 
 **Note:** Series R elements are ignored (they don't form RC time constants).
 

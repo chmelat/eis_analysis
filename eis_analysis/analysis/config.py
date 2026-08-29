@@ -45,6 +45,13 @@ HF_C_SPREAD_MAX_RATIO = 1.2
 # a value under it means "not identified by the fit", not "highly conductive".
 BRUG_RS_MIN_OHM = 1e-2
 
+# Cole-Cole: how close f_char = 1/(2*pi*tau) may come to an edge of the
+# measured frequency window before the C_inf/dC split is flagged as only
+# marginally determined. Within one decade of an edge only the tail of the
+# relaxation is traced, so the split rests on the last few points of the
+# sweep even though the hard in/out-of-window test still passes.
+CC_WINDOW_EDGE_MARGIN_DECADES = 1.0
+
 # Ratio C_eff(Hsu-Mansfeld) / C_eff(Brug) above which the two CPE models are
 # flagged as diverging rather than bracketing C_eff. The ratio is exactly
 # (1 + R_ct/R_s)^((1-n)/n), so it grows both with a blocking layer (large
@@ -62,4 +69,5 @@ __all__ = [
     'HF_C_SPREAD_MAX_RATIO',
     'BRUG_RS_MIN_OHM',
     'BRUG_HM_DIVERGENCE_MAX',
+    'CC_WINDOW_EDGE_MARGIN_DECADES',
 ]
