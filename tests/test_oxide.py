@@ -15,7 +15,7 @@ import numpy as np
 from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.fitting.circuit import FitResult
-from eis_analysis.fitting.circuit_elements import C, CC, K, Q, R
+from eis_analysis.fitting.circuit_elements import C, CC, K, L, Q, R
 
 OXIDE_LOGGER = 'eis_analysis.analysis.oxide'
 
@@ -352,7 +352,13 @@ def test_multiple_R_in_parallel_warns(caplog):
 
 
 def test_multiple_cap_in_parallel_warns(caplog):
-    """Regression (audit O4): (R|C1|C2) warns instead of silently taking the last C."""
+    """(R|C1|C2): the larger capacitance wins, not the last one written.
+
+    Was audit O4's "using the last one". Position in the expression is not a
+    physical criterion; both capacitors are now candidates in their own right
+    and are ranked by size, since they share the one resistance and the
+    largest-R heuristic cannot separate them.
+    """
     freq, Z = _synthetic_voigt()
     circuit = R(R_S) - (R(R_P) | C(1e-5) | C(C_P))
     fit_result = _fit_result(circuit, [R_S, R_P, 1e-5, C_P])
@@ -361,8 +367,9 @@ def test_multiple_cap_in_parallel_warns(caplog):
         oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
 
     assert oxide is not None
-    assert abs(oxide.capacitance - C_P) / C_P < 1e-9  # last one wins
-    assert 'Multiple C/Q elements' in caplog.text
+    assert abs(oxide.capacitance - 1e-5) / 1e-5 < 1e-9   # the larger one
+    assert 'share one parallel resistance' in caplog.text
+    assert 'not separately identifiable' in caplog.text
 
 
 # --- Audit O3: high-frequency fallback (Mode 2) ---
@@ -755,3 +762,142 @@ def test_cc_inside_window_logs_no_capacitance_warning(caplog):
     assert abs(oxide.capacitance - C_s) / C_s < 1e-12
     assert 'measured window' not in caplog.text
     assert 'fitting bound' not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Selecting the dielectric element (added 2026-08-29).
+#
+# The old traversal only registered a capacitance that shared a Parallel with
+# a resistance - a Voigt element. Reported failure: in L - R0 - (Q|C) the C
+# has no resistance beside it, so the whole analysis fell through to the
+# high-frequency spectral estimate (which itself reported a spread of 1.37
+# across the top decade) even though C was a fitted parameter with a 0.7 %
+# confidence interval. It landed 2 % from the reference value by luck.
+#
+# The criterion is now physical: the dielectric element is the one whose
+# admittance rises as omega^n with n near 1, whatever its type and wherever it
+# sits in the expression.
+# ---------------------------------------------------------------------------
+
+REPORTED_C = 9.06e-08   # The fitted capacitance the module used to ignore [F]
+
+
+def _fit_result_l_r_qc(n=0.85, C_val=REPORTED_C):
+    """The reported model L - R0 - (Q|C): a capacitance with no parallel R."""
+    circuit = L(1e-7) - R(R_S) - (Q(3e-6, n) | C(C_val))
+    return _fit_result(circuit, circuit.get_all_params())
+
+
+def test_capacitance_without_parallel_resistance_is_found(caplog):
+    """Regression: a fitted C with no R beside it must not fall through."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_l_r_qc())
+
+    assert oxide is not None
+    assert oxide.element_type == 'C'
+    assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
+    assert oxide.element_R is None          # there is no parallel resistance
+    assert oxide.element_tau is None        # so there is no RC time constant
+    # The whole point: no fallback
+    assert 'NOT FROM THE FIT' not in caplog.text
+    assert 'Falling back' not in caplog.text
+
+
+def test_series_capacitance_is_found():
+    """The same holds for a plain series C - no Parallel node at all."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - C(REPORTED_C)
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit,
+                                                       circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_type == 'C'
+    assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
+
+
+def test_ideal_c_beats_a_cpe_in_the_same_parallel(caplog):
+    """C (n = 1 exactly) outranks a CPE whose capacitance needs a model."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - (R(R_P) | Q(3e-6, 0.95) | C(REPORTED_C))
+
+    with caplog.at_level(logging.INFO, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result(
+                                        circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_type == 'C'        # not the Q, despite sharing R
+    assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
+
+
+def test_low_n_cpe_is_not_a_dielectric_but_still_beats_the_fallback(caplog):
+    """n = 0.57 is transport, not a dielectric - say so, but stay on the fit."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_voigt_q(0.57))
+
+    assert oxide is not None
+    assert oxide.element_type == 'Q'                    # still used
+    assert 'No dielectric element in circuit' in caplog.text
+    assert 'no dielectric meaning' in caplog.text
+    assert 'NOT FROM THE FIT' not in caplog.text        # not the spectral guess
+
+
+def test_near_ideal_cpe_is_a_dielectric(caplog):
+    """n = 0.9 is a near-ideal CPE - a dielectric, no "not a dielectric" warning."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result_voigt_q(0.9))
+
+    assert oxide is not None
+    assert oxide.element_type == 'Q'
+    assert 'No dielectric element in circuit' not in caplog.text
+
+
+def test_cpe_without_parallel_resistance_is_not_a_candidate(caplog):
+    """Hsu-Mansfeld and Brug both need R; without it a Q cannot be converted."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - Q(3e-6, 0.95)
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                    fit_result=_fit_result(
+                                        circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_type == 'estimate'     # nothing convertible -> fallback
+    assert 'no parallel resistance' in caplog.text
+    assert 'NOT FROM THE FIT' in caplog.text
+
+
+def test_hf_fallback_says_the_value_is_not_from_the_fit(caplog):
+    """The fallback must be as loud as a parameter sitting on its bound."""
+    freq, Z = _synthetic_voigt()
+
+    with caplog.at_level(logging.WARNING, logger=OXIDE_LOGGER):
+        analyze_oxide_layer(freq, Z, epsilon_r=22.0)
+
+    assert 'NOT FROM THE FIT' in caplog.text
+    assert 'no confidence interval' in caplog.text
+
+
+def test_cc_still_wins_over_a_plain_capacitance():
+    """C is CC's degenerate case (dC = 0); the general model must not lose."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA) - (R(R_P) | C(1e-5))
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit,
+                                                       circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_type == 'CC'

@@ -10,8 +10,9 @@ Two complementary functions for oxide layer analysis:
 | `estimate_permittivity()` | thickness | epsilon_r | Known thickness (SEM/TEM), estimate permittivity |
 
 **Key features:**
-- Finds dominant Voigt (R||C), K, R||Q or CC element (largest R = main barrier;
-  an explicit Cole-Cole element takes precedence, see below)
+- Finds the dielectric element by its physical nature - admittance rising as
+  `omega^n` with `n` near 1 - not by element type or position in the circuit
+  expression; a capacitance needs no parallel resistance to be found
 - Uses parallel plate capacitor model
 - For Q: uses Hsu-Mansfeld formula for effective capacitance (primary,
   3D model); the Brug (2D) estimate and thickness are reported alongside
@@ -170,36 +171,70 @@ metadata, including `--area 1.0`. Without either, 1.0 cm^2 is assumed.
 
 ### 1. Element Detection
 
-The function traverses the circuit tree and finds:
-- `Parallel(R, C)` combinations (Voigt elements)
-- `Parallel(R, Q)` combinations
-- `K` elements (Voigt with tau parametrization)
-- `CC` elements (Cole-Cole dielectric relaxation), wherever they sit in the
-  tree - including inside a parallel branch with a leakage resistance
+The function traverses the circuit tree and collects **every** capacitive
+element - `C`, `Q`, `K` and `CC` - wherever it sits, in a parallel
+combination or not. A parallel resistance is recorded when one is present
+(it is what the Hsu-Mansfeld/Brug conversion, `tau = R*C` and the largest-R
+heuristic need), but it is not required for the element to be found.
+
+Before v0.25.3 a capacitance was only registered when it shared a `Parallel`
+with a resistance - a Voigt element. That hid perfectly well fitted
+capacitances: in `L - R0 - (Q|C)` the `C` has no resistance beside it, so the
+whole analysis fell through to the high-frequency spectral estimate even
+though `C` was a fitted parameter with a 0.7 % confidence interval.
 
 Malformed or ambiguous circuits are handled with a warning:
-- a K element with R <= 0 is skipped (C = tau/R is undefined there);
-- when one parallel combination contains multiple R or multiple C/Q
-  elements (e.g. `(R1 | R2 | C)`), the last one is used.
+- a K element with `R <= 0` is skipped (`C = tau/R` is undefined there);
+- a `Q` with no parallel resistance is not a candidate - neither
+  Hsu-Mansfeld nor Brug can convert it without one;
+- when one parallel combination contains multiple R elements
+  (e.g. `(R1 | R2 | C)`), the last one is used.
 
 ### 2. Dominant Element Selection
 
-**A `CC` element wins outright.** A Cole-Cole element models the dielectric
-relaxation explicitly, so it *is* the film - there is nothing to disambiguate.
-The largest-R rule below exists only to tell a compact oxide apart from a
-charge-transfer process when both appear as R||C arcs, and that ambiguity does
-not arise for a CC. With more than one CC in the circuit the largest static
-capacitance is used and a warning is logged: assigning several dielectric
-relaxations to layers is the operator's call, not the tool's.
+Selection is two separate questions, and conflating them is what produced the
+bugs this section documents: **which element carries the dielectric response**,
+and **which value to take from it** (section 3).
 
-Otherwise, selects the element with **largest resistance R**.
+**Step 1 - which element.** The criterion is physical: the dielectric element
+is the one whose admittance rises as `omega^n` with `n` close to 1. `C` and
+`K` are `n = 1` by construction, a `CC` is `n = 1` in both of its limits, and
+a CPE qualifies only when its exponent is near-ideal (`n >= 0.8`,
+`CPE_N_RELIABLE_MIN`). A CPE at `n ~ 0.6` describes transport or a
+distribution of resistivity - it is not a dielectric. This criterion replaces
+both the old "find a Voigt element" search and the old "use the last one"
+tie-break, neither of which was physical.
 
-**Physical justification:**
+Among the qualifying elements, the order is by how directly each one's
+capacitance is determined:
+
+1. `CC` - the general dielectric relaxation model. A plain `C` is its
+   degenerate case (`dC = 0`), so the more general element wins if both are
+   somehow present; preferring the simpler one would be backwards. (In
+   practice they are alternative descriptions of the same thing and do not
+   appear together.) With more than one `CC` the largest static capacitance
+   is used and a warning is logged - assigning several relaxations to layers
+   is the operator's call.
+2. `C` and `K` - the capacitance is a fitted parameter, exact.
+3. `Q` - a near-ideal CPE, whose capacitance still needs the
+   Hsu-Mansfeld/Brug model on top of the fit.
+
+Within a tier the element with the **largest resistance R** wins:
+
 - Compact oxide = excellent insulator = dominant resistance barrier
 - Other processes (double layer, pores) have smaller R
 - Largest R typically corresponds to compact oxide layer
 
-All candidate elements (type, R, C/Q, tau) are listed in the log together
+Elements sharing one parallel resistance are ranked by capacitance instead
+(the heuristic cannot separate them), with a warning that their individual
+values are not identifiable from the spectrum; so are elements with no
+parallel resistance at all, there being no R to compare.
+
+If nothing qualifies as a dielectric but a low-`n` CPE is present, that CPE is
+used with a loud warning that the result has no dielectric meaning - it is
+still a fitted parameter, which the spectral fallback is not.
+
+All candidate elements (type, R, C/Q/n, tau) are listed in the log together
 with the stated selection assumption, so the choice can be verified.
 **Caution:** a charge-transfer process can also have the largest R -
 always check that the selected element represents the oxide.
@@ -275,10 +310,20 @@ where:
 
 ### 5. Fallback Without a Fitted Circuit (Mode 2)
 
+**Genuinely the last resort.** It applies only when there is no fit at all, or
+when the fitted circuit contains no capacitive element the analysis can read a
+value from. Any fitted element - even a low-`n` CPE that is not a dielectric -
+is preferred over it.
+
 Without `fit_result`, capacitance is estimated as the **median** of
 `C_i = -1 / (omega * Z'')` over the capacitive points in the top frequency
 decade (`f >= f_max / 10`). Warnings are logged:
 
+- always, and as plainly as a parameter sitting on its bound: the value is
+  **not from the fit**, carries no confidence interval, and the thickness or
+  permittivity derived from it is an order-of-magnitude figure. It can land
+  close to the right answer by luck - in one reported case within 2 % - which
+  is exactly why it has to say so;
 - always: for multilayer (series) systems the estimate yields the *series
   combination* of layer capacitances;
 - when the per-point estimates spread by more than max/min = 1.2 across
@@ -292,12 +337,16 @@ highest-frequency point is used (pre-0.16.16 behavior).
 
 ## Supported Circuit Elements
 
-| Element | Detection | Capacitance |
-|---------|-----------|-------------|
-| `R(x) \| C(y)` | Parallel R-C | C directly |
-| `R(x) \| Q(Q, n)` | Parallel R-Q | Hsu-Mansfeld: (R*Q)^(1/n)/R |
-| `K(R, tau)` | K element | tau/R |
-| `CC(C_inf, dC, tau, alpha)` | CC element (wins outright) | C_inf + dC, or C_inf when the relaxation is below the measured window (both exact limits) |
+| Element | Dielectric (n) | Capacitance |
+|---------|----------------|-------------|
+| `C(y)` | yes, n = 1 exactly | C directly |
+| `Q(Q, n)` | only when n >= 0.8 | Hsu-Mansfeld: (R*Q)^(1/n)/R, needs a parallel R |
+| `K(R, tau)` | yes, n = 1 (Voigt reparametrised) | tau/R |
+| `CC(C_inf, dC, tau, alpha)` | yes, n = 1 in both limits | C_inf + dC, or C_inf when the relaxation is below the measured window (both exact limits) |
+
+A parallel resistance is **not** required for an element to be found; it is
+only needed to convert a `Q`, to form `tau = R*C`, and to rank candidates by
+the largest-R heuristic.
 
 **Note:** Series R elements are ignored (they don't form RC time constants).
 

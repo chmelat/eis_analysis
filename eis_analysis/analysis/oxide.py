@@ -151,69 +151,77 @@ def _log_cc_capacitance_choice(
                 f"tau to an independently known value.")
 
 
-def _find_parallel_rc_elements(
+def _find_capacitive_elements(
     circuit,
     frequencies: NDArray[np.float64]
 ) -> List[Dict[str, Any]]:
     """
-    Find all parallel R-C, R-Q combinations, K and CC elements in circuit.
+    Find every capacitive element in the circuit: C, Q, K and CC.
 
-    Returns list of dicts with keys: 'type', 'R', 'C' or 'Q'/'n', 'tau'.
-    A CC entry has 'R' = None: a Cole-Cole element is a blocking dielectric
-    with no DC path, so it has no parallel resistance to report. Its 'C' is
-    the capacitance the measured window determines (see
-    `_cc_capacitance_regime`), which is why `frequencies` is needed here and
-    not only when the dominant element is finally reported.
+    A capacitive element is a candidate on its own account, whether or not it
+    shares a parallel combination with a resistance. Requiring a parallel R -
+    a Voigt element - used to hide a perfectly well fitted capacitance: in
+    `L - R0 - (Q|C)` the `C` has no resistance beside it, so the whole
+    analysis fell through to the high-frequency spectral estimate even though
+    `C` was a fitted parameter with a 0.7 % confidence interval.
+
+    A parallel resistance, where one exists, is still recorded: it is what the
+    Hsu-Mansfeld/Brug conversion of a `Q` needs, what `tau = R*C` needs, and
+    what the largest-R barrier heuristic compares. `R` = None simply means the
+    element has no DC path beside it.
+
+    Returns list of dicts. Common keys: 'type', 'R' (may be None), 'tau' (may
+    be None), and 'n' - the exponent of the element's admittance, Y ~ omega^n,
+    which is how the dielectric element is identified downstream. A CC entry
+    additionally carries the capacitance the measured window determines (see
+    `_cc_capacitance_regime`), which is why `frequencies` is needed here.
     """
     results = []
 
-    def traverse(node):
+    def parallel_resistance(node) -> Optional[float]:
+        """Resistance of the R elements that are direct children of a Parallel."""
+        r_elements = [e for e in node.elements if isinstance(e, R)]
+        if not r_elements:
+            return None
+        if len(r_elements) > 1:
+            logger.warning("Multiple R elements in one parallel "
+                           "combination - using the last one")
+        return r_elements[-1].params[0]
+
+    def traverse(node, R_parallel: Optional[float]) -> None:
         if isinstance(node, Parallel):
-            # Check if this parallel contains R with C/Q
-            elements = node.elements
-            R_elem = None
-            cap_elem = None
-
-            for elem in elements:
-                if isinstance(elem, R):
-                    if R_elem is not None:
-                        logger.warning("Multiple R elements in one parallel "
-                                       "combination - using the last one")
-                    R_elem = elem
-                elif isinstance(elem, (C, Q)):
-                    if cap_elem is not None:
-                        logger.warning("Multiple C/Q elements in one parallel "
-                                       "combination - using the last one")
-                    cap_elem = elem
-
-            if R_elem is not None and cap_elem is not None:
-                R_val = R_elem.params[0]
-                if isinstance(cap_elem, C):
-                    C_val = cap_elem.params[0]
-                    results.append({
-                        'type': 'C',
-                        'R': R_val,
-                        'C': C_val,
-                        'tau': R_val * C_val
-                    })
-                elif isinstance(cap_elem, Q):
-                    Q_val = cap_elem.params[0]
-                    n_val = cap_elem.params[1]
-                    results.append({
-                        'type': 'Q',
-                        'R': R_val,
-                        'Q': Q_val,
-                        'n': n_val,
-                        'tau': None  # Will be computed later
-                    })
-
-            # Continue traversing children
-            for elem in elements:
-                traverse(elem)
+            # An inner Parallel with no R of its own stays under the enclosing
+            # one's resistance: R | (C | Q) is just R | C | Q rewritten.
+            own_R = parallel_resistance(node)
+            R_here = own_R if own_R is not None else R_parallel
+            for elem in node.elements:
+                traverse(elem, R_here)
 
         elif isinstance(node, Series):
+            # A series boundary ends the scope of any enclosing parallel R:
+            # in R | (C - R2) the capacitor is in series with R2, not parallel
+            # to R.
             for elem in node.elements:
-                traverse(elem)
+                traverse(elem, None)
+
+        elif isinstance(node, C):
+            C_val = node.params[0]
+            results.append({
+                'type': 'C',
+                'R': R_parallel,
+                'C': C_val,
+                'n': 1.0,           # an ideal capacitor, by construction
+                'tau': R_parallel * C_val if R_parallel else None,
+            })
+
+        elif isinstance(node, Q):
+            results.append({
+                'type': 'Q',
+                'R': R_parallel,
+                'Q': node.params[0],
+                'n': node.params[1],
+                'tau': None,        # needs C_eff first; computed later
+            })
 
         elif isinstance(node, K):
             # K element directly provides R and tau
@@ -224,12 +232,12 @@ def _find_parallel_rc_elements(
                 # by the dominant-element filter anyway
                 logger.warning(f"K element with non-positive R = {R_val:g} Ω - skipping")
                 return
-            C_val = tau_val / R_val
             results.append({
                 'type': 'K',
                 'R': R_val,
-                'C': C_val,
-                'tau': tau_val
+                'C': tau_val / R_val,
+                'n': 1.0,           # K is a Voigt R||C reparameterised
+                'tau': tau_val,
             })
 
         elif isinstance(node, CC):
@@ -246,6 +254,7 @@ def _find_parallel_rc_elements(
                 'type': 'CC',
                 'R': None,          # blocking dielectric - no DC path
                 'C': C_inf_val if regime == 'high_frequency' else C_inf_val + dC_val,
+                'n': 1.0,           # Y = j*omega*C*(omega) in both limits
                 'tau': tau_val,
                 'C_inf': C_inf_val,
                 'dC': dC_val,
@@ -258,8 +267,98 @@ def _find_parallel_rc_elements(
                 'alpha': alpha_val,
             })
 
-    traverse(circuit)
+    traverse(circuit, None)
     return results
+
+
+def _element_size(element: Dict[str, Any]) -> float:
+    """Capacitive magnitude used to rank elements the R heuristic cannot separate.
+
+    The fitted capacitance for C, K and CC; the CPE coefficient for Q, which
+    is only ever compared against other Q elements (a tier holds one kind).
+    """
+    return float(element['C'] if 'C' in element else element['Q'])
+
+
+def _select_dielectric_element(
+    candidates: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Pick the element that carries the dielectric response.
+
+    Caller has already applied the physical criterion (admittance ~ omega^n
+    with n near 1); this only resolves which of several qualifying elements to
+    report, in order of how directly each one's capacitance is determined:
+
+    1. `CC` - the general dielectric relaxation model. A plain `C` is its
+       degenerate case (dC = 0), so if both somehow appear the general model
+       wins; preferring the simpler element over the more general one would be
+       backwards.
+    2. `C` and `K` - the capacitance is a fitted parameter, exact.
+    3. `Q` - a near-ideal CPE, whose capacitance still needs the
+       Hsu-Mansfeld/Brug model on top of the fit.
+
+    Within a tier the largest-R element is taken to be the compact barrier -
+    the long-standing heuristic, which only distinguishes an oxide barrier
+    from a charge-transfer process. Elements with no parallel resistance have
+    no R to compare and are ranked by capacitance instead.
+    """
+    cc = [e for e in candidates if e['type'] == 'CC']
+    if cc:
+        if len(cc) > 1:
+            logger.warning(
+                f"{len(cc)} Cole-Cole elements in circuit - using "
+                "the one with the largest static capacitance. With several "
+                "dielectric relaxations the layer assignment is yours to make.")
+        dominant = max(cc, key=lambda e: e['C'])
+        logger.info(f"Dominant element: CC with C = {dominant['C']:.3e} F")
+        logger.info("Selected because the circuit models the dielectric "
+                    "relaxation explicitly; a plain C is its degenerate case "
+                    "(ΔC = 0), so the general model wins")
+        return dominant
+
+    exact = [e for e in candidates if e['type'] in ('C', 'K')]
+    tier = exact if exact else candidates
+    with_R = [e for e in tier if e['R'] is not None and e['R'] > 0]
+
+    if with_R:
+        # Rank by R, then by size: elements sharing one parallel resistance sit
+        # in the same combination, where the heuristic has nothing to say and
+        # the larger capacitance is the dominant contribution
+        dominant = max(with_R, key=lambda e: (e['R'], _element_size(e)))
+        tied = [e for e in with_R if e['R'] == dominant['R']]
+        if len(tied) > 1:
+            logger.warning(
+                f"{len(tied)} capacitive elements share one parallel resistance "
+                f"(R = {dominant['R']:.1f} Ω) - using the largest, "
+                f"{_element_size(dominant):.3e}. They are one parallel "
+                "combination, so their individual values are not separately "
+                "identifiable from the spectrum.")
+        if len(tier) > len(with_R):
+            logger.warning(
+                f"{len(tier) - len(with_R)} capacitive element(s) have no "
+                "parallel resistance and cannot be ranked by the largest-R "
+                "heuristic - they were not considered for the dominant "
+                "element. Name the layer explicitly if one of them is it.")
+        logger.info(f"Dominant element: {dominant['type']} with "
+                    f"R = {dominant['R']:.1f} Ω")
+        logger.info("Selection assumes the largest-R element is the compact "
+                    "oxide barrier (verify: a charge-transfer process can "
+                    "also have the largest R)")
+        return dominant
+
+    # No resistance anywhere in the tier: rank by capacitance instead
+    dominant = max(tier, key=_element_size)
+    if len(tier) > 1:
+        logger.warning(
+            f"{len(tier)} capacitive elements with no parallel resistance - "
+            "using the largest. Their individual values are not separately "
+            "identifiable from the spectrum, so check the fit before relying "
+            "on the split.")
+    logger.info(f"Dominant element: {dominant['type']} with "
+                f"C = {_element_size(dominant):.3e} F "
+                f"(no parallel resistance to rank by)")
+    return dominant
 
 
 def _estimate_cpe_capacitance(Q_val: float, n: float, R_val: float) -> float:
@@ -359,11 +458,11 @@ def _extract_capacitance(
     if fit_result is not None:
         circuit = fit_result.circuit
 
-        # Find all parallel R-C/Q combinations and K elements
-        elements = _find_parallel_rc_elements(circuit, frequencies)
+        # Every C, Q, K and CC in the circuit, parallel resistance or not
+        elements = _find_capacitive_elements(circuit, frequencies)
 
         if not elements:
-            logger.warning("No Voigt (R||C), K, CC, or R||Q elements found in circuit")
+            logger.warning("No capacitive element (C, Q, K, CC) found in circuit")
             logger.warning("Falling back to high-frequency estimate...")
             fit_result = None
         else:
@@ -371,8 +470,10 @@ def _extract_capacitance(
             # verified (largest R may also be a charge-transfer process)
             logger.info(f"Found {len(elements)} capacitive element(s):")
             for i, e in enumerate(elements, 1):
+                R_str = (f"R = {e['R']:.1f} Ω" if e['R'] is not None
+                         else "no parallel R")
                 if e['type'] == 'Q':
-                    logger.info(f"  [{i}] Q: R = {e['R']:.1f} Ω, "
+                    logger.info(f"  [{i}] Q: {R_str}, "
                                 f"Q = {e['Q']:.3e}, n = {e['n']:.3f}")
                 elif e['type'] == 'CC':
                     logger.info(f"  [{i}] CC: C_inf = {e['C_inf']:.3e} F, "
@@ -380,39 +481,54 @@ def _extract_capacitance(
                                 f"(C_s = {e['C_static']:.3e} F), "
                                 f"tau = {e['tau']:.2e} s, alpha = {e['alpha']:.3f}")
                 else:
-                    logger.info(f"  [{i}] {e['type']}: R = {e['R']:.1f} Ω, "
-                                f"C = {e['C']:.3e} F, tau = {e['tau']:.2e} s")
+                    tau_str = (f", tau = {e['tau']:.2e} s" if e['tau'] is not None
+                               else "")
+                    logger.info(f"  [{i}] {e['type']}: {R_str}, "
+                                f"C = {e['C']:.3e} F{tau_str}")
 
-            # A Cole-Cole element is an explicit model of the dielectric
-            # relaxation, so it is the film - no heuristic needed. The
-            # largest-R rule below exists only to tell an oxide barrier
-            # apart from a charge-transfer process when both are R||C arcs;
-            # a CC carries no such ambiguity.
-            cc_elements = [e for e in elements if e['type'] == 'CC']
-            elements_with_R = [e for e in elements if e.get('R') is not None and e['R'] > 0]
-
-            if cc_elements:
-                if len(cc_elements) > 1:
+            # Which element carries the dielectric response? The criterion is
+            # physical - admittance rising as omega^n with n close to 1 - not
+            # the element type and not its position in the expression. C and K
+            # are n = 1 by construction, a CC is n = 1 in both of its limits,
+            # and a CPE qualifies only when its exponent is near-ideal: a CPE
+            # at n ~ 0.6 describes transport or a distribution of resistivity,
+            # not a dielectric.
+            usable = []
+            for e in elements:
+                if e['type'] == 'Q' and not (e['R'] is not None and e['R'] > 0):
+                    # Both Hsu-Mansfeld and Brug need the parallel resistance;
+                    # without it a CPE cannot be converted to a capacitance
                     logger.warning(
-                        f"{len(cc_elements)} Cole-Cole elements in circuit - using "
-                        "the one with the largest static capacitance. With several "
-                        "dielectric relaxations the layer assignment is yours to make.")
-                dominant = max(cc_elements, key=lambda e: e['C'])
-                logger.info(f"Dominant element: CC with C = {dominant['C']:.3e} F")
-                logger.info("Selected because the circuit models the dielectric "
-                            "relaxation explicitly; the largest-R heuristic used for "
-                            "R||C / R||Q / K elements does not apply")
-            elif not elements_with_R:
-                logger.warning("No elements with valid resistance found")
+                        f"CPE with n = {e['n']:.3f} has no parallel resistance - "
+                        "neither Hsu-Mansfeld nor Brug can convert it to a "
+                        "capacitance, so it is not a candidate.")
+                else:
+                    usable.append(e)
+
+            dielectric = [e for e in usable if e['n'] >= CPE_N_RELIABLE_MIN]
+            non_ideal = [e for e in usable if e['n'] < CPE_N_RELIABLE_MIN]
+
+            if dielectric:
+                dominant = _select_dielectric_element(dielectric)
+            elif non_ideal:
+                # Nothing in the circuit behaves as a dielectric. Better than
+                # the spectral fallback - these are at least fitted parameters
+                # - but the result is not a dielectric capacitance.
+                logger.warning(
+                    f"No dielectric element in circuit: the only capacitive "
+                    f"element(s) are CPEs with n < {CPE_N_RELIABLE_MIN} "
+                    f"(largest n = {max(e['n'] for e in non_ideal):.3f}). Such a "
+                    "CPE describes transport or a distribution of resistivity, "
+                    "not a dielectric, so the capacitance below - and any "
+                    "thickness or permittivity from it - has no dielectric "
+                    "meaning. Reported only because it is still a fitted "
+                    "parameter, unlike the high-frequency estimate.")
+                dominant = _select_dielectric_element(non_ideal)
+            else:
+                logger.warning("No convertible capacitive element found")
+                logger.warning("Falling back to high-frequency estimate...")
                 fit_result = None
                 dominant = None
-            else:
-                dominant = max(elements_with_R, key=lambda e: e['R'])
-
-                logger.info(f"Dominant element: {dominant['type']} with R = {dominant['R']:.1f} Ω")
-                logger.info("Selection assumes the largest-R element is the compact "
-                            "oxide barrier (verify: a charge-transfer process can "
-                            "also have the largest R)")
 
             if dominant is not None:
 
@@ -473,8 +589,11 @@ def _extract_capacitance(
                 logger.info(f"  Element type:       {dominant['type']}")
                 if dominant['R'] is not None:
                     logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
-                else:
+                elif dominant['type'] == 'CC':
                     logger.info("  Resistance:         n/a (blocking dielectric)")
+                else:
+                    logger.info("  Resistance:         n/a (no parallel R "
+                                "in the circuit)")
                 if dominant['type'] == 'CC':
                     logger.info(f"  Broadening alpha:   {dominant['alpha']:.3f}")
                     logger.info(f"  C_inf / ΔC:         {dominant['C_inf']:.3e} F / "
@@ -504,8 +623,13 @@ def _extract_capacitance(
                             "any thickness or permittivity derived from them, as "
                             "order-of-magnitude estimates only.")
                 logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
-                logger.info(f"  Time constant:      {tau:.3e} s")
-                logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
+                if tau is not None and tau > 0:
+                    logger.info(f"  Time constant:      {tau:.3e} s")
+                    logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
+                else:
+                    # A capacitance with no parallel resistance has no RC time
+                    # constant - there is nothing to discharge through
+                    logger.info("  Time constant:      n/a (no parallel R)")
 
                 return {
                     'C_eff': C_eff,
@@ -520,6 +644,16 @@ def _extract_capacitance(
 
     # === Mode 2: Fallback - high-frequency estimate ===
     logger.info("Mode: High-frequency estimate (simplified)")
+    # Stated as plainly as a parameter sitting on its bound: the number below
+    # is a spectral guess, not a fitted quantity, and nothing downstream
+    # distinguishes the two once they are printed side by side.
+    logger.warning(
+        "NOT FROM THE FIT: the capacitance below is estimated directly from "
+        "the spectrum (median of C = -1/(omega*Z'') over the top frequency "
+        "decade), because the circuit offered no capacitive element to read it "
+        "from. It carries no confidence interval and the thickness or "
+        "permittivity derived from it is an order-of-magnitude figure - treat "
+        "it as such even when it happens to land near the expected value.")
     logger.warning("For better accuracy, provide fitted circuit via fit_result")
     logger.warning("For multilayer (series) systems the high-frequency estimate "
                    "yields the series combination of layer capacitances")

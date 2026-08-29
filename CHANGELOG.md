@@ -4,6 +4,63 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.3 (2026-08-29)
+
+### Fixed
+
+- **A fitted capacitance with no resistance beside it is no longer ignored**
+  (`analysis/oxide.py`). The traversal only registered a `C` or `Q` that
+  shared a `Parallel` with an `R` - a Voigt element. In `L - R0 - (Q|C)` the
+  `C` has no resistance next to it, so `--analyze-oxide` reported
+  `No Voigt (R||C), K, or R||Q elements found in circuit` and fell through to
+  the high-frequency spectral estimate - which itself warned that its
+  per-point values spread by a factor of 1.37 across the top decade - even
+  though `C` was a fitted parameter with a 0.7 % confidence interval. It
+  happened to land within 2 % of the reference value; with other data or
+  another circuit the error could have been large and invisible.
+
+  `_find_parallel_rc_elements()` is now `_find_capacitive_elements()` and
+  collects every `C`, `Q`, `K` and `CC` in the tree, with or without a
+  parallel resistance. A resistance, where present, is still recorded - it is
+  what the Hsu-Mansfeld/Brug conversion, `tau = R*C` and the largest-R
+  heuristic need.
+
+### Changed
+
+- **The dielectric element is now chosen by physics, not by element type or
+  position in the expression.** Selection was conflating two questions -
+  which element carries the dielectric response, and which value to take from
+  it. They are now separate steps.
+
+  Step 1: the dielectric element is the one whose admittance rises as
+  `omega^n` with `n` near 1. `C` and `K` are `n = 1` by construction, a `CC`
+  is `n = 1` in both of its limits, and a CPE qualifies only when its exponent
+  is near-ideal (reusing `CPE_N_RELIABLE_MIN = 0.8`); a CPE at `n ~ 0.6` is
+  transport or a distribution of resistivity, not a dielectric. Among the
+  qualifying elements the order is `CC` (a plain `C` is its degenerate case
+  `dC = 0`, so the general model wins), then `C`/`K` whose capacitance is a
+  fitted parameter, then near-ideal `Q` whose capacitance still needs a model.
+  Within a tier the largest-R heuristic is unchanged.
+
+  This replaces the `Multiple C/Q elements in one parallel combination - using
+  the last one` behaviour: position in the circuit expression was never a
+  physical criterion. Elements that share one parallel resistance are now
+  ranked by capacitance, with a warning that their individual values are not
+  separately identifiable from the spectrum.
+
+  A circuit whose only capacitive elements are low-`n` CPEs still uses them -
+  they are fitted parameters, unlike the spectral fallback - but says plainly
+  that the result has no dielectric meaning.
+
+- **The high-frequency fallback says it is not from the fit.** It now leads
+  with a warning of the same weight as a parameter sitting on its bound: the
+  capacitance carries no confidence interval and any thickness or permittivity
+  from it is an order-of-magnitude figure, however close it happens to land.
+  A `Q` with no parallel resistance is reported as not convertible (both
+  Hsu-Mansfeld and Brug need `R`) rather than silently skipped.
+
+---
+
 ## Version 0.25.2 (2026-08-29)
 
 ### Fixed
