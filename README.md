@@ -17,7 +17,13 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 **Supported data formats:**
 
 - **Gamry DTA** - native format (automatic metadata parsing, ZCURVE block)
-- **CSV** - three columns with header: `frequency`, `Z_real`, `Z_imag`
+- **CSV** - three columns with a header row, e.g. `frequency`, `Z_real`, `Z_imag`
+  - Column names are matched case-insensitively against: frequency -
+    `freq`, `frequency`, `f`, `hz`; real part - `zreal`, `z_real`, `z'`,
+    `re(z)`, `real`, `z.real`, `re`; imaginary part - `zimag`, `z_imag`,
+    `z''`, `im(z)`, `imag`, `z.imag`, `im`
+  - If no name matches, the first three columns are used positionally
+    (with a warning)
   - Delimiter: comma, semicolon, or tab (auto-detection)
   - Decimal format: US (dot) and European (comma for semicolon-delimited)
   - Comments: lines starting with `#` are ignored
@@ -394,7 +400,7 @@ the fit reports `Global search contributed nothing` - see
 
 ### Output and visualization
 
-- `--save`, `-s` - Save plots with this prefix. Example: `--save results` creates `results_nyquist.png`, etc.
+- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and (with `--ri-fit`) `results_ri_fit`, each with the extension given by `--format`. Only the plots actually produced by the run are written.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).
