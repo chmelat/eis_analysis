@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.25.4
+**Current version:** v0.25.5
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 

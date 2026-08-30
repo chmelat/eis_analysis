@@ -4,6 +4,33 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.5 (2026-08-30)
+
+### Added
+
+- **Regression benchmark on the ZScope reference circuits**
+  (`tests/test_zscope_benchmark.py`, 20 tests). Parameter recovery is checked
+  on the four circuits of the published ZScope v2.2.0 benchmark - Randles,
+  Randles+Warburg, CPE Randles and two time constants - over their frequency
+  grid (80 points, 1e-2 to 1e5 Hz).
+
+  Three assertions per circuit: exact recovery of the generating parameters
+  from noise-free data (< 0.1%), parameter recovery within a calibrated band
+  at 2% and 5% proportional noise, and convergence to the noise floor. The
+  ground truth was verified against the ZScope CSVs to max|dZ|/|Z| ~ 5e-7;
+  the data is regenerated in the test rather than vendored, because the
+  license of their CSVs is unclear (their repository ships only the CC BY 3.0
+  license of its website template).
+
+  The Two_TimeConstants comparison orders the RC branches by tau before
+  comparing. A series chain of Voigt elements is invariant under permutation
+  of its branches, and the fitter does return them swapped - it did so on the
+  ZScope 2% data at an otherwise correct RMSE of 2.0%.
+
+  See `doc/ZSCOPE_COMPARISON.md` for the full comparison against ZScope.
+
+---
+
 ## Version 0.25.4 (2026-08-30)
 
 ### Fixed
