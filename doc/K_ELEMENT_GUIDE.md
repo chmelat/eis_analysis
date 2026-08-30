@@ -1,125 +1,126 @@
-# K Element - Voigt element s τ parametrizací
+# K Element - Voigt element with tau parametrization
 
-## Přehled
+## Overview
 
-Element **K(R, τ)** je alternativní parametrizace Voigtova elementu (R||C), která používá časovou konstantu τ místo kapacity C.
+The **K(R, tau)** element is an alternative parametrization of the Voigt
+element (R||C) that uses the time constant tau instead of the capacitance C.
 
 **Impedance:**
 ```
-Z_K(ω) = R / (1 + jωτ)
+Z_K(omega) = R / (1 + j*omega*tau)
 ```
 
-**Ekvivalence:**
+**Equivalence:**
 ```
-K(R, τ) ≡ (R || C)  kde  C = τ/R
+K(R, tau) == (R || C)   where   C = tau/R
 ```
 
 ---
 
-## Výhody K(R, τ) vs (R||C)
+## Why K(R, tau) rather than (R||C)
 
-### 1. Fyzikální intuitivnost
-
-```python
-# Klasický Voigt: Jaká je charakteristická frekvence?
-circuit = R(1000) | C(1e-7)  # τ = R×C = 1e-4 s → f = ? (musím počítat)
-
-# K element: Přímý vztah k frekvenci
-circuit = K(1000, 1e-4)      # τ = 1e-4 s → f = 1/(2πτ) = 1.59 kHz ✓
-```
-
-**Časová konstanta τ má jasný význam:**
-- τ určuje charakteristickou frekvenci: **f_c = 1/(2πτ)**
-- Při f = f_c: impedance je polovina maxima, fáze = -45°
-- τ přímo odpovídá relaxačnímu času procesu
-
-### 2. Lepší separace parametrů při fittingu
+### 1. Physical readability
 
 ```python
-# Problém s (R||C):
-# Změna R → mění se f_c (pokud C zůstane konstantní)
-R = 1000 Ω, C = 1e-7 F  →  τ = 1e-4 s, f_c = 1.6 kHz
-R = 2000 Ω, C = 1e-7 F  →  τ = 2e-4 s, f_c = 800 Hz  (frekvence se změnila!)
+# Classic Voigt: what is the characteristic frequency?
+circuit = R(1000) | C(1e-7)  # tau = R*C = 1e-4 s -> f = ? (compute it first)
 
-# S K(R, τ):
-# R a τ jsou nezávislé → lepší kondicionování
-K(1000, 1e-4)  →  f_c = 1.6 kHz
-K(2000, 1e-4)  →  f_c = 1.6 kHz  (frekvence zachována!)
+# K element: the frequency is right there
+circuit = K(1000, 1e-4)      # tau = 1e-4 s -> f = 1/(2*pi*tau) = 1.59 kHz
 ```
 
-**Parametry mají jasné role:**
-- **R** kontroluje amplitudu (výšku semicircle v Nyquist)
-- **τ** kontroluje frekvenci (pozici semicircle na frekvenční ose)
+**What tau means:**
+- tau sets the characteristic frequency: **f_c = 1/(2*pi*tau)**
+- At f = f_c the phase is -45 deg and |Z| = R/sqrt(2) ~ 0.707 R. This is the
+  half-*power* point: the real and imaginary parts are both R/2, so |Z| is
+  0.707 R, not R/2.
+- tau is the relaxation time of the process
 
-### 3. Konzistence s DRT analýzou
-
-DRT (Distribution of Relaxation Times) používá τ jako primární parametr:
-
-```
-γ(τ) = distribuce časových konstant
-```
-
-**K element je přirozeným mostem mezi DRT a circuit fittingem:**
-- DRT peak při τ_i → K(R_i, τ_i) element
-- Integrace DRT píku → R_i = ∫ γ(τ) d(ln τ)
-- Přímo použitelné pro konstrukci obvodu
-
-### 4. Lin-KK kompatibilita
-
-Lin-KK test (Schönleber et al. 2014) používá právě K(R, τ) parametrizaci:
+### 2. Better parameter separation when fitting
 
 ```
-Z_LinKK = R_0 + Σ K(R_k, τ_k)
+With (R||C), R and the characteristic frequency are coupled:
+  R = 1000 Ohm, C = 1e-7 F  ->  tau = 1e-4 s, f_c = 1.6 kHz
+  R = 2000 Ohm, C = 1e-7 F  ->  tau = 2e-4 s, f_c = 800 Hz   (frequency moved!)
+
+With K(R, tau) they are not:
+  K(1000, 1e-4)  ->  f_c = 1.6 kHz
+  K(2000, 1e-4)  ->  f_c = 1.6 kHz   (frequency unchanged)
 ```
 
-K element umožňuje přímé použití výsledků z Lin-KK testu.
+**Each parameter has one job:**
+- **R** sets the amplitude (the height of the Nyquist semicircle)
+- **tau** sets the frequency (its position on the frequency axis)
+
+### 3. Consistency with DRT analysis
+
+DRT (Distribution of Relaxation Times) uses tau as its primary variable:
+
+```
+gamma(tau) = distribution of time constants
+```
+
+**The K element is the natural bridge between DRT and circuit fitting:**
+- A DRT peak at tau_i becomes a K(R_i, tau_i) element
+- Integrating the peak gives R_i = INT gamma(tau) d(ln tau)
+- The result is directly usable as a circuit
+
+### 4. Lin-KK compatibility
+
+The Lin-KK test (Schonleber et al. 2014) uses exactly this parametrization:
+
+```
+Z_LinKK = R_0 + SUM K(R_k, tau_k)
+```
+
+so results from the Lin-KK test can be carried over directly.
 
 ---
 
-## Použití
+## Usage
 
-### Základní syntaxe
+### Basic syntax
 
 ```python
 from eis_analysis.fitting import K, R
 
-# Vytvoření K elementu
-k = K(1000, 1e-4)  # R=1kΩ, τ=100μs
+# Create a K element
+k = K(1000, 1e-4)  # R = 1 kOhm, tau = 100 us
 
-# Výchozí hodnoty
-k = K()  # R=1kΩ, τ=100μs (výchozí)
+# Defaults
+k = K()  # R = 1 kOhm, tau = 100 us
 
-# Fixované parametry (string)
-k = K("1000", 1e-4)    # R fixní, τ volný
-k = K("1000", "1e-4")  # Oba fixní
+# Fixed parameters (passed as strings)
+k = K("1000", 1e-4)    # R fixed, tau free
+k = K("1000", "1e-4")  # both fixed
 ```
 
-### Vlastnosti
+### Properties
 
 ```python
 k = K(1000, 1e-4)
 
-# Ekvivalentní kapacita
-C = k.capacitance  # 1e-7 F (τ/R)
+# Equivalent capacitance
+C = k.capacitance           # 1e-7 F (tau/R)
 
-# Charakteristická frekvence
-f_c = k.characteristic_freq  # 1591.5 Hz (1/(2πτ))
+# Characteristic frequency
+f_c = k.characteristic_freq # 1591.5 Hz (1/(2*pi*tau))
 
-# Konverze na (R||C)
-rc_circuit = k.to_RC()  # (R(1000) | C(1e-7))
+# Conversion to (R||C)
+rc_circuit = k.to_RC()      # (R(1000) | C(1e-07))
 ```
 
-### Výpočet impedance
+### Computing impedance
 
 ```python
 import numpy as np
 
-freq = np.logspace(4, -1, 50)  # 10 kHz → 0.1 Hz
+freq = np.logspace(4, -1, 50)  # 10 kHz -> 0.1 Hz
 
-# Přímý výpočet
+# Directly
 Z = k.impedance(freq, [1000, 1e-4])
 
-# Nebo pomocí circuit objektu
+# Or through a circuit object
 circuit = R(100) - K(1000, 1e-4)
 params = circuit.get_all_params()
 Z = circuit.impedance(freq, params)
@@ -127,257 +128,249 @@ Z = circuit.impedance(freq, params)
 
 ---
 
-## Příklady
+## Examples
 
-### Příklad 1: Jednoduchý Voigt element
+### Example 1: Single Voigt element
 
 ```python
 from eis_analysis.fitting import R, K, fit_equivalent_circuit
 import numpy as np
 
-# Obvod: R_s + K(R, τ)
+# Circuit: R_s - K(R, tau)
 circuit = R(100) - K(1000, 1e-4)
 
-# Fitování dat
+# Fit the data
 result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 
-# Výsledné parametry
-R_s, R, tau = result.params_opt
-C = tau / R  # Ekvivalentní kapacita
+# Fitted parameters
+R_s, R_fit, tau = result.params_opt
+C = tau / R_fit  # equivalent capacitance
 
-print(f"R_s = {R_s:.2f} Ω")
-print(f"R = {R:.2f} Ω")
-print(f"τ = {tau:.3e} s")
+print(f"R_s = {R_s:.2f} Ohm")
+print(f"R   = {R_fit:.2f} Ohm")
+print(f"tau = {tau:.3e} s")
 print(f"f_c = {1/(2*np.pi*tau):.1f} Hz")
-print(f"C = {C:.3e} F")
+print(f"C   = {C:.3e} F")
 ```
 
-### Příklad 2: Voigt chain (série K elementů)
+### Example 2: Voigt chain (K elements in series)
 
 ```python
-# Obvod: R_s + K_1 + K_2 + K_3
-# Každý K element modeluje jeden relaxační proces
+# Circuit: R_s - K_1 - K_2 - K_3
+# Each K element models one relaxation process
 circuit = (R(100) -
-           K(500, 1e-5) -   # Rychlý proces (~3.2 kHz)
-           K(1000, 1e-4) -  # Střední proces (~1.6 kHz)
-           K(2000, 1e-3))   # Pomalý proces (~160 Hz)
+           K(500, 1e-5) -   # fast process   (~15.9 kHz)
+           K(1000, 1e-4) -  # medium process (~1.6 kHz)
+           K(2000, 1e-3))   # slow process   (~159 Hz)
 
-# Fit
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit, weighting='proportional')
+# Fit (the default modulus weighting is right for most data;
+# see WEIGHTING_AND_STATISTICS.md before changing it)
+result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 
-# Analýza procesů
+# Process analysis
 params = result.params_opt
 R_s = params[0]
 for i in range(3):
     R_i = params[1 + 2*i]
     tau_i = params[2 + 2*i]
     f_i = 1/(2*np.pi*tau_i)
-    print(f"Proces {i+1}: R={R_i:.1f} Ω, τ={tau_i:.3e} s, f={f_i:.1f} Hz")
+    print(f"Process {i+1}: R={R_i:.1f} Ohm, tau={tau_i:.3e} s, f={f_i:.1f} Hz")
 ```
 
-### Příklad 3: Konverze z DRT výsledků
+### Example 3: Building a circuit from DRT results
 
 ```python
-# Předpokládejme DRT analýzu s 3 píky
+# Suppose the DRT analysis found three peaks
 drt_peaks = [
-    {'tau': 1e-5, 'R': 500},   # Peak 1
-    {'tau': 1e-4, 'R': 1000},  # Peak 2
-    {'tau': 1e-3, 'R': 2000},  # Peak 3
+    {'tau': 1e-5, 'R': 500},   # peak 1
+    {'tau': 1e-4, 'R': 1000},  # peak 2
+    {'tau': 1e-3, 'R': 2000},  # peak 3
 ]
 
-# Sestavení obvodu z DRT píků
 circuit = R(100)  # R_s
 for peak in drt_peaks:
     circuit = circuit - K(peak['R'], peak['tau'])
 
 print(circuit)
-# Output: R(100) - K(R=500, τ=1e-05) - K(R=1000, τ=0.0001) - K(R=2000, τ=0.001)
+# R(100) - K(R=500, τ=1e-05) - K(R=1000, τ=0.0001) - K(R=2000, τ=0.001)
 
-# Použij jako initial guess pro fitting
+# Use it as the initial guess for fitting
 result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 ```
 
-### Příklad 4: Randles circuit s K elementem
+### Example 4: Randles circuit with a K element
 
 ```python
 from eis_analysis.fitting import Q, W
 
-# Randles circuit: R_s - (K || Q) - W
-# K modeluje charge transfer proces
-# Q modeluje double layer capacitor (non-ideal)
-# W modeluje difúzi
+# R_s - (K || Q) - W
+# K models charge transfer, Q the non-ideal double layer, W diffusion
 circuit = R(10) - (K(100, 1e-3) | Q(1e-4, 0.85)) - W(50)
 
 result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 ```
 
-### Příklad 5: Fixování parametrů
+### Example 5: Fixing a parameter
 
 ```python
-# Scenario: Z DRT víme τ, ale chceme fitovat R
-# Fixujeme τ, ale necháme R volný
+# Scenario: tau is known from DRT, only R should be fitted
 
-circuit = R(100) - K(1000, "1e-4")  # τ fixní (string!)
+circuit = R(100) - K(1000, "1e-4")  # tau fixed (string!)
 
 result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 
-# Výsledek: fituje se pouze R_s a R (τ zůstane 1e-4)
-R_s_fit, R_fit = result.params_opt  # Pouze 2 parametry
+# Only R_s and R are optimized, but params_opt is always the FULL parameter
+# vector - the fixed tau is still in it, and its standard error is 0:
+R_s_fit, R_fit, tau_fixed = result.params_opt   # tau_fixed == 1e-4
 ```
 
 ---
 
-## Vztah k (R||C) elementu
+## Relation to the (R||C) element
 
-### Matematická ekvivalence
+### Mathematical equivalence
 
 ```
-K(R, τ):   Z = R / (1 + jωτ)
-R||C:      Z = R / (1 + jωRC)
+K(R, tau):   Z = R / (1 + j*omega*tau)
+R||C:        Z = R / (1 + j*omega*R*C)
 ```
 
-**Podmínka ekvivalence:**
+**Equivalence condition:**
 ```
-τ = R × C
+tau = R * C
 ```
 
-### Konverze
+### Conversion
 
-**Z K na (R||C):**
+**From K to (R||C):**
 ```python
 k = K(1000, 1e-4)
-C = k.capacitance  # C = τ/R = 1e-7 F
-rc = k.to_RC()     # (R(1000) | C(1e-7))
+C = k.capacitance  # C = tau/R = 1e-7 F
+rc = k.to_RC()     # (R(1000) | C(1e-07))
 ```
 
-**Z (R||C) na K:**
+**From (R||C) to K:**
 ```python
 rc = R(1000) | C(1e-7)
-tau = 1000 * 1e-7  # τ = R×C = 1e-4 s
+tau = 1000 * 1e-7  # tau = R*C = 1e-4 s
 k = K(1000, 1e-4)
 ```
 
 ---
 
-## Kdy použít K vs (R||C)?
+## When to use K vs (R||C)
 
-### Použij K(R, τ) když:
+### Use K(R, tau) when:
 
-+ **Máš DRT výsledky** - τ je přímo z DRT píků
-+ **Znáš charakteristickou frekvenci** - snadný převod f → τ = 1/(2πf)
-+ **Chceš separovat amplitudu a frekvenci** - lepší kondicionování fittingu
-+ **Implementuješ Lin-KK test** - kompatibilita s literaturou
-+ **Potřebuješ fyzikální interpretaci** - τ je relaxační čas
+- **You have DRT results** - tau comes straight from the peaks
+- **You know the characteristic frequency** - tau = 1/(2*pi*f)
+- **You want amplitude and frequency separated** - better conditioning
+- **You work with the Lin-KK test** - same parametrization as the literature
+- **You need the physical interpretation** - tau is the relaxation time
 
-### Použij (R||C) když:
+### Use (R||C) when:
 
-+ **Máš elektrochemický model** - C má přímý fyzikální význam (double layer, oxide capacitance)
-+ **Kapacita je známá hodnota** - např. z geometrie elektrody
-+ **Kompatibilita se starým kódem** - klasická parametrizace
-+ **Didaktické účely** - R||C je standardní notation
+- **You have an electrochemical model** - C is the physical quantity (double
+  layer, oxide capacitance)
+- **The capacitance is known** - e.g. from electrode geometry
+- **You need compatibility with older work** - the classic parametrization
+- **You are teaching** - R||C is the standard notation
 
 ---
 
-## Příklady výpočtů
+## Worked conversions
 
-### Převody mezi parametry
+### Between parameters
 
-```python
-# Dáno: K(R=1000, τ=1e-4)
-R = 1000  # Ω
-tau = 1e-4  # s
+```
+Given K(R = 1000 Ohm, tau = 1e-4 s):
 
-# Výpočet:
-C = tau / R                  # 1e-7 F = 100 nF
-f_c = 1 / (2 * np.pi * tau)  # 1591.5 Hz
-omega_c = 1 / tau            # 10000 rad/s
+  C       = tau / R           = 1e-7 F = 100 nF
+  f_c     = 1 / (2*pi*tau)    = 1591.5 Hz
+  omega_c = 1 / tau           = 10000 rad/s
 
-# Impedance při f_c:
-Z_fc = R / (1 + 1j)          # R/√2 * (1 - j)
-|Z_fc| = R / np.sqrt(2)      # 707.1 Ω
-phase = -45°                 # -π/4
+At f = f_c:
+  Z       = R / (1 + j) = R/2 * (1 - j) = 500 - 500j Ohm
+  |Z|     = R / sqrt(2)       = 707.1 Ohm
+  phase   = -45 deg
 ```
 
-### Časové konstanty pro různé frekvence
+### Time constants for given frequencies
 
 ```python
-# Chci K element s charakteristickou frekvencí 1 kHz
+# A K element with a characteristic frequency of 1 kHz
 f_c = 1000  # Hz
 tau = 1 / (2 * np.pi * f_c)  # 1.59e-4 s
 
-# Různé R hodnoty (všechny mají f_c = 1 kHz)
-K(100, tau)    # C = 1.59 μF
+# Different R, all with f_c = 1 kHz
+K(100, tau)    # C = 1.59 uF
 K(1000, tau)   # C = 159 nF
 K(10000, tau)  # C = 15.9 nF
 ```
 
-### Voigt chain s dekádovým pokrytím
+### Voigt chain covering decades
 
 ```python
-# Pokrytí 4 dekády frekvencí (10 Hz - 100 kHz)
-# 1 K element na dekádu
-
+# Four frequency decades (10 Hz - 10 kHz), one K element per decade
 f_values = [10, 100, 1000, 10000]  # Hz
 tau_values = [1/(2*np.pi*f) for f in f_values]
 
 circuit = R(100)
 for tau in tau_values:
-    circuit = circuit - K(1000, tau)  # Všechny stejné R
+    circuit = circuit - K(1000, tau)  # same R for all
 
-# tau_values ≈ [0.016, 0.0016, 0.00016, 0.000016] s
+# tau_values ~ [0.016, 0.0016, 0.00016, 0.000016] s
 ```
 
 ---
 
-## Reference
-
-1. Schönleber, M. et al. "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests." *Electrochimica Acta* 131, 20–27 (2014). doi: 10.1016/j.electacta.2014.01.034
-
-2. Boukamp, B.A. "A Linear Kronig-Kramers Transform Test for Immittance Data Validation." *J. Electrochem. Soc.* 142 (6), 1885-1894 (1995).
-
-3. Ciucci, F. "Modeling electrochemical impedance spectroscopy." *Current Opinion in Electrochemistry* 13, 132-139 (2019).
-
----
-
-## Implementační poznámky
+## Implementation notes
 
 ### Numerical stability
 
-K(R, τ) parametrizace má obecně **lepší numerickou stabilitu** než (R||C):
+The K(R, tau) parametrization is generally better conditioned than (R||C):
 
-```python
-# Problém s (R||C) při velkých R:
-R = 1e6 Ω, C = 1e-10 F  →  τ = 1e-4 s
-# Při fittingu: gradient wrt C je velmi malý (C << 1)
+```
+(R||C) with a large R:
+  R = 1e6 Ohm, C = 1e-10 F  ->  tau = 1e-4 s
+  The gradient with respect to C is tiny, and C itself is 10 orders of
+  magnitude away from R - the Jacobian columns differ by that much.
 
-# S K(R, τ):
-K(1e6, 1e-4)
-# Gradient wrt τ je lépe škálovaný
+K(R, tau):
+  K(1e6, 1e-4)
+  The gradient with respect to tau is far better scaled.
 ```
 
-### Bounds recommendation
+(The fitter column-scales the Jacobian before computing the covariance, so
+the unit disparity does not corrupt the reported standard errors either -
+see WEIGHTING_AND_STATISTICS.md, section 3.5.)
 
-Pro fitting s K elementem:
+### Default bounds
 
-```python
-# Typické bounds pro K(R, τ)
-R_bounds = (0, 1e8)      # 0 Ω - 100 MΩ
-tau_bounds = (1e-8, 1e2) # 10 ns - 100 s (pokrývá ~13 dekád frekvencí)
+Bounds cannot be given in the circuit syntax; the fitter uses defaults keyed
+on the parameter label (`fitting/bounds.py`):
 
-# Ekvivalentní bounds pro C:
-# C_lower = tau_lower / R_upper = 1e-8 / 1e8 = 1e-16 F
-# C_upper = tau_upper / R_lower = 1e2 / 0 → ∞ (problém!)
+```
+R    : 1e-4  - 1e10 Ohm   (0.1 mOhm - 10 TOhm)
+tau  : 1e-9  - 1e4  s     (1 ns - 10000 s, ~13 decades of frequency)
 ```
 
-K parametrizace přirozeně vyhýbá problémům s boundsy.
+The tau bounds cover f_c from ~16 uHz to ~160 MHz, comfortably beyond any
+real measurement. Note that the equivalent bounds on a capacitance would have
+to be derived from the ratio tau/R, which spans a far wider (and largely
+meaningless) range than the C bounds used for a real (R||C) - one more reason
+the K parametrization is easier to bound.
 
 ---
 
-## Changelog
+## References
 
-**v4.2.0 (2025-12-20):**
-- Přidán K element (Voigt s τ parametrizací)
-- Vlastnosti: `.capacitance`, `.characteristic_freq`
-- Metoda: `.to_RC()` pro konverzi na (R||C)
-- Kompatibilní s operátory `-`, `|`, `*`
-- Úplná dokumentace a testy
+1. Schonleber, M. et al. "A Method for Improving the Robustness of linear
+   Kramers-Kronig Validity Tests." *Electrochimica Acta* 131, 20-27 (2014).
+   doi: 10.1016/j.electacta.2014.01.034
+
+2. Boukamp, B.A. "A Linear Kronig-Kramers Transform Test for Immittance Data
+   Validation." *J. Electrochem. Soc.* 142 (6), 1885-1894 (1995).
+
+3. Ciucci, F. "Modeling electrochemical impedance spectroscopy." *Current
+   Opinion in Electrochemistry* 13, 132-139 (2019).
