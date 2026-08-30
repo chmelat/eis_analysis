@@ -375,7 +375,9 @@ def compute_confidence_interval(
     se_ln = se / p, so ci = (p / f, p * f) with f = exp(t * se / p).
     Always positive and multiplicatively symmetric; for se/p -> 0 it
     converges to the linear interval. Applied only where the mask is True,
-    the parameter is positive, and se is finite.
+    the parameter is positive, and se is finite. A relative uncertainty
+    large enough to overflow the exponential (t * se / p > ~709) yields the
+    limit of that interval, (0, inf), without the overflow.
     """
     dof = max(int(dof), 1)
 
@@ -395,9 +397,17 @@ def compute_confidence_interval(
                 & np.isfinite(params_stderr))
         if np.any(mask):
             p = params_opt[mask]
-            factor = np.exp(t_critical * params_stderr[mask] / p)
-            ci_low[mask] = p / factor
-            ci_high[mask] = p * factor
+            z = t_critical * params_stderr[mask] / p
+            # exp() overflows above ln(max float) ~ 709, which happens once
+            # the relative uncertainty reaches a few hundred - a parameter the
+            # data did not constrain at all (typically one sitting on a bound).
+            # The limit of the interval there is (0, inf); take it directly
+            # rather than letting an overflowing exp produce it via inf
+            # propagation, which is correct but warns on every such fit.
+            huge = z > np.log(np.finfo(float).max)
+            factor = np.exp(np.where(huge, 0.0, z))
+            ci_low[mask] = np.where(huge, 0.0, p / factor)
+            ci_high[mask] = np.where(huge, np.inf, p * factor)
 
     # Non-finite stderr -> uncertainty not estimable -> CI (-inf, +inf) for
     # that parameter only, so one non-identifiable parameter does not

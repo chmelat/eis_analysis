@@ -4,6 +4,38 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.25.4 (2026-08-30)
+
+### Fixed
+
+- **A confidence interval no longer overflows on a parameter the data did not
+  constrain** (`fitting/covariance.py`). The log-space CI is
+  `(p/f, p*f)` with `f = exp(t * se / p)`, and `exp` overflows once the
+  relative uncertainty passes ~709. A scale parameter driven onto its bound
+  reaches that easily - the plain `eis` demo run does it, with `t*se/p = 4.7e5`
+  for an R0 sitting on its 1e-4 lower bound - so every such fit printed
+  `RuntimeWarning: overflow encountered in exp` to stderr.
+
+  The reported interval was never wrong: `f = inf` gives `(p/inf, p*inf) =
+  (0, inf)`, which is the exact limit. The limit is now taken directly instead
+  of being produced by the overflow, so the values are unchanged and the
+  warning is gone. The parameter that triggered it is one whose CI the CLI
+  does not even print - it reports `[at lower bound - CI not meaningful]` -
+  so the warning was noise about a discarded number.
+
+  Regression test in `tests/test_confidence_intervals.py` turns RuntimeWarning
+  into an error for the overflowing case.
+
+### Documentation
+
+- `README.md`: `--save` documented the wrong output filename
+  (`results_nyquist.png`; the plot is written as `results_nyquist_bode`), and
+  the CSV section listed `frequency`/`Z_real`/`Z_imag` as if those exact names
+  were required - the loader accepts a family of aliases and falls back to
+  positional columns.
+
+---
+
 ## Version 0.25.3 (2026-08-29)
 
 ### Fixed

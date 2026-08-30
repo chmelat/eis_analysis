@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Test confidence intervals computation for circuit fitting."""
 
+import warnings
+
 import numpy as np
 import pytest
 from scipy.stats import t
@@ -250,3 +252,26 @@ def test_t_distribution_conservative_for_small_n():
     assert t_small > t_large, "t-critical should decrease with more data"
     # Large sample should approach normal
     assert abs(t_large - z_normal) < 0.1, "t-critical should approach 1.96 for large samples"
+
+
+def test_log_space_ci_huge_relative_error_gives_zero_to_inf():
+    """A parameter the data did not constrain gets (0, inf), not an overflow.
+
+    A scale parameter driven onto its bound can end up with se/p of order 1e5;
+    exp(t * se / p) then overflows. The limit of the log-space interval is
+    (0, inf), and it must be reached without a RuntimeWarning - the warning
+    used to surface on a plain demo run.
+    """
+    params = np.array([1e-4, 1e3])
+    stderr = np.array([2.4e1, 10.0])   # se/p = 2.4e5 for the first parameter
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        ci_low, ci_high = compute_confidence_interval(
+            params, stderr, dof=100, log_scale=[True, True]
+        )
+
+    assert ci_low[0] == 0.0
+    assert np.isinf(ci_high[0]) and ci_high[0] > 0
+    # the well-determined parameter is untouched
+    assert 0 < ci_low[1] < params[1] < ci_high[1] < np.inf
