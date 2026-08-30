@@ -132,7 +132,7 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm^2]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', or 'estimate'
+    element_type: str           # 'C', 'K', 'Q', 'CC', or 'estimate'
     element_R: Optional[float]  # Associated resistance [Ohm]
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict        # All element parameters
@@ -227,8 +227,13 @@ Within a tier the element with the **largest resistance R** wins:
 
 Elements sharing one parallel resistance are ranked by capacitance instead
 (the heuristic cannot separate them), with a warning that their individual
-values are not identifiable from the spectrum; so are elements with no
-parallel resistance at all, there being no R to compare.
+values are not identifiable from the spectrum.
+
+An element with **no** parallel resistance has no R to compare, so it is left
+out of the largest-R ranking altogether whenever at least one element in the
+tier does have one - a warning names how many were skipped, since one of them
+may well be the layer of interest. Only when no element in the tier has a
+parallel resistance does the ranking fall back to the largest capacitance.
 
 If nothing qualifies as a dielectric but a low-`n` CPE is present, that CPE is
 used with a loud warning that the result has no dielectric meaning - it is
@@ -290,11 +295,13 @@ A CC is a blocking dielectric with no DC path, so it has no parallel
 resistance: `element_R` is `None` and the log reports `n/a`. The reported
 time constant is the relaxation time `tau`, not `R*C`.
 
-When the circuit also contains a series resistance Rs, the Brug (2D)
-estimate `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)` and its thickness are
-computed as well and returned in `capacitance_brug` /
-`thickness_brug_nm` (see "2D vs 3D Distribution of Time Constants"
-below). Hsu-Mansfeld remains the primary value.
+**Back to Q elements:** when the circuit also contains a series resistance
+Rs, the Brug (2D) estimate `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)` and its
+thickness are computed as well and returned in `capacitance_brug` /
+`thickness_brug_nm` (see "2D vs 3D Distribution of Time Constants" below).
+Hsu-Mansfeld remains the primary value. This concerns `Q` only - for a `CC`
+both reported capacitances are exact model limits, so no Hsu-Mansfeld/Brug
+choice arises and neither Brug field is set.
 
 ### 4. Thickness Calculation
 
@@ -500,16 +507,17 @@ where `C_specific = C / A` is specific capacitance [F/cm^2].
 | Property | Value | Notes |
 |----------|-------|-------|
 | epsilon_r | 20-25 | Depends on phase, microstructure |
-| C_specific | 1-100 uF/cm^2 | Depends on thickness |
-| d | 1-100 nm | Typical passive films |
+| C_specific | 0.1-100 uF/cm^2 | Depends on thickness |
+| d | 0.2-200 nm | Typical passive films |
 
 ### Relationship C vs d
 
 | C_specific [uF/cm^2] | d [nm] (epsilon_r=22) |
 |---------------------|----------------------|
-| 100 | 1.9 |
-| 10 | 19.5 |
-| 1 | 195 |
+| 100 | 0.195 |
+| 10 | 1.95 |
+| 1 | 19.5 |
+| 0.1 | 195 |
 
 **Important:** Larger C = thinner oxide, Smaller C = thicker oxide.
 
@@ -629,13 +637,31 @@ Brug et al., J. Electroanal. Chem. 176, 275 (1984);
 Hirschorn et al., Electrochim. Acta 55, 6218 (2010).
 
 **Implementation notes:** The parallel resistance R needed for the
-Hsu-Mansfeld conversion is always available: the dominant element is
-selected only among candidates with R > 0, so the formula is used
-unconditionally. (Fallback conversions for R-less CPEs existed up to
-v0.16.16 but were unreachable and have been removed.) The Rs for the
-Brug comparison is taken as the sum of R elements on the series path of
-the fitted circuit (outside any parallel combination); if there is
-none, the Brug estimate is skipped and the result fields stay None.
+Hsu-Mansfeld conversion is always available *for a Q*: a CPE without a
+parallel resistance is dropped from the candidate list precisely because
+neither conversion can be applied to it, so wherever the formula runs, R
+exists. (This is a condition on `Q` alone - a `C`, `K` or `CC` needs no
+parallel resistance to be selected; see "Element Detection" above. Fallback
+conversions for R-less CPEs existed up to v0.16.16 but were unreachable and
+have been removed.)
+
+The Rs for the Brug comparison is the sum of the R elements on the series
+path of the fitted circuit (outside any parallel combination). The Brug
+estimate is skipped, and the result fields stay None, in two cases:
+
+- there is no series R at all (logged as information);
+- `Rs < BRUG_RS_MIN_OHM` (10 mOhm), logged as a warning. A CPE with n < 1
+  mimics a series resistance at high frequency, so a degenerate fit drives Rs
+  to the optimizer floor instead of the true ohmic resistance; since Brug
+  scales as `Rs^((1-n)/n)`, a floored Rs would yield an arbitrarily small
+  capacitance with no other sign of trouble. Check the fitted Rs against
+  Re(Z) at the highest measured frequency when this fires.
+
+When both values are available and `C_eff(Hsu-Mansfeld) / C_eff(Brug)` exceeds
+`BRUG_HM_DIVERGENCE_MAX` (10x), a warning says the pair no longer brackets a
+single C_eff: the ratio is exactly `(1 + R_ct/Rs)^((1-n)/n)`, so it is driven
+by a blocking layer (large R_ct) and by n far from 1, and both values are then
+order-of-magnitude estimates only.
 
 ---
 
@@ -654,7 +680,9 @@ none, the Brug estimate is skipped and the result fields stay None.
      10% error in the estimated epsilon_r
 
 3. **Single dominant element**
-   - Only analyzes element with largest R
+   - Only one element is reported: the largest-R element *within the highest
+     tier present* (CC before C/K before Q), so a Q with a huge R loses to a
+     C with a smaller one
    - For complex multilayer systems, manual analysis may be needed
 
 4. **Fit quality dependency**
@@ -665,9 +693,15 @@ none, the Brug estimate is skipped and the result fields stay None.
 
 ## Troubleshooting
 
-**"No Voigt (R||C), K, or R||Q elements found in circuit"**
-- Check circuit structure - needs Parallel(R, C), Parallel(R, Q), or K
-- Series elements alone don't work
+**"No capacitive element (C, Q, K, CC) found in circuit"**
+- The circuit has no `C`, `Q`, `K` or `CC` at all - add one, or accept the
+  high-frequency fallback estimate
+- A parallel resistance is *not* required; a bare `C` in series is found too
+
+**"No convertible capacitive element found"**
+- The only capacitive element is a `Q` with no parallel resistance, which
+  neither Hsu-Mansfeld nor Brug can convert. Give it a parallel R, or use a
+  `C`/`K`/`CC` instead
 
 **Unrealistic thickness (< 1 nm or > 1000 nm)**
 - Check epsilon_r value
@@ -684,8 +718,9 @@ none, the Brug estimate is skipped and the result fields stay None.
   the log), which propagates straight into epsilon_r
 
 **Different result than expected**
-- Function selects largest R - verify this is correct element
-- For multi-layer systems, dominant R may not be the layer of interest
+- Selection is by tier first (CC, then C/K, then Q) and by largest R only
+  within a tier - check the candidate list in the log
+- For multi-layer systems, the dominant R may not be the layer of interest
 
 ---
 
@@ -700,4 +735,4 @@ none, the Brug estimate is skipped and the result fields stay None.
 
 ---
 
-*Last updated: 2026-07-19*
+*Last updated: 2026-08-30*

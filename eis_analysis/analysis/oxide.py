@@ -721,8 +721,13 @@ def analyze_oxide_layer(
     """
     Estimate oxide layer thickness from dominant capacitive element.
 
-    Finds the Voigt (R||C), K, or R||Q element with the largest resistance
-    (dominant barrier) and calculates oxide thickness from its capacitance.
+    Collects every capacitive element in the circuit (C, Q, K, CC), keeps
+    those that behave as a dielectric (admittance ~ omega^n with n near 1),
+    and reports the dominant one: the general dielectric model first (CC),
+    then the exactly fitted capacitances (C, K), then a near-ideal CPE (Q),
+    and within a tier the largest parallel resistance - the compact barrier.
+    A parallel resistance is required only to convert a Q. The thickness
+    follows from the selected element's capacitance.
 
     Parameters
     ----------
