@@ -67,3 +67,25 @@ def test_thickness_and_epsilon_r_parse_together(monkeypatch):
     args = parse(monkeypatch, '--analyze-oxide', '--thickness', '20', '--epsilon-r', '9')
     assert args.thickness == 20.0
     assert args.epsilon_r == 9.0
+
+
+# --- --circuit accepts several candidates (action='append') -----------------
+
+def test_no_circuit_stays_none(monkeypatch):
+    """The auto-skip in run_circuit_fitting keys on None; keep that contract."""
+    args = parse(monkeypatch)
+    assert args.circuit is None
+
+
+def test_single_circuit_is_a_one_element_list(monkeypatch):
+    args = parse(monkeypatch, '-c', 'R(10)-(R(200)|C(2e-5))')
+    assert args.circuit == ['R(10)-(R(200)|C(2e-5))']
+
+
+def test_repeated_circuit_collects_all_candidates(monkeypatch):
+    """Before action='append' the last --circuit silently won."""
+    args = parse(monkeypatch,
+                 '-c', 'R(10)-(R(200)|C(2e-5))',
+                 '--circuit', 'R(10)-(R(200)|Q(2e-5,0.85))')
+    assert args.circuit == ['R(10)-(R(200)|C(2e-5))',
+                            'R(10)-(R(200)|Q(2e-5,0.85))']

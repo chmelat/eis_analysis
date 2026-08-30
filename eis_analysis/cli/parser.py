@@ -150,9 +150,10 @@ Examples:
     # ==========================================================================
     fit_group = parser.add_argument_group('Circuit Fitting')
 
-    fit_group.add_argument('--circuit', '-c', type=str, default=None,
+    fit_group.add_argument('--circuit', '-c', type=str, action='append', default=None,
                            help='Equivalent circuit for fitting. '
-                                'Syntax: R(100) - (R(5000) | C(1e-6))  [- = series, | = parallel].')
+                                'Syntax: R(100) - (R(5000) | C(1e-6))  [- = series, | = parallel]. '
+                                'Repeat to fit several candidates and rank them by AIC/BIC.')
     fit_group.add_argument('--weighting', type=str, default='modulus',
                            choices=['uniform', 'sqrt', 'modulus', 'proportional'],
                            help='Weighting type for fitting (default: modulus)')

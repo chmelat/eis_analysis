@@ -27,6 +27,7 @@ from ...fitting import (
 )
 from ...fitting.diagnostics import compute_fit_metrics
 from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
+from .model_comparison import score_candidates, log_comparison
 
 logger = logging.getLogger(__name__)
 
@@ -221,16 +222,90 @@ def run_circuit_fitting(
                     "or --voigt-chain")
         return None, None
 
-    # Default circuit for synthetic data: Rs - (R||Q) - (R||Q)
-    circuit_expr = args.circuit
-    if args.input is None and circuit_expr is None:
-        circuit_expr = 'R() - (R() | Q()) - (R() | Q())'
-
-    # Voigt chain fitting
+    # Voigt chain stays a separate branch: its K(R, tau) elements sit on a
+    # fixed tau grid that is not optimized, so its parameter count is not
+    # comparable with a nonlinearly fitted circuit's (see the plan note in
+    # doc/ZSCOPE_COMPARISON.md).
     if args.voigt_chain:
         return _fit_voigt_chain(frequencies, Z, args)
-    else:
-        return _fit_standard_circuit(frequencies, Z, args, circuit_expr)
+
+    # --circuit is action='append', so argparse always yields a list. A caller
+    # building the namespace by hand may still pass a bare string; iterating
+    # that would silently slice it into single characters, so normalize.
+    circuit_exprs = args.circuit
+    if isinstance(circuit_exprs, str):
+        circuit_exprs = [circuit_exprs]
+
+    # Default circuit for synthetic data: Rs - (R||Q) - (R||Q)
+    if args.input is None and circuit_exprs is None:
+        circuit_exprs = ['R() - (R() | Q()) - (R() | Q())']
+
+    # A single candidate keeps the original path: one fit, one figure named
+    # exactly as before, no comparison table.
+    if len(circuit_exprs) == 1:
+        return _fit_standard_circuit(frequencies, Z, args, circuit_exprs[0])
+
+    return _compare_circuits(frequencies, Z, args, circuit_exprs)
+
+
+def _compare_circuits(
+    frequencies: NDArray,
+    Z: NDArray,
+    args: argparse.Namespace,
+    circuit_exprs: list
+) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
+    """
+    Fit every candidate circuit and return the one BIC selects.
+
+    A failing candidate is reported in the table and skipped rather than
+    taking the whole run with it.
+
+    Parameters
+    ----------
+    frequencies : ndarray
+        Frequency array [Hz]
+    Z : ndarray
+        Complex impedance [Ohm]
+    args : argparse.Namespace
+        CLI arguments
+    circuit_exprs : list of str
+        Candidate circuit expressions, in the order given on the command line
+
+    Returns
+    -------
+    result : FitResult or None
+        Fit of the BIC-selected circuit
+    fig : Figure or None
+        Figure of the BIC-selected circuit
+    """
+    if not circuit_exprs:
+        logger.warning("No circuit candidates to compare")
+        return None, None
+
+    candidates = []
+    figures = []
+    for index, expr in enumerate(circuit_exprs, start=1):
+        try:
+            # Figures are saved per candidate, otherwise they overwrite one file
+            result, fig = _fit_standard_circuit(
+                frequencies, Z, args, expr, save_suffix=f'fit_{index}'
+            )
+        except EISAnalysisError as e:
+            # An unparsable expression must cost its own candidate, not the
+            # whole run - the other fits are still valid and worth reporting.
+            logger.error(f"Candidate {index} ({expr}): {e}")
+            result, fig = None, None
+        candidates.append((expr, result))
+        figures.append(fig)
+
+    scores = score_candidates(frequencies, Z, candidates, args.weighting)
+    log_comparison(scores, len(frequencies), args.weighting)
+
+    if scores[0].result is None:
+        logger.error("All candidate circuits failed to fit")
+        return None, None
+
+    return scores[0].result, figures[scores[0].index - 1]
 
 
 def _fit_voigt_chain(
@@ -340,7 +415,8 @@ def _fit_standard_circuit(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace,
-    circuit_expr: str
+    circuit_expr: str,
+    save_suffix: str = 'fit'
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
     Fit using standard circuit with nonlinear optimization.
@@ -355,6 +431,9 @@ def _fit_standard_circuit(
         CLI arguments for fitting options
     circuit_expr : str
         Circuit expression string
+    save_suffix : str, optional
+        Filename suffix for --save (default: 'fit'). Comparison runs pass a
+        per-candidate suffix so the figures do not overwrite one file.
 
     Returns
     -------
@@ -425,7 +504,7 @@ def _fit_standard_circuit(
         # Log fit results
         _log_fit_result(result)
 
-        save_figure(fig, args.save, 'fit', args.format)
+        save_figure(fig, args.save, save_suffix, args.format)
         return result, fig
 
     except Exception as e:

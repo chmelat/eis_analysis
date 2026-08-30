@@ -1,6 +1,6 @@
 # Python API
 
-**Current version:** v0.25.5
+**Current version:** v0.26.0
 
 EIS Analysis Toolkit can be used as a Python library for integration into custom scripts and workflows.
 
@@ -40,6 +40,7 @@ from eis_analysis import (
     fit_circuit_diffevo,     # Differential evolution (global optimization)
     FitResult,               # Dataclass with fit results
     FitDiagnostics,          # Dataclass with fit diagnostics
+    compute_information_criteria,  # AIC/BIC for model selection
     MultistartResult,        # Dataclass with multi-start results
     MultistartDiagnostics,   # Dataclass with multi-start diagnostics
     DiffEvoResult,           # Dataclass with DE results
@@ -409,6 +410,8 @@ result.params_ci_95    # 95% confidence intervals (tuple of ndarray;
                        #   R/C/Q/L/sigma/tau, symmetric for exponent n)
 result.params_ci_99    # 99% confidence intervals (same semantics)
 result.param_labels    # Parameter labels ['R0', 'R1', 'Q0', 'n0', ...]
+result.n_free_params   # Number of freely optimized parameters (k for AIC/BIC;
+                       #   fixed parameters excluded)
 result.fit_error_rel   # Relative fit error [%]
 result.fit_error_abs   # Absolute fit error [Ohm]
 result.quality         # 'excellent', 'good', 'acceptable', 'poor'
@@ -418,8 +421,45 @@ result.is_well_conditioned # True if cond(J_s^T J_s) < 1e10
 result.cov             # Covariance matrix (ndarray or None)
 result.diagnostics     # FitDiagnostics dataclass
 result.all_warnings    # List of all warnings (convenience property)
+```
 
-# FitDiagnostics contains:
+### Comparing candidate circuits (AIC/BIC)
+
+A lower fit error does not mean a better model: adding an element almost
+always lowers the residual. `compute_information_criteria` charges for each
+free parameter, so competing circuits become comparable.
+
+```python
+from eis_analysis.fitting import compute_information_criteria
+
+Z_fit = result.circuit.impedance(freq, list(result.params_opt))
+rss, aic, bic = compute_information_criteria(
+    Z, Z_fit, weighting='modulus', n_free_params=result.n_free_params
+)
+```
+
+Only differences between models carry meaning (below 2: indistinguishable,
+4-7: noticeable, above 10: decisive), and only between models fitted to the
+**same data with the same weighting**. BIC penalizes complexity harder than
+AIC and is what the CLI uses to pick a winner.
+
+The CLI ranking built on this is available too:
+
+```python
+from eis_analysis.cli.handlers.model_comparison import (
+    score_candidates, log_comparison
+)
+
+scores = score_candidates(
+    freq, Z, [('R-(R|C)', result_a), ('R-(R|Q)', result_b)], 'modulus'
+)
+log_comparison(scores, len(freq), 'modulus')
+best = scores[0].result        # sorted by BIC; failed candidates sort last
+```
+
+### FitDiagnostics
+
+```python
 result.diagnostics.optimizer_status    # Optimizer exit status
 result.diagnostics.optimizer_message   # Optimizer message
 result.diagnostics.optimizer_success   # True if converged

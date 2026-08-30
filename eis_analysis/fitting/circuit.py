@@ -99,6 +99,11 @@ class FitResult:
         Covariance matrix of parameters (None if computation failed)
     diagnostics : FitDiagnostics or None
         Detailed diagnostics
+    n_free_params : int
+        Number of freely optimized parameters, with fixed parameters
+        excluded. Needed by compute_information_criteria; kept explicit
+        rather than derived from _dof so callers outside this module do not
+        have to assume the residual count is 2*len(frequencies).
     _dof : int
         Residual degrees of freedom (internal, for CI computation).
         Matches CovarianceResult.dof = n_residuals - n_free_params.
@@ -117,6 +122,7 @@ class FitResult:
     cov: Optional[NDArray[np.float64]] = None
     diagnostics: Optional[FitDiagnostics] = None
     param_labels: Optional[List[str]] = None
+    n_free_params: int = 0
     # Per-parameter bound status: '' (interior), 'lower', 'upper', or 'fixed'.
     # Aligned with params_opt; None means caller did not supply bound info.
     bound_status: Optional[List[str]] = None
@@ -511,6 +517,7 @@ def fit_equivalent_circuit(
             cov=cov_result.cov,
             diagnostics=diagnostics,
             param_labels=param_labels,
+            n_free_params=len(initial_guess_for_opt),
             bound_status=bound_status,
             _dof=cov_result.dof,
             _ci_log_scale=log_scale_ci_mask(lower_bounds, upper_bounds)

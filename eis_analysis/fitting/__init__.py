@@ -75,6 +75,9 @@ from .circuit import fit_equivalent_circuit, FitResult, FitDiagnostics
 # Import covariance for advanced users
 from .covariance import CovarianceResult
 
+# Import model selection criteria
+from .diagnostics import compute_information_criteria
+
 # Import Voigt element analysis from DRT
 from .auto_suggest import analyze_voigt_elements, format_voigt_report
 
@@ -125,6 +128,7 @@ __all__ = [
     'fit_equivalent_circuit',
     'FitResult',
     'FitDiagnostics',
+    'compute_information_criteria',
     'CovarianceResult',
     'analyze_voigt_elements',
     'format_voigt_report',

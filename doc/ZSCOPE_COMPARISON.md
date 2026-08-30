@@ -178,11 +178,25 @@ tau pred porovnanim.
 
 ---
 
+### AIC/BIC pro vyber obvodu
+
+Od v0.26.0 lze `--circuit` zadat vicekrat; kandidati se nafituji na tychz
+datech se stejnym vazenim a seradi se v jedne tabulce podle BIC. Doplneno
+`compute_information_criteria` v `fitting/diagnostics.py` a verejne pole
+`FitResult.n_free_params`.
+
+Voigtuv retez do zebricku zamerne nevstupuje: jeho prvky `K(R, tau)` lezi na
+pevne mrizce tau, ktera se neoptimalizuje, takze naivni pocet parametru jeho
+slozitost nadhodnocuje o M (pri M = 7 asi 35 bodu BIC, dost na prevraceni
+poradi) a ferovy pocet by stejne byl jen dolni odhad -- mrizka i
+`prune_threshold` jsou datove informovane.
+
+---
+
 ## Co stoji za prevzeti
 
 | Vlastnost | Priorita | Slozitost | Poznamka |
 |---|---|---|---|
-| AIC/BIC pro vyber obvodu | vysoka | nizka | mame DE, kovarianci i vice kandidatu; chybi jen kriterium (BIC dnes jen pro pocet GMM komponent) |
 | Robustni loss (soft-L1) + sandwich kovariance | vysoka | stredni | jejich mereni: pokryti CI 89 % -> 94 % pri 5 % kontaminovanych bodu |
 | Dokumentovat rozlisovaci limit DRT | stredni | nizka | tau2/tau1 ~ 15 x (sum v %); mame `--lambda-probe`, ale zadne cislo |
 | FLW / FSW (konecna difuze) | stredni | nizka | doplneni do `circuit_elements/distributed.py` |

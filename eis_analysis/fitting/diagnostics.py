@@ -112,7 +112,96 @@ def compute_fit_metrics(
     return fit_error_rel, fit_error_abs, quality
 
 
+def compute_information_criteria(
+    Z: NDArray[np.complex128],
+    Z_fit: NDArray[np.complex128],
+    weighting: str,
+    n_free_params: int
+) -> Tuple[float, float, float]:
+    """
+    Compute AIC and BIC for a fitted circuit model.
+
+    Adding an element to a circuit almost always lowers the residual, so the
+    fit error alone cannot tell an improvement apart from fitting the noise.
+    Both criteria answer that by charging for each free parameter: the model
+    with the lowest value is the one the data actually supports.
+
+    Only *differences* between models carry meaning - the absolute value
+    depends on an additive constant that is dropped here. The conventional
+    reading of a difference is: below 2 the models are indistinguishable,
+    4-7 is a noticeable difference, above 10 is decisive.
+
+    BIC charges ``ln(n)`` per parameter against AIC's 2, so for a typical
+    spectrum (n = 160 residuals, ln(n) = 5.1) it penalises complexity about
+    2.5x harder and prefers simpler circuits. Reporting both is deliberate:
+    where they disagree, the data does not settle the extra element.
+
+    The small-sample correction AICc adds ``2k(k+1)/(n-k-1)``, which stays
+    under 0.4 for a typical spectrum (n = 160, k = 5). It is not applied.
+
+    Parameters
+    ----------
+    Z : ndarray of complex
+        Measured impedance [Ohm]
+    Z_fit : ndarray of complex
+        Fitted impedance [Ohm]
+    weighting : str
+        Weighting used for the fit; see compute_weights
+    n_free_params : int
+        Number of freely optimized parameters (fixed parameters excluded)
+
+    Returns
+    -------
+    rss : float
+        Weighted residual sum of squares - the quantity the optimizer
+        minimizes
+    aic : float
+        Akaike information criterion, ``n*ln(RSS/n) + 2k``
+    bic : float
+        Bayesian information criterion, ``n*ln(RSS/n) + k*ln(n)``
+
+    Notes
+    -----
+    Values are comparable ONLY between models fitted to the same data with
+    the same weighting. Change the frequency range or the weighting between
+    two candidates and the comparison becomes meaningless, with nothing to
+    signal it.
+
+    The real and imaginary parts are separate residuals, so ``n = 2*len(Z)``.
+    """
+    k = int(n_free_params)
+    # A fitted model always has at least one free parameter, so k <= 0 means
+    # the caller passed a FitResult whose n_free_params was never populated.
+    # Scoring it would silently charge no complexity penalty at all, handing
+    # that model every comparison it enters.
+    if k <= 0:
+        raise ValueError(
+            f"n_free_params must be positive, got {k}. A FitResult built "
+            "outside the standard optimizers may not populate it."
+        )
+
+    weights = compute_weights(Z, weighting)
+    residuals_re = weights * (Z.real - Z_fit.real)
+    residuals_im = weights * (Z.imag - Z_fit.imag)
+    rss = float(np.sum(residuals_re ** 2) + np.sum(residuals_im ** 2))
+
+    n = 2 * len(Z)
+
+    # A perfect fit (RSS = 0) makes ln(RSS/n) diverge to -inf. That is the
+    # correct limit - such a model wins every comparison - but -inf poisons
+    # the delta arithmetic that follows, so clamp to the smallest positive
+    # normal instead and let the ranking stay finite.
+    rss_safe = max(rss, np.finfo(float).tiny)
+
+    log_likelihood_term = n * np.log(rss_safe / n)
+    aic = log_likelihood_term + 2.0 * k
+    bic = log_likelihood_term + k * np.log(n)
+
+    return rss, float(aic), float(bic)
+
+
 __all__ = [
     'compute_weights',
     'compute_fit_metrics',
+    'compute_information_criteria',
 ]

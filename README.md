@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.25.5 (2026-08-30)
+**Version:** v0.26.0 (2026-08-30)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -89,6 +89,58 @@ eis data.DTA --circuit "R(100) - (R(5000) | Q(1e-6, 0.9))"
 # Use multi-start for local optimization
 eis data.DTA --circuit "..." --optimizer multistart --multistart 20
 ```
+
+### Comparing candidate circuits
+
+Repeat `--circuit` to fit several candidates on the same data and rank them
+by information criteria:
+
+```bash
+eis data.DTA \
+  --circuit "R(100) - (R(5000) | C(1e-6))" \
+  --circuit "R(100) - (R(5000) | Q(1e-6, 0.9))" \
+  --circuit "R(100) - (R(5000) | Q(1e-6, 0.9)) - (R(100) | C(1e-5))"
+```
+
+```
+Circuit comparison (n = 160 residuals, weighting = modulus)
+  rank  -c  Circuit                                  k    err%     dAIC     dBIC      cond
+     1   1  R(10)-(R(200)|C(2e-5))                   3    2.38      2.4      0.0   1.2e+00
+     2   3  R(10)-(R(150)|C(2e-5))-(R(50)|C(1e-6))   5    2.33      0.0      3.7   1.3e+08
+     3   2  R(10)-(R(200)|Q(2e-5,0.9))               4    2.38      4.4      5.1   6.0e+01
+
+  dAIC/dBIC < 2: indistinguishable, 4-7: noticeable, > 10: decisive
+
+Selected by BIC: R(10)-(R(200)|C(2e-5))  (candidate 1)
+```
+
+Adding an element almost always lowers the residual, so the fit error alone
+cannot tell a real improvement from fitting the noise. AIC and BIC charge for
+each free parameter `k` and answer the question the error cannot: does the
+data support the extra element?
+
+Only *differences* are meaningful - below 2 the models are indistinguishable,
+4-7 is a noticeable difference, above 10 is decisive. BIC charges `ln(n)` per
+parameter against AIC's 2, so it penalizes complexity roughly 2.5x harder and
+is what selects the reported winner. The example above is the case they
+disagree on: the two-branch circuit has the *lowest* residual and wins on AIC,
+but BIC rejects the extra branch - and its condition number, eight orders
+higher, shows why. The `!` flag marks `cond > 1e10`, where the covariance is
+numerically unusable; below it, read the column anyway.
+
+`rank` orders by BIC; `-c` is the position on the command line, which is also
+the number the figures are saved under (`<prefix>_fit_1`, `_fit_2`, ...).
+
+Values are comparable only within one run: change the weighting or the
+frequency range between candidates and the comparison is meaningless.
+
+The BIC winner is what `--analyze-oxide` receives, and which circuit that was
+is written to the log. A candidate that fails to fit is reported in the table
+and skipped rather than ending the run.
+
+**Detailed documentation:** [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md)
+- what the criteria measure, a worked example of the arithmetic, and what they
+cannot tell you.
 
 ### Automatic circuit suggestion
 
@@ -566,6 +618,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 | [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) | Weighting types and statistical metrics |
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
+| [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md) | Choosing between circuits (AIC/BIC) |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
 | [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md) | Z-HIT validation |
 | [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md) | DRT - intuitive introduction |

@@ -4,6 +4,61 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.26.0 (2026-08-30)
+
+### Added
+
+- **`--circuit` can be repeated to compare candidate models by AIC/BIC.**
+  Every candidate is fitted on the same data with the same weighting and the
+  results are ranked in one table with the free parameter count, fit error,
+  dAIC, dBIC and the condition number.
+
+  Adding an element to a circuit almost always lowers the residual, so a
+  comparison of fit errors systematically favours the most complex candidate.
+  AIC and BIC charge for each free parameter and answer the question the fit
+  error cannot: does the data support the extra element? Only differences
+  carry meaning - below 2 the models are indistinguishable, above 10 the
+  difference is decisive - and only within one run, since a change of
+  weighting or frequency range invalidates the comparison.
+
+  BIC selects the reported winner, which is also what `--analyze-oxide`
+  receives; the selected circuit is named in the log. A candidate that fails
+  to fit - including one whose expression does not parse - is reported in the
+  table and skipped rather than ending the run. Figures are saved per
+  candidate (`_fit_1`, `_fit_2`, ...) and the table's `-c` column gives the
+  command-line position, so a reordered ranking still maps to its files.
+
+  The condition number is in the table on purpose: an overparametrized
+  circuit can win on AIC while its parameters are not jointly identifiable.
+  A winner flagged `!` (cond > 1e10) is a warning, not a recommendation.
+
+  **A single `--circuit` behaves exactly as before** - one fit, no table, and
+  the figure keeps its original filename.
+
+- **`compute_information_criteria`** in `fitting/diagnostics.py`, exported
+  from `eis_analysis.fitting`. Returns the weighted RSS, AIC and BIC for a
+  fitted model. It rejects `n_free_params <= 0`: a zero would charge no
+  complexity penalty at all and hand that model every comparison it enters,
+  which is precisely what an unpopulated field would have caused silently.
+
+- **`doc/MODEL_SELECTION_AIC_BIC.md`** - what the criteria measure, the
+  arithmetic worked through on a real case, and what they cannot tell you.
+
+- **`FitResult.n_free_params`** - the number of freely optimized parameters
+  (fixed parameters excluded), which is the `k` the criteria charge for.
+  Previously only the private `_dof` carried this, and only indirectly.
+
+### Notes
+
+- The Voigt chain (`--voigt-chain`) deliberately does not enter the ranking.
+  Its `K(R, tau)` elements sit on a fixed tau grid that is not optimized, so
+  a naive parameter count overstates its complexity by M (about 35 BIC points
+  at M = 7, enough to invert the ranking), and the fair count would still
+  only be a lower bound because both the grid and `prune_threshold` are
+  data-informed. `--voigt-chain` keeps its own separate branch unchanged.
+
+---
+
 ## Version 0.25.5 (2026-08-30)
 
 ### Added

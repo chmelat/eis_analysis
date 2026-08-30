@@ -550,6 +550,7 @@ def fit_circuit_diffevo(
         cov=cov,
         diagnostics=fit_diagnostics,
         param_labels=param_labels_indexed,
+        n_free_params=len(free_indices),
         bound_status=bound_status,
         _dof=cov_result.dof if cov_result is not None else 0,
         _ci_log_scale=log_scale_ci_mask(lower_bounds_full, upper_bounds_full)
