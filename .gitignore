@@ -40,3 +40,9 @@ mod*.sh
 
 # Symlinks to data in root
 /EIS_*.dta
+
+# Scratch: third-party checkouts for comparison, planning notes.
+# tmp/ has held an unlicensed vendored tree (see doc/ZSCOPE_COMPARISON.md),
+# so keep it out of reach of `git add -A`.
+/tmp/
+/plans/
