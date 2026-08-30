@@ -590,7 +590,7 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 | W(sigma) | sigma [Ohm*s^(-1/2)] | Z = sigma*(1-j)/sqrt(omega) |
 | Wo(R, tau) | R [Ohm], tau [s] | Warburg bounded |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
-| G(sigma, tau) | sigma [Ohm*s^(-1/2)], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
+| G(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
 | CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |
 
 **Voigt element analysis from DRT:**

@@ -13,9 +13,14 @@ directly in Python using operators.
 
 ```
 eis_analysis/fitting/
-├── circuit_elements.py   # Basic elements (R, C, Q, L, W, Wo, K, G)
-├── circuit_builder.py    # Combinators (Series, Parallel)
-└── circuit.py            # Fitting functions
+  circuit_elements/      # Element definitions (package)
+    base.py              #   CircuitElement, operators, fixed parameters
+    basic.py             #   R, C, L
+    distributed.py       #   Q, W, Wo, CC
+    composite.py         #   K, G
+  circuit_builder.py     # Combinators (Series, Parallel)
+  circuit.py             # Fitting functions
+  bounds.py              # Default bounds per parameter label
 ```
 
 ### Classes
@@ -33,7 +38,8 @@ eis_analysis/fitting/
 
 ## Parsing with eval()
 
-Circuit strings are parsed in the `eis.py` file using the `parse_circuit_expression()` function:
+Circuit strings are parsed by `parse_circuit_expression()` in
+`eis_analysis/cli/utils.py`:
 
 ```python
 def parse_circuit_expression(expr: str):
@@ -60,10 +66,14 @@ applies, not the intuitive precedence for electrical circuits.
 
 | Precedence | Operator | Meaning in circuits |
 |------------|----------|-------------------|
-| 12         | `-`, `+` | **Series connection** |
+| 12         | `-`      | **Series connection** |
 | 8          | `|`      | **Parallel connection** |
 
 **Operator `-` has HIGHER precedence than `|`!**
+
+Only `-` and `|` are overloaded (`__sub__` and `__or__` in
+`circuit_elements/base.py`). `+` is *not* a series connection - `R(100) +
+C(1e-6)` raises `unsupported operand type(s) for +`.
 
 ### Consequences
 
@@ -73,26 +83,20 @@ Without parentheses, expressions are parsed as follows:
 # User writes:
 R(1) - R(2)|C(3) - R(4)|C(5)
 
-# Python interprets (due to precedence - > |):
-R(1) - (R(2) | (C(3) - (R(4) | C(5))))
+# Python groups every '-' first (higher precedence), then chains the '|'
+# left to right (| is left-associative):
+((R(1) - R(2)) | (C(3) - R(4))) | C(5)
 
-# Resulting structure:
-#   R(1)
-#     │
-#   Series
-#     │
-#   R(2) ══╗
-#          ║ Parallel
-#   C(3)   ║
-#     │    ║
-#   Series ║
-#     │    ║
-#   R(4) ══╬══╗
-#          ║  ║ Parallel
-#   C(5) ══╝══╝
+# Resulting structure - the top-level node is Parallel, not Series:
+Parallel
+  |- Series: R(1) - R(2)
+  |- Series: C(3) - R(4)
+  '- C(5)
 ```
 
-This is NOT the intended circuit `R - (R||C) - (R||C)`!
+This is NOT the intended circuit `R - (R||C) - (R||C)`! Note that R(1) does
+not stay in series with the rest at all - it ends up inside the first
+parallel branch.
 
 ### Correct Notation
 
@@ -169,7 +173,7 @@ Z_Q = 1 / (Q * (j * omega)^n)
 | Parameter | Unit         | Default | Description  |
 |-----------|--------------|---------|--------------|
 | Q         | F * s^(n-1)  | 1e-4    | Q coefficient |
-| n         | -            | 0.8     | Q exponent (0-1) |
+| n         | -            | 0.8     | Q exponent; fitted within 0.3 - 1.0 |
 
 Special cases:
 - n = 1: ideal capacitor
@@ -244,7 +248,7 @@ Models coupled diffusion with first-order chemical reaction.
 
 | Parameter | Unit         | Default | Description              |
 |-----------|--------------|---------|--------------------------|
-| sigma     | Ohm*s^(1/2)  | 100     | Pre-factor (DC limit)    |
+| sigma     | Ohm          | 100     | Pre-factor (DC limit)    |
 | tau       | s            | 1e-3    | Reaction time constant   |
 
 Applications:
@@ -440,10 +444,10 @@ print(circuit)        # R(100) - (R(5000) | C(1e-6))
 Internal structure:
 ```
 Series
-├── R(100)
-└── Parallel
-    ├── R(5000)
-    └── C(1e-6)
+  |- R(100)
+  '- Parallel
+       |- R(5000)
+       '- C(1e-6)
 ```
 
 ### Methods
@@ -464,6 +468,12 @@ Z = circuit.impedance(frequencies, params)
 # Update after fitting
 circuit.update_params(fitted_params)
 ```
+
+**Note:** the labels are the symbols the fit output prints, not the argument
+names used in this document's parameter tables. They are Greek where the
+symbol is: `W` -> `σ`, `Wo` -> `R_W`, `τ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
+`G` -> `σ_G`, `τ_G`, `CC` -> `C_inf`, `ΔC`, `τ_CC`, `α_CC`. `bounds.py` keys
+its default bounds on these labels.
 
 
 ## Limitations of Current Implementation
@@ -490,21 +500,32 @@ in the expression. Changing structure changes parameter indices.
 
 ## Security
 
-Parser uses `eval()` with restricted namespace:
+**Only ever pass trusted circuit strings to the parser.** A circuit
+expression is executed, not parsed, so it must be treated like any other
+piece of Python source the user hands over.
+
+The parser calls `eval()` with a restricted namespace:
 
 ```python
 eval(expr, {"__builtins__": {}}, safe_namespace)
 ```
 
-- `__builtins__: {}` - no built-in functions
-- `safe_namespace` - only circuit elements
+- `__builtins__: {}` - built-in names are not bound
+- `safe_namespace` - only circuit elements are bound
 
-This prevents:
-- Execution of arbitrary code
-- Access to file system
-- Module imports
+**This is not a sandbox.** Emptying `__builtins__` removes the convenient
+names (`open`, `__import__`, `eval`), but not the objects they lead to: a
+literal such as `()` still exposes the whole class hierarchy through
+`__class__`, and any class found that way carries a `__globals__` with a live
+reference to the real built-ins. Arbitrary code execution, file access and
+imports are therefore all reachable from a deliberately written expression.
 
-Nevertheless, it is recommended to use only trusted inputs.
+The restriction is worth keeping - it turns a typo into an error instead of a
+surprise - but it defends against accidents, not against a hostile string. Do
+not expose the parser to untrusted input (a web form, a shared job queue)
+without running it in a real sandbox: a separate process with dropped
+privileges, or a proper grammar-based parser (see Possible Future
+Extensions), which would remove `eval()` altogether.
 
 
 ## Possible Future Extensions

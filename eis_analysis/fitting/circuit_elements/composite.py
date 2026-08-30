@@ -134,8 +134,10 @@ class G(CircuitElement):
     Parameters
     ----------
     sigma : float or str, optional
-        Pre-factor [Ohm*s^(1/2)] (default: 100.0)
-        Related to the diffusion-reaction resistance.
+        Pre-factor [Ohm] (default: 100.0)
+        The DC limit of the element: Z(omega -> 0) = sigma. (The sqrt is
+        dimensionless in this tau parametrization, unlike the equivalent
+        Z = Z_0 / sqrt(k + j*omega) form where Z_0 is in Ohm*s^(-1/2).)
         If passed as string, the parameter is fixed during fitting.
     tau : float or str, optional
         Reaction time constant [s] (default: 1e-3)
