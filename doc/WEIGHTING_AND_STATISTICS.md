@@ -21,6 +21,31 @@ Weighting normalizes the contribution of each point so that all frequency region
 
 ## 2. Weighting Types
 
+### 2.0 Convention: where the weight acts
+
+The weight `w` multiplies the **residual**, not its square, so the minimized
+cost function is
+
+```
+S = SUM[ w_i^2 * ((Z'_exp - Z'_fit)^2 + (Z''_exp - Z''_fit)^2) ]
+```
+
+All formulas in section 2 use this convention: a weight `w = 1/|Z|`
+contributes `1/|Z|^2` to the squared cost. Section 3.1 defines the pseudo
+chi-squared with a weight on the **squared** residual, so its `w_i` and the
+`w` below differ by one power of |Z| - see the note there.
+
+Weights are normalized to unit mean (`w / mean(w)`) before use. The
+normalization cancels out of the optimum, of the relative fit error and of the
+parameter standard errors, but absolute cost values are therefore not
+comparable between weighting types.
+
+**Scope:** `--weighting` applies to circuit fitting (and the Voigt-chain R
+estimate) only. Kramers-Kronig and Z-HIT validation always run with their own
+internal `modulus` weighting; the CLI option does not change them.
+
+---
+
 ### 2.1 Uniform
 
 ```
@@ -48,9 +73,9 @@ w = 1 / sqrt(|Z|)
 ```
 
 **Characteristics:**
-- Compromise between uniform and proportional
-- Slightly favors high-impedance points
-- Smaller penalty for deviations at low |Z|
+- Compromise between uniform and modulus
+- Still favors high-impedance points, but far less than uniform
+- Corresponds to the error model sigma ~ sqrt(|Z|)
 
 **When to use:**
 - When proportional gives too much weight to high-frequency points
@@ -67,10 +92,13 @@ w = 1 / |Z|
 ```
 
 **Characteristics:**
-- Normalizes to relative deviations
+- Normalizes to relative deviations (error model sigma ~ |Z|)
 - Each point contributes proportionally to its relative error
-- Standard for Lin-KK validation (Schonleber 2014)
 - Balances influence of points across entire frequency range
+- Minimizes exactly Boukamp's pseudo chi-squared (section 3.1): with the cost
+  function of section 2.0, w = 1/|Z| gives the 1/|Z|^2 weight on the squared
+  residual
+- The weighting Lin-KK validation uses internally (Schonleber 2014)
 
 **When to use:**
 - Most standard EIS measurements
@@ -89,7 +117,9 @@ w = 1 / |Z|^2
 
 **Characteristics:**
 - Strongly favors low-impedance points
-- Used in Boukamp's pseudo chi-squared
+- Contributes 1/|Z|^4 to the squared cost (error model sigma ~ |Z|^2). This is
+  *not* the weighting of Boukamp's pseudo chi-squared - that one is `modulus`
+  (section 2.3)
 - May underweight low-frequency region
 
 **When to use:**
@@ -103,12 +133,12 @@ w = 1 / |Z|^2
 
 ### 2.5 Comparison and Recommendations
 
-| Weighting | Formula | Preference | Typical Use |
-|-----------|---------|------------|-------------|
-| uniform | w = 1 | High \|Z\| | Diagnostics, constant abs. error |
-| sqrt | w = 1/sqrt(\|Z\|) | Slightly high \|Z\| | Compromise |
-| **modulus** | w = 1/\|Z\| | **Balanced** | **Default, most data** |
-| proportional | w = 1/\|Z\|^2 | Low \|Z\| | High-frequency analysis |
+| Weighting | w (on residual) | Weight in squared cost | Preference | Typical Use |
+|-----------|-----------------|------------------------|------------|-------------|
+| uniform | w = 1 | 1 | High \|Z\| | Diagnostics, constant abs. error |
+| sqrt | w = 1/sqrt(\|Z\|) | 1/\|Z\| | Slightly high \|Z\| | Compromise |
+| **modulus** | w = 1/\|Z\| | 1/\|Z\|^2 | **Balanced** | **Default, most data; equals chi^2_ps** |
+| proportional | w = 1/\|Z\|^2 | 1/\|Z\|^4 | Low \|Z\| | High-frequency analysis |
 
 **Recommended workflow:**
 1. Start with `modulus` (default)
@@ -128,10 +158,15 @@ w = 1 / |Z|^2
 chi^2_ps = SUM[ w_i * ((Z'_exp - Z'_fit)^2 + (Z''_exp - Z''_fit)^2) ]
 
 where:
-  w_i = 1 / (Z'_i^2 + Z''_i^2)  ... proportional weighting (1/|Z|^2)
+  w_i = 1 / (Z'_i^2 + Z''_i^2)  ... weight on the SQUARED residual (1/|Z|^2)
   Z' = real part of impedance
   Z'' = imaginary part of impedance
 ```
+
+**Note on conventions:** this `w_i` weights the squared residual, whereas the
+`w` of section 2 multiplies the residual itself. The CLI weighting that
+reproduces chi^2_ps is therefore `modulus` (w = 1/|Z|, the default), not
+`proportional`.
 
 **Interpretation:**
 - Dimensionless fit quality indicator
@@ -139,10 +174,14 @@ where:
 - Used in KK validation
 - Basis for noise estimation
 
-**Typical values:**
-- chi^2_ps < 0.01: Very good fit
+**Typical values** - chi^2_ps is a sum over points, so the thresholds scale
+with N; the values below assume N ~ 50-60 points:
+- chi^2_ps < 0.01: Very good fit (~1% noise at N = 50)
 - chi^2_ps ~ 0.01-0.1: Good fit
 - chi^2_ps > 0.1: Fit may be problematic
+
+For an N-independent judgement use the estimated noise (section 3.2), which is
+exactly chi^2_ps normalized by the number of points.
 
 **Reference:** Boukamp, B.A. (1995). J. Electrochem. Soc., 142, 1885-1894.
 
@@ -189,7 +228,9 @@ The constant 5000 = 100^2 / 2 comes from:
 
 **Interpretation:**
 - Estimates noise standard deviation as percentage of |Z|
-- Assumes deviations from KK fit are caused by random noise
+- Assumes *all* deviation from the KK fit is random noise, so the value is an
+  upper bound: model error (too few Voigt elements, drift) inflates it. The
+  CLI reports it as "Estimated noise (upper bound)".
 
 **Typical values:**
 - noise < 1%: High quality data
@@ -218,10 +259,16 @@ Mean |res_imag| [%] = 100 * mean(|res_imag|)
 - Normalized by |Z| (not by individual components)
 - Used in KK validation to assess data quality
 
-**Quality thresholds (KK validation):**
-- Mean |res| < 5%: Data satisfies KK relations (valid)
-- Mean |res| 5-10%: Minor deviations, data acceptable
-- Mean |res| > 10%: Significant deviations, data may be invalid
+**Quality thresholds (KK and Z-HIT validation)** - the labels the CLI prints,
+graded on `max(mean|res_real|, mean|res_imag|)`:
+- < 0.5%: excellent
+- < 1%: good
+- < 2.5%: acceptable
+- < 5%: marginal (check for drift/nonlinearity)
+- >= 5%: poor - data fails validation
+
+The validity flag is the 5% line: both mean residuals must be below 5% for the
+data to count as KK-compliant.
 
 **Note:** In KK validation, real and imaginary parts are expected to be related by Kramers-Kronig relations. High residuals may indicate:
 - System non-stationarity during measurement
@@ -315,9 +362,10 @@ correlation only.
 - cond(J_s^T J_s) > 10^10: Ill-conditioned problem, SE may be unreliable
 
 **Rank deficiency:** if some singular values are (numerically) zero, the
-covariance does not exist in the affected directions. Parameters whose
-direction overlaps the null space are reported with SE = inf
-(non-identifiable); the remaining parameters get their SE from the
+covariance does not exist in the affected directions. A parameter whose
+direction overlaps the null space by more than 0.1% of its norm (a tolerance
+set safely above the O(machine-eps) noise of the SVD basis) is reported with
+SE = inf (non-identifiable); the remaining parameters get their SE from the
 pseudo-inverse restricted to the identifiable subspace, so one degenerate
 parameter does not destroy the uncertainty estimates of the others.
 
@@ -387,12 +435,12 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 |--------|-------|------|-------------|-----|
 | chi^2_ps | [0, inf) | - | < 0.1 | KK validation |
 | Noise est. | [0, inf) | % | < 3% | Data quality |
-| Mean \|res\| | [0, 100+] | % | < 5% | KK validation |
+| Mean \|res\| | [0, 100+] | % | < 1% good, < 5% valid | KK validation |
 | Fit error rel. | [0, 100+] | % | < 10% | Fit quality |
 | Fit error abs. | [0, inf) | Ohm | contextual | Fit quality |
 | SE | [0, inf) | [param] | < 10% of param | Parameter uncertainty |
 | 95% CI | - | [param] | narrow | Parameter uncertainty |
-| Cond. number (J^T J) | [1, inf) | - | < 10^10 | Fit stability |
+| Cond. number (J_s^T J_s) | [1, inf) | - | < 10^10 | Fit stability |
 
 ---
 
@@ -412,7 +460,7 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 
 3. **Parameters**
    - Check 95% CI - are they reasonable?
-   - Check condition number cond(J^T J) < 10^10
+   - Check condition number cond(J_s^T J_s) < 10^10
    - If SE is high, parameter is not well determined
 
 ### Troubleshooting
