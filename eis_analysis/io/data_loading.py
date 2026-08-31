@@ -6,6 +6,7 @@ Native Gamry DTA parser - no external dependencies.
 """
 
 import math
+import unicodedata
 import numpy as np
 import logging
 from typing import Tuple, Dict, Optional, Any, List
@@ -16,6 +17,37 @@ logger = logging.getLogger(__name__)
 # Validation constants
 MIN_DATA_POINTS = 10  # Minimum number of data points for analysis
 MIN_FREQUENCY_RANGE = 10  # Minimum ratio f_max/f_min
+
+
+def _read_dta_lines(filename: str) -> List[str]:
+    """
+    Read a Gamry .DTA file as ASCII text lines. Raises OSError like open().
+
+    Notes
+    -----
+    Gamry writes the Windows code page of the machine that recorded the run,
+    cp1250 on the Czech systems these files come from. Reading with
+    ``errors='ignore'`` instead silently deleted the diacritics from operator
+    notes, so the decode is explicit and lossless.
+
+    Folding to ASCII is deliberate: it makes the result identical whichever
+    encoding was right, so a wrong guess degrades to unaccented text instead
+    of mojibake. No number contains a non-ASCII character, so measurements
+    are untouched.
+    """
+    with open(filename, 'rb') as f:
+        raw = f.read()
+
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        # cp1250 leaves 5 bytes undefined; 'replace' maps them to U+FFFD,
+        # which the fold below drops. So this can never raise.
+        text = raw.decode('cp1250', errors='replace')
+
+    # NFKD splits an accented letter into a base letter plus a combining
+    # accent, so dropping the non-ASCII remainder leaves the letter behind.
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii').splitlines()
 
 
 def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
@@ -57,13 +89,7 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
 
     # Read entire file (needed to detect EXPERIMENTABORTED)
     try:
-        # Try ISO-8859-1 first (Gamry default), fallback to utf-8
-        try:
-            with open(filename, 'r', encoding='ISO-8859-1') as f:
-                lines = f.readlines()
-        except UnicodeDecodeError:
-            with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
+        lines = _read_dta_lines(filename)
     except FileNotFoundError:
         raise ValueError(f"File not found: {filename}")
     except OSError as e:
@@ -147,8 +173,7 @@ def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
         - Vm: measured voltage [V]
     """
     try:
-        with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = f.readlines()
+        lines = _read_dta_lines(filename)
     except OSError as e:
         logger.warning(f"Error reading file {filename}: {e}")
         return None
@@ -253,8 +278,7 @@ def parse_dta_metadata(filename: str) -> Dict[str, Any]:
     }
 
     try:
-        with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = f.readlines()
+        lines = _read_dta_lines(filename)
 
         i = 0
         while i < len(lines):

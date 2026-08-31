@@ -36,6 +36,40 @@ Complete change history for all project versions.
   `FREQFINAL`, so a complete sweep may overshoot the computed count by one,
   and treating that as an anomaly would warn on healthy files.
 
+### Fixed
+
+- **Diacritics in DTA metadata are no longer silently deleted.**
+  `parse_dta_metadata()` and `parse_ocv_curve()` opened the file as UTF-8 with
+  `errors='ignore'`, so on a file written by a Czech Windows machine - cp1250,
+  which is what these instruments produce - every accented byte was dropped
+  without an error or a warning:
+
+  ```
+  TITLE "Mereni vzorku"          ->  'Men vzorku'
+  NOTES "elektroda c. 2"         ->  'elektroda . 2'
+  ```
+
+  Sample identification and operator notes were the two fields worst affected,
+  and nothing downstream could tell that characters were missing.
+
+  All three DTA parsers now share `_read_dta_lines()`, which decodes as UTF-8,
+  then cp1250, then latin-1 - the last never fails, because it maps every
+  byte - and folds the result to its closest ASCII equivalent via NFKD
+  normalization. `read_gamry_native()` was already reading ISO-8859-1 and so
+  never lost data; it moves to the shared reader for consistency, and its own
+  UTF-8 fallback goes away because ISO-8859-1 decodes any byte sequence and
+  could never raise to reach it.
+
+  Folding is deliberate rather than a limitation. It makes the result
+  identical whichever of the encodings was correct, so a wrong guess degrades
+  to unaccented text instead of mojibake, and plain ASCII survives the PDF
+  export, whose font does not cover the full Latin-2 range. Numeric fields
+  cannot contain a non-ASCII character, so measurements are untouched.
+
+  ISO-8859-2 - the Unix Czech encoding, not what Windows writes - is not in
+  the list. cp1250 decodes it without raising, so most of its text survives,
+  but the few characters where the two code pages disagree fold away.
+
 ---
 
 ## Version 0.26.0 (2026-08-30)

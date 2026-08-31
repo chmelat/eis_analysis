@@ -94,6 +94,13 @@ def _write(tmp_path, name, text):
     return str(p)
 
 
+def _write_encoded(tmp_path, name, text, encoding):
+    """Write a file in the code page a Gamry machine would have used."""
+    p = tmp_path / name
+    p.write_bytes(text.encode(encoding))
+    return str(p)
+
+
 # ---------------------------------------------------------------------------
 # A) read_gamry_native / load_data
 # ---------------------------------------------------------------------------
@@ -322,6 +329,56 @@ def test_metadata_missing_file_returns_defaults():
     # Narrowed except (OSError) still handles a missing file gracefully.
     m = parse_dta_metadata("/nonexistent/path/missing.DTA")
     assert m["area"] is None and m["notes"] == []
+
+
+# Operator notes are typed on a Czech Windows machine, so the file arrives in
+# cp1250. Reading it as UTF-8 with errors='ignore' used to delete every
+# accented character without a trace.
+ACCENTED_DTA = "\n".join([
+    "TAG\tEISPOT",
+    "TITLE\tLABEL\tM\u011b\u0159en\u00ed vzorku\tTest &Identifier",
+    "NOTES\tNOTES\t2\t&Notes",
+    "\t380 \u00b0C, 252 bar",
+    "\tautokl\u00e1v, elektroda \u010d. 2",
+    "ZCURVE\tTABLE",
+]) + "\n"
+
+
+@pytest.mark.parametrize("encoding", ["cp1250", "utf-8"])
+def test_metadata_diacritics_folded_not_dropped(tmp_path, encoding):
+    """Accents are folded to ASCII; the letters underneath must survive."""
+    path = _write_encoded(tmp_path, f"acc_{encoding}.DTA", ACCENTED_DTA, encoding)
+    m = parse_dta_metadata(path)
+    assert m["title"] == "Mereni vzorku"
+    assert m["notes"] == ["380 C, 252 bar", "autoklav, elektroda c. 2"]
+
+
+def test_metadata_undecodable_bytes_do_not_raise(tmp_path):
+    """Bytes that are valid in neither UTF-8 nor cp1250 fall back to latin-1."""
+    path = tmp_path / "raw.DTA"
+    path.write_bytes(b"TAG\tEISPOT\nTITLE\tLABEL\tA\x81B\tT\nZCURVE\tTABLE\n")
+    assert parse_dta_metadata(str(path))["title"] == "AB"
+
+
+def test_ocv_reads_cp1250_file(tmp_path):
+    """The OCV parser shares the reader, so it must tolerate the same file."""
+    text = ACCENTED_DTA.replace(
+        "ZCURVE\tTABLE",
+        "OCVCURVE\tTABLE\t2\n\tPt\tT\tVf\tVm\n\t#\ts\tV\tV\n"
+        "\t0\t2,5\t-0,0739\t-0,0739\n\t1\t5,0\t-0,0738\t-0,0738",
+    )
+    ocv = parse_ocv_curve(_write_encoded(tmp_path, "ocv1250.DTA", text, "cp1250"))
+    assert ocv is not None and len(ocv["time"]) == 2
+
+
+def test_zcurve_data_unaffected_by_folding(tmp_path):
+    """Folding touches text only; the numeric columns must round-trip."""
+    rows = _rows(15)
+    text = _make_dta(rows).replace("TITLE\tLABEL\tTest\tT",
+                                   "TITLE\tLABEL\tVzorek \u010d. 1 p\u0159i 380 \u00b0C\tT")
+    f, Z = read_gamry_native(_write_encoded(tmp_path, "num.DTA", text, "cp1250"))
+    assert len(f) == 15
+    assert np.isclose(f[0], rows[0][0]) and np.isclose(Z[0].real, rows[0][1])
 
 
 # ---------------------------------------------------------------------------
