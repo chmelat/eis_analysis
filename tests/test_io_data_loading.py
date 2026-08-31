@@ -219,6 +219,61 @@ def test_complete_sweep_does_not_warn(tmp_path, caplog, n):
     assert not any("truncated" in r.message.lower() for r in caplog.records)
 
 
+def test_columns_located_by_header_name(tmp_path):
+    """A non-standard column order must be followed, not assumed.
+
+    The truncated row reaches Zmod but not Freq. It is dropped either by the
+    min_columns check or, failing that, by the IndexError guard below it, so
+    this pins the outcome rather than which of the two did the work.
+    """
+    rows = [f"\t{i}\t{i}\t{100 + i}\t{-(10 + i)}\t1\t{1000 - i}" for i in range(12)]
+    rows.insert(3, "\t3\t3\t103\t-13\t1")
+    text = "\n".join([
+        "TAG\tEISPOT",
+        "ZCURVE\tTABLE",
+        "\tPt\tTime\tZreal\tZimag\tZmod\tFreq",   # Freq last, not third
+        "\t#\ts\tohm\tohm\tohm\tHz",
+    ] + rows) + "\n"
+    f, Z = read_gamry_native(_write(tmp_path, "order.DTA", text))
+    assert len(f) == 12  # the truncated row dropped, the rest kept
+    assert np.isclose(f[0], 1000.0) and np.isclose(f[-1], 989.0)
+    assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
+
+
+def test_unnamed_columns_fall_back_to_standard_order(tmp_path, caplog):
+    """An unrecognizable header keeps the old positional behaviour, loudly."""
+    text = "\n".join([
+        "TAG\tEISPOT",
+        "ZCURVE\tTABLE",
+        "\tA\tB\tC\tD\tE",
+        "\t#\ts\tHz\tohm\tohm",
+    ] + [f"\t{i}\t{i}\t{1000 - i}\t{100 + i}\t{-(10 + i)}" for i in range(12)]) + "\n"
+    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
+        f, Z = read_gamry_native(_write(tmp_path, "noname.DTA", text))
+    assert np.isclose(f[0], 1000.0) and np.isclose(Z[0].real, 100.0)
+    assert any("standard order" in r.message for r in caplog.records)
+
+
+def test_abort_before_sweep_names_the_abort(tmp_path):
+    """An abort ahead of ZCURVE must not be reported as a missing section."""
+    text = ("TAG\tEISPOT\nEXPERIMENTABORTED\tFLAG\n"
+            "ZCURVE\tTABLE\n\tPt\tTime\tFreq\tZreal\tZimag\n\t#\ts\tHz\tohm\tohm\n")
+    with pytest.raises(ValueError, match="aborted before the impedance sweep"):
+        read_gamry_native(_write(tmp_path, "early.DTA", text))
+
+
+def test_ocv_stops_at_next_section(tmp_path):
+    """An overstated point count must not read the header lines that follow."""
+    text = ("TAG\tEISPOT\n"
+            "OCVCURVE\tTABLE\t9\n"          # claims 9 rows, only 2 follow
+            "\tPt\tT\tVf\tVm\n\t#\ts\tV\tV\n"
+            "\t0\t2,5\t-0,0739\t-0,0739\n\t1\t5,0\t-0,0738\t-0,0738\n"
+            "EOC\tQUANT\t-0,0738\tOpen Circuit (V)\n"
+            "ZCURVE\tTABLE\n")
+    ocv = parse_ocv_curve(_write(tmp_path, "ocvstop.DTA", text))
+    assert ocv is not None and len(ocv["time"]) == 2
+
+
 # ---------------------------------------------------------------------------
 # B) load_csv_data
 # ---------------------------------------------------------------------------

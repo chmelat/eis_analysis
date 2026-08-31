@@ -108,6 +108,25 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
     if start_line is None:
         raise ValueError(f"No ZCURVE section found in {filename}")
 
+    # An abort marker ahead of the sweep means the run stopped while settling,
+    # so the ZCURVE table is written but empty. Falling through would report a
+    # missing ZCURVE section and send the reader after the wrong thing.
+    if end_line is not None and end_line < start_line:
+        raise ValueError(f"Experiment in {filename} was aborted before the impedance "
+                         f"sweep started; the ZCURVE section contains no data")
+
+    # Follow the header row rather than assuming columns 3 to 5.
+    header = lines[start_line + 1].split() if start_line + 1 < len(lines) else []
+    try:
+        col_freq, col_zreal, col_zimag = (header.index(n) for n in ('Freq', 'Zreal', 'Zimag'))
+    except ValueError:
+        logger.warning(f"ZCURVE header in {filename} does not name Freq/Zreal/Zimag "
+                       f"({header or 'header row missing'}); assuming standard order")
+        col_freq, col_zreal, col_zimag = 2, 3, 4
+
+    # A row must be long enough to hold the rightmost column we actually read.
+    min_columns = max(col_freq, col_zreal, col_zimag) + 1
+
     # Extract data lines (skip ZCURVE header + column names + units = 3 lines)
     if end_line is not None:
         raw_data = lines[start_line + 3:end_line]
@@ -124,14 +143,13 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
         line = line.replace(',', '.')
         parts = line.split()
 
-        # Need at least 5 columns: Pt, Time, Freq, Zreal, Zimag
-        if len(parts) < 5:
+        if len(parts) < min_columns:
             continue
 
         try:
-            freq = float(parts[2])
-            zr = float(parts[3])
-            zi = float(parts[4])
+            freq = float(parts[col_freq])
+            zr = float(parts[col_zreal])
+            zi = float(parts[col_zimag])
 
             # Validate values
             if freq > 0 and np.isfinite(freq) and np.isfinite(zr) and np.isfinite(zi):
@@ -208,8 +226,8 @@ def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
         if not line:
             continue
 
-        # Stop if we hit another section
-        if not line[0].isdigit() and not line.startswith('\t'):
+        # Stop if we hit another section; data rows open with the point index.
+        if not line[0].isdigit():
             break
 
         # Convert European decimal format

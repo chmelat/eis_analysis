@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.27.1 (2026-08-31)
+
+### Changed
+
+- **The Gamry parser now reads its column positions from the ZCURVE header row**
+  instead of assuming `Freq`, `Zreal` and `Zimag` sit in columns 3 to 5. Gamry
+  is consistent for ZCURVE, so nothing changes for the files we see; the point
+  is that a file with a different layout now fails loudly rather than shifting
+  every value one column across and yielding plausible nonsense. A header that
+  names none of the three falls back to the old positional order and says so.
+
+  The row-length check follows from the same place. It was a fixed `>= 5`;
+  it is now derived from the rightmost column actually read, so a layout that
+  puts `Zimag` further right no longer accepts rows too short to hold it.
+
+### Fixed
+
+- **An `EXPERIMENTABORTED` marker ahead of `ZCURVE` is now named for what it
+  is.** A run aborted while the cell was still settling writes the ZCURVE
+  table header with no rows beneath it. The parser reported that as
+  `No valid EIS data found ... Check if file contains ZCURVE section`, which
+  points at the one thing that is not wrong - the section is there. It now
+  raises `Experiment ... was aborted before the impedance sweep started`.
+
+- **Dead half of a guard in `parse_ocv_curve()`.** The section-end test read
+  `not line[0].isdigit() and not line.startswith('\t')`, but the line had
+  already been stripped, so the second clause could never be true. Behaviour is
+  unchanged - the loop is bounded by the header's point count either way.
+
+---
+
 ## Version 0.27.0 (2026-08-31)
 
 ### Added
