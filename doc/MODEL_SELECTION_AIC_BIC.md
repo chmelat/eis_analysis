@@ -203,7 +203,7 @@ whichever criterion agrees with you.
 | `err%` | Relative fit error; **the column you must not select on** |
 | `dAIC` | Distance from the best AIC. Predictive view |
 | `dBIC` | Distance from the best BIC. Selects the winner |
-| `cond` | Condition number; how identifiable the parameters are |
+| `cond` | Condition number of the fit; how identifiable the parameters are |
 
 The difference scale, for both criteria:
 
@@ -218,6 +218,33 @@ A difference below 2 does **not** mean the two circuits are equally good
 physics. It means this measurement cannot separate them - a statement about
 your data, not about electrochemistry. The remedy is a wider frequency range
 or less noise, not a different criterion.
+
+### The `cond` column
+
+It is `cond(J^T J)` of the **column-scaled** Jacobian: every column is
+normalised to unit norm before the SVD, so parameters spanning many decades
+(`R ~ 1e5 Ohm`, `Q ~ 1e-7`) cannot inflate it. The number is therefore
+unit-free - a large value is genuine parameter correlation, never an artifact
+of the units. Full definition in
+[WEIGHTING_AND_STATISTICS.md](WEIGHTING_AND_STATISTICS.md#35-parameter-standard-error-se).
+
+It is a *squared* quantity, and `sqrt(cond)` is the one with the physical
+meaning: the factor by which the relative uncertainty of the worst-determined
+parameter direction exceeds the best-determined one.
+
+```
+  cond(J^T J)     sqrt      reading
+  -----------------------------------------------------------------
+  1 - 10          1 - 3     directions near-orthogonal, CI trustworthy
+  1e2 - 1e4      10 - 100   noticeable correlation, CI still usable
+  1e6 - 1e8      1e3 - 1e4  strongly coupled, edge of identifiability
+  > 1e10         > 1e5      `!` in the table, covariance unreliable
+```
+
+So `1e8` reads worse than it is: the worst direction is 1e4 times less certain
+than the best, not 1e8. Compare candidates against each other rather than
+against the threshold - three orders between two rows of one table is a signal
+long before either row is flagged.
 
 ---
 
@@ -270,6 +297,28 @@ as designed.
   covariance is numerically unusable. So read the column, do not wait for the
   marker.
 
+- **`cond` cannot see a parameter that does nothing.** The column scaling that
+  makes it unit-free also normalises away how *strongly* each parameter acts,
+  so it reports only whether parameter directions are mutually **redundant**. A
+  parameter pinned at a bound - `R1 = 1e10` standing in for "this branch is not
+  really there" - has a near-zero gradient, gets scaled back up to unit norm,
+  and leaves `cond` looking perfectly healthy:
+
+  ```
+    rank  -c  Circuit                    k    err%     dAIC     dBIC      cond
+       3   2  L()-R()-(R()|Q()|C())      6    4.90      2.8      6.0   9.8e+00
+                                              R1 = 1.00e+10  [at upper bound]
+  ```
+
+  That row is not lying, it is answering a different question. Such a model is
+  still charged for a parameter that buys nothing, so it trails the same
+  circuit without `R1` by roughly the price of one parameter - here `2.8`
+  against AIC's `2.00` and `6.0` against BIC's `ln(174) = 5.16`. The `0.8`
+  excess is the same in both columns because it comes from the shared misfit
+  term: the larger model's optimizer landed on a marginally worse RSS. Read
+  `cond` together with the at-the-bound warnings the fit prints: the two
+  diagnostics are complementary and neither replaces the other.
+
 - **They assume your weighting describes the noise.** The residuals are treated
   as independent and Gaussian after weighting. `modulus` (the default) means
   noise proportional to `|Z|`, which is usually right for a potentiostat. If
@@ -311,7 +360,8 @@ as designed.
 
 Practical order of work: let DRT tell you **how many processes there are**,
 write down 2-4 physically defensible circuits, fit them in one run, read
-`dBIC`, then check `cond` on the winner before believing its parameters.
+`dBIC`, then check `cond` **and the at-the-bound warnings** on the winner
+before believing its parameters.
 
 ```bash
 eis data.DTA \
@@ -341,7 +391,7 @@ eis data.DTA \
 - [GMM_BAYESIAN_INTUITION.md](GMM_BAYESIAN_INTUITION.md) - the same BIC idea
   applied to counting DRT peaks
 - [WEIGHTING_AND_STATISTICS.md](WEIGHTING_AND_STATISTICS.md) - what RSS, the
-  weights and the fit error actually are
+  weights, the fit error and the `cond` column actually are
 - [CIRCUIT_PARSER.md](CIRCUIT_PARSER.md) - circuit expression syntax
 - [DIFFERENTIAL_EVOLUTION.md](DIFFERENTIAL_EVOLUTION.md) - the optimizer that
   produces each candidate's fit
