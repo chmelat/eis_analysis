@@ -27,6 +27,7 @@ from eis_analysis.io.data_loading import (
     load_csv_data,
     parse_dta_metadata,
     parse_ocv_curve,
+    expected_points,
     MIN_DATA_POINTS,
 )
 
@@ -50,11 +51,24 @@ def _rows(n, fmin=0.1, fmax=1e5):
     return [(float(fr), 100.0 + i, -(10.0 + i)) for i, fr in enumerate(freqs)]
 
 
-def _make_dta(rows, decimal=",", aborted_after=None):
-    """Minimal valid Gamry .DTA with a ZCURVE section built from rows."""
+def _make_dta(rows, decimal=",", aborted_after=None, sweep=None):
+    """Minimal valid Gamry .DTA with a ZCURVE section built from rows.
+
+    ``sweep`` is an optional ``(f_init, f_final, pts_per_dec)`` triple written
+    into the header, so expected_points() has something to work with.
+    """
     lines = [
         "TAG\tEISPOT",
         "TITLE\tLABEL\tTest\tT",
+    ]
+    if sweep is not None:
+        f_init, f_final, per_dec = sweep
+        lines += [
+            f"FREQINIT\tQUANT\t{_fmt(f_init, decimal)}\tInitial Fre&q. (Hz)",
+            f"FREQFINAL\tQUANT\t{_fmt(f_final, decimal)}\tFinal Fre&q. (Hz)",
+            f"PTSPERDEC\tQUANT\t{_fmt(per_dec, decimal)}\tPoints/&decade",
+        ]
+    lines += [
         "ZCURVE\tTABLE",
         "\tPt\tTime\tFreq\tZreal\tZimag",
         "\t#\ts\tHz\tohm\tohm",
@@ -160,6 +174,42 @@ def test_load_data_duplicate_freq_warns(tmp_path, caplog):
         f, Z = load_data(_write(tmp_path, "dup.DTA", _make_dta(rows)))
     assert len(f) == 12
     assert any("duplicate" in r.message.lower() for r in caplog.records)
+
+
+def test_expected_points_from_header():
+    """3 decades at 10 pts/decade is 31 points, endpoints included."""
+    assert expected_points({'freq_init': 1e5, 'freq_final': 1e2,
+                            'pts_per_dec': 10.0}) == 31
+
+
+@pytest.mark.parametrize("metadata", [
+    {},                                                             # non-EIS file
+    {'freq_init': 1e5, 'freq_final': None, 'pts_per_dec': 10.0},    # partial header
+    {'freq_init': 1e2, 'freq_final': 1e5, 'pts_per_dec': 10.0},     # inverted range
+])
+def test_expected_points_returns_none_without_usable_header(metadata):
+    assert expected_points(metadata) is None
+
+
+def test_truncated_sweep_warns(tmp_path, caplog):
+    """A run stopped above FREQFINAL is short of the header count."""
+    rows = _rows(20, fmin=1e2, fmax=1e5)  # header asks for 31
+    path = _write(tmp_path, "short.DTA",
+                  _make_dta(rows, sweep=(1e5, 1e2, 10.0)))
+    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
+        f, _ = load_data(path)
+    assert len(f) == 20
+    assert any("truncated" in r.message.lower() for r in caplog.records)
+
+
+@pytest.mark.parametrize("n", [31, 32])  # exact, and Gamry's one-point overshoot
+def test_complete_sweep_does_not_warn(tmp_path, caplog, n):
+    """A full sweep, and the endpoint overshoot, stay silent."""
+    path = _write(tmp_path, f"full{n}.DTA",
+                  _make_dta(_rows(n, fmin=1e2, fmax=1e5), sweep=(1e5, 1e2, 10.0)))
+    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
+        load_data(path)
+    assert not any("truncated" in r.message.lower() for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

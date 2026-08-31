@@ -8,6 +8,7 @@ from .data_loading import (
     read_gamry_native,
     parse_dta_metadata,
     parse_ocv_curve,
+    expected_points,
     log_metadata
 )
 from .synthetic import generate_synthetic_data
@@ -18,6 +19,7 @@ __all__ = [
     'read_gamry_native',
     'parse_dta_metadata',
     'parse_ocv_curve',
+    'expected_points',
     'log_metadata',
     'generate_synthetic_data',
 ]

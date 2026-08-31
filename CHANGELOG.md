@@ -4,6 +4,40 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.27.0 (2026-08-31)
+
+### Added
+
+- **Truncated sweeps are now flagged when the file is loaded.** The DTA header
+  states the requested sweep - `FREQINIT`, `FREQFINAL`, `PTSPERDEC` - so the
+  intended point count follows from it. `load_data()` compares that against
+  what the file actually contains and warns when the run came up short:
+
+  ```
+  Sweep may be truncated: 92 points, header implies 96
+    Lowest measured frequency 7.94e-04 Hz, header FREQFINAL 3.00e-04 Hz
+  ```
+
+  A sweep that stops above `FREQFINAL` loses exactly the low-frequency points
+  that carry the slowest processes, which is where DRT resolution and any
+  diffusion branch of a circuit fit are decided. Nothing downstream can detect
+  the loss, because the remaining data is perfectly valid - it just answers a
+  narrower question than the one the measurement was set up to ask. Three of
+  the five reference exports in the working tree turn out to be short.
+
+  The three header fields were already parsed; only the comparison is new.
+
+- **`expected_points(metadata)`** in `io/data_loading.py`, exported from
+  `eis_analysis.io`. Returns the point count the header implies, or `None`
+  when the sweep parameters are missing or inconsistent (a non-EIS file, a
+  truncated header, an inverted frequency range).
+
+  Only a shortfall is reported. Gamry stops at the first point at or below
+  `FREQFINAL`, so a complete sweep may overshoot the computed count by one,
+  and treating that as an anomaly would warn on healthy files.
+
+---
+
 ## Version 0.26.0 (2026-08-30)
 
 ### Added

@@ -5,6 +5,7 @@ This module provides functions to load impedance data from various file formats.
 Native Gamry DTA parser - no external dependencies.
 """
 
+import math
 import numpy as np
 import logging
 from typing import Tuple, Dict, Optional, Any, List
@@ -343,6 +344,32 @@ def parse_dta_metadata(filename: str) -> Dict[str, Any]:
     return metadata
 
 
+def expected_points(metadata: Dict[str, Any]) -> Optional[int]:
+    """
+    Points the sweep should contain, from parse_dta_metadata() output.
+
+    Gamry steps logarithmically from FREQINIT down to FREQFINAL at PTSPERDEC
+    points per decade, so the requested sweep length follows from the header
+    alone. A run that was stopped early comes up short, which makes this a
+    cheap integrity check on any file handed to us. Returns None when the
+    header lacks usable sweep parameters.
+
+    Notes
+    -----
+    The result is exact only up to the endpoint: Gamry stops at the first
+    point at or below FREQFINAL, so a complete sweep may overshoot by one.
+    Only a shortfall indicates a truncated run.
+    """
+    f_init = metadata.get('freq_init')
+    f_final = metadata.get('freq_final')
+    per_decade = metadata.get('pts_per_dec')
+
+    if not f_init or not f_final or not per_decade or f_init <= f_final:
+        return None
+
+    return round(math.log10(f_init / f_final) * per_decade) + 1
+
+
 def log_metadata(metadata: Dict[str, Any]) -> None:
     """
     Log metadata in a readable format.
@@ -447,6 +474,16 @@ def load_data(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128
     # Edge case: duplicate frequencies
     if len(np.unique(frequencies)) != len(frequencies):
         logger.warning("Dataset contains duplicate frequencies")
+
+    # Edge case: sweep stopped before reaching the requested final frequency.
+    # Only a shortfall is reported - see expected_points() on the overshoot.
+    metadata = parse_dta_metadata(filename)
+    n_expected = expected_points(metadata)
+    if n_expected is not None and len(frequencies) < n_expected:
+        logger.warning(f"Sweep may be truncated: {len(frequencies)} points, "
+                       f"header implies {n_expected}")
+        logger.warning(f"  Lowest measured frequency {frequencies.min():.2e} Hz, "
+                       f"header FREQFINAL {metadata['freq_final']:.2e} Hz")
 
     logger.info(f"Loaded {len(frequencies)} points from {filename}")
     logger.info(f"Frequency range: {frequencies.min():.2e} - {frequencies.max():.2e} Hz")
