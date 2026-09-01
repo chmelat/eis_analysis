@@ -418,7 +418,6 @@ the fit reports `Global search contributed nothing` - see
 - `--auto-extend` / `--no-auto-extend` (default: on) - Automatically optimize extend_decades for KK validation (minimizes pseudo chi-squared). On by default to avoid tau-truncation bias that produces spurious imaginary-part residuals on data with strong capacitive/inductive tails. Use `--no-auto-extend` to disable.
 - `--extend-decades-max` (default: 1.0) - Maximum extend_decades for `--auto-extend` search range.
 - `--kk-series-c` - Include a series capacitance `1/(jwC)` in the Lin-KK model (Schonleber `add_cap`). Use for blocking/capacitive low-frequency behavior (e.g. two-electrode cells, blocking oxides): a series C is KK-compliant but has zero real part, so the standard Voigt chain cannot represent it and imaginary residuals grow toward low frequencies while the real fit stays good. Off by default so results stay comparable with earlier analyses; the fitted C is printed in the KK summary.
-- `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
 
 ### Z-HIT validation
 
@@ -462,7 +461,8 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 
 ### Output and visualization
 
-- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and (with `--ri-fit`) `results_ri_fit`, each with the extension given by `--format`. Only the plots actually produced by the run are written.
+- `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
+- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`) and `results_ocv` (`--ocv`), each with the extension given by `--format`. Only the plots actually produced by the run are written.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).
