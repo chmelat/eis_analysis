@@ -405,9 +405,11 @@ def test_each_figure_is_marked_only_with_its_own_method_s_points():
     plt.close(zhit_fig)
 
 
-def test_report_only_reads_the_documented_args(tmp_path):
-    """The whole marking path runs, including the re-save with --save."""
+def test_saved_figure_is_rewritten_with_the_markers(tmp_path):
+    """The validation handler writes the figure before the points are known,
+    so the marked version has to land on disk afterwards."""
     from eis_analysis.cli.handlers.validation import report_outliers
+    from eis_analysis.cli.utils import save_figure
 
     freq = np.logspace(-2, 5, 30)
     r = np.full(30, 0.5)
@@ -415,9 +417,13 @@ def test_report_only_reads_the_documented_args(tmp_path):
     result = fake_result(r)
     result.figure, _ = plt.subplots(1, 2)
 
+    # What the validation handler writes before report_outliers runs
     prefix = str(tmp_path / "out")
+    save_figure(result.figure, prefix, 'kk', 'png')
+    unmarked = (tmp_path / "out_kk.png").read_bytes()
+
     args = argparse.Namespace(max_residual=5.0, save=prefix, format='png')
     report_outliers(freq, result, None, args)
 
-    assert (tmp_path / "out_kk.png").exists()
+    assert (tmp_path / "out_kk.png").read_bytes() != unmarked
     plt.close(result.figure)

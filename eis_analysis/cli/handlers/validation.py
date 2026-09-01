@@ -210,7 +210,8 @@ def _mark_outliers(result, report, method: str, suffix: str,
     Done here rather than inside kramers_kronig_validation / zhit_validation so
     the computation core stays independent of the CLI threshold. The figure was
     already written to disk by the validation handler, so with --save it is
-    re-saved to pick up the markers.
+    re-saved to pick up the markers - quietly, since the path was reported
+    once already.
     """
     fig = getattr(result, 'figure', None)
     points = [p for p in report.points if method in p.methods.split('+')]
@@ -224,4 +225,4 @@ def _mark_outliers(result, report, method: str, suffix: str,
                    linewidth=3, zorder=0,
                    label='Flagged point' if i == 0 else None)
     ax.legend()
-    save_figure(fig, args.save, suffix, args.format)
+    save_figure(fig, args.save, suffix, args.format, quiet=True)
