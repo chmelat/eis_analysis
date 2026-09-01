@@ -21,17 +21,18 @@ All other files import from here or reference it.
 - `pyproject.toml` - dynamic: `version = {attr = "eis_analysis.version.__version__"}`
 
 **Manually maintained:**
-- `README.md` line 3: `**Version:** vX.Y.Z (YYYY-MM-DD)`
-- `doc/PYTHON_API.md` line 3: `**Current version:** vX.Y.Z`
 - `CHANGELOG.md` - newest entry: `## Version X.Y.Z (YYYY-MM-DD)`
+
+`README.md` and `doc/PYTHON_API.md` carry no version number. Both had one, both
+went stale (v0.26.0 while the code was at v0.28.1), because a number a human
+has to retype is a number that eventually is not retyped. The version a reader
+needs comes from `eis --version` and the top of `CHANGELOG.md`.
 
 ## Version Change Workflow
 
 1. **Update `eis_analysis/version.py`** - change `__version__`, `__version_info__`, `__release_date__`
 2. **Update `CHANGELOG.md`** - add new entry at top with changes
-3. **Update `README.md` line 3** - version + date
-4. **Update `doc/PYTHON_API.md` line 3** - version only
-5. **Verify**: `python3 -c "from eis_analysis import __version__; print(__version__)"`
+3. **Verify**: `python3 -c "from eis_analysis import __version__; print(__version__)"`
 
 ## Semantic Versioning
 
