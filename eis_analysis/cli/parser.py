@@ -134,6 +134,13 @@ Examples:
                                'where imaginary residuals otherwise grow toward '
                                'low frequencies while the real fit stays good.')
 
+    kk_group.add_argument('--max-residual', type=float, default=5.0,
+                          help='Residual threshold for flagging an individual '
+                               'point as suspicious [%%] (default: 5.0). Applies '
+                               'to both KK and Z-HIT; a point is listed when '
+                               'either method exceeds it. Higher = less '
+                               'sensitive.')
+
     # ==========================================================================
     # Z-HIT Validation Group
     # ==========================================================================

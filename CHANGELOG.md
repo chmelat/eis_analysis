@@ -4,6 +4,52 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.28.0 (2026-09-01)
+
+### Added
+
+- **Suspicious points are now listed individually.** Both validations already
+  computed a residual for every measured point, but the CLI only reported the
+  averages - so a bad spectrum was visible while the bad *point* was not, and
+  finding it meant reading the residual plot by eye. After KK and Z-HIT run,
+  points whose relative deviation `|Z - Z_fit| / |Z|` exceeds `--max-residual`
+  (default 5 %) in either method are listed with their frequency, both
+  residuals and which method flagged them, and marked in both residual plots.
+
+  The two methods contribute different things: Lin-KK fits both impedance
+  components and is sensitive to errors in phase, Z-HIT reconstructs the
+  magnitude from the phase and is sensitive to errors in magnitude and to
+  drift. An injected spike is caught by both; taking the worse of the two
+  catches what either one sees.
+
+  Nothing is removed or down-weighted. This is deliberate: in EIS most
+  low-frequency deviations are sample drift, a real property of a
+  non-stationary measurement rather than a defect, and discarding those points
+  would hide a bad experiment instead of reporting it. The output says so
+  when flagged points reach the low-frequency end.
+
+  Two guards keep the list honest. A point must also exceed four times the
+  median residual *of the method that flagged it*: a residual is the sum of
+  the data error and the method's own reconstruction error, and Z-HIT's is
+  much the larger, since it rebuilds the magnitude from a numerically
+  differentiated phase. Measured over 25 noise realizations of the synthetic
+  spectrum, the factor cuts false alarms on defect-free data from 8.2 % of
+  points to 1.9 % while still catching 23 of 25 injected 8 % spikes; on
+  measured spectra it changes nothing, because there the absolute threshold
+  stays binding. Second, a method whose *mean* residual already exceeds the
+  threshold is skipped entirely - such a spectrum fails as a whole, which the
+  `Data quality:` line already says, and enumerating ninety points would only
+  dress a global failure up as a list of local ones.
+
+### Changed
+
+- `run_kk_validation` and `run_zhit_validation` return their full result
+  object (`KKResult` / `ZHITResult`) instead of just the figure, which is what
+  makes the per-point residuals reachable from outside. The figure is still
+  there as `result.figure`.
+
+---
+
 ## Version 0.27.1 (2026-08-31)
 
 ### Changed

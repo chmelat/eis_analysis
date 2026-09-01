@@ -46,6 +46,7 @@ from eis_analysis.cli import (
     # Handlers
     run_kk_validation,
     run_zhit_validation,
+    report_outliers,
     run_rinf_estimation,
     run_drt_analysis,
     run_voigt_analysis,
@@ -82,8 +83,11 @@ def _run_analysis(args) -> None:
     # (e.g. via --f-min) corrupts the imaginary-part reconstruction and yields
     # spurious residuals. The --f-min/--f-max filter applies only to the
     # analysis stages below (R_inf, DRT, circuit fit).
-    run_kk_validation(data.frequencies, data.Z, args)
-    run_zhit_validation(data.frequencies, data.Z, args)
+    kk_result = run_kk_validation(data.frequencies, data.Z, args)
+    zhit_result = run_zhit_validation(data.frequencies, data.Z, args)
+
+    # Per-point suspicious points, from whichever validations ran
+    report_outliers(data.frequencies, kk_result, zhit_result, args)
 
     # Filter to the analysis region
     data = filter_by_frequency(data, args)

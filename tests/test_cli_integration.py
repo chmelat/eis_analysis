@@ -200,13 +200,13 @@ def test_kk_validation():
     frequencies, Z = get_synthetic_data()
     args = create_test_args(no_kk=False)
 
-    fig = run_kk_validation(frequencies, Z, args)
+    result = run_kk_validation(frequencies, Z, args)
 
-    assert fig is not None, "KK validation should return a figure"
-    assert isinstance(fig, plt.Figure), "Should return matplotlib Figure"
+    assert result is not None, "KK validation should return a result"
+    assert isinstance(result.figure, plt.Figure), "Result should carry a Figure"
 
     # Clean up
-    plt.close(fig)
+    plt.close(result.figure)
 
     print(f"  Validated {len(frequencies)} data points")
     print("  [OK] KK validation completed successfully")
@@ -579,11 +579,11 @@ def test_zhit_validation():
     frequencies, Z = get_synthetic_data()
     args = create_test_args(no_zhit=False)
 
-    fig = run_zhit_validation(frequencies, Z, args)
+    result = run_zhit_validation(frequencies, Z, args)
 
-    assert fig is not None, "Z-HIT should return a figure"
+    assert result is not None, "Z-HIT should return a result"
 
-    plt.close(fig)
+    plt.close(result.figure)
 
     print("  [OK] Z-HIT validation completed successfully")
 
@@ -620,9 +620,9 @@ def test_csv_input():
     print(f"  Frequency range: [{data.frequencies.min():.2e}, {data.frequencies.max():.2e}] Hz")
 
     # Run KK validation on loaded data
-    fig = run_kk_validation(data.frequencies, data.Z, create_test_args(no_kk=False))
-    if fig is not None:
-        plt.close(fig)
+    result = run_kk_validation(data.frequencies, data.Z, create_test_args(no_kk=False))
+    if result is not None:
+        plt.close(result.figure)
 
     print("  [OK] CSV file processing completed successfully")
 
@@ -721,8 +721,8 @@ def test_combined_workflow():
 
     # Step 1: KK validation
     kk_args = create_test_args(no_kk=False)
-    fig_kk = run_kk_validation(data.frequencies, data.Z, kk_args)
-    assert fig_kk is not None, "KK should produce figure"
+    kk_result = run_kk_validation(data.frequencies, data.Z, kk_args)
+    assert kk_result is not None, "KK should produce a result"
 
     # Step 2: DRT analysis
     drt_args = create_test_args(no_drt=False)
@@ -766,12 +766,12 @@ def test_save_output():
         prefix = os.path.join(tmpdir, 'test_output')
 
         args = create_test_args(no_kk=False, save=prefix, format='png')
-        fig = run_kk_validation(frequencies, Z, args)
+        result = run_kk_validation(frequencies, Z, args)
 
         expected_file = f"{prefix}_kk.png"
 
-        if fig is not None:
-            plt.close(fig)
+        if result is not None:
+            plt.close(result.figure)
 
         # Check if file was created
         if os.path.exists(expected_file):

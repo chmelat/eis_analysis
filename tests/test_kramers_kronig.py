@@ -424,10 +424,10 @@ def test_kk_cli_log_explains_mu(caplog):
 
     with caplog.at_level(logging.INFO,
                          logger='eis_analysis.cli.handlers.validation'):
-        fig = run_kk_validation(freq, Z, args)
+        result = run_kk_validation(freq, Z, args)
 
     try:
-        assert fig is not None
+        assert result is not None
         assert 'Lin-KK stop, threshold 0.85' in caplog.text
         # Pin the semantics the message describes: normal termination
         # ends below the threshold.

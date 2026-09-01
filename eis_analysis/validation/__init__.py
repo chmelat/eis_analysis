@@ -17,6 +17,12 @@ from .zhit import (
     zhit_reconstruct_magnitude,
     ZHITResult,
 )
+from .outliers import (
+    find_outliers,
+    residual_percent,
+    OutlierPoint,
+    OutlierReport,
+)
 
 __all__ = [
     'kramers_kronig_validation',
@@ -30,4 +36,8 @@ __all__ = [
     'zhit_validation',
     'zhit_reconstruct_magnitude',
     'ZHITResult',
+    'find_outliers',
+    'residual_percent',
+    'OutlierPoint',
+    'OutlierReport',
 ]

@@ -3,17 +3,23 @@ Data validation handlers for the EIS CLI.
 
 - run_kk_validation: Kramers-Kronig validation
 - run_zhit_validation: Z-HIT validation
+- report_outliers: per-point suspicious-point report from both methods
 """
 
 import argparse
 import logging
 from typing import Optional
 
-import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
 from ..utils import save_figure
-from ...validation import kramers_kronig_validation, zhit_validation
+from ...validation import (
+    kramers_kronig_validation,
+    zhit_validation,
+    find_outliers,
+    KKResult,
+    ZHITResult,
+)
 from ...validation.zhit import _quality_label
 
 logger = logging.getLogger(__name__)
@@ -27,7 +33,7 @@ def run_kk_validation(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace
-) -> Optional[plt.Figure]:
+) -> Optional[KKResult]:
     """
     Run Kramers-Kronig validation.
 
@@ -43,8 +49,9 @@ def run_kk_validation(
 
     Returns
     -------
-    fig : Figure or None
-        KK validation figure
+    result : KKResult or None
+        Validation result (including `figure` and per-point residuals),
+        or None if KK was skipped or failed.
     """
     if args.no_kk:
         return None
@@ -90,7 +97,7 @@ def run_kk_validation(
                     "try --kk-series-c (blocking/2-electrode behavior)")
 
     save_figure(result.figure, args.save, 'kk', args.format)
-    return result.figure
+    return result
 
 
 # =============================================================================
@@ -101,7 +108,7 @@ def run_zhit_validation(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace
-) -> Optional[plt.Figure]:
+) -> Optional[ZHITResult]:
     """
     Run Z-HIT validation.
 
@@ -116,8 +123,9 @@ def run_zhit_validation(
 
     Returns
     -------
-    fig : Figure or None
-        Z-HIT validation figure
+    result : ZHITResult or None
+        Validation result (including `figure` and per-point residuals),
+        or None if Z-HIT was skipped.
     """
     if args.no_zhit:
         return None
@@ -128,4 +136,94 @@ def run_zhit_validation(
     )
 
     save_figure(result.figure, args.save, 'zhit', args.format)
-    return result.figure
+    return result
+
+
+# =============================================================================
+# Per-point outlier report
+# =============================================================================
+
+# Cap on how many points are listed. The global guard in find_outliers already
+# suppresses the "whole spectrum is bad" case; this only keeps a borderline
+# spectrum from scrolling the terminal.
+_MAX_LISTED = 15
+
+
+def report_outliers(
+    frequencies: NDArray,
+    kk_result: Optional[KKResult],
+    zhit_result: Optional[ZHITResult],
+    args: argparse.Namespace
+) -> None:
+    """
+    Report individual points whose KK or Z-HIT residual exceeds the threshold.
+
+    Silent when nothing is flagged. Flagged points are also marked in the
+    residual panel of both validation figures.
+
+    Parameters
+    ----------
+    frequencies : ndarray
+        Frequency array [Hz] the validations ran on
+    kk_result : KKResult or None
+        Result from run_kk_validation
+    zhit_result : ZHITResult or None
+        Result from run_zhit_validation
+    args : argparse.Namespace
+        CLI arguments (uses: max_residual)
+    """
+    report = find_outliers(
+        frequencies, kk_result, zhit_result, max_residual=args.max_residual
+    )
+
+    for method in report.skipped:
+        logger.info(f"{method}: mean residual exceeds {report.max_residual:.1f}% - "
+                    f"the spectrum fails as a whole, per-point flagging skipped")
+
+    if not report.points:
+        return
+
+    logger.warning(f"Suspicious points ({len(report.points)}, residual > "
+                   f"{report.max_residual:.1f}%, see --max-residual):")
+    logger.warning(f"  {'f [Hz]':>10}  {'KK [%]':>8}  {'Z-HIT [%]':>10}   flagged by")
+    for p in report.points[:_MAX_LISTED]:
+        kk = f"{p.residual_kk:8.2f}" if p.residual_kk is not None else f"{'-':>8}"
+        zhit = f"{p.residual_zhit:10.2f}" if p.residual_zhit is not None else f"{'-':>10}"
+        logger.warning(f"  {p.frequency:10.3e}  {kk}  {zhit}   {p.methods}")
+    if len(report.points) > _MAX_LISTED:
+        logger.warning(f"  ... and {len(report.points) - _MAX_LISTED} more")
+
+    # Deviations in the lowest decade are usually sample drift (a real,
+    # non-stationary measurement) rather than bad points, and deleting them
+    # would hide the problem instead of fixing it.
+    f_min = float(min(frequencies))
+    if any(p.frequency < f_min * 10 for p in report.points):
+        logger.warning("  Note: deviations at the lowest frequencies are often "
+                       "sample drift, not bad points")
+
+    _mark_outliers(kk_result, report, 'kk', args)
+    _mark_outliers(zhit_result, report, 'zhit', args)
+
+
+def _mark_outliers(result, report, suffix: str, args: argparse.Namespace) -> None:
+    """
+    Mark flagged frequencies in a validation figure's residual panel.
+
+    Done here rather than inside kramers_kronig_validation / zhit_validation so
+    the computation core stays independent of the CLI threshold. The figure was
+    already written to disk by the validation handler, so with --save it is
+    re-saved to pick up the markers; that only happens on spectra that actually
+    have flagged points.
+    """
+    fig = getattr(result, 'figure', None)
+    if fig is None or len(fig.axes) < 2:
+        return
+
+    # Both validation figures use a 1x2 layout with the residuals on the right.
+    ax = fig.axes[1]
+    for i, p in enumerate(report.points):
+        ax.axvline(x=p.frequency, color='red', linestyle='-', alpha=0.25,
+                   linewidth=3, zorder=0,
+                   label='Flagged point' if i == 0 else None)
+    ax.legend()
+    save_figure(fig, args.save, suffix, args.format)

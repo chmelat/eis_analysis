@@ -17,6 +17,7 @@ from .data_handling import load_eis_data, filter_by_frequency
 from .handlers import (
     run_kk_validation,
     run_zhit_validation,
+    report_outliers,
     run_rinf_estimation,
     run_drt_analysis,
     run_voigt_analysis,
@@ -44,6 +45,7 @@ __all__ = [
     # Handlers
     'run_kk_validation',
     'run_zhit_validation',
+    'report_outliers',
     'run_rinf_estimation',
     'run_drt_analysis',
     'run_voigt_analysis',
