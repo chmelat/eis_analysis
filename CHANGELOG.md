@@ -4,7 +4,7 @@ Complete change history for all project versions.
 
 ---
 
-## Version 0.28.0 (2026-09-01)
+## Version 0.28.1 (2026-09-01)
 
 ### Changed
 
@@ -29,9 +29,9 @@ Complete change history for all project versions.
   GMM peak detection (`--peak-method gmm`) had the same problem for the same
   reason and got the same treatment: its BIC model search no longer narrates
   itself from inside the solver, and `Peak detection in DRT spectrum` now
-  reports which model BIC settled on, warns when that count sits at the edge of
-  the searched range, and says so when early stopping picked a simpler model
-  than the raw BIC minimum. The per-peak listing gained the two numbers only
+  reports which model BIC settled on, warns when that count sits at the upper
+  bound of the searched range or when a candidate model failed to fit, and says
+  so when early stopping picked a simpler model than the raw BIC minimum. The per-peak listing gained the two numbers only
   GMM provides - component width in decades, and mixture weight.
 
 - **`--ri-fit` no longer reports R_inf twice.** The flag runs the estimation and
@@ -68,6 +68,10 @@ Complete change history for all project versions.
   the fallback taken after the hybrid search raised. The two disagreement cases
   (L-curve correcting upward, or the geometric-mean compromise) are reported as
   warnings rather than being buried in the solver's own log.
+
+---
+
+## Version 0.28.0 (2026-09-01)
 
 ### Added
 
