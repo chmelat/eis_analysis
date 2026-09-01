@@ -14,7 +14,8 @@ Complete change history for all project versions.
   finding it meant reading the residual plot by eye. After KK and Z-HIT run,
   points whose relative deviation `|Z - Z_fit| / |Z|` exceeds `--max-residual`
   (default 5 %) in either method are listed with their frequency, both
-  residuals and which method flagged them, and marked in both residual plots.
+  residuals and which method flagged them, and marked in the residual plot of
+  the method that flagged them.
 
   The two methods contribute different things: Lin-KK fits both impedance
   components and is sensitive to errors in phase, Z-HIT reconstructs the
