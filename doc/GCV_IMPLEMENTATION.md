@@ -214,19 +214,20 @@ Křivost se počítá centrálními diferencemi (`np.gradient`).
 
 ## Diagnostika a interpretace výstupu
 
-CLI vypisuje zvolenou metodu a λ. Když L-curve s GCV souhlasí:
-
-```
-Lambda: GCV (automatic)
-  lambda = 5.00e-03
-```
-
-Když L-curve korigovala GCV nahoru (typické pro NNLS):
+CLI vypisuje v sekci `DRT Analysis` obě fáze hledání i výsledné λ:
 
 ```
 Lambda: Hybrid GCV + L-curve
-  L-curve correction: lambda_gcv=3.20e-04 -> lambda=1.00e-02
+  lambda = 2.20e-04  (GCV 3.79e-04 -> L-curve corner 2.20e-04, ratio 0.58)
 ```
+
+Když `ratio` vypadne z pásma konsenzu, přibude varování — buď o korekci
+nahoru (`lcurve_correction`, typické pro NNLS), nebo o použití geometrického
+průměru (`geometric_mean`). Samotný průběh hledání (Fáze 1 / Fáze 2) je na
+úrovni DEBUG, tedy viditelný jen s `-v`.
+
+`Lambda: GCV (L-curve correction failed)` znamená fallback po selhání
+hybridního hledání, ne shodu obou kritérií.
 
 **Klíčové indikátory:**
 - `lambda_at_edge` / „λ na mezi rozsahu" — optimum je mimo `[1e-5, 1.0]`;

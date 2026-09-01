@@ -6,6 +6,34 @@ Complete change history for all project versions.
 
 ## Version 0.28.0 (2026-09-01)
 
+### Changed
+
+- **Every block of CLI output now sits under the section it belongs to.** Two
+  blocks did not. The per-point suspicious-point table was printed bare, right
+  after the Z-HIT block, so it read as part of Z-HIT validation even though it
+  draws on both validations; it now opens its own `Per-point residual check`
+  section. And the hybrid lambda search (GCV + L-curve) narrated its progress
+  from inside the solver, which runs before any of the DRT section headers
+  exist - so it appeared as a loose block between the Nyquist figure and
+  `R_inf estimation`. It is now reported inside `DRT Analysis`, on one line
+  carrying both stages:
+
+  ```
+  Lambda: Hybrid GCV + L-curve
+    lambda = 2.20e-04  (GCV 3.79e-04 -> L-curve corner 2.20e-04, ratio 0.58)
+  ```
+
+  The search itself is still visible with `-v`. Nothing about the selected
+  lambda changed, only where and how it is reported.
+
+- **`Lambda: GCV (automatic)` no longer hides a hybrid run.** The method was
+  reported as `gcv` whenever the L-curve corner agreed with the GCV guess, so
+  the common case looked like plain GCV. A successful hybrid search now always
+  reports as such, and `GCV (L-curve correction failed)` means what it says:
+  the fallback taken after the hybrid search raised. The two disagreement cases
+  (L-curve correcting upward, or the geometric-mean compromise) are reported as
+  warnings rather than being buried in the solver's own log.
+
 ### Added
 
 - **Suspicious points are now listed individually.** Both validations already
