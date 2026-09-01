@@ -3,11 +3,8 @@ Synthetic data generation for testing and demonstration.
 """
 
 import numpy as np
-import logging
 from typing import Tuple
 from numpy.typing import NDArray
-
-logger = logging.getLogger(__name__)
 
 
 def generate_synthetic_data(
@@ -47,17 +44,8 @@ def generate_synthetic_data(
     Z : ndarray of complex
         Complex impedance values [Ω]
     """
-    logger.info("="*60)
-    logger.info("Generating synthetic data")
-    logger.info("="*60)
-
     Y0_0, n0 = Q0
     Y0_1, n1 = Q1
-
-    logger.info("Circuit: Rs - (R0||Q0) - (R1||Q1)")
-    logger.info(f"Rs = {Rs} Ω")
-    logger.info(f"R0 = {R0:.2e} Ω, Q0 = ({Y0_0:.2e} S·s^n, n={n0})")
-    logger.info(f"R1 = {R1:.2e} Ω, Q1 = ({Y0_1:.2e} S·s^n, n={n1})")
 
     # Frequencies
     frequencies = np.logspace(-2, 5, 70)  # 10 mHz - 100 kHz

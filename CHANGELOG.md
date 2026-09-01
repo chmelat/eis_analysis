@@ -45,6 +45,12 @@ Complete change history for all project versions.
   Using R_inf = 1.216 Ohm (preset; HF median = 1.265 Ohm, -3.9%)
   ```
 
+- **`generate_synthetic_data()` no longer prints from inside the library.** It
+  announced the circuit it was building at INFO level, so any library caller got
+  four lines of console output along with its data. The demo's CLI path prints
+  the same block from `SYNTHETIC_DATA_PARAMS`, which is where those parameters
+  are chosen. Console output is unchanged.
+
 - **Z-HIT validation no longer prints from inside the library.** Its section
   header and result summary came from `zhit_validation()` itself, while the
   Kramers-Kronig equivalents came from the CLI - so the two validations drew
