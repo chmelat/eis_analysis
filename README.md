@@ -418,17 +418,22 @@ the fit reports `Global search contributed nothing` - see
 - `--auto-extend` / `--no-auto-extend` (default: on) - Automatically optimize extend_decades for KK validation (minimizes pseudo chi-squared). On by default to avoid tau-truncation bias that produces spurious imaginary-part residuals on data with strong capacitive/inductive tails. Use `--no-auto-extend` to disable.
 - `--extend-decades-max` (default: 1.0) - Maximum extend_decades for `--auto-extend` search range.
 - `--kk-series-c` - Include a series capacitance `1/(jwC)` in the Lin-KK model (Schonleber `add_cap`). Use for blocking/capacitive low-frequency behavior (e.g. two-electrode cells, blocking oxides): a series C is KK-compliant but has zero real part, so the standard Voigt chain cannot represent it and imaginary residuals grow toward low frequencies while the real fit stays good. Off by default so results stay comparable with earlier analyses; the fitted C is printed in the KK summary.
-- `--max-residual` (default: 5.0) - Residual threshold for flagging an individual point as suspicious [%]. Applies to both KK and Z-HIT: once the validations have run (either one alone is enough), points whose relative deviation `|Z - Z_fit| / |Z|` exceeds this value in *either* method are listed with the frequency, both residuals, and which method flagged them. Each residual plot is then marked with the points *its own* method flagged - a band on the KK panel at a frequency KK considers fine would contradict the `flagged by` column. The two methods are complementary - Lin-KK fits both impedance components and is sensitive to phase errors, Z-HIT reconstructs the magnitude from the phase and is sensitive to magnitude errors and drift. Nothing is removed or down-weighted; the list is diagnostic. Higher values = less sensitive.
-
-  Two guards keep the list meaningful. A point must also exceed four times the median residual *of that method*, because a residual is the sum of the data error and the method's own reconstruction error, and Z-HIT's is the larger of the two (on measured spectra this changes nothing - the absolute threshold stays binding). And a method whose *median* residual already exceeds the threshold is skipped entirely - over half its points would be flagged, so the spectrum fails as a whole, which the `Data quality:` line already reports. The median rather than the mean: a handful of genuine outliers pulls a mean over the threshold and would switch the report off exactly when it has something to say.
-
-  Interpretation: an isolated point with good neighbours is usually a genuine defect (interference, contact, bubble). A systematic trend toward the lowest frequencies is usually sample drift - a real property of a non-stationary measurement, not a bad point, and deleting it hides the problem instead of fixing it.
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
 
 ### Z-HIT validation
 
 - `--no-zhit` - Disable Z-HIT validation (runs by default alongside Lin-KK).
 - `--zhit-optimize-offset` - Use weighted least-squares offset optimization instead of fixed reference point.
+
+### Data quality
+
+Reads the per-point residuals of both validations above, so it belongs to neither.
+
+- `--max-residual` (default: 5.0) - Residual threshold for flagging an individual point as suspicious [%]. Applies to both KK and Z-HIT: once the validations have run (either one alone is enough), points whose relative deviation `|Z - Z_fit| / |Z|` exceeds this value in *either* method are listed with the frequency, both residuals, and which method flagged them. Each residual plot is then marked with the points *its own* method flagged - a band on the KK panel at a frequency KK considers fine would contradict the `flagged by` column. The two methods are complementary - Lin-KK fits both impedance components and is sensitive to phase errors, Z-HIT reconstructs the magnitude from the phase and is sensitive to magnitude errors and drift. Nothing is removed or down-weighted; the list is diagnostic. Higher values = less sensitive.
+
+  Two guards keep the list meaningful. A point must also exceed four times the median residual *of that method*, because a residual is the sum of the data error and the method's own reconstruction error, and Z-HIT's is the larger of the two (on measured spectra this changes nothing - the absolute threshold stays binding). And a method whose *median* residual already exceeds the threshold is skipped entirely - over half its points would be flagged, so the spectrum fails as a whole, which the `Data quality:` line already reports. The median rather than the mean: a handful of genuine outliers pulls a mean over the threshold and would switch the report off exactly when it has something to say.
+
+  Interpretation: an isolated point with good neighbours is usually a genuine defect (interference, contact, bubble). A systematic trend toward the lowest frequencies is usually sample drift - a real property of a non-stationary measurement, not a bad point, and deleting it hides the problem instead of fixing it.
 
 ### Voigt chain (automatic circuit)
 
