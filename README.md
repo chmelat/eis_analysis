@@ -1,6 +1,6 @@
 # EIS Analysis Toolkit
 
-**Version:** v0.26.0 (2026-08-30)
+**Version:** v0.28.1 (2026-09-01)
 
 Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with Distribution of Relaxation Times (DRT) support.
 
@@ -36,6 +36,8 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 ## Quick start
 
 ### Installation
+
+Requires Python 3.9 or newer.
 
 ```bash
 git clone https://github.com/chmelat/eis_analysis
@@ -214,7 +216,7 @@ eis data.DTA --no-kk
 
 ### DRT analysis
 
-Distribution of Relaxation Times - model-free method for impedance data analysis. Automatic regularization parameter selection using GCV (Generalized Cross-Validation).
+Distribution of Relaxation Times - model-free method for impedance data analysis. The regularization parameter is selected automatically by a hybrid search: GCV (Generalized Cross-Validation) gives a first estimate, and an L-curve search over +-1.5 decades around it picks the final lambda - GCV assumes a linear solution, which the non-negativity constraint of the DRT violates.
 
 New to DRT? Start with the intuitive introduction: [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md).
 
@@ -369,9 +371,13 @@ chosen equivalent circuit is physically consistent.
 - `--f-min` - Minimum frequency [Hz]. Data below this value will be cut off. Useful for removing noise at low frequencies.
 - `--f-max` - Maximum frequency [Hz]. Data above this value will be cut off. Useful for removing artifacts at high frequencies.
 
+  Both cuts apply to R_inf estimation, DRT and circuit fitting only. Kramers-Kronig
+  and Z-HIT always run on the full measured spectrum: they are integral relations
+  over all frequencies, so validating a truncated range produces spurious residuals.
+
 ### Circuit fitting
 
-- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K, G, CC.
+- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, Q, W, Wo, K, G, CC. Repeat the option to fit several candidates on the same data and rank them by AIC/BIC - see [Comparing candidate circuits](#comparing-candidate-circuits).
 - `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 
@@ -467,6 +473,7 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).
 - `-q`, `--quiet` - Quiet mode - hide INFO messages, show only warnings and errors.
+- `--version` - Print the version and exit.
 
 **Logging levels:**
 
@@ -626,7 +633,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 |----------|-------------|
 | [doc/PYTHON_API.md](doc/PYTHON_API.md) | Complete Python API reference |
 | [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) | Weighting types and statistical metrics |
-| [doc/ROBUST_LOSS_SOFT_L1.md](doc/ROBUST_LOSS_SOFT_L1.md) | Robust loss (soft-L1): rationale and measured benefit |
+| [doc/ROBUST_LOSS_SOFT_L1.md](doc/ROBUST_LOSS_SOFT_L1.md) | Robust loss (soft-L1): proposal, rationale and measured benefit - not implemented yet |
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md) | Choosing between circuits (AIC/BIC) |
