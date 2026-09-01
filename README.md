@@ -621,6 +621,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 |----------|-------------|
 | [doc/PYTHON_API.md](doc/PYTHON_API.md) | Complete Python API reference |
 | [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) | Weighting types and statistical metrics |
+| [doc/ROBUST_LOSS_SOFT_L1.md](doc/ROBUST_LOSS_SOFT_L1.md) | Robust loss (soft-L1): rationale and measured benefit |
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md) | Choosing between circuits (AIC/BIC) |
