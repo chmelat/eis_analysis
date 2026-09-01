@@ -56,8 +56,6 @@ class OutlierPoint:
 
     Attributes
     ----------
-    index : int
-        Position in the input frequency array.
     frequency : float
         Frequency of the point [Hz]
     residual_kk : float or None
@@ -71,7 +69,6 @@ class OutlierPoint:
     methods : str
         Which methods flagged the point: "KK", "Z-HIT" or "KK+Z-HIT"
     """
-    index: int
     frequency: float
     residual_kk: Optional[float]
     residual_zhit: Optional[float]
@@ -91,12 +88,9 @@ class OutlierReport:
     skipped : list of str
         Methods excluded by the global guard (their own mean residual already
         exceeds the threshold, so per-point flagging is not meaningful).
-    max_residual : float
-        Threshold used [%]
     """
     points: List[OutlierPoint] = field(default_factory=list)
     skipped: List[str] = field(default_factory=list)
-    max_residual: float = 5.0
 
 
 def residual_percent(
@@ -229,7 +223,7 @@ def find_outliers(
 
     Non-finite residuals never flag a point (NaN comparisons are False).
     """
-    report = OutlierReport(max_residual=max_residual)
+    report = OutlierReport()
     n = len(frequencies)
     if n == 0:
         return report
@@ -242,19 +236,17 @@ def find_outliers(
     bad_kk = _flagged(r_kk, max_residual, n)
     bad_zhit = _flagged(r_zhit, max_residual, n)
 
-    # `worst` counts only the methods that actually flagged the point, so a
-    # method that stayed under the threshold cannot raise it.
-    worst_kk = np.where(bad_kk, r_kk, 0.0) if r_kk is not None else np.zeros(n)
-    worst_zhit = np.where(bad_zhit, r_zhit, 0.0) if r_zhit is not None else np.zeros(n)
+    # `worst` counts only the methods that actually flagged the point.
+    worst = np.maximum(np.where(bad_kk, r_kk, 0.0) if r_kk is not None else 0.0,
+                       np.where(bad_zhit, r_zhit, 0.0) if r_zhit is not None else 0.0)
 
     for i in np.flatnonzero(bad_kk | bad_zhit):
         methods = [m for m, bad in (("KK", bad_kk[i]), ("Z-HIT", bad_zhit[i])) if bad]
         report.points.append(OutlierPoint(
-            index=int(i),
             frequency=float(frequencies[i]),
             residual_kk=float(r_kk[i]) if r_kk is not None else None,
             residual_zhit=float(r_zhit[i]) if r_zhit is not None else None,
-            worst=float(max(worst_kk[i], worst_zhit[i])),
+            worst=float(worst[i]),
             methods="+".join(methods)
         ))
 

@@ -143,12 +143,6 @@ def run_zhit_validation(
 # Per-point outlier report
 # =============================================================================
 
-# Cap on how many points are listed. The global guard in find_outliers already
-# suppresses the "whole spectrum is bad" case; this only keeps a borderline
-# spectrum from scrolling the terminal.
-_MAX_LISTED = 15
-
-
 def report_outliers(
     frequencies: NDArray,
     kk_result: Optional[KKResult],
@@ -177,21 +171,19 @@ def report_outliers(
     )
 
     for method in report.skipped:
-        logger.info(f"{method}: mean residual exceeds {report.max_residual:.1f}% - "
+        logger.info(f"{method}: mean residual exceeds {args.max_residual:.1f}% - "
                     f"the spectrum fails as a whole, per-point flagging skipped")
 
     if not report.points:
         return
 
     logger.warning(f"Suspicious points ({len(report.points)}, residual > "
-                   f"{report.max_residual:.1f}%, see --max-residual):")
+                   f"{args.max_residual:.1f}%, see --max-residual):")
     logger.warning(f"  {'f [Hz]':>10}  {'KK [%]':>8}  {'Z-HIT [%]':>10}   flagged by")
-    for p in report.points[:_MAX_LISTED]:
+    for p in report.points:
         kk = f"{p.residual_kk:8.2f}" if p.residual_kk is not None else f"{'-':>8}"
         zhit = f"{p.residual_zhit:10.2f}" if p.residual_zhit is not None else f"{'-':>10}"
         logger.warning(f"  {p.frequency:10.3e}  {kk}  {zhit}   {p.methods}")
-    if len(report.points) > _MAX_LISTED:
-        logger.warning(f"  ... and {len(report.points) - _MAX_LISTED} more")
 
     # Deviations in the lowest decade are usually sample drift (a real,
     # non-stationary measurement) rather than bad points, and deleting them

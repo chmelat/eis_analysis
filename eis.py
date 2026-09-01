@@ -86,7 +86,6 @@ def _run_analysis(args) -> None:
     kk_result = run_kk_validation(data.frequencies, data.Z, args)
     zhit_result = run_zhit_validation(data.frequencies, data.Z, args)
 
-    # Per-point suspicious points, from whichever validations ran
     report_outliers(data.frequencies, kk_result, zhit_result, args)
 
     # Filter to the analysis region

@@ -24,13 +24,15 @@ import matplotlib.pyplot as plt
 
 from eis_analysis.validation import (
     find_outliers,
-    residual_percent,
     kramers_kronig_validation,
     zhit_validation,
     KKResult,
     ZHITResult,
 )
-from eis_analysis.validation.outliers import _METHOD_BASELINE_FACTOR
+from eis_analysis.validation.outliers import (
+    residual_percent,
+    _METHOD_BASELINE_FACTOR,
+)
 
 
 # =============================================================================
@@ -102,7 +104,6 @@ def test_single_bad_point_is_flagged():
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
     assert len(report.points) == 1
     p = report.points[0]
-    assert p.index == 7
     assert p.frequency == pytest.approx(freq[7])
     assert p.residual_kk == pytest.approx(20.0, rel=1e-6)
     assert p.residual_zhit is None
@@ -115,7 +116,7 @@ def test_threshold_is_strict_and_respected():
     r[3] = 5.0        # exactly at the threshold -> not flagged
     r[4] = 5.001      # just over -> flagged
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert [p.index for p in report.points] == [4]
+    assert [p.frequency for p in report.points] == pytest.approx([freq[4]])
 
 
 def test_lower_threshold_flags_more_points():
@@ -141,7 +142,7 @@ def test_method_baseline_factor_suppresses_a_noisy_reconstruction():
     # Same baseline, but now far above it -> genuine outlier.
     r[9] = 4.0 * _METHOD_BASELINE_FACTOR + 1.0
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert [p.index for p in report.points] == [9]
+    assert [p.frequency for p in report.points] == pytest.approx([freq[9]])
 
 
 def test_baseline_factor_does_not_bite_on_a_well_reconstructed_spectrum():
@@ -150,7 +151,7 @@ def test_baseline_factor_does_not_bite_on_a_well_reconstructed_spectrum():
     r = np.full(30, 0.5)
     r[2] = 5.5
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert [p.index for p in report.points] == [2]
+    assert [p.frequency for p in report.points] == pytest.approx([freq[2]])
 
 
 # =============================================================================
@@ -166,15 +167,15 @@ def test_worst_of_both_methods_and_attribution():
     rk[3], rz[3] = 7.0, 11.0   # both
     report = find_outliers(freq, fake_result(rk), fake_result(rz), max_residual=5.0)
 
-    by_index = {p.index: p for p in report.points}
-    assert set(by_index) == {1, 2, 3}
-    assert by_index[1].methods == "KK"
-    assert by_index[2].methods == "Z-HIT"
-    assert by_index[3].methods == "KK+Z-HIT"
+    by_freq = {round(p.frequency, 9): p for p in report.points}
+    assert set(by_freq) == {round(freq[i], 9) for i in (1, 2, 3)}
+    assert by_freq[round(freq[1], 9)].methods == "KK"
+    assert by_freq[round(freq[2], 9)].methods == "Z-HIT"
+    assert by_freq[round(freq[3], 9)].methods == "KK+Z-HIT"
     # `worst` takes the larger of the contributing residuals
-    assert by_index[3].worst == pytest.approx(11.0, rel=1e-6)
+    assert by_freq[round(freq[3], 9)].worst == pytest.approx(11.0, rel=1e-6)
     # Both residuals are reported even when only one method flagged the point
-    assert by_index[1].residual_zhit == pytest.approx(0.5, rel=1e-6)
+    assert by_freq[round(freq[1], 9)].residual_zhit == pytest.approx(0.5, rel=1e-6)
 
 
 def test_points_are_ordered_worst_first():
@@ -182,7 +183,9 @@ def test_points_are_ordered_worst_first():
     r = np.full(30, 0.5)
     r[[4, 8, 12]] = [7.0, 30.0, 15.0]
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert [p.index for p in report.points] == [8, 12, 4]
+    assert [p.frequency for p in report.points] == pytest.approx(
+        [freq[8], freq[12], freq[4]]
+    )
     assert [p.worst for p in report.points] == sorted(
         [p.worst for p in report.points], reverse=True
     )
@@ -199,7 +202,7 @@ def test_global_guard_excludes_a_method_that_fails_as_a_whole():
 
     assert report.skipped == ["Z-HIT"]
     # Z-HIT contributes neither flags nor residual columns
-    assert [p.index for p in report.points] == [6]
+    assert [p.frequency for p in report.points] == pytest.approx([freq[6]])
     assert report.points[0].residual_zhit is None
     assert report.points[0].methods == "KK"
 
@@ -257,7 +260,7 @@ def test_nan_residuals_never_flag():
     r[5] = np.nan
     r[6] = 20.0
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert [p.index for p in report.points] == [6]
+    assert [p.frequency for p in report.points] == pytest.approx([freq[6]])
 
 
 def test_all_nan_residuals_are_ignored():
@@ -285,7 +288,7 @@ def test_injected_spike_is_the_worst_point_end_to_end():
     report = find_outliers(freq, kk, zhit, max_residual=5.0)
 
     assert report.points, "a 20% spike must be flagged"
-    assert report.points[0].index == spike_index
+    assert report.points[0].frequency == pytest.approx(freq[spike_index])
     assert "KK" in report.points[0].methods
 
     plt.close(kk.figure)

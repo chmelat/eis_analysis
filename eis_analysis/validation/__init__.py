@@ -19,7 +19,6 @@ from .zhit import (
 )
 from .outliers import (
     find_outliers,
-    residual_percent,
     OutlierPoint,
     OutlierReport,
 )
@@ -37,7 +36,6 @@ __all__ = [
     'zhit_reconstruct_magnitude',
     'ZHITResult',
     'find_outliers',
-    'residual_percent',
     'OutlierPoint',
     'OutlierReport',
 ]
