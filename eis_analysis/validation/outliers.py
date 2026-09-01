@@ -150,24 +150,17 @@ def _usable_residuals(
 
     r = residual_percent(res_real, res_imag)
 
-    # Global guard: when the MEDIAN residual is already over the threshold,
-    # more than half the points would be flagged - that is a spectrum failing
-    # as a whole (which the Data quality line reports), not a few bad points,
-    # and enumerating it would dress a global failure up as a list of local
-    # ones. Z-HIT in particular carries a free global offset (the anchor at
-    # ref_freq), and a shifted offset lifts every residual at once.
-    #
-    # The median, not the mean: a handful of genuine outliers pulls the mean
-    # over the threshold and would switch the report off exactly when it has
-    # something to say (5 points at 40% among 30 at 0.5% give a mean of 6.1%
-    # but a median of 0.5%). It also keeps one non-finite residual - Z-HIT
-    # divides by |Z| without a floor - from disabling the whole method.
-    # `if` only to keep an all-NaN slice from warning; it returns None below.
-    median_r = np.nanmedian(r) if np.any(np.isfinite(r)) else np.nan
-    if not np.isfinite(median_r):
+    if not np.any(np.isfinite(r)):
         logger.debug(f"{label}: residuals not finite, skipping outlier check")
         return None
-    if median_r > max_residual:
+
+    # The global guard (see find_outliers) takes the median, not the mean: a
+    # handful of genuine outliers pulls a mean over the threshold and would
+    # switch the report off exactly when it has something to say - 5 points at
+    # 40% among 30 at 0.5% give a mean of 6.1% but a median of 0.5%. The median
+    # also keeps one non-finite residual (Z-HIT divides by |Z| without a floor,
+    # unlike KK) from disabling the whole method.
+    if np.nanmedian(r) > max_residual:
         skipped.append(label)
         return None
 

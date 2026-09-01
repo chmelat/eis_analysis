@@ -207,15 +207,6 @@ def test_global_guard_excludes_a_method_that_fails_as_a_whole():
     assert report.points[0].methods == "KK"
 
 
-def test_global_guard_prevents_flagging_the_whole_spectrum():
-    freq = np.logspace(-2, 5, 30)
-    rng = np.random.default_rng(0)
-    r = 20.0 + rng.normal(0, 2.0, 30)     # everything far over the threshold
-    report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
-    assert report.points == []
-    assert report.skipped == ["KK"]
-
-
 # =============================================================================
 # Edge cases
 # =============================================================================
@@ -371,6 +362,12 @@ def test_single_infinite_residual_does_not_disable_the_method():
 
     assert report.skipped == []
     assert [p.frequency for p in report.points] == pytest.approx([freq[3], freq[10]])
+
+    # A majority of non-finite residuals is a global failure, and is reported
+    # as one rather than dropped behind a debug line.
+    r[:] = np.inf
+    r[:3] = 0.5
+    assert find_outliers(freq, fake_result(r), None, 5.0).skipped == ["KK"]
 
 
 # =============================================================================
