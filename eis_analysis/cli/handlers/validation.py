@@ -170,6 +170,16 @@ def report_outliers(
         frequencies, kk_result, zhit_result, max_residual=args.max_residual
     )
 
+    if not report.skipped and not report.points:
+        return
+
+    # Own section header: the table draws on BOTH validations (see the
+    # `flagged by` column), so printing it bare right after the Z-HIT block
+    # made it read as part of Z-HIT.
+    logger.info("=" * 60)
+    logger.info("Per-point residual check")
+    logger.info("=" * 60)
+
     for method in report.skipped:
         logger.info(f"{method}: over half the points exceed {args.max_residual:.1f}% - "
                     f"the spectrum fails as a whole, per-point flagging skipped")
