@@ -34,6 +34,27 @@ Complete change history for all project versions.
   than the raw BIC minimum. The per-peak listing gained the two numbers only
   GMM provides - component width in decades, and mixture weight.
 
+- **`--ri-fit` no longer reports R_inf twice.** The flag runs the estimation and
+  prints it, then hands the value to the DRT stage, which printed the whole
+  `R_inf estimation` section again - relabelled `Method: Preset value`, with the
+  same number and the same median comparison. The DRT stage now reports an
+  estimate only when it made one itself; a value handed in from outside is
+  stated where it is used, with the comparison that places it against the data:
+
+  ```
+  Using R_inf = 1.216 Ohm (preset; HF median = 1.265 Ohm, -3.9%)
+  ```
+
+- **Z-HIT validation no longer prints from inside the library.** Its section
+  header and result summary came from `zhit_validation()` itself, while the
+  Kramers-Kronig equivalents came from the CLI - so the two validations drew
+  their section boundaries in different places, and calling `zhit_validation()`
+  as a library function wrote to the console. Both now print from the CLI
+  handler, and the computation returns a result and nothing else. Console
+  output is unchanged. `ZHITResult` gained a `success` property, matching
+  `KKResult`, so a failed reconstruction is told apart from a valid one without
+  inspecting array lengths.
+
 - **`Lambda: GCV (automatic)` no longer hides a hybrid run.** The method was
   reported as `gcv` whenever the L-curve corner agreed with the GCV guess, so
   the common case looked like plain GCV. A successful hybrid search now always

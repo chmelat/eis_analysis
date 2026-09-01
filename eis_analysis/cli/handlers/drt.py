@@ -23,6 +23,57 @@ logger = logging.getLogger(__name__)
 # DRT Analysis
 # =============================================================================
 
+def _log_rinf_estimation(rinf) -> None:
+    """Report the R_inf estimate this DRT run made for itself."""
+    log_separator()
+    logger.info("R_inf estimation (high-frequency resistance)")
+    log_separator()
+
+    method_names = {
+        'median': 'Median of HF points',
+        'rl_fit': 'R-L fit (auto-detection)'
+    }
+    logger.info(f"Method: {method_names.get(rinf.method, rinf.method)}")
+
+    if rinf.behavior:
+        logger.info(f"  Detected: {rinf.behavior.capitalize()} behavior")
+
+    if rinf.n_points_used:
+        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
+    else:
+        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm")
+
+    if rinf.R_squared and rinf.R_squared > 0:
+        logger.info(f"  Quality: R^2 = {rinf.R_squared:.4f}")
+    if rinf.L_nH and rinf.L_nH > 0:
+        logger.info(f"  Inductance: L = {rinf.L_nH:.2f} nH")
+
+    if rinf.R_inf_median and rinf.method != 'median':
+        diff_abs = rinf.R_inf - rinf.R_inf_median
+        diff_pct = (diff_abs / rinf.R_inf_median * 100) if rinf.R_inf_median != 0 else 0
+        logger.info(f"  Comparison: median = {rinf.R_inf_median:.3f} Ohm "
+                    f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
+
+    for warning in rinf.warnings:
+        logger.warning(f"  {warning}")
+
+
+def _preset_rinf_note(rinf) -> str:
+    """
+    How a preset R_inf compares with the HF median, appended to "Using R_inf".
+
+    The preset path carries only these two numbers, and the comparison is the
+    one worth keeping: it is what places a caller-supplied R_inf against the
+    data. Empty string for a value this stage estimated itself.
+    """
+    if rinf.method != 'preset' or not rinf.R_inf_median:
+        return ""
+
+    diff_pct = (rinf.R_inf - rinf.R_inf_median) / rinf.R_inf_median * 100
+    return (f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, "
+            f"{diff_pct:+.1f}%)")
+
+
 def _log_lambda_value(lambda_sel) -> None:
     """
     Report the selected lambda, and for the hybrid search both of its stages.
@@ -84,46 +135,21 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     if diag is None:
         return
 
-    # R_inf estimation
-    log_separator()
-    logger.info("R_inf estimation (high-frequency resistance)")
-    log_separator()
-
+    # R_inf estimation. A preset value did not come from this stage - it was
+    # measured by --ri-fit, which already reported it in full, or handed in by
+    # a caller of calculate_drt(). Repeating the section would restate someone
+    # else's number under the heading of an estimation that never ran; the DRT
+    # section states the value it uses either way.
     rinf = diag.rinf
-    method_names = {
-        'preset': 'Preset value',
-        'median': 'Median of HF points',
-        'rl_fit': 'R-L fit (auto-detection)'
-    }
-    logger.info(f"Method: {method_names.get(rinf.method, rinf.method)}")
-
-    if rinf.behavior:
-        logger.info(f"  Detected: {rinf.behavior.capitalize()} behavior")
-
-    if rinf.n_points_used:
-        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
-    else:
-        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm")
-
-    if rinf.R_squared and rinf.R_squared > 0:
-        logger.info(f"  Quality: R^2 = {rinf.R_squared:.4f}")
-    if rinf.L_nH and rinf.L_nH > 0:
-        logger.info(f"  Inductance: L = {rinf.L_nH:.2f} nH")
-
-    if rinf.R_inf_median and rinf.method != 'median':
-        diff_abs = rinf.R_inf - rinf.R_inf_median
-        diff_pct = (diff_abs / rinf.R_inf_median * 100) if rinf.R_inf_median != 0 else 0
-        logger.info(f"  Comparison: median = {rinf.R_inf_median:.3f} Ohm "
-                    f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
-
-    for warning in rinf.warnings:
-        logger.warning(f"  {warning}")
+    if rinf.method != 'preset':
+        _log_rinf_estimation(rinf)
 
     # DRT Analysis
     log_separator()
     logger.info("DRT Analysis")
     log_separator()
-    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm")
+    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{_preset_rinf_note(rinf)}")
+
 
     # Lambda selection
     lambda_sel = diag.lambda_sel

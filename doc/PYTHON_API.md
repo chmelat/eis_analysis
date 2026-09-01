@@ -209,6 +209,7 @@ result.ref_freq             # Reference frequency used [Hz]
 result.figure               # matplotlib Figure
 
 # Convenience properties
+result.success              # False if the reconstruction failed (empty arrays)
 result.mean_residual_real   # Mean |res_real| [%]
 result.mean_residual_imag   # Mean |res_imag| [%]
 result.mean_residual_mag    # Mean |res_mag| [%]

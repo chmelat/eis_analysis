@@ -73,7 +73,6 @@ def run_rinf_estimation(
         for warning in fit.warnings:
             logger.warning(f"  {warning}")
 
-        log_separator()
         save_figure(fig, args.save, 'ri_fit', args.format)
 
         return fit.R_inf, fig

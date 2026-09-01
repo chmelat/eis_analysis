@@ -102,6 +102,11 @@ class ZHITResult:
     figure: Optional[plt.Figure] = None
 
     @property
+    def success(self) -> bool:
+        """Check if Z-HIT validation completed successfully."""
+        return self.Z_mag_reconstructed.size > 0
+
+    @property
     def mean_residual_real(self) -> float:
         """Mean absolute real residual [%]."""
         return float(np.mean(np.abs(self.residuals_real)) * 100)
@@ -354,10 +359,6 @@ def zhit_validation(
     using a modified logarithmic Hilbert transform."
     Journal of Electroanalytical Chemistry 499, 216-225
     """
-    logger.info("=" * 60)
-    logger.info("Z-HIT validation")
-    logger.info("=" * 60)
-
     # Sort by ascending frequency for the integration; remember inverse
     # permutation so output arrays match the user's original order.
     sort_idx = np.argsort(frequencies)
@@ -426,17 +427,6 @@ def zhit_validation(
     # Calculate quality metric (based on magnitude residuals)
     mean_abs_residual_mag = np.mean(np.abs(residuals_mag))
     quality = max(0.0, 1.0 - mean_abs_residual_mag / quality_threshold)
-
-    # Logging (format consistent with KK validation)
-    logger.info(f"Z-HIT: ref_freq={actual_ref_freq:.2e} Hz")
-    logger.info(f"  Mean |res_real|: {np.mean(np.abs(residuals_real))*100:.2f}%")
-    logger.info(f"  Mean |res_imag|: {np.mean(np.abs(residuals_imag))*100:.2f}%")
-    logger.info(f"  Pseudo chi^2: {pseudo_chisqr:.2e}")
-    logger.info(f"  Estimated noise (upper bound): {noise_estimate:.2f}%")
-
-    log_fn = logger.info if mean_abs_residual_mag < quality_threshold else logger.warning
-    log_fn(f"Data quality: {_quality_label(mean_abs_residual_mag)} "
-           f"(mean |res_mag|={mean_abs_residual_mag:.2f}%, threshold={quality_threshold:.1f}%)")
 
     # Visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))

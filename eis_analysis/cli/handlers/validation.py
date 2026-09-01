@@ -130,10 +130,30 @@ def run_zhit_validation(
     if args.no_zhit:
         return None
 
+    logger.info("=" * 60)
+    logger.info("Z-HIT validation")
+    logger.info("=" * 60)
+
     result = zhit_validation(
         frequencies, Z,
         optimize_offset=args.zhit_optimize_offset
     )
+    if not result.success:
+        # zhit_validation already logged why; the empty result still goes back
+        # so the outlier report can skip Z-HIT rather than mistake it for data.
+        return result
+
+    # Summary (format consistent with KK validation)
+    logger.info(f"Z-HIT: ref_freq={result.ref_freq:.2e} Hz")
+    logger.info(f"  Mean |res_real|: {result.mean_residual_real:.2f}%")
+    logger.info(f"  Mean |res_imag|: {result.mean_residual_imag:.2f}%")
+    logger.info(f"  Pseudo chi^2: {result.pseudo_chisqr:.2e}")
+    logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
+
+    log_fn = logger.info if result.is_valid else logger.warning
+    log_fn(f"Data quality: {_quality_label(result.mean_residual_mag)} "
+           f"(mean |res_mag|={result.mean_residual_mag:.2f}%, "
+           f"threshold={result.quality_threshold:.1f}%)")
 
     save_figure(result.figure, args.save, 'zhit', args.format)
     return result
