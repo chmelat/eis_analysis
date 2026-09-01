@@ -23,6 +23,34 @@ logger = logging.getLogger(__name__)
 # DRT Analysis
 # =============================================================================
 
+def _log_lambda_value(lambda_sel) -> None:
+    """
+    Report the selected lambda, and for the hybrid search both of its stages.
+
+    The solver computes lambda mid-run, before any of these section headers
+    exist, so it only records the numbers - reporting them is done here, where
+    they belong to the DRT section. Run with -v for the search itself.
+    """
+    both_stages = lambda_sel.lambda_gcv and lambda_sel.lambda_lcurve
+    if lambda_sel.method != 'hybrid' or not both_stages:
+        logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}")
+        return
+
+    ratio = lambda_sel.lambda_lcurve / lambda_sel.lambda_gcv
+    logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}  "
+                f"(GCV {lambda_sel.lambda_gcv:.2e} -> L-curve corner "
+                f"{lambda_sel.lambda_lcurve:.2e}, ratio {ratio:.2f})")
+
+    # A corner within a decade of the GCV guess is the expected outcome; the
+    # other two stages mean the two criteria disagreed and are worth flagging.
+    if lambda_sel.hybrid_stage == 'lcurve_correction':
+        logger.warning(f"  L-curve raised GCV's lambda (ratio {ratio:.1f}) - GCV "
+                       f"underestimates lambda under the NNLS non-negativity constraint")
+    elif lambda_sel.hybrid_stage == 'geometric_mean':
+        logger.warning(f"  GCV and L-curve disagree (ratio {ratio:.2f}); "
+                       f"geometric mean used")
+
+
 def _log_drt_diagnostics(result: DRTResult) -> None:
     """Log DRT analysis results from diagnostics."""
     diag = result.diagnostics
@@ -75,16 +103,12 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     lambda_method_names = {
         'user': 'User-specified',
         'default': 'Default',
-        'gcv': 'GCV (automatic)',
+        'gcv': 'GCV (L-curve correction failed)',
         'hybrid': 'Hybrid GCV + L-curve',
         'fallback': 'Fallback (GCV failed)'
     }
     logger.info(f"Lambda: {lambda_method_names.get(lambda_sel.method, lambda_sel.method)}")
-    if lambda_sel.method == 'hybrid' and lambda_sel.lambda_gcv:
-        logger.info(f"  L-curve correction: lambda_gcv={lambda_sel.lambda_gcv:.2e} -> "
-                    f"lambda={lambda_sel.lambda_value:.2e}")
-    else:
-        logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}")
+    _log_lambda_value(lambda_sel)
     if diag.n_effective_bins is not None:
         logger.info(f"  DRT effective bins (N_eff): {diag.n_effective_bins:.1f}")
 

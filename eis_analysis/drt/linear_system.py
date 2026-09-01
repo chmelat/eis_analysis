@@ -115,12 +115,15 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
             lambda_gcv = diag.get('lambda_gcv')
             corner_at_edge = diag.get('corner_at_edge', False)
             at_edge = _at_bound(lambda_opt) or _at_bound(lambda_gcv) or corner_at_edge
-            method = 'hybrid' if diag['method_used'] == 'lcurve_correction' else 'gcv'
+            # Always 'hybrid' when this path succeeds - which of the two stages
+            # won is hybrid_stage, not a different method. 'gcv' below now means
+            # only the fallback after the hybrid search failed.
             return LambdaSelection(
                 lambda_value=lambda_opt,
-                method=method,
-                # lambda_gcv only meaningful (and displayed) for L-curve correction
-                lambda_gcv=lambda_gcv if method == 'hybrid' else None,
+                method='hybrid',
+                lambda_gcv=lambda_gcv,
+                lambda_lcurve=diag.get('lambda_lcurve'),
+                hybrid_stage=diag.get('method_used'),
                 gcv_score=gcv_score,
                 corner_at_edge=corner_at_edge,
                 lambda_at_edge=at_edge

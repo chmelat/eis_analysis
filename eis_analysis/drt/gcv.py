@@ -236,7 +236,7 @@ def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
     Vrací:
     - tuple: (lambda_optimal, gcv_optimal)
     """
-    logger.info("Automatický výběr λ pomocí GCV...")
+    logger.debug("Automatický výběr λ pomocí GCV...")
 
     # Fáze 1: Hrubé prohledání v log-prostoru
     lambda_values = np.logspace(np.log10(lambda_range[0]),
@@ -284,7 +284,7 @@ def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
     lambda_optimal = lambda_fine[min_fine_idx]
     gcv_optimal = gcv_fine_arr[min_fine_idx]
 
-    logger.info(f"✓ Optimální λ = {lambda_optimal:.4e} (GCV = {gcv_optimal:.4e})")
+    logger.debug(f"✓ Optimální λ = {lambda_optimal:.4e} (GCV = {gcv_optimal:.4e})")
 
     return lambda_optimal, gcv_optimal
 
@@ -319,7 +319,7 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     - tuple: (lambda_optimal, score, diagnostics)
       - diagnostics obsahuje: lambda_gcv, lambda_lcurve, method_used, curvature, rho, eta
     """
-    logger.info("Hybridní výběr λ (GCV + L-curve korekce)...")
+    logger.debug("Hybridní výběr λ (GCV + L-curve korekce)...")
 
     diagnostics: Dict[str, Any] = {
         'lambda_gcv': None,
@@ -333,7 +333,7 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     }
 
     # === Fáze 1: GCV pro initial guess ===
-    logger.info("Fáze 1: GCV initial guess...")
+    logger.debug("Fáze 1: GCV initial guess...")
 
     lambda_values = np.logspace(np.log10(lambda_range[0]),
                                  np.log10(lambda_range[1]),
@@ -349,10 +349,10 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     lambda_gcv = lambda_values[gcv_min_idx]
 
     diagnostics['lambda_gcv'] = lambda_gcv
-    logger.info(f"  GCV minimum: λ_gcv = {lambda_gcv:.4e}")
+    logger.debug(f"  GCV minimum: λ_gcv = {lambda_gcv:.4e}")
 
     # === Fáze 2: L-curve v okolí GCV odhadu ===
-    logger.info("Fáze 2: L-curve korekce...")
+    logger.debug("Fáze 2: L-curve korekce...")
 
     # Rozsah pro L-curve: ±lcurve_decades dekád kolem λ_gcv
     lcurve_min = max(lambda_gcv / (10**lcurve_decades), lambda_range[0] / 10)
@@ -391,12 +391,12 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     corner_at_edge = corner_idx <= 1 or corner_idx >= n_lc - 2
     diagnostics['corner_at_edge'] = corner_at_edge
     if corner_at_edge:
-        logger.warning(
+        logger.debug(
             f"  L-curve roh na okraji rozsahu (index {corner_idx}/{n_lc - 1}) "
             f"— zvaž větší lcurve_decades"
         )
 
-    logger.info(f"  L-curve roh: λ_lcurve = {lambda_lcurve:.4e}")
+    logger.debug(f"  L-curve roh: λ_lcurve = {lambda_lcurve:.4e}")
 
     # === Fáze 3: Rozhodnutí ===
     # Porovnej GCV a L-curve výsledky
@@ -406,25 +406,25 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
         # Výsledky jsou konzistentní (v rámci 1 dekády) - použij L-curve
         lambda_optimal = lambda_lcurve
         diagnostics['method_used'] = 'lcurve'
-        logger.info(f"  Konzistentní výsledky (ratio={ratio:.2f}), použita L-curve")
+        logger.debug(f"  Konzistentní výsledky (ratio={ratio:.2f}), použita L-curve")
     elif ratio >= 10:
         # L-curve chce výrazně vyšší λ - pravděpodobně NNLS efekt
         # L-curve je spolehlivější pro NNLS
         lambda_optimal = lambda_lcurve
         diagnostics['method_used'] = 'lcurve_correction'
-        logger.warning(f"  L-curve korekce: λ_lcurve >> λ_gcv (ratio={ratio:.1f})")
-        logger.warning("  GCV pravděpodobně underestimuje λ kvůli NNLS constraint")
+        logger.debug(f"  L-curve korekce: λ_lcurve >> λ_gcv (ratio={ratio:.1f})")
+        logger.debug("  GCV pravděpodobně underestimuje λ kvůli NNLS constraint")
     else:
         # L-curve chce výrazně nižší λ - neobvyklé, buď opatrný
         # Použij geometrický průměr jako kompromis
         lambda_optimal = np.sqrt(lambda_gcv * lambda_lcurve)
         diagnostics['method_used'] = 'geometric_mean'
-        logger.warning(f"  Nekonzistentní výsledky (ratio={ratio:.2f})")
-        logger.warning(f"  Použit geometrický průměr: λ = {lambda_optimal:.4e}")
+        logger.debug(f"  Nekonzistentní výsledky (ratio={ratio:.2f})")
+        logger.debug(f"  Použit geometrický průměr: λ = {lambda_optimal:.4e}")
 
     # Spočítej finální GCV score pro reporting
     final_gcv = compute_gcv_score(lambda_optimal, A, b, L)
 
-    logger.info(f"✓ Hybridní optimum: λ = {lambda_optimal:.4e} (GCV = {final_gcv:.4e})")
+    logger.debug(f"✓ Hybridní optimum: λ = {lambda_optimal:.4e} (GCV = {final_gcv:.4e})")
 
     return lambda_optimal, final_gcv, diagnostics

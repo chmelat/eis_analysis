@@ -34,7 +34,11 @@ class LambdaSelection:
     """Result of lambda selection."""
     lambda_value: float
     method: str  # 'user', 'default', 'gcv', 'hybrid', 'fallback'
-    lambda_gcv: Optional[float] = None  # If L-curve correction was applied
+    # Both stages of the hybrid search, kept so the CLI can report them inside
+    # the DRT section instead of the solver streaming them mid-computation.
+    lambda_gcv: Optional[float] = None     # GCV initial guess
+    lambda_lcurve: Optional[float] = None  # L-curve corner near lambda_gcv
+    hybrid_stage: Optional[str] = None     # 'lcurve', 'lcurve_correction', 'geometric_mean'
     gcv_score: Optional[float] = None
     corner_at_edge: bool = False   # L-curve corner landed at edge of search range (F7)
     lambda_at_edge: bool = False   # selected lambda hit a bound of the GCV range (F3/F7)
