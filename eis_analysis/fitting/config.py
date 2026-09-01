@@ -31,6 +31,17 @@ Value 3% is a very sensitive setting for detecting very weak processes.
 WARNING: May capture noise in lower quality data.
 """
 
+GMM_N_COMPONENTS_RANGE = (1, 6)
+"""
+Range of GMM component counts tried during BIC model selection.
+
+Lower bound 1: a single relaxation process is a legitimate DRT.
+Upper bound 6: an EIS spectrum spanning the usual 6-7 decades cannot resolve
+more than roughly one process per decade, so beyond six components BIC is
+fitting noise rather than physics. Widen it only when the selected count lands
+on the upper bound (the CLI warns when it does).
+"""
+
 DRT_MIN_EFFECTIVE_BINS = 7.0
 """
 Minimum effective number of gamma bins for meaningful peak-shape analysis.
@@ -178,6 +189,7 @@ __all__ = [
     'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
     'GMM_PEAK_HEIGHT_FACTOR',
+    'GMM_N_COMPONENTS_RANGE',
 
     # Fit Quality Assessment
     'FIT_QUALITY_EXCELLENT_ERROR',

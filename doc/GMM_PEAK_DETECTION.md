@@ -70,29 +70,29 @@ result = calculate_drt(freq, Z, peak_method='gmm')
 
 ### Konzole
 
-```
-============================================================
-GMM detekce píků
-============================================================
-Hledám optimální počet komponent v rozsahu (1, 6)
-n=1 komponenty: BIC=...
-n=2 komponenty: BIC=56.59
-✓ Optimální počet píků: 2 (BIC=56.59)
+CLI hlásí výsledek modelové selekce v sekci `Peak detection in DRT spectrum`:
 
-Detekované píky (seřazeno podle τ):
-  Pík 1:
-    τ = 9.11e-04 s (f = 1.75e+02 Hz)
-    Hranice τ: [3.25e-04, 2.55e-03] s
-    Šířka (σ): 0.224 dekád
-    Váha: 0.314
-    R ~ 1876.67 Ω
-  Pík 2:
-    τ = 4.92e-02 s (f = 3.24e+00 Hz)
-    Hranice τ: [1.72e-02, 1.41e-01] s
-    Šířka (σ): 0.228 dekád
-    Váha: 0.686
-    R ~ 4178.99 Ω
 ```
+==================================================
+Peak detection in DRT spectrum
+==================================================
+Method: GMM
+  BIC selection: 2 of 1-6 components (BIC improvement 401.1 over 1)
+Found 2 peaks
+  Peak 1: tau = 9.11e-04 s (f = 1.75e+02 Hz), R ~ 1876.67 Ohm, width = 0.22 dec, weight = 0.314
+  Peak 2: tau = 4.92e-02 s (f = 3.24e+00 Hz), R ~ 4178.99 Ohm, width = 0.23 dec, weight = 0.686
+```
+
+Dva řádky navíc podle situace:
+
+- `Early stop (Occam): raw BIC minimum would be N components` — early stopping
+  zvolilo jednodušší model, než by dalo samotné BIC minimum; laditelné přes
+  `--gmm-bic-threshold`.
+- Varování `Optimum at the edge of the 1-6 range` — optimum leží na hranici
+  prohledávaného rozsahu (`GMM_N_COMPONENTS_RANGE` ve `fitting/config.py`).
+
+Samotné hledání (BIC pro každé n, hranice τ jednotlivých píků) je na úrovni
+DEBUG, tedy viditelné s `-v`.
 
 ### Grafy (layout 2×2)
 

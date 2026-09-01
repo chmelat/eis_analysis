@@ -51,6 +51,33 @@ def _log_lambda_value(lambda_sel) -> None:
                        f"geometric mean used")
 
 
+def _log_gmm_selection(gmm) -> None:
+    """
+    Report which GMM model BIC settled on, and why it may not be the obvious one.
+
+    Like the lambda search, model selection runs inside calculate_drt(), before
+    this section exists - so the solver only records the outcome. Run with -v
+    for the per-model BIC scores.
+    """
+    lo, hi = gmm.n_components_range
+    # The improvement is measured against the smallest model, so quoting it for
+    # the smallest model itself would just print zero.
+    gain = (f" (BIC improvement {gmm.bic_improvement:.1f} over {lo})"
+            if gmm.n_components != lo else "")
+    logger.info(f"  BIC selection: {gmm.n_components} of {lo}-{hi} components{gain}")
+
+    # Early stopping deliberately prefers the simpler model unless the extra
+    # component earns more than gmm_bic_threshold - so the raw BIC minimum can
+    # sit higher without that being an error.
+    if gmm.n_components_bic_min != gmm.n_components:
+        logger.info(f"  Early stop (Occam): raw BIC minimum would be "
+                    f"{gmm.n_components_bic_min} components, see --gmm-bic-threshold")
+
+    if gmm.at_range_edge:
+        logger.warning(f"  Optimum at the edge of the {lo}-{hi} range - the true "
+                       f"component count may lie outside it")
+
+
 def _log_drt_diagnostics(result: DRTResult) -> None:
     """Log DRT analysis results from diagnostics."""
     diag = result.diagnostics
@@ -137,6 +164,8 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     log_separator()
     method_str = "GMM" if diag.peak_method == 'gmm' else "scipy.signal.find_peaks"
     logger.info(f"Method: {method_str}")
+    if diag.gmm is not None:
+        _log_gmm_selection(diag.gmm)
     logger.info(f"Found {diag.n_peaks} peaks")
 
     # Print the same peaks that n_peaks counts. With GMM, n_peaks reflects the
@@ -146,7 +175,9 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     if diag.peak_method == 'gmm' and result.peaks:
         for i, peak in enumerate(result.peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau_center']:.2e} s "
-                        f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
+                        f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm, "
+                        f"width = {peak['log_tau_std']:.2f} dec, "
+                        f"weight = {peak['weight']:.3f}")
     elif diag.scipy_peaks:
         for i, peak in enumerate(diag.scipy_peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "

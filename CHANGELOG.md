@@ -26,6 +26,14 @@ Complete change history for all project versions.
   The search itself is still visible with `-v`. Nothing about the selected
   lambda changed, only where and how it is reported.
 
+  GMM peak detection (`--peak-method gmm`) had the same problem for the same
+  reason and got the same treatment: its BIC model search no longer narrates
+  itself from inside the solver, and `Peak detection in DRT spectrum` now
+  reports which model BIC settled on, warns when that count sits at the edge of
+  the searched range, and says so when early stopping picked a simpler model
+  than the raw BIC minimum. The per-peak listing gained the two numbers only
+  GMM provides - component width in decades, and mixture weight.
+
 - **`Lambda: GCV (automatic)` no longer hides a hybrid run.** The method was
   reported as `gcv` whenever the L-curve corner agreed with the GCV guess, so
   the common case looked like plain GCV. A successful hybrid search now always

@@ -140,9 +140,7 @@ def gmm_peak_detection(
     - gmm_model: WeightedGMMResult (nebo None při selhání)
     - bic_scores: BIC skóre pro různé počty komponent
     """
-    logger.info("="*60)
-    logger.info("GMM detekce píků")
-    logger.info("="*60)
+    logger.debug("GMM detekce píků")
 
     # Log transformace pro lepší separaci
     log_tau = np.log10(tau)
@@ -171,7 +169,7 @@ def gmm_peak_detection(
     else:
         var_floor = 1e-12
 
-    logger.info(f"Hledám optimální počet komponent v rozsahu {n_components_range}")
+    logger.debug(f"Hledám optimální počet komponent v rozsahu {n_components_range}")
     logger.debug(f"Data: {len(x)} binů γ>0, N (měření) = {n_data}")
 
     # Model selection pomocí BIC
@@ -194,9 +192,9 @@ def gmm_peak_detection(
             )
             bic_scores.append(bic)
             models.append(model)
-            logger.info(f"n={n} komponenty: BIC={bic:.2f}")
+            logger.debug(f"n={n} komponenty: BIC={bic:.2f}")
         except (ValueError, np.linalg.LinAlgError) as e:
-            logger.warning(f"GMM fit selhal pro n={n}: {e}")
+            logger.debug(f"GMM fit selhal pro n={n}: {e}")
             bic_scores.append(np.inf)
             models.append(None)
 
@@ -221,7 +219,7 @@ def gmm_peak_detection(
     # n+1) se stejným prahem — vědomé zjednodušení.
     best_idx = valid_bic_sorted[0][0]  # Začni s prvním validním modelem
 
-    logger.info(f"BIC threshold pro přidání komponenty: {bic_threshold:.1f}")
+    logger.debug(f"BIC threshold pro přidání komponenty: {bic_threshold:.1f}")
 
     for i in range(1, len(valid_bic_sorted)):
         prev_idx = valid_bic_sorted[i-1][0]
@@ -231,14 +229,14 @@ def gmm_peak_detection(
 
         improvement = prev_bic - curr_bic
         n = curr_idx + n_components_range[0]
-        logger.info(f"n={n}: BIC zlepšení {improvement:.1f}")
+        logger.debug(f"n={n}: BIC zlepšení {improvement:.1f}")
 
         if improvement > bic_threshold:
             # Signifikantní zlepšení - přijmi tento model
             best_idx = curr_idx
         else:
             # Zlepšení pod prahem - zastav (Occamova břitva)
-            logger.info(f"  → Zlepšení {improvement:.1f} < threshold {bic_threshold:.1f}, zastavuji")
+            logger.debug(f"  → Zlepšení {improvement:.1f} < threshold {bic_threshold:.1f}, zastavuji")
             break
 
     best_n = best_idx + n_components_range[0]
@@ -250,26 +248,24 @@ def gmm_peak_detection(
     abs_min_n = abs_min_idx + n_components_range[0]
 
     if abs_min_idx != best_idx:
-        logger.info(f"Early stopping: n={n_peaks} (absolutní BIC minimum by bylo n={abs_min_n})")
+        logger.debug(f"Early stopping: n={n_peaks} (absolutní BIC minimum by bylo n={abs_min_n})")
         total_improvement = bic_scores[0] - bic_scores[best_idx]
-        logger.info(f"BIC selection: n={n_peaks} komponent (celkové BIC zlepšení: {total_improvement:.1f})")
+        logger.debug(f"BIC selection: n={n_peaks} komponent (celkové BIC zlepšení: {total_improvement:.1f})")
     elif best_idx > 0:
         total_improvement = bic_scores[0] - bic_scores[best_idx]
-        logger.info(f"BIC selection: n={n_peaks} komponent (BIC zlepšení: {total_improvement:.1f})")
+        logger.debug(f"BIC selection: n={n_peaks} komponent (BIC zlepšení: {total_improvement:.1f})")
 
     # Varování pokud optimum je na okraji rozsahu
     if n_peaks == n_components_range[0]:
-        logger.warning(f"⚠ Optimum na spodní hranici rozsahu (n={n_peaks})")
-        logger.warning("   Zvažte rozšíření rozsahu nebo kontrolu dat")
+        logger.debug(f"⚠ Optimum na spodní hranici rozsahu (n={n_peaks})")
     elif n_peaks == n_components_range[1]:
-        logger.warning(f"⚠ Optimum na horní hranici rozsahu (n={n_peaks})")
-        logger.warning("   Zvažte rozšíření rozsahu směrem nahoru")
+        logger.debug(f"⚠ Optimum na horní hranici rozsahu (n={n_peaks})")
 
     if best_gmm is None:
         logger.error(f"Vybraný model (n={n_peaks}) selhal")
         return [], None, bic_scores
 
-    logger.info(f"✓ Optimální počet píků: {n_peaks} (BIC={bic_scores[best_idx]:.2f})")
+    logger.debug(f"✓ Optimální počet píků: {n_peaks} (BIC={bic_scores[best_idx]:.2f})")
 
     # Extrahuj parametry píků
     peaks = []
@@ -308,13 +304,11 @@ def gmm_peak_detection(
     # Seřaď píky podle tau_center
     peaks = sorted(peaks, key=lambda p: p['tau_center'])
 
-    logger.info("\nDetekované píky (seřazeno podle τ):")
     for i, peak in enumerate(peaks):
-        logger.info(f"  Pík {i+1}:")
-        logger.info(f"    τ = {peak['tau_center']:.2e} s (f = {peak['f_center']:.2e} Hz)")
-        logger.info(f"    Hranice τ: [{peak['tau_bounds'][0]:.2e}, {peak['tau_bounds'][1]:.2e}] s")
-        logger.info(f"    Šířka (σ): {peak['log_tau_std']:.3f} dekád")
-        logger.info(f"    Váha: {peak['weight']:.3f}")
-        logger.info(f"    R ~ {peak['R_estimate']:.2f} Ω")
+        logger.debug(f"  Pík {i+1}: τ = {peak['tau_center']:.2e} s "
+                     f"(f = {peak['f_center']:.2e} Hz), hranice τ = "
+                     f"[{peak['tau_bounds'][0]:.2e}, {peak['tau_bounds'][1]:.2e}] s, "
+                     f"σ = {peak['log_tau_std']:.3f} dekád, "
+                     f"váha = {peak['weight']:.3f}, R ~ {peak['R_estimate']:.2f} Ω")
 
     return peaks, best_gmm, bic_scores
