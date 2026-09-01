@@ -9,6 +9,8 @@ from typing import Tuple, List, Dict, Optional
 from numpy.typing import NDArray
 from scipy.special import logsumexp
 
+from ..fitting.config import GMM_N_COMPONENTS_RANGE
+
 logger = logging.getLogger(__name__)
 
 # Regularizace kovariance (přičteno k rozptylu) — brání singularitě, když se
@@ -104,7 +106,7 @@ def _weighted_gaussian_mixture_1d(
 def gmm_peak_detection(
     tau: NDArray[np.float64],
     gamma: NDArray[np.float64],
-    n_components_range: Tuple[int, int] = (1, 6),
+    n_components_range: Tuple[int, int] = GMM_N_COMPONENTS_RANGE,
     bic_threshold: float = 10.0,
     n_data: Optional[int] = None
 ) -> Tuple[List[Dict], Optional[WeightedGMMResult], List[float]]:
@@ -128,7 +130,8 @@ def gmm_peak_detection(
     Parametry:
     - tau: časové konstanty [s]
     - gamma: distribuční funkce [Ω]
-    - n_components_range: rozsah pro hledání optimálního počtu píků (default: 1-6)
+    - n_components_range: rozsah pro hledání optimálního počtu píků
+                      (default: GMM_N_COMPONENTS_RANGE)
     - bic_threshold: minimální BIC zlepšení pro přidání další komponenty (default: 10.0)
                      Vyšší hodnota = konzervativnější (méně píků)
                      Typické hodnoty: 2-20 (10 je rozumný kompromis)

@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Tuple
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
-from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
+from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, GMM_N_COMPONENTS_RANGE
 
 
 def _create_visualization(tau: NDArray, gamma: NDArray,
@@ -114,8 +114,8 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
 
         # BIC plot
         if bic_scores:
-            n_components_range = (1, 6)
-            n_range = range(n_components_range[0], n_components_range[0] + len(bic_scores))
+            lo = GMM_N_COMPONENTS_RANGE[0]
+            n_range = range(lo, lo + len(bic_scores))
             valid_bic = [bic for bic in bic_scores if bic != np.inf]
 
             if valid_bic:

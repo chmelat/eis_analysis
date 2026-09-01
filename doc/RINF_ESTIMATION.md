@@ -146,14 +146,13 @@ via `fit_success`, not by a different return shape.
 ## Interaction with the DRT
 
 When `--ri-fit` runs, the CLI computes R_inf **first** and hands the number to
-`calculate_drt()` as `r_inf_preset`. The DRT therefore reports
+`calculate_drt()` as `r_inf_preset`. The DRT stage therefore skips its own
+`R_inf estimation` section - the estimation never ran there - and states the
+value where it uses it, with a comparison against the HF median:
 
 ```
-Method: Preset value
-```
-
-rather than `R-L fit`, because from its point of view the value was supplied
-from outside. The R-L-K diagnostic figure is saved separately as
+Using R_inf = 1.216 Ohm (preset; HF median = 1.265 Ohm, -3.9%)
+``` The R-L-K diagnostic figure is saved separately as
 `<prefix>_ri_fit.png`. The `'rl_fit'` label appears only when `calculate_drt()`
 is called directly with `use_rl_fit=True` from the Python API.
 

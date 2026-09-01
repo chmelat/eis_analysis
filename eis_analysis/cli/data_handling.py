@@ -9,6 +9,7 @@ Contains:
 import argparse
 import logging
 import os
+from typing import Any, Dict
 
 import numpy as np
 
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Default parameters for synthetic data demo
 # These values represent a typical two-RC circuit with CPE behavior
 
-SYNTHETIC_DATA_PARAMS = {
+SYNTHETIC_DATA_PARAMS: Dict[str, Any] = {
     'Rs': 10,           # Series resistance [Ohm]
     'R0': 1e5,          # First RC parallel resistance [Ohm]
     'Q0': (1e-6, 0.6),  # First CPE: (Q [F*s^(n-1)], n [-])

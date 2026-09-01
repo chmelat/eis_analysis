@@ -7,6 +7,7 @@ DRT analysis handlers for the EIS CLI.
 
 import argparse
 import logging
+from math import isfinite
 from typing import List, Optional
 
 from numpy.typing import NDArray
@@ -73,9 +74,12 @@ def _log_lambda_value(lambda_sel) -> None:
         return
 
     ratio = lambda_sel.lambda_lcurve / lambda_sel.lambda_gcv
+    # In the geometric-mean stage the reported lambda is neither of the two
+    # numbers, so the arrow must not stop at the L-curve corner.
+    stage = " -> geometric mean" if lambda_sel.hybrid_stage == 'geometric_mean' else ""
     logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}  "
                 f"(GCV {lambda_sel.lambda_gcv:.2e} -> L-curve corner "
-                f"{lambda_sel.lambda_lcurve:.2e}, ratio {ratio:.2f})")
+                f"{lambda_sel.lambda_lcurve:.2e}{stage}, ratio {ratio:.2f})")
 
     # A corner within a decade of the GCV guess is the expected outcome; the
     # other two stages mean the two criteria disagreed and are worth flagging.
@@ -96,11 +100,18 @@ def _log_gmm_selection(bic_scores: List[float], n_components: int) -> None:
     test all read straight off the list. Run with -v for the search itself.
     """
     lo, hi = GMM_N_COMPONENTS_RANGE
-    # The improvement is measured against the smallest model, so quoting it for
-    # the smallest model itself would just print zero.
-    gain = (f" (BIC improvement {bic_scores[0] - bic_scores[n_components - lo]:.1f} over {lo})"
-            if n_components != lo else "")
-    logger.info(f"  BIC selection: {n_components} of {lo}-{hi} components{gain}")
+    # A model that failed to fit is stored as inf, so it is no baseline to
+    # measure an improvement against. The improvement is measured against the
+    # smallest model, so quoting it for that model itself would just print zero.
+    gain = bic_scores[0] - bic_scores[n_components - lo]
+    gain_str = (f" (BIC improvement {gain:.1f} over {lo})"
+                if n_components != lo and isfinite(gain) else "")
+    logger.info(f"  BIC selection: {n_components} of {lo}-{hi} components{gain_str}")
+
+    n_failed = sum(1 for bic in bic_scores if not isfinite(bic))
+    if n_failed:
+        logger.warning(f"  {n_failed} of {len(bic_scores)} candidate models failed "
+                       f"to fit and were skipped (-v for the errors)")
 
     # Early stopping deliberately prefers the simpler model unless the extra
     # component earns more than gmm_bic_threshold - so the raw BIC minimum can
@@ -110,9 +121,10 @@ def _log_gmm_selection(bic_scores: List[float], n_components: int) -> None:
         logger.info(f"  Early stop (Occam): raw BIC minimum would be "
                     f"{n_bic_min} components, see --gmm-bic-threshold")
 
-    if n_components in (lo, hi):
-        logger.warning(f"  Optimum at the edge of the {lo}-{hi} range - the true "
-                       f"component count may lie outside it")
+    # Only the upper bound is actionable: nothing lies below one component.
+    if n_components == hi:
+        logger.warning(f"  Optimum at the upper bound of the {lo}-{hi} range - the "
+                       f"true component count may lie above it")
 
 
 def _log_drt_diagnostics(result: DRTResult) -> None:
