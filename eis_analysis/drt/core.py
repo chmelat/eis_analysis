@@ -19,7 +19,6 @@ from scipy.signal import find_peaks
 from .results import (
     RinfEstimate,
     LambdaSelection,
-    GMMSelection,
     NNLSSolution,
     DRTDiagnostics,
     DRTMatrices,
@@ -56,7 +55,6 @@ __all__ = [
     'DRTDiagnostics',
     'RinfEstimate',
     'LambdaSelection',
-    'GMMSelection',
     'NNLSSolution',
     'DRTMatrices',
     'LambdaProbePoint',
@@ -74,14 +72,14 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
                   peak_method: str,
                   gmm_bic_threshold: float = 10.0,
                   n_data: Optional[int] = None
-                  ) -> Tuple[Optional[List[Dict]], Optional[GMMSelection], Optional[List[Dict]]]:
+                  ) -> Tuple[Optional[List[Dict]], Optional[List[float]], Optional[List[Dict]]]:
     """
     Detect peaks in DRT spectrum.
 
     n_data: počet skutečných měření (frekvencí) pro penalizaci BIC v GMM.
 
     Returns:
-        (gmm_peaks, gmm_selection, scipy_peaks)
+        (gmm_peaks, bic_scores, scipy_peaks)
     """
     use_gmm = (peak_method == 'gmm')
 
@@ -109,35 +107,9 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
             # GMM failed, scipy_peaks available as fallback
             return None, None, scipy_peaks
 
-        return peaks_result, _summarize_gmm_selection(peaks_result, bic_scores), scipy_peaks
+        return peaks_result, bic_scores, scipy_peaks
 
     return None, None, scipy_peaks
-
-
-def _summarize_gmm_selection(peaks: List[Dict],
-                             bic_scores: List[float]) -> GMMSelection:
-    """
-    Record what the BIC model selection settled on, for the CLI to report.
-
-    The chosen component count is the number of peaks returned, so its position
-    in `bic_scores` follows from the range that was searched. Comparing it with
-    the raw BIC minimum shows when early stopping (Occam's razor) picked a
-    simpler model than BIC alone would.
-    """
-    lo, hi = GMM_N_COMPONENTS_RANGE
-    n_components = len(peaks)
-    best_idx = n_components - lo
-    finite = [(i, b) for i, b in enumerate(bic_scores) if np.isfinite(b)]
-    min_idx = min(finite, key=lambda ib: ib[1])[0] if finite else best_idx
-
-    return GMMSelection(
-        n_components=n_components,
-        n_components_range=GMM_N_COMPONENTS_RANGE,
-        bic_scores=bic_scores,
-        n_components_bic_min=min_idx + lo,
-        bic_improvement=float(bic_scores[0] - bic_scores[best_idx]),
-        at_range_edge=n_components in (lo, hi),
-    )
 
 
 # =============================================================================
@@ -274,11 +246,10 @@ def calculate_drt(
     assert gamma_physical is not None  # set whenever normalized; narrows Optional
 
     # === Step 7: Peak Detection ===
-    peaks_result, gmm_sel, scipy_peaks = _detect_peaks(
+    peaks_result, bic_scores, scipy_peaks = _detect_peaks(
         matrices.tau, gamma_physical, peak_method, gmm_bic_threshold,
         n_data=len(frequencies)
     )
-    bic_scores = gmm_sel.bic_scores if gmm_sel else None
 
     n_peaks = len(peaks_result) if peaks_result else len(scipy_peaks) if scipy_peaks else 0
 
@@ -370,7 +341,6 @@ def calculate_drt(
         peak_method=peak_method,
         n_peaks=n_peaks,
         scipy_peaks=scipy_peaks,
-        gmm=gmm_sel,
         n_effective_bins=n_eff,
         stability=stability
     )

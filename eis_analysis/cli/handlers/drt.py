@@ -7,7 +7,7 @@ DRT analysis handlers for the EIS CLI.
 
 import argparse
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from numpy.typing import NDArray
 
@@ -15,6 +15,7 @@ from ..logging import log_separator
 from ..utils import save_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, format_voigt_report
+from ...fitting.config import GMM_N_COMPONENTS_RANGE
 
 logger = logging.getLogger(__name__)
 
@@ -58,22 +59,6 @@ def _log_rinf_estimation(rinf) -> None:
         logger.warning(f"  {warning}")
 
 
-def _preset_rinf_note(rinf) -> str:
-    """
-    How a preset R_inf compares with the HF median, appended to "Using R_inf".
-
-    The preset path carries only these two numbers, and the comparison is the
-    one worth keeping: it is what places a caller-supplied R_inf against the
-    data. Empty string for a value this stage estimated itself.
-    """
-    if rinf.method != 'preset' or not rinf.R_inf_median:
-        return ""
-
-    diff_pct = (rinf.R_inf - rinf.R_inf_median) / rinf.R_inf_median * 100
-    return (f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, "
-            f"{diff_pct:+.1f}%)")
-
-
 def _log_lambda_value(lambda_sel) -> None:
     """
     Report the selected lambda, and for the hybrid search both of its stages.
@@ -102,29 +87,30 @@ def _log_lambda_value(lambda_sel) -> None:
                        f"geometric mean used")
 
 
-def _log_gmm_selection(gmm) -> None:
+def _log_gmm_selection(bic_scores: List[float], n_components: int) -> None:
     """
     Report which GMM model BIC settled on, and why it may not be the obvious one.
 
-    Like the lambda search, model selection runs inside calculate_drt(), before
-    this section exists - so the solver only records the outcome. Run with -v
-    for the per-model BIC scores.
+    `bic_scores` covers GMM_N_COMPONENTS_RANGE in order, and the chosen model is
+    the number of peaks returned - so its score, the raw minimum and the edge
+    test all read straight off the list. Run with -v for the search itself.
     """
-    lo, hi = gmm.n_components_range
+    lo, hi = GMM_N_COMPONENTS_RANGE
     # The improvement is measured against the smallest model, so quoting it for
     # the smallest model itself would just print zero.
-    gain = (f" (BIC improvement {gmm.bic_improvement:.1f} over {lo})"
-            if gmm.n_components != lo else "")
-    logger.info(f"  BIC selection: {gmm.n_components} of {lo}-{hi} components{gain}")
+    gain = (f" (BIC improvement {bic_scores[0] - bic_scores[n_components - lo]:.1f} over {lo})"
+            if n_components != lo else "")
+    logger.info(f"  BIC selection: {n_components} of {lo}-{hi} components{gain}")
 
     # Early stopping deliberately prefers the simpler model unless the extra
     # component earns more than gmm_bic_threshold - so the raw BIC minimum can
     # sit higher without that being an error.
-    if gmm.n_components_bic_min != gmm.n_components:
+    n_bic_min = bic_scores.index(min(bic_scores)) + lo
+    if n_bic_min != n_components:
         logger.info(f"  Early stop (Occam): raw BIC minimum would be "
-                    f"{gmm.n_components_bic_min} components, see --gmm-bic-threshold")
+                    f"{n_bic_min} components, see --gmm-bic-threshold")
 
-    if gmm.at_range_edge:
+    if n_components in (lo, hi):
         logger.warning(f"  Optimum at the edge of the {lo}-{hi} range - the true "
                        f"component count may lie outside it")
 
@@ -148,8 +134,13 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     log_separator()
     logger.info("DRT Analysis")
     log_separator()
-    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{_preset_rinf_note(rinf)}")
-
+    # The comparison is what places a caller-supplied R_inf against the data,
+    # and the preset path carries no other diagnostic worth reporting.
+    note = ""
+    if rinf.method == 'preset' and rinf.R_inf_median:
+        diff_pct = (rinf.R_inf - rinf.R_inf_median) / rinf.R_inf_median * 100
+        note = f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, {diff_pct:+.1f}%)"
+    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{note}")
 
     # Lambda selection
     lambda_sel = diag.lambda_sel
@@ -190,8 +181,8 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     log_separator()
     method_str = "GMM" if diag.peak_method == 'gmm' else "scipy.signal.find_peaks"
     logger.info(f"Method: {method_str}")
-    if diag.gmm is not None:
-        _log_gmm_selection(diag.gmm)
+    if result.bic_scores:
+        _log_gmm_selection(result.bic_scores, diag.n_peaks)
     logger.info(f"Found {diag.n_peaks} peaks")
 
     # Print the same peaks that n_peaks counts. With GMM, n_peaks reflects the

@@ -47,24 +47,24 @@ SYNTHETIC_DATA_PARAMS = {
 # Data Loading
 # =============================================================================
 
-def _log_synthetic_params(params: dict) -> None:
+def _log_synthetic_params() -> None:
     """
     Announce the circuit the demo data is generated from.
 
     Reported here rather than by generate_synthetic_data(), which is a library
-    function that should return data and print nothing - and these are the
-    parameters this caller chose, so this is where they are known.
+    function that should return data and print nothing - and SYNTHETIC_DATA_PARAMS
+    is this caller's own choice, so this is where it is known.
     """
-    Y0_0, n0 = params['Q0']
-    Y0_1, n1 = params['Q1']
+    Y0_0, n0 = SYNTHETIC_DATA_PARAMS['Q0']
+    Y0_1, n1 = SYNTHETIC_DATA_PARAMS['Q1']
 
     logger.info("=" * 60)
     logger.info("Generating synthetic data")
     logger.info("=" * 60)
     logger.info("Circuit: Rs - (R0||Q0) - (R1||Q1)")
-    logger.info(f"Rs = {params['Rs']} Ω")
-    logger.info(f"R0 = {params['R0']:.2e} Ω, Q0 = ({Y0_0:.2e} S·s^n, n={n0})")
-    logger.info(f"R1 = {params['R1']:.2e} Ω, Q1 = ({Y0_1:.2e} S·s^n, n={n1})")
+    logger.info(f"Rs = {SYNTHETIC_DATA_PARAMS['Rs']} Ω")
+    logger.info(f"R0 = {SYNTHETIC_DATA_PARAMS['R0']:.2e} Ω, Q0 = ({Y0_0:.2e} S·s^n, n={n0})")
+    logger.info(f"R1 = {SYNTHETIC_DATA_PARAMS['R1']:.2e} Ω, Q1 = ({Y0_1:.2e} S·s^n, n={n1})")
 
 
 def load_eis_data(args: argparse.Namespace) -> LoadedData:
@@ -92,7 +92,7 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
 
     if args.input is None:
         # Synthetic data
-        _log_synthetic_params(SYNTHETIC_DATA_PARAMS)
+        _log_synthetic_params()
         frequencies, Z = generate_synthetic_data(**SYNTHETIC_DATA_PARAMS)
         title = "Synthetic data"
     else:

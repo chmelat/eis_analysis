@@ -151,7 +151,7 @@ def run_zhit_validation(
     logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
 
     log_fn = logger.info if result.is_valid else logger.warning
-    log_fn(f"Data quality: {_quality_label(result.mean_residual_mag)} "
+    log_fn(f"Data quality: {result.quality_label} "
            f"(mean |res_mag|={result.mean_residual_mag:.2f}%, "
            f"threshold={result.quality_threshold:.1f}%)")
 

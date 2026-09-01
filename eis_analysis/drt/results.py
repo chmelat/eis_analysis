@@ -8,7 +8,7 @@ returned as structured data, the CLI layer is responsible for user output.
 import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict
 from numpy.typing import NDArray
 
 
@@ -42,22 +42,6 @@ class LambdaSelection:
     gcv_score: Optional[float] = None
     corner_at_edge: bool = False   # L-curve corner landed at edge of search range (F7)
     lambda_at_edge: bool = False   # selected lambda hit a bound of the GCV range (F3/F7)
-
-
-@dataclass
-class GMMSelection:
-    """
-    Outcome of the BIC model selection in GMM peak detection.
-
-    Recorded rather than logged by the solver: peak detection runs inside
-    calculate_drt(), long before the CLI prints the section this belongs to.
-    """
-    n_components: int
-    n_components_range: Tuple[int, int]
-    bic_scores: List[float]
-    n_components_bic_min: int   # count the raw BIC minimum would have picked
-    bic_improvement: float      # BIC gain of the chosen model over the smallest
-    at_range_edge: bool         # chosen count sits at a bound of the tested range
 
 
 @dataclass
@@ -143,7 +127,6 @@ class DRTDiagnostics:
     peak_method: str
     n_peaks: int
     scipy_peaks: Optional[List[Dict]] = None  # For scipy method
-    gmm: Optional[GMMSelection] = None        # For peak_method='gmm'
 
     # Shape diagnostics (F3): effective number of gamma bins (participation ratio)
     n_effective_bins: Optional[float] = None
