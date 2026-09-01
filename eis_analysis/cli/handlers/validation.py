@@ -164,14 +164,14 @@ def report_outliers(
     zhit_result : ZHITResult or None
         Result from run_zhit_validation
     args : argparse.Namespace
-        CLI arguments (uses: max_residual)
+        CLI arguments (uses: max_residual, save, format)
     """
     report = find_outliers(
         frequencies, kk_result, zhit_result, max_residual=args.max_residual
     )
 
     for method in report.skipped:
-        logger.info(f"{method}: mean residual exceeds {args.max_residual:.1f}% - "
+        logger.info(f"{method}: over half the points exceed {args.max_residual:.1f}% - "
                     f"the spectrum fails as a whole, per-point flagging skipped")
 
     if not report.points:
@@ -193,27 +193,33 @@ def report_outliers(
         logger.warning("  Note: deviations at the lowest frequencies are often "
                        "sample drift, not bad points")
 
-    _mark_outliers(kk_result, report, 'kk', args)
-    _mark_outliers(zhit_result, report, 'zhit', args)
+    _mark_outliers(kk_result, report, 'KK', 'kk', args)
+    _mark_outliers(zhit_result, report, 'Z-HIT', 'zhit', args)
 
 
-def _mark_outliers(result, report, suffix: str, args: argparse.Namespace) -> None:
+def _mark_outliers(result, report, method: str, suffix: str,
+                   args: argparse.Namespace) -> None:
     """
-    Mark flagged frequencies in a validation figure's residual panel.
+    Mark a method's own flagged frequencies in its residual panel.
+
+    Only the points THIS method flagged are drawn: a band on the KK panel at a
+    frequency where the KK residual is 0.3% would contradict the table's
+    `flagged by` column, and a method dropped by the global guard would end up
+    annotated entirely with the other one's findings.
 
     Done here rather than inside kramers_kronig_validation / zhit_validation so
     the computation core stays independent of the CLI threshold. The figure was
     already written to disk by the validation handler, so with --save it is
-    re-saved to pick up the markers; that only happens on spectra that actually
-    have flagged points.
+    re-saved to pick up the markers.
     """
     fig = getattr(result, 'figure', None)
-    if fig is None or len(fig.axes) < 2:
+    points = [p for p in report.points if method in p.methods.split('+')]
+    if fig is None or len(fig.axes) < 2 or not points:
         return
 
     # Both validation figures use a 1x2 layout with the residuals on the right.
     ax = fig.axes[1]
-    for i, p in enumerate(report.points):
+    for i, p in enumerate(points):
         ax.axvline(x=p.frequency, color='red', linestyle='-', alpha=0.25,
                    linewidth=3, zorder=0,
                    label='Flagged point' if i == 0 else None)

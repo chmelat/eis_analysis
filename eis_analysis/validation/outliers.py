@@ -150,16 +150,24 @@ def _usable_residuals(
 
     r = residual_percent(res_real, res_imag)
 
-    # Global guard: a method whose own mean residual already exceeds the
-    # threshold is describing a spectrum that fails as a whole, not a few bad
-    # points. Z-HIT in particular carries a free global offset (the anchor at
-    # ref_freq), and a shifted offset lifts every residual at once - without
-    # this guard the entire spectrum would be listed point by point.
-    mean_r = np.nanmean(r) if np.any(np.isfinite(r)) else np.nan
-    if not np.isfinite(mean_r):
+    # Global guard: when the MEDIAN residual is already over the threshold,
+    # more than half the points would be flagged - that is a spectrum failing
+    # as a whole (which the Data quality line reports), not a few bad points,
+    # and enumerating it would dress a global failure up as a list of local
+    # ones. Z-HIT in particular carries a free global offset (the anchor at
+    # ref_freq), and a shifted offset lifts every residual at once.
+    #
+    # The median, not the mean: a handful of genuine outliers pulls the mean
+    # over the threshold and would switch the report off exactly when it has
+    # something to say (5 points at 40% among 30 at 0.5% give a mean of 6.1%
+    # but a median of 0.5%). It also keeps one non-finite residual - Z-HIT
+    # divides by |Z| without a floor - from disabling the whole method.
+    # `if` only to keep an all-NaN slice from warning; it returns None below.
+    median_r = np.nanmedian(r) if np.any(np.isfinite(r)) else np.nan
+    if not np.isfinite(median_r):
         logger.debug(f"{label}: residuals not finite, skipping outlier check")
         return None
-    if mean_r > max_residual:
+    if median_r > max_residual:
         skipped.append(label)
         return None
 
@@ -201,8 +209,11 @@ def find_outliers(
     zhit_result : ZHITResult, optional
         Result of Z-HIT validation. None if it did not run.
     max_residual : float, optional
-        Flagging threshold [%] (default: 5.0, matching the pass/fail
-        threshold used for the mean residual).
+        Flagging threshold [%] (default: 5.0, the same number the validation
+        summary uses to call a spectrum invalid). Note this metric combines
+        both residual components, so it runs up to sqrt(2) larger than the
+        per-component means behind `KKResult.is_valid` - the two are not the
+        same test.
 
     Returns
     -------
@@ -220,6 +231,10 @@ def find_outliers(
     the method's own residual baseline (see _METHOD_BASELINE_FACTOR), which
     keeps a method that reconstructs the spectrum poorly from filling the list
     with its own artifacts.
+
+    A method whose MEDIAN residual is already over the threshold is dropped
+    into `skipped` instead: over half its points would be flagged, which is a
+    global failure rather than a list of local ones.
 
     Non-finite residuals never flag a point (NaN comparisons are False).
     """

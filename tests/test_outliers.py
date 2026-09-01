@@ -331,3 +331,96 @@ def test_report_lists_the_flagged_frequency(caplog):
         report_outliers(freq, fake_result(r), None, args)
     assert "Suspicious points (1" in caplog.text
     assert f"{freq[11]:10.3e}".strip() in caplog.text
+
+
+# =============================================================================
+# Regressions: the global guard must not silence the report
+# =============================================================================
+
+def test_a_few_real_outliers_do_not_trip_the_global_guard():
+    """Regression: the guard used the mean, which a handful of genuine
+    outliers pulls over the threshold - switching the report off exactly when
+    it has something to say."""
+    freq = np.logspace(-2, 5, 35)
+    r = np.full(35, 0.5)
+    r[:5] = 40.0
+    assert np.mean(r) > 5.0, "the mean must be over the threshold for this to bite"
+
+    report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
+    assert report.skipped == []
+    assert len(report.points) == 5
+
+
+def test_guard_trips_when_over_half_the_points_are_bad():
+    freq = np.logspace(-2, 5, 35)
+    r = np.full(35, 0.5)
+    r[:20] = 40.0                      # majority bad -> median over threshold
+    report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
+    assert report.skipped == ["KK"]
+    assert report.points == []
+
+
+def test_single_infinite_residual_does_not_disable_the_method():
+    """Regression: Z-HIT divides by |Z| with no floor, so a single inf used to
+    poison the mean and drop the whole method silently."""
+    freq = np.logspace(-2, 5, 35)
+    r = np.full(35, 0.5)
+    r[3] = np.inf
+    r[10] = 30.0
+    report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
+
+    assert report.skipped == []
+    assert [p.frequency for p in report.points] == pytest.approx([freq[3], freq[10]])
+
+
+# =============================================================================
+# Figure marking
+# =============================================================================
+
+def test_each_figure_is_marked_only_with_its_own_method_s_points():
+    """A band on the KK panel at a frequency KK considers fine would
+    contradict the table's `flagged by` column."""
+    from eis_analysis.cli.handlers.validation import report_outliers
+
+    freq = np.logspace(-2, 5, 30)
+    rk = np.full(30, 0.5)
+    rk[4] = 12.0
+    rz = np.full(30, 0.5)
+    rz[9] = 12.0
+
+    kk_fig, kk_axes = plt.subplots(1, 2)
+    zhit_fig, zhit_axes = plt.subplots(1, 2)
+    kk = fake_result(rk)
+    kk.figure = kk_fig
+    zhit = fake_result(rz)
+    zhit.figure = zhit_fig
+
+    args = argparse.Namespace(max_residual=5.0, save=None, format='png')
+    report_outliers(freq, kk, zhit, args)
+
+    # One axvline each: KK's own point on the KK panel, Z-HIT's on its own.
+    assert len(kk_axes[1].lines) == 1
+    assert len(zhit_axes[1].lines) == 1
+    assert kk_axes[1].lines[0].get_xdata()[0] == pytest.approx(freq[4])
+    assert zhit_axes[1].lines[0].get_xdata()[0] == pytest.approx(freq[9])
+
+    plt.close(kk_fig)
+    plt.close(zhit_fig)
+
+
+def test_report_only_reads_the_documented_args(tmp_path):
+    """The whole marking path runs, including the re-save with --save."""
+    from eis_analysis.cli.handlers.validation import report_outliers
+
+    freq = np.logspace(-2, 5, 30)
+    r = np.full(30, 0.5)
+    r[6] = 15.0
+    result = fake_result(r)
+    result.figure, _ = plt.subplots(1, 2)
+
+    prefix = str(tmp_path / "out")
+    args = argparse.Namespace(max_residual=5.0, save=prefix, format='png')
+    report_outliers(freq, result, None, args)
+
+    assert (tmp_path / "out_kk.png").exists()
+    plt.close(result.figure)

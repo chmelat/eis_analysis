@@ -36,10 +36,11 @@ Complete change history for all project versions.
   spectrum, the factor cuts false alarms on defect-free data from 8.2 % of
   points to 1.9 % while still catching 23 of 25 injected 8 % spikes; on
   measured spectra it changes nothing, because there the absolute threshold
-  stays binding. Second, a method whose *mean* residual already exceeds the
-  threshold is skipped entirely - such a spectrum fails as a whole, which the
-  `Data quality:` line already says, and enumerating ninety points would only
-  dress a global failure up as a list of local ones.
+  stays binding. Second, a method whose *median* residual already exceeds the
+  threshold is skipped entirely: over half its points would be flagged, so the
+  spectrum fails as a whole, which the `Data quality:` line already says, and
+  enumerating ninety points would only dress a global failure up as a list of
+  local ones.
 
 ### Changed
 
