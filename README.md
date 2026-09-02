@@ -313,7 +313,11 @@ few percent while its residuals march smoothly across the spectrum. Both
   Fit error: 4.35% (rel), 322.63 Ohm (abs)
   Quality: Good (<10.0%)
   Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
-!   Residuals are not random: ripple of 3.5 decades in a 7.1 decade window - too few elements
+!   Residuals are not random (Re/Im, 7.1 decade window):
+!     trend: +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
+!     wave:  3.7 / 3.5 decades, amplitude 0.84 / 0.22 (power 0.90 / 0.48, noise < 0.2)
+!     A trend, or a wave as long as the window, means an element is missing or
+!     of the wrong type. A shorter wave means the right elements, too few of them.
 ```
 
 `rho1` is the lag-1 autocorrelation, ~0 for independent residuals and near 1
@@ -322,12 +326,24 @@ against the median: the p-value that this many sign changes could come from
 independent residuals. A quality of `Good` alongside that warning is not a
 contradiction - the fit is close, and still the wrong model.
 
-When it warns, the wording says which fix to try:
+The shape is reported as two measurements rather than as one verdict, because
+residuals commonly carry both at once and each asks for a different repair:
 
-- **ripple** - the circuit has the right kind of elements but too few of them.
-  Add another parallel branch. The period shrinks as elements are added.
-- **trend** - an element is missing or is of the wrong type. Try `Q` instead of
-  `C`, or add a Warburg.
+- **trend** - the slope of a straight line through the residuals, in weighted
+  units per decade, with `span` its total change across the window and `p` its
+  significance. A real trend means an element is missing or is of the wrong
+  type. Try `Q` instead of `C`, or add a Warburg.
+- **wave** - the period and amplitude of the strongest wave left once that line
+  is removed, with the periodogram `power` as its significance (white noise
+  stays below 0.2). A real wave means the circuit has the right kind of
+  elements but too few of them. Add another parallel branch; the period shrinks
+  as elements are added. The window width is the longest period measurable, so
+  a wave reported at it is a single hump - read it as a trend, not as a repeat.
+
+`span` and `amplitude` are in the same units, so comparing them says which
+shape dominates - the example above is mostly a drift with a wave riding on it.
+Neither line is a verdict: read the `p` and the `power` and act on whichever is
+real, or on both.
 
 This is also the assumption AIC and BIC are built on, so a warning here means
 the comparison table is ranking circuits that are all inadequate. Fix the model

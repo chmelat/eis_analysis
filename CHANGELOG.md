@@ -4,6 +4,58 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.31.0 (2026-09-02)
+
+### Changed
+
+- **The residual warning reports both shapes instead of choosing one.** The
+  shape test used to end in a single verdict - ripple *or* trend - decided by
+  whether the periodogram peak fell below half the window width. Residuals
+  routinely carry both at once, and the rule then hid whichever was weaker:
+  a 3.7-decade wave in a 7-decade window sits above the half-window mark, so
+  a spectrum with a genuine drift *and* a genuine wave was reported as a
+  drift alone, and only half the repair was prescribed. The threshold was
+  also doing two jobs - it decided the wording and it protected against a
+  trend masquerading as a long period - so neither shape could be reported
+  honestly on its own.
+
+  A line is now fitted first and removed, and the periodogram runs on what is
+  left. That separates the two shapes instead of making them compete for one
+  peak, and both are printed with their own significance:
+
+  ```
+    Residuals: rho1 = +0.97 / +0.87 (Re/Im), runs p = 8.3e-17 / 3.0e-10
+  !   Residuals are not random (Re/Im, 7.0 decade window):
+  !     trend: +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
+  !     wave:  3.6 / 1.2 decades, amplitude 0.84 / 0.20 (power 0.90 / 0.48, noise < 0.2)
+  !     A trend, or a wave as long as the window, means an element is missing or
+  !     of the wrong type. A shorter wave means the right elements, too few of them.
+  ```
+
+  `span` (the trend's total change across the window) and `amplitude` are in
+  the same weighted-residual units, so their ratio says which shape dominates
+  - the example above is a drift with a wave riding on it, which the old
+  verdict reported as a drift and nothing else. The reading is unchanged: a
+  trend means an element is missing or is of the wrong type, a wave means the
+  right elements and too few of them. What changed is that the user decides
+  from two numbers rather than from a threshold.
+
+  The wave's amplitude comes from the peak's normalized power (a sinusoid of
+  amplitude `A` holds variance `A^2/2`) rather than a least-squares sinusoid
+  at the peak. Least squares gave the same answer where the period is
+  comfortably resolved but is ill-conditioned near the Nyquist floor, where it
+  returned an amplitude of 11.3 on residuals spanning 6; the power form cannot
+  exceed `sqrt(2 * variance)` by construction.
+
+  Python API: `SeriesDiagnostics` gains `slope`, `slope_span`, `slope_p` and
+  `amplitude`; `period_decades` is now always the measured period (NaN when
+  none is resolvable) rather than `None` for anything the old rule called a
+  trend, and `period_over_window` and `MAX_PERIOD_FRACTION` are gone with it.
+  `dominant_period` returns `(period, power, amplitude)` and expects a
+  detrended series; the new `linear_trend` provides the line.
+
+---
+
 ## Version 0.30.0 (2026-09-02)
 
 ### Added

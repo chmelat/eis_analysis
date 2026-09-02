@@ -1,13 +1,14 @@
 """Tests for residual shape diagnostics (fitting/residual_diagnostics.py).
 
 The module answers one question - are these residuals noise, or is the model
-missing something - so the tests are built around four residual shapes whose
+missing something - so the tests are built around five residual shapes whose
 answer is known by construction:
 
     white noise        not systematic
-    ripple             systematic, and the period is recoverable
-    single bump        systematic, but a trend rather than a period
-    monotone drift     systematic, trend
+    ripple             systematic; period and amplitude recovered, no trend
+    single bump        systematic; no trend, a wave as long as the window
+    monotone drift     systematic; the trend carries it, the wave is small
+    drift + ripple     systematic; both are reported, neither hides the other
 
 Plus the degenerate inputs that would otherwise divide by zero, and one
 end-to-end check on a real under-parametrized circuit fit.
@@ -18,10 +19,11 @@ import pytest
 
 from eis_analysis.fitting import C, R, fit_equivalent_circuit
 from eis_analysis.fitting.residual_diagnostics import (
-    MAX_PERIOD_FRACTION,
+    MIN_PERIODOGRAM_POWER,
     analyze_residuals,
     dominant_period,
     lag1_autocorrelation,
+    linear_trend,
     runs_test,
 )
 
@@ -39,14 +41,15 @@ def _noise(seed, scale=0.5):
     return np.random.default_rng(seed).standard_normal(len(FREQ)) * scale
 
 
-# --- the four shapes ---
+# --- the five shapes ---
 
 def test_white_noise_is_not_systematic():
     d = analyze_residuals(*_with_residual(_noise(3, scale=1.0)), weighting='uniform')
     assert not d.is_systematic
     assert abs(d.real.lag1_autocorr) < 0.3
     assert d.real.runs_p > 0.05
-    assert d.real.period_decades is None      # nothing to name
+    assert d.real.power < MIN_PERIODOGRAM_POWER   # a peak, but not a wave
+    assert d.real.slope_p > 0.05                  # and no trend either
 
 
 def test_ripple_is_systematic_and_its_period_is_recovered():
@@ -57,29 +60,50 @@ def test_ripple_is_systematic_and_its_period_is_recovered():
     assert d.real.lag1_autocorr > 0.8
     assert d.real.runs_p < 1e-6
     assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
+    assert d.real.amplitude == pytest.approx(3.0, rel=0.15)
     assert d.real.power > 0.5
+    assert d.real.slope_span < 0.5 * d.real.amplitude   # the wave carries it
 
 
-def test_single_bump_is_systematic_but_reports_no_period():
-    """A missing relaxation is a bump, not a wave - naming a period would lie."""
+def test_single_bump_is_systematic_and_reads_as_a_long_wave():
+    """A symmetric bump has no net slope; its shape is a wave the window barely holds."""
     bump = 3 * np.exp(-((LOG_FREQ - 1.5) / 1.2) ** 2) + _noise(3)
     d = analyze_residuals(*_with_residual(bump), weighting='uniform')
 
     assert d.is_systematic
     assert d.real.runs_p < 1e-6
-    assert d.real.period_decades is None
-    # ...because the peak sits at the window width, not at a real wavelength
-    assert d.real.period_over_window > MAX_PERIOD_FRACTION
+    assert d.real.slope_p > 0.05                        # no trend to report
+    assert d.real.period_decades > 0.5 * d.window_decades
+    assert d.real.power > MIN_PERIODOGRAM_POWER
 
 
-def test_monotone_drift_is_systematic_but_reports_no_period():
+def test_monotone_drift_is_carried_by_the_trend():
     drift = 3 * np.tanh((LOG_FREQ - 1.5) / 2) + _noise(3)
     d = analyze_residuals(*_with_residual(drift), weighting='uniform')
 
     assert d.is_systematic
     assert d.real.lag1_autocorr > 0.8
-    assert d.real.period_decades is None
-    assert d.real.period_over_window > MAX_PERIOD_FRACTION
+    assert d.real.slope_p < 1e-6
+    # What is left after the line is a fraction of what the line itself does.
+    assert d.real.slope_span > 5 * d.real.amplitude
+
+
+def test_a_drift_and_a_ripple_are_both_reported():
+    """The reason the verdict is two numbers: a strong trend used to hide the wave.
+
+    A 3.7-decade ripple in a 7-decade window sits above the half-window mark
+    that the old binary rule used to call a trend, so the drift won and the
+    ripple was never mentioned - even though both are real by construction.
+    """
+    both = (2 * np.tanh((LOG_FREQ - 1.5) / 3)
+            + 1.0 * np.sin(2 * np.pi * LOG_FREQ / 3.7) + _noise(3, scale=0.2))
+    d = analyze_residuals(*_with_residual(both), weighting='uniform')
+
+    assert d.is_systematic
+    assert d.real.slope_p < 1e-6                        # the trend is there
+    assert d.real.period_decades == pytest.approx(3.7, abs=0.4)
+    assert d.real.amplitude == pytest.approx(1.0, rel=0.3)
+    assert d.real.power > MIN_PERIODOGRAM_POWER         # ...and so is the wave
 
 
 # --- ordering: the statistics read neighbours, so the sort is load-bearing ---
@@ -131,6 +155,8 @@ def test_perfect_fit_has_no_variance_to_test():
     assert d.real.lag1_autocorr == 0.0
     assert not d.is_systematic
     assert np.isnan(d.real.runs_z)            # every residual is at the median
+    assert np.isnan(d.real.slope_p)           # no variance to regress
+    assert np.isnan(d.real.period_decades)
 
 
 def test_runs_test_undefined_when_every_crossing_is_on_one_side():
@@ -150,8 +176,32 @@ def test_lag1_of_constant_series_is_zero():
 
 def test_dominant_period_needs_a_window():
     """A window narrower than the shortest period asked about yields nothing."""
-    period, power = dominant_period(np.linspace(0.0, 0.2, 10), _noise(1)[:10])
-    assert np.isnan(period) and np.isnan(power)
+    period, power, amplitude = dominant_period(np.linspace(0.0, 0.2, 10), _noise(1)[:10])
+    assert np.isnan(period) and np.isnan(power) and np.isnan(amplitude)
+
+
+def test_amplitude_cannot_exceed_the_residual_it_came_from():
+    """The bound the power form gives for free: A <= sqrt(2 * variance).
+
+    A least-squares sinusoid at the peak does not have this bound - near the
+    Nyquist floor its basis is ill-conditioned, and on this very series it
+    returned 11.3 for residuals spanning 6.
+    """
+    n = 10
+    f = np.logspace(-2, 4, n)
+    x = np.log10(f)
+    drift = 3 * np.tanh((x - 1.0) / 2) + np.random.default_rng(3).standard_normal(n) * 0.5
+    flat = np.full(n, 100 + 0j)
+    d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
+
+    assert d.real.amplitude <= np.ptp(drift)
+
+
+def test_linear_trend_recovers_a_known_slope():
+    slope, intercept, p = linear_trend(LOG_FREQ, 0.5 * LOG_FREQ - 2 + _noise(5, scale=0.1))
+    assert slope == pytest.approx(0.5, rel=0.05)
+    assert intercept == pytest.approx(-2.0, abs=0.1)
+    assert p < 1e-20
 
 
 # --- known-value checks against the closed form ---
@@ -226,10 +276,13 @@ def test_sparse_spectrum_does_not_alias_a_drift_into_a_ripple():
     x = np.log10(f)
     flat = np.full(n, 100 + 0j)
 
+    floor = 2.0 * np.median(np.diff(x))
     for seed in range(6):
         drift = 3 * np.tanh((x - 1.0) / 2) + np.random.default_rng(seed).standard_normal(n) * 0.5
         d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
-        assert d.real.period_decades is None, f"aliased at seed {seed}"
+        assert d.real.period_decades >= floor, f"aliased at seed {seed}"
+        # ...and the drift is reported where it belongs, on the trend line
+        assert d.real.slope_span > 5 * d.real.amplitude, f"seed {seed}"
 
 
 def test_nyquist_floor_still_admits_a_resolvable_ripple():
@@ -239,12 +292,11 @@ def test_nyquist_floor_still_admits_a_resolvable_ripple():
     assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
 
 
-def test_shape_verdict_ignores_a_part_that_is_not_systematic():
-    """Only a part that failed the runs test may name the shape.
+def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
+    """Both parts are always printed, so the noise one must read as noise.
 
-    A noise part still has a periodogram peak somewhere; letting it speak
-    would prescribe 'add a branch' while the genuinely broken part is asking
-    for a different element type.
+    Nothing is suppressed any more - the reader tells the parts apart from the
+    p-value and the power, which is why those two numbers are on the line.
     """
     from eis_analysis.cli.handlers.fitting import _log_residual_diagnostics
 
@@ -254,10 +306,14 @@ def test_shape_verdict_ignores_a_part_that_is_not_systematic():
     d = analyze_residuals(FREQ, FLAT_Z, FLAT_Z - residual, weighting='uniform')
 
     assert d.is_systematic                      # driven by the imaginary part
-    periods = [s.period_decades for s in (d.real, d.imag)
-               if s.is_systematic and s.period_decades is not None]
-    assert periods == [], "a non-systematic part must not name the shape"
-    _log_residual_diagnostics(d)                # must not raise
+    assert not d.real.is_systematic
+    assert d.real.power < MIN_PERIODOGRAM_POWER
+    assert d.real.slope_p > 0.05
+
+    with caplog.at_level('WARNING'):
+        _log_residual_diagnostics(d)
+    printed = caplog.text
+    assert 'trend:' in printed and 'wave:' in printed
 
 
 def test_cli_wrapper_survives_a_broken_diagnostic():

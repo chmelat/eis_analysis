@@ -459,6 +459,9 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
    - Check the `Residuals:` line: `rho1` near 0 and runs `p` above 0.01 mean
      the residuals are noise. A warning there means the model is missing
      structure, whatever the fit error says - a 4% fit can still be wrong.
+   - The warning reports both shapes, `trend` and `wave`, each with its own
+     significance; compare the trend's `span` with the wave's `amplitude` to
+     see which dominates, and fix whichever is real (often both).
 
 3. **Parameters**
    - Check 95% CI - are they reasonable?
@@ -473,8 +476,8 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 | High fit error | Wrong circuit model | Try different circuit |
 | High parameter SE | Overparameterization | Simplify circuit |
 | High cond. number | Parameter correlation | Fix some parameters |
-| Residual warning: ripple | Right elements, too few of them | Add another parallel branch |
-| Residual warning: trend | Element missing or of the wrong type | Try CPE instead of C, or add Warburg |
+| Residuals: significant `wave` (power > 0.2) shorter than the window | Right elements, too few of them | Add another parallel branch |
+| Residuals: significant `trend` (small p) | Element missing or of the wrong type | Try CPE instead of C, or add Warburg |
 
 ---
 

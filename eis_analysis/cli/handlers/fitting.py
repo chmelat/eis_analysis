@@ -26,7 +26,11 @@ from ...fitting import (
     DiffEvoResult,
 )
 from ...fitting.diagnostics import compute_fit_metrics
-from ...fitting.residual_diagnostics import ResidualDiagnostics, analyze_residuals
+from ...fitting.residual_diagnostics import (
+    MIN_PERIODOGRAM_POWER,
+    ResidualDiagnostics,
+    analyze_residuals,
+)
 from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
 from .model_comparison import score_candidates, log_comparison
 
@@ -175,21 +179,32 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
     if not d.is_systematic:
         return
 
-    # A named period means a ripple - the circuit has the right shape but too
-    # few elements. No period means a bump or a drift: an element is missing
-    # or is of the wrong kind. The two call for different fixes, which is the
-    # whole reason the periodogram is here - so only a part that actually
-    # failed the runs test may name one. A part whose residuals are noise
-    # still has a periodogram peak somewhere, and letting it speak would
-    # prescribe the opposite repair to the part that is genuinely wrong.
-    periods = [s.period_decades for s in (d.real, d.imag)
-               if s.is_systematic and s.period_decades is not None]
-    if periods:
-        shape = (f"ripple of {np.mean(periods):.1f} decades "
-                 f"in a {d.window_decades:.1f} decade window - too few elements")
-    else:
-        shape = "a trend rather than a ripple - an element is missing or of the wrong type"
-    logger.warning(f"  Residuals are not random: {shape}")
+    # Both shapes, always, with their own significance - never a choice
+    # between them. Residuals commonly carry a trend and a wave at once, and
+    # naming only the stronger one prescribes half the repair: the trend says
+    # an element is missing or of the wrong type, the wave says the elements
+    # are right but too few. The reader compares the trend's span with the
+    # wave's amplitude (same units) to see which dominates, and the p-value
+    # and power to see whether each is there at all.
+    logger.warning(f"  Residuals are not random "
+                   f"(Re/Im, {d.window_decades:.1f} decade window):")
+    logger.warning(
+        f"    trend: {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "
+        f"span {_fmt_pair(d.real.slope_span, d.imag.slope_span, '.2g')} "
+        f"(p = {_fmt_pair(d.real.slope_p, d.imag.slope_p, '.1e')})")
+    logger.warning(
+        f"    wave:  {_fmt_pair(d.real.period_decades, d.imag.period_decades, '.1f')} decades, "
+        f"amplitude {_fmt_pair(d.real.amplitude, d.imag.amplitude, '.2g')} "
+        f"(power {_fmt_pair(d.real.power, d.imag.power, '.2f')}, "
+        f"noise < {MIN_PERIODOGRAM_POWER})")
+    # The window width is the longest period the periodogram can return, so a
+    # wave reported at it is one hump rather than a repeat - the same reading
+    # as a trend. Said in the guidance line instead of as another threshold in
+    # the code: the reader has both numbers in front of them.
+    logger.warning("    A trend, or a wave as long as the window, means an element is "
+                   "missing or")
+    logger.warning("    of the wrong type. A shorter wave means the right elements, too "
+                   "few of them.")
 
 
 def _log_fit_result(result: FitResult,

@@ -14,13 +14,17 @@ Three statistics, computed separately for the real and imaginary parts:
   consecutive points share a systematic offset.
 - Runs test (Wald-Wolfowitz). The number of sign changes against the count
   expected from independent residuals, as a p-value.
-- Dominant period from a Lomb-Scargle periodogram over log10(f), reported
-  relative to the width of the measured window.
+- Shape decomposition: the slope of a least-squares line through the
+  residuals, and the period and amplitude of the strongest wave left once
+  that line is removed.
 
-The first two answer "is this systematic?"; only the third says *what kind* -
-a short period is a ripple (right elements, too few of them), a period near
-the window width is a bump or a drift (an element missing or of the wrong
-type). doc/WEIGHTING_AND_STATISTICS.md carries the reading for users.
+The first two answer "is this systematic?"; the third says *what kind*, and
+says it as two numbers rather than as a choice between them. A trend means an
+element is missing or of the wrong type; a wave means the elements are right
+but too few. Residuals routinely carry both at once, so both are always
+reported with their own significance - the slope with a p-value, the wave
+with its periodogram power - and the reader compares them.
+doc/WEIGHTING_AND_STATISTICS.md carries the reading for users.
 
 Nothing here changes a fit or a criterion. In particular `n_eff` is reported
 but deliberately not fed into AIC/BIC - see its note in `_series_diagnostics`.
@@ -33,7 +37,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import lombscargle
-from scipy.stats import norm
+from scipy.stats import linregress, norm
 
 from .diagnostics import compute_weights
 
@@ -46,20 +50,12 @@ logger = logging.getLogger(__name__)
 # borderline.
 RUNS_P_THRESHOLD = 0.01
 
-# The periodogram always returns a best period, so one is needed to tell a
-# genuine ripple from the longest wavelength the window can hold. A bump or a
-# monotone drift maximizes at the window width itself (measured: 5.98 and 7.00
-# decades in a 7-decade window), whereas a real 1.5-decade ripple was recovered
-# at 1.50. Half the window separates them with room to spare, and a period
-# above it is reported as a trend rather than named as a period.
-MAX_PERIOD_FRACTION = 0.5
-
 # Below this normalized Lomb-Scargle power the peak is not far enough above
 # what white noise produces. Over 2000 white-noise series of 80 points the peak
 # power has median 0.10, p95 0.16 and max 0.30, so 0.2 still lets 0.9% through
-# on its own; every systematic case tested landed at 0.33-0.98. The residual
-# gate is not this threshold alone - the caller also requires the runs test to
-# have rejected independence, which white noise does not.
+# on its own; every systematic case tested landed at 0.33-0.98. Nothing is
+# suppressed by it - the power is always reported - it is the level the reader
+# compares the printed power against before acting on a wave.
 MIN_PERIODOGRAM_POWER = 0.2
 
 # Shortest period the periodogram is asked about, in decades, before the
@@ -93,15 +89,35 @@ class SeriesDiagnostics:
     runs_z, runs_p : float
         Normal-approximation z statistic and two-sided p-value. A large
         negative z means far fewer sign changes than chance allows.
-    period_decades : float or None
-        Dominant period in decades of frequency, or None when the peak is a
-        trend rather than a ripple (see MAX_PERIOD_FRACTION) or too weak to
-        distinguish from noise (see MIN_PERIODOGRAM_POWER).
-    period_over_window : float
-        The same period divided by the width of the measured window, reported
-        even when `period_decades` is None so the caller can see why.
+    slope : float
+        Slope of a least-squares line through the residuals, per decade of
+        frequency, in the units of the weighted residuals.
+    slope_span : float
+        The change that slope makes across the measured window
+        (|slope| * window), so the trend can be compared with `amplitude`:
+        same units, the trend's full swing against the wave's half-swing.
+        Together they answer "which of the two shapes is the larger part of
+        this residual?" - the question a single verdict used to answer by
+        discarding one of them.
+    slope_p : float
+        p-value of the slope. NaN when the series has no variance. Optimistic
+        for correlated residuals - it assumes independent points, which is the
+        very thing the runs test is there to check - so read it as a ranking
+        of the two parts, not as an exact probability.
+    period_decades : float
+        Period of the strongest wave left after the line is removed, in
+        decades of frequency. NaN only when no period is resolvable at all
+        (window narrower than the shortest testable period, or no variance).
+        A weak wave is still reported; `power` says how weak.
+    amplitude : float
+        Amplitude of that wave in the units of the weighted residuals, implied
+        by the share of the variance it explains. An estimate, not a fitted
+        parameter: whatever the residual carries at other periods counts into
+        that variance, so a wave riding on curvature reads a little low
+        (measured: 0.84 for a wave of 1.0 on top of a drift).
     power : float
-        Normalized Lomb-Scargle power at the peak, in [0, 1].
+        Normalized Lomb-Scargle power at the peak, in [0, 1] - the wave's
+        significance, to be read against MIN_PERIODOGRAM_POWER.
     is_systematic : bool
         Whether the runs test rejects independence at RUNS_P_THRESHOLD.
     """
@@ -110,8 +126,11 @@ class SeriesDiagnostics:
     runs: int
     runs_z: float
     runs_p: float
-    period_decades: Optional[float]
-    period_over_window: float
+    slope: float
+    slope_span: float
+    slope_p: float
+    period_decades: float
+    amplitude: float
     power: float
     is_systematic: bool
 
@@ -232,19 +251,17 @@ def runs_test(residuals: NDArray[np.float64]) -> Tuple[int, float, float, float]
     return runs, float(expected), float(z), float(p)
 
 
-def dominant_period(
+def linear_trend(
     log_freq: NDArray[np.float64],
     residuals: NDArray[np.float64]
-) -> Tuple[float, float]:
+) -> Tuple[float, float, float]:
     """
-    Dominant period of a residual series in decades of frequency.
+    Least-squares line through a residual series against log10(f).
 
-    A Lomb-Scargle periodogram rather than a fitted sinusoid: the residual of
-    a misspecified circuit is generally not a sinusoid, so the fit would
-    return a period equal to the window width together with a confidence
-    interval that looks tight. The periodogram reports the same peak without
-    dressing it as an estimate, and the caller decides whether the peak is a
-    ripple or a trend from `period / window`.
+    The trend is fitted first and removed before the periodogram runs, which
+    is what lets both shapes be reported at once. A drift and a wave otherwise
+    compete for the same periodogram peak: the drift wins it at a period near
+    the window width, and any genuine wave underneath it disappears.
 
     Parameters
     ----------
@@ -255,10 +272,48 @@ def dominant_period(
 
     Returns
     -------
-    period_decades, power : float, float
-        Period at the peak and its normalized power in [0, 1]. Both NaN when
-        the spectrum is too sparse or too narrow to resolve any period, or
-        when the series has no variance.
+    slope, intercept, p : float, float, float
+        Slope per decade, its intercept, and the two-sided p-value of the
+        slope. p is NaN when the series has no variance. The p-value assumes
+        independent points and is therefore optimistic exactly when the
+        residuals are systematic - it ranks the two shapes against each other,
+        it does not certify either.
+    """
+    fit = linregress(np.asarray(log_freq, dtype=float),
+                     np.asarray(residuals, dtype=float))
+    return float(fit.slope), float(fit.intercept), float(fit.pvalue)
+
+
+def dominant_period(
+    log_freq: NDArray[np.float64],
+    residuals: NDArray[np.float64]
+) -> Tuple[float, float, float]:
+    """
+    Dominant period, power and amplitude of a residual series.
+
+    A Lomb-Scargle periodogram locates the period rather than a fitted
+    sinusoid: the residual of a misspecified circuit is generally not a
+    sinusoid, so a direct fit would return whatever period the window allows
+    together with a confidence interval that looks tight. The amplitude at that
+    peak follows from its power, and is the number the reader compares
+    against the trend's span.
+
+    Pass the residuals with any linear trend already removed (see
+    `linear_trend`), otherwise the peak is the trend.
+
+    Parameters
+    ----------
+    log_freq : ndarray of float
+        log10 of the frequencies, ordered.
+    residuals : ndarray of float
+        Residuals aligned with `log_freq`.
+
+    Returns
+    -------
+    period_decades, power, amplitude : float, float, float
+        Period at the peak, its normalized power in [0, 1], and the amplitude
+        implied by that power. All NaN when the spectrum is too sparse or too
+        narrow to resolve any period, or when the series has no variance.
     """
     r = np.asarray(residuals, dtype=float)
     r = r - r.mean()
@@ -271,14 +326,25 @@ def dominant_period(
     shortest = max(MIN_PERIOD_DECADES, NYQUIST_PERIOD_FACTOR * spacing)
 
     if window <= shortest or np.sum(r ** 2) <= 0:
-        return float('nan'), float('nan')
+        return float('nan'), float('nan'), float('nan')
 
     # One candidate period per ~2% of the window: fine enough that the peak
     # is located to better than the reporting precision, cheap at this size.
     periods = np.linspace(shortest, window, 500)
     power = lombscargle(log_freq, r, 2 * np.pi / periods, normalize=True)
     peak = int(np.argmax(power))
-    return float(periods[peak]), float(power[peak])
+    period = float(periods[peak])
+
+    # Amplitude from the normalized power rather than a second least-squares
+    # fit at the peak: normalized power is the fraction of the variance the
+    # sinusoid explains, and a sinusoid of amplitude A has variance A^2/2.
+    # Fitting sin and cos directly gives the same answer where the period is
+    # comfortably resolved, but the basis is ill-conditioned near the Nyquist
+    # floor, where it returned amplitudes several times the residual range
+    # (measured: 11.3 on residuals spanning 6). This form cannot exceed
+    # sqrt(2 * variance) by construction.
+    amplitude = np.sqrt(2.0 * power[peak] * np.mean(r ** 2))
+    return period, float(power[peak]), float(amplitude)
 
 
 def _series_diagnostics(
@@ -286,10 +352,12 @@ def _series_diagnostics(
     residuals: NDArray[np.float64],
     window: float
 ) -> SeriesDiagnostics:
-    """Run all three statistics on one residual series."""
+    """Run all the statistics on one residual series."""
     rho = lag1_autocorrelation(residuals)
     runs, expected, z, p = runs_test(residuals)
-    period, power = dominant_period(log_freq, residuals)
+    slope, intercept, slope_p = linear_trend(log_freq, residuals)
+    period, power, amplitude = dominant_period(
+        log_freq, residuals - (slope * log_freq + intercept))
 
     n = len(residuals)
     # Effective sample size for an AR(1) process. Reported because it puts a
@@ -304,19 +372,17 @@ def _series_diagnostics(
     # to expose that rather than absorb it.
     n_eff = n * (1.0 - rho) / (1.0 + rho) if rho > -1.0 else float(n)
 
-    fraction = period / window if window > 0 and np.isfinite(period) else float('nan')
-    is_ripple = (np.isfinite(fraction)
-                 and fraction < MAX_PERIOD_FRACTION
-                 and power >= MIN_PERIODOGRAM_POWER)
-
     return SeriesDiagnostics(
         lag1_autocorr=rho,
         n_eff=float(n_eff),
         runs=runs,
         runs_z=z,
         runs_p=p,
-        period_decades=period if is_ripple else None,
-        period_over_window=fraction,
+        slope=slope,
+        slope_span=abs(slope) * window,
+        slope_p=slope_p,
+        period_decades=period,
+        amplitude=amplitude,
         power=power,
         is_systematic=bool(np.isfinite(p) and p < RUNS_P_THRESHOLD),
     )
@@ -370,8 +436,8 @@ def analyze_residuals(
     >>> d = analyze_residuals(f, Z, Z - ripple, weighting='uniform')
     >>> d.is_systematic
     True
-    >>> round(d.real.period_decades, 1)
-    1.5
+    >>> round(d.real.period_decades, 1), round(d.real.amplitude, 1)
+    (1.5, 3.0)
 
     >>> analyze_residuals(f, Z, Z * 1.01).is_systematic   # offset has no shape
     False
@@ -414,6 +480,7 @@ __all__ = [
     'analyze_residuals',
     'lag1_autocorrelation',
     'runs_test',
+    'linear_trend',
     'dominant_period',
-    'MAX_PERIOD_FRACTION',
+    'MIN_PERIODOGRAM_POWER',
 ]
