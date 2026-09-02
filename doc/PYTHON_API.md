@@ -599,7 +599,7 @@ All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, defau
 
 ```python
 # Supported elements for analytic Jacobian:
-# R, C, L, Q, W, Wo, K, G, CC
+# R, C, L, G, Q, W, Wo, K, GE, CC
 
 # For unsupported elements, the system automatically switches to numerical:
 result, Z_fit, fig = fit_equivalent_circuit(
@@ -623,13 +623,14 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 | Element | Parameters | Impedance |
 |---------|-----------|-----------|
 | R(value) | R [Ohm] | Z = R |
+| G(value) | G [S] | Y = G, Z = 1/G (conductance; G = 0 is a valid fit result) |
 | C(value) | C [F] | Z = 1/(jomega*C) |
 | L(value) | L [H] | Z = j*omega*L |
 | Q(Q, n) | Q, n | Z = 1/(Q*(j*omega)^n) |
 | W(sigma) | sigma [Ohm*s^(-1/2)] | Z = sigma*(1-j)/sqrt(omega) |
 | Wo(R, tau) | R [Ohm], tau [s] | Warburg bounded |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
-| G(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
+| GE(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
 | CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |
 
 **Voigt element analysis from DRT:**

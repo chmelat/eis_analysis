@@ -4,6 +4,71 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.29.0 (2026-09-02)
+
+### Added
+
+- **`G` - a conductance element, `Y = G`.** `G(1e-9)` is the same resistor as
+  `R(1e9)`; what differs is how it fits. When a parallel resistance is too
+  large for the measured window to determine, `R` runs into its upper bound of
+  10 GOhm. That bound is an edge of the parameter box, not part of the model:
+  `dZ/dR ~ 1/R^2` collapses there, the covariance goes with it, and the
+  reported error comes back as spurious precision rather than a large
+  uncertainty. On synthetic blocking-coating data (`R_true` = 5 GOhm, 1 %
+  noise) the `R` fit reports 7.2e9 Ohm +- 2e-18 with a degenerate interval
+  `[7.2e9, 7.2e9]` and an "at bound" warning - eighteen significant digits of
+  nothing.
+
+  Written as `G`, the same physical limit is `G = 0`, which lies inside the
+  allowed range and where `dZ/dG = -Z^2` stays well conditioned. The same data
+  give:
+
+  ```
+  G0 = 2.07e-10 +- 1.63e-10 S     ->  R > 2.4 GOhm
+  ```
+
+  which covers the true 2e-10 S and reads directly as a one-sided lower bound
+  on the resistance. Both fits agree to four significant figures in chi^2 -
+  the reparametrization changes nothing about the fit, only what can be said
+  about the parameter afterwards. An interval that includes zero is the answer
+  here, not a failure.
+
+  Use it for blocking coatings and intact oxide layers, where the barrier
+  resistance may be beyond what the frequency window resolves; keep `R` where
+  the resistance is well determined.
+
+  ```bash
+  eis data.DTA --circuit "L(1e-6) - R(10) - (G(1e-9) | Q(1e-7, 0.9) | C(1e-8))"
+  ```
+
+  `--analyze-oxide` reads `G` as the parallel resistance `R = 1/G`, so
+  thickness and tau still come out. `G = 0` reports no DC path, the same
+  convention the blocking-dielectric branches already used.
+
+### Changed
+
+- **BREAKING: the Gerischer element is now `GE`, not `G`.** `G` is the
+  standard symbol for conductance and the new element claims it. Parameter
+  labels follow (`sigma_G` -> `sigma_GE`, `tau_G` -> `tau_GE`), so the bounds
+  keys cannot be misread as belonging to the conductance.
+
+  Migration: replace `G(sigma, tau)` with `GE(sigma, tau)` in `--circuit`
+  expressions and `from eis_analysis import G` with `GE` in scripts. An old
+  two-argument `G(...)` in a circuit expression is caught by the parser and
+  answered with a message naming the rename, rather than a bare arity error.
+
+- **A lower bound of exactly 0 is no longer reported as "parameter at bound".**
+  The diagnostic exists to flag values pinned against an artificial edge of
+  the parameter box, where the fit is constrained rather than converged. Zero
+  is not such an edge: it is the physical limit of a non-negative quantity,
+  the model stays regular there, and the parameters concerned are linear-scale,
+  so their symmetric interval already reports how well zero is resolved. Beside
+  the new `G`, this affects the Cole-Cole broadening exponent - `alpha_CC = 0`
+  is Debye relaxation, a valid result, and stopped reading as a failed fit.
+  Non-zero lower bounds are unaffected.
+
+---
+
 ## Version 0.28.1 (2026-09-01)
 
 ### Changed

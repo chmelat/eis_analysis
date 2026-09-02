@@ -135,6 +135,48 @@ R("100")    # 100 Ohm, fixed parameter
 R()         # default 100 Ohm
 ```
 
+### G - Conductance
+
+```python
+Y_G = G
+Z_G = 1 / G
+```
+
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| G         | S    | 1e-6    | Conductance |
+
+```python
+G(1e-9)     # 1 nS = 1 GOhm, free parameter
+G("0")      # fixed open circuit
+G()         # default 1 uS = 1 MOhm
+```
+
+The same resistor as `R(1/G)`, parametrized by its admittance. Use it for a
+parallel resistance the measured window may not resolve.
+
+`R` is bounded at 10 GOhm, an edge of the parameter box rather than a feature
+of the model. A resistance the data cannot determine from above is driven onto
+it, `dZ/dR ~ 1/R^2` collapses, and the reported error becomes spurious
+precision instead of a large uncertainty. The same limit written as `G` is
+`G = 0`, which lies inside the allowed range and where `dZ/dG = -Z^2` stays
+well conditioned:
+
+```
+G0 = 2.07e-10 +- 1.63e-10 S     ->  R > 2.4 GOhm
+```
+
+The interval is symmetric and may include zero. That is the result, not a
+failure: it says the data place a lower bound on the resistance and nothing
+more. Fit quality is unaffected - `R` and `G` give the same chi^2.
+
+Applications: blocking coatings, intact oxide layers, any barrier whose
+resistance may exceed what the frequency range can resolve. Prefer `R` when
+the resistance is well determined, since it reads more directly.
+
+`--analyze-oxide` treats `G` as the parallel resistance `R = 1/G`; `G = 0` is
+reported as no DC path.
+
 ### C - Capacitor
 
 ```python
@@ -238,7 +280,7 @@ Advantages of tau parametrization:
 K(1000, 1e-4)   # R=1k, tau=100us, f=1.59kHz, C=100nF
 ```
 
-### G - Gerischer Element (reaction-diffusion)
+### GE - Gerischer Element (reaction-diffusion)
 
 ```python
 Z_G = sigma / sqrt(1 + j*omega*tau)
@@ -262,10 +304,12 @@ Key differences from other elements:
 - Characteristic frequency: f = 1/(2*pi*tau)
 
 ```python
-G(100, 1e-3)        # sigma=100, tau=1ms
-G("100", 1e-3)      # sigma fixed, tau free
-G("100", "1e-3")    # both fixed
+GE(100, 1e-3)        # sigma=100, tau=1ms
+GE("100", 1e-3)      # sigma fixed, tau free
+GE("100", "1e-3")    # both fixed
 ```
+
+> Renamed from `G` in v0.29.0. `G` is now the conductance element.
 
 ### CC - Cole-Cole Element (dielectric relaxation)
 
@@ -417,15 +461,15 @@ R(1) - K(1000, 1e-4) - K(500, 1e-3)
 ### Gerischer Element (SOFC cathode)
 
 ```python
-R(10) - G(100, 1e-3)
+R(10) - GE(100, 1e-3)
 ```
 
-Structure: R_s - G (series resistance + Gerischer reaction-diffusion)
+Structure: R_s - GE (series resistance + Gerischer reaction-diffusion)
 
 ### Mixed Voigt + Gerischer
 
 ```python
-R(1) - K(500, 1e-4) - G(100, 1e-3)
+R(1) - K(500, 1e-4) - GE(100, 1e-3)
 ```
 
 Structure: R_s - (R||C) - G (electrolyte + charge transfer + reaction-diffusion)

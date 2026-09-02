@@ -74,7 +74,8 @@ DRT, Voigt chain s auto-M a odhad R_inf na nasi.
 ## Prvky obvodu
 
 **eis_analysis** (parser vyrazu, bez preddefinovanych obvodu):
-R, C, L, Q (CPE), W, Wo, K (Voigt v parametrizaci R-tau), G (Gerischer),
+R, C, L, G (vodivost), Q (CPE), W, Wo, K (Voigt v parametrizaci R-tau),
+GE (Gerischer),
 CC (Cole-Cole v rovine permitivity). Syntaxe `R(100) - (R(5000) | C(1e-6))`.
 
 **ZScope** (kanvas + presety): R, C, L, CPE, W, FLW, FSW, Gerischer,

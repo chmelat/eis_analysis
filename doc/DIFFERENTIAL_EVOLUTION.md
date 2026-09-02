@@ -311,11 +311,12 @@ Analytický Jacobián je použit pouze pro least_squares refinement (krok 2), ne
 
 **Podporované elementy:**
 - R, C, L (základní elementy)
+- G (vodivost, Y = G)
 - Q (Constant Phase Element)
 - W (Warburg)
 - Wo (Warburg open/bounded)
 - K (Voigt element)
-- G (Gerischer element)
+- GE (Gerischer element)
 
 
 ## 6. Srovnání metod

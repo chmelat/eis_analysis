@@ -247,6 +247,7 @@ Elegant operator overloading syntax for circuit definition.
 | Element | Description | Example |
 |---------|-------------|---------|
 | `R(value)` | Resistor | `R(100)` |
+| `G(value)` | Conductance, Y = G [S] | `G(1e-9)` |
 | `C(value)` | Capacitor | `C(1e-6)` |
 | `L(value)` | Inductor | `L(1e-6)` |
 | `Q(Q, n)` | Constant Phase Element (CPE) | `Q(1e-4, 0.8)` |
@@ -258,6 +259,25 @@ Elegant operator overloading syntax for circuit definition.
 
 Values in parentheses serve as initial guesses for the nonlinear fitting algorithm.
 Values in quotes (e.g., `R("100")`) are treated as fixed constants and will not be fitted.
+
+**When to use `G` instead of `R`.** The two are the same resistor - `G(1e-9)`
+is `R(1e9)` - but they fit differently. If a parallel resistance is too large
+for the measured window to determine, `R` runs into its upper bound of 10 GOhm.
+That bound is an edge of the parameter box, not part of the model: the fit is
+constrained rather than converged, the covariance collapses, and the reported
+error comes back as spurious precision instead of a large uncertainty. Written
+as `G`, the same limit is `G = 0`, which is inside the allowed range, so the
+fit returns an ordinary symmetric interval:
+
+```
+G0 = 2.07e-10 +- 1.63e-10 S     ->  R > 2.4 GOhm
+```
+
+An interval that includes zero is the answer here, not a failure - it says the
+data place a lower bound on the resistance and nothing more. Reach for `G` for
+blocking coatings and intact oxide layers, where the barrier resistance may be
+beyond what the frequency window can resolve; keep `R` when the resistance is
+well determined, since it reads more directly.
 
 **Operators:**
 
