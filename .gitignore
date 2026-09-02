@@ -27,6 +27,7 @@ scratch*.py
 *.swp
 *.swo
 *.swn
+/tags
 .mypy_cache/
 
 # Output files
