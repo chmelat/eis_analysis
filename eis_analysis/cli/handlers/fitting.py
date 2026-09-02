@@ -26,6 +26,8 @@ from ...fitting import (
     DiffEvoResult,
 )
 from ...fitting.diagnostics import compute_fit_metrics
+from ...fitting.residual_diagnostics import (
+    ResidualDiagnostics, SeriesDiagnostics, analyze_residuals)
 from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
 from .model_comparison import score_candidates, log_comparison
 
@@ -132,8 +134,45 @@ def _log_multistart_diagnostics(multistart_result: MultistartResult) -> None:
         logger.warning(f"  {warning}")
 
 
-def _log_fit_result(result: FitResult) -> None:
-    """Log fit result with parameters and confidence intervals."""
+def _fmt_pair(real: SeriesDiagnostics, imag: SeriesDiagnostics,
+              attr: str, fmt: str) -> str:
+    """Format one statistic for both parts as 'Re / Im'."""
+    return " / ".join(
+        "n/a" if not np.isfinite(v) else format(v, fmt)
+        for v in (getattr(real, attr), getattr(imag, attr))
+    )
+
+
+def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
+    """Log the residual shape tests. Pure formatter over ResidualDiagnostics."""
+    if d.real is None or d.imag is None:
+        for warning in d.warnings:
+            logger.warning(f"  {warning}")
+        return
+
+    logger.info(f"  Residuals: rho1 = {_fmt_pair(d.real, d.imag, 'lag1_autocorr', '+.2f')}"
+                f" (Re/Im), runs p = {_fmt_pair(d.real, d.imag, 'runs_p', '.1e')}")
+
+    if not d.is_systematic:
+        return
+
+    # A named period means a ripple - the circuit has the right shape but too
+    # few elements. No period means a bump or a drift: an element is missing
+    # or is of the wrong kind. The two call for different fixes, which is the
+    # whole reason the periodogram is here.
+    periods = [s.period_decades for s in (d.real, d.imag)
+               if s.period_decades is not None]
+    if periods:
+        shape = (f"ripple of {np.mean(periods):.1f} decades "
+                 f"in a {d.window_decades:.1f} decade window - too few elements")
+    else:
+        shape = "a trend rather than a ripple - an element is missing or of the wrong type"
+    logger.warning(f"  Residuals are not random: {shape}")
+
+
+def _log_fit_result(result: FitResult,
+                    residuals: Optional[ResidualDiagnostics] = None) -> None:
+    """Log fit result with parameters, confidence intervals and residual shape."""
     logger.info("")
     logger.info("Fit results:")
     logger.info("  Parameters:")
@@ -174,6 +213,9 @@ def _log_fit_result(result: FitResult) -> None:
     threshold = quality_thresholds.get(result.quality)
     logger.info(f"  Quality: {result.quality.capitalize()}"
                 + (f" ({threshold})" if threshold else ""))
+
+    if residuals is not None:
+        _log_residual_diagnostics(residuals)
 
     # Warnings
     for warning in result.all_warnings:
@@ -501,8 +543,9 @@ def _fit_standard_circuit(
                 use_analytic_jacobian=not args.numeric_jacobian
             )
 
-        # Log fit results
-        _log_fit_result(result)
+        # Log fit results. Z_fit is bound by every optimizer branch above.
+        _log_fit_result(result, analyze_residuals(
+            frequencies, Z, Z_fit, args.weighting))
 
         save_figure(fig, args.save, save_suffix, args.format)
         return result, fig

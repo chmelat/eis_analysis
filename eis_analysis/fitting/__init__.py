@@ -79,6 +79,10 @@ from .covariance import CovarianceResult
 # Import model selection criteria
 from .diagnostics import compute_information_criteria
 
+# Import residual shape tests (are the residuals noise, or missing structure?)
+from .residual_diagnostics import (
+    analyze_residuals, ResidualDiagnostics, SeriesDiagnostics)
+
 # Import Voigt element analysis from DRT
 from .auto_suggest import analyze_voigt_elements, format_voigt_report
 
@@ -131,6 +135,9 @@ __all__ = [
     'FitResult',
     'FitDiagnostics',
     'compute_information_criteria',
+    'analyze_residuals',
+    'ResidualDiagnostics',
+    'SeriesDiagnostics',
     'CovarianceResult',
     'analyze_voigt_elements',
     'format_voigt_report',
