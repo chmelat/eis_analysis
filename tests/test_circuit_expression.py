@@ -4,9 +4,9 @@
 Regression tests (2026-08-27, plan 002): the element registry is duplicated
 between circuit_elements/__init__.py's __all__ and the hand-written
 safe_namespace dict in cli/utils.py, so adding an element requires updating
-both. G drifted -- it was fully implemented, had an analytic Jacobian, its
+both. GE drifted -- it was fully implemented, had an analytic Jacobian, its
 own test file and a row in the README table, but was missing from the
-namespace, so --circuit "G(100,1e-3)" failed with "name 'G' is not defined"
+namespace, so --circuit "GE(100,1e-3)" failed with "name 'GE' is not defined"
 for eight months. The parametrized table below is the guard: it must list
 every element the README documents.
 """
@@ -27,10 +27,10 @@ DOCUMENTED_ELEMENTS = [
     "W(50)",
     "Wo(100, 1.0)",
     "K(1000, 1e-4)",
-    "G(100, 1e-3)",
+    "GE(100, 1e-3)",
     "CC(1e-8, 1e-7, 1e-3, 0.2)",
 ]
-NAMES = ["R", "C", "L", "Q", "W", "Wo", "K", "G", "CC"]
+NAMES = ["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"]
 
 
 @pytest.mark.parametrize("expr", DOCUMENTED_ELEMENTS, ids=NAMES)
@@ -49,8 +49,8 @@ def test_all_documented_elements_are_exported_top_level(name):
 
 
 def test_gerischer_in_series_circuit():
-    """G composes and computes: R_s + G has DC limit R_s + sigma."""
-    circuit = parse_circuit_expression("R(10) - G(100, 1e-3)")
+    """GE composes and computes: R_s + GE has DC limit R_s + sigma."""
+    circuit = parse_circuit_expression("R(10) - GE(100, 1e-3)")
     assert len(circuit.get_all_params()) == 3
 
     freq = np.logspace(4, -1, 40)

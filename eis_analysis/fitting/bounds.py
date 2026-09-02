@@ -41,10 +41,10 @@ PARAMETER_BOUNDS = {
     'τ_W': (1e-6, 1e4),
 
     # Gerischer element - pre-factor (similar to Warburg)
-    'σ_G': (1e-2, 1e8),
+    'σ_GE': (1e-2, 1e8),
 
     # Gerischer element - reaction time constant
-    'τ_G': (1e-9, 1e4),
+    'τ_GE': (1e-9, 1e4),
 
     # Cole-Cole - high-frequency limit capacitance (same range as C)
     'C_inf': (1e-15, 1e-1),
@@ -89,7 +89,7 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - sigma (Warburg): 0.01 - 100000 Ohm*s^(-1/2)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
     - R_W, tau_W (Warburg bounded): similar to R, tau
-    - sigma_G, tau_G (Gerischer): similar to sigma, tau
+    - sigma_GE, tau_GE (Gerischer): similar to sigma, tau
     - C_inf, dC (Cole-Cole capacitances): similar to C
     - tau_CC (Cole-Cole relaxation time): similar to tau
     - alpha_CC (Cole-Cole broadening exponent): 0.0 - 0.9

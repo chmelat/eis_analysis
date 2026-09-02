@@ -2,14 +2,14 @@
 """Systematic tests: analytic Jacobian vs numerical central differences.
 
 Three levels:
-1. Individual elements (R, C, L, Q, W, Wo, K, G)
+1. Individual elements (R, C, L, Q, W, Wo, K, GE)
 2. Simple compositions (Series, Parallel, nested)
 3. Complex nested circuits (multiple levels of nesting)
 """
 
 import numpy as np
 import pytest
-from eis_analysis.fitting import R, C, L, Q, W, Wo, K, G, CC
+from eis_analysis.fitting import R, C, L, Q, W, Wo, K, GE, CC
 from eis_analysis.fitting.jacobian import circuit_jacobian
 
 
@@ -88,9 +88,9 @@ def freq():
     (W(50), [50.0]),
     (Wo(100, 0.01), [100.0, 0.01]),
     (K(500, 1e-4), [500.0, 1e-4]),
-    (G(100, 1e-3), [100.0, 1e-3]),
+    (GE(100, 1e-3), [100.0, 1e-3]),
     (CC(1e-8, 1e-7, 1e-3, 0.25), [1e-8, 1e-7, 1e-3, 0.25]),
-], ids=["R", "C", "L", "Q", "W", "Wo", "K", "G", "CC"])
+], ids=["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"])
 def test_element_jacobian(freq, element, params):
     """Analytic Jacobian of each element matches numerical."""
     assert_jacobian_close(element, freq, params)

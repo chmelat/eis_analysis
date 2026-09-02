@@ -27,7 +27,7 @@ Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
 W:   Z = s(1-j)/sqrt(w) -> dZ/ds = Z/s
 Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = Z/Rw, dZ/dtau = complex formula
 K:   Z = R/(1+jwt)   -> dZ/dR = Z/R, dZ/dtau = -jw*Z^2/R
-G:   Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
+GE:  Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
 CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
      P = dZ/dC* = -Z/C*
      dZ/dC_inf = P;  dZ/ddC = P/D
@@ -46,7 +46,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, Q, W, Wo, K, G, CC, CircuitElement
+from .circuit_elements import R, C, L, Q, W, Wo, K, GE, CC, CircuitElement
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -61,7 +61,7 @@ def element_jacobian(
     Parameters
     ----------
     element : CircuitElement
-        Circuit element (R, C, L, Q, W, Wo, K, G)
+        Circuit element (R, C, L, Q, W, Wo, K, GE)
     freq : ndarray of float
         Frequencies [Hz]
     params : list of float
@@ -165,7 +165,7 @@ def element_jacobian(
         return Z, dZ
 
     # Gerischer element: Z = sigma / sqrt(1 + jw*tau)
-    if isinstance(element, G):
+    if isinstance(element, GE):
         sigma_val, tau_val = params[0], params[1]
         sqrt_term = np.sqrt(1 + 1j * omega * tau_val)
         Z = sigma_val / sqrt_term

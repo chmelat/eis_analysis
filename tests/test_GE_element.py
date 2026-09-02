@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Test G element (Gerischer for reaction-diffusion processes)."""
+"""Test GE element (Gerischer for reaction-diffusion processes)."""
 
 import numpy as np
 import pytest
-from eis_analysis.fitting import R, G, fit_equivalent_circuit
+from eis_analysis.fitting import R, GE, fit_equivalent_circuit
 from eis_analysis.fitting.jacobian import element_jacobian
 
 
@@ -15,17 +15,17 @@ def freq():
 
 @pytest.fixture
 def g_element_params():
-    """G element parameters."""
+    """GE element parameters."""
     sigma = 100.0
     tau = 1e-3
     return sigma, tau
 
 
 def test_g_impedance_matches_analytical(freq, g_element_params):
-    """Test G element impedance matches analytical formula."""
+    """Test GE element impedance matches analytical formula."""
     sigma, tau = g_element_params
 
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
     Z_G = g_elem.impedance(freq, [sigma, tau])
 
     omega = 2 * np.pi * freq
@@ -36,9 +36,9 @@ def test_g_impedance_matches_analytical(freq, g_element_params):
 
 
 def test_g_limiting_behavior(g_element_params):
-    """Test G element limiting behavior at low/high frequency."""
+    """Test GE element limiting behavior at low/high frequency."""
     sigma, tau = g_element_params
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
 
     # Low frequency: Z -> sigma (real)
     Z_low = g_elem.impedance(np.array([1e-6]), [sigma, tau])
@@ -51,9 +51,9 @@ def test_g_limiting_behavior(g_element_params):
 
 
 def test_g_element_properties(g_element_params):
-    """Test G element computed properties."""
+    """Test GE element computed properties."""
     sigma, tau = g_element_params
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
 
     assert g_elem.sigma == sigma
     assert g_elem.tau == tau
@@ -63,14 +63,14 @@ def test_g_element_properties(g_element_params):
 
 
 def test_g_series_circuit(freq, g_element_params):
-    """Test series circuit R - G."""
+    """Test series circuit R - GE."""
     sigma, tau = g_element_params
     R_s = 10.0
 
-    circuit = R(R_s) - G(sigma, tau)
+    circuit = R(R_s) - GE(sigma, tau)
     Z_series = circuit.impedance(freq, circuit.get_all_params())
 
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
     Z_G = g_elem.impedance(freq, [sigma, tau])
     Z_expected = R_s + Z_G
 
@@ -79,14 +79,14 @@ def test_g_series_circuit(freq, g_element_params):
 
 
 def test_g_parallel_circuit(freq, g_element_params):
-    """Test parallel circuit R | G."""
+    """Test parallel circuit R | GE."""
     sigma, tau = g_element_params
     R_p = 200.0
 
-    circuit = R(R_p) | G(sigma, tau)
+    circuit = R(R_p) | GE(sigma, tau)
     Z_par = circuit.impedance(freq, circuit.get_all_params())
 
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
     Z_G = g_elem.impedance(freq, [sigma, tau])
     Z_expected = 1 / (1/R_p + 1/Z_G)
 
@@ -97,7 +97,7 @@ def test_g_parallel_circuit(freq, g_element_params):
 def test_g_jacobian(freq, g_element_params):
     """Test analytical Jacobian matches numerical."""
     sigma, tau = g_element_params
-    g_elem = G(sigma, tau)
+    g_elem = GE(sigma, tau)
 
     Z_jac, dZ_jac = element_jacobian(g_elem, freq, [sigma, tau])
 
@@ -116,7 +116,7 @@ def test_g_jacobian(freq, g_element_params):
 
 
 def test_g_element_fitting(freq):
-    """Test circuit fitting with G element."""
+    """Test circuit fitting with GE element."""
     R_s_true, sigma_true, tau_true = 15.0, 120.0, 5e-4
 
     omega = 2 * np.pi * freq
@@ -126,7 +126,7 @@ def test_g_element_fitting(freq):
     noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z_true + noise
 
-    circuit = R(12) - G(100, 3e-4)
+    circuit = R(12) - GE(100, 3e-4)
     result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, weighting='modulus', plot=False)
 
     assert result.fit_error_rel < 2.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
@@ -140,10 +140,10 @@ def test_g_element_fitting(freq):
 def test_g_fixed_parameters():
     """Test fixed parameter handling."""
     # One fixed
-    g_fixed = G("100", 1e-3)
+    g_fixed = GE("100", 1e-3)
     assert g_fixed.fixed_params[0]
     assert not g_fixed.fixed_params[1]
 
     # Both fixed
-    g_both = G("100", "1e-3")
+    g_both = GE("100", "1e-3")
     assert g_both.fixed_params == [True, True]

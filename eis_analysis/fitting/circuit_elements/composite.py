@@ -1,6 +1,6 @@
 """
 Composite circuit elements: Voigt element in R-τ parametrization (K) and
-the Gerischer element for coupled reaction-diffusion (G).
+the Gerischer element for coupled reaction-diffusion (GE).
 """
 from __future__ import annotations
 
@@ -119,7 +119,7 @@ class K(CircuitElement):
         return 1.0 / (2 * np.pi * self.tau)
 
 
-class G(CircuitElement):
+class GE(CircuitElement):
     """
     Gerischer element for coupled reaction-diffusion processes.
 
@@ -159,13 +159,13 @@ class G(CircuitElement):
 
     Examples
     --------
-    >>> g = G(100, 1e-3)       # sigma=100, tau=1ms, both free
-    >>> g = G()                # default values (both free)
-    >>> g = G("100", 1e-3)     # sigma fixed, tau free
-    >>> g = G("100", "1e-3")   # Both parameters fixed
+    >>> g = GE(100, 1e-3)       # sigma=100, tau=1ms, both free
+    >>> g = GE()                # default values (both free)
+    >>> g = GE("100", 1e-3)     # sigma fixed, tau free
+    >>> g = GE("100", "1e-3")   # Both parameters fixed
 
-    Typical circuit: R_s - G (series resistance + Gerischer)
-    >>> circuit = R(10) - G(100, 1e-3)
+    Typical circuit: R_s - GE (series resistance + Gerischer)
+    >>> circuit = R(10) - GE(100, 1e-3)
 
     References
     ----------
@@ -188,12 +188,12 @@ class G(CircuitElement):
         return sigma_val / np.sqrt(1 + 1j * omega * tau_val)
 
     def get_param_labels(self) -> List[str]:
-        return ['σ_G', 'τ_G']
+        return ['σ_GE', 'τ_GE']
 
     def __repr__(self) -> str:
         sigma_str = f'"{self.sigma:.4g}"' if self.fixed_params[0] else f"{self.sigma:.4g}"
         tau_str = f'"{self.tau:.4g}"' if self.fixed_params[1] else f"{self.tau:.4g}"
-        return f"G(σ={sigma_str}, τ={tau_str})"
+        return f"GE(σ={sigma_str}, τ={tau_str})"
 
     @property
     def characteristic_freq(self) -> float:

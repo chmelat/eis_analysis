@@ -4,8 +4,8 @@
 Regression tests (2026-08-27): every element copied its parameters into
 named attributes in __init__ (self.R = self.params[0], ...). update_params()
 - which the fitter calls with the optimized values - rewrote params but left
-those copies untouched, so K.R, G.sigma, CC.C_inf and the properties derived
-from them (K.capacitance, G.characteristic_freq, CC.C_static) still returned
+those copies untouched, so K.R, GE.sigma, CC.C_inf and the properties derived
+from them (K.capacitance, GE.characteristic_freq, CC.C_static) still returned
 the initial guess after a fit. It surfaced as --analyze-oxide reporting a
 thickness computed from the guess rather than the fit. The names are now
 read-only views of params, so they cannot fall out of step.
@@ -13,7 +13,7 @@ read-only views of params, so they cannot fall out of step.
 
 import numpy as np
 import pytest
-from eis_analysis.fitting import R, C, L, Q, W, Wo, K, G, CC
+from eis_analysis.fitting import R, C, L, Q, W, Wo, K, GE, CC
 
 
 # factory, attribute names in parameter order, fitted values to push in.
@@ -27,11 +27,11 @@ ELEMENTS = [
     (lambda: W(50), ["sigma"], [125.0]),
     (lambda: Wo(100, 1.0), ["R_W", "tau_W"], [250.0, 2.5]),
     (lambda: K(1000, 1e-4), ["R", "tau"], [2000.0, 5e-4]),
-    (lambda: G(100, 1e-3), ["sigma", "tau"], [200.0, 5e-3]),
+    (lambda: GE(100, 1e-3), ["sigma", "tau"], [200.0, 5e-3]),
     (lambda: CC(1e-8, 1e-7, 1e-3, 0.2), ["C_inf", "dC", "tau", "alpha"],
      [2e-8, 2e-7, 5e-3, 0.3]),
 ]
-IDS = ["R", "C", "L", "Q", "W", "Wo", "K", "G", "CC"]
+IDS = ["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"]
 
 
 @pytest.mark.parametrize("make, names, fitted", ELEMENTS, ids=IDS)
@@ -68,7 +68,7 @@ def test_derived_properties_track_update_params():
     assert k.capacitance == pytest.approx(5e-4 / 2000.0)
     assert k.characteristic_freq == pytest.approx(1 / (2 * np.pi * 5e-4))
 
-    g = G(100, 1e-3)
+    g = GE(100, 1e-3)
     g.update_params([200.0, 5e-3])
     assert g.characteristic_freq == pytest.approx(1 / (2 * np.pi * 5e-3))
 
