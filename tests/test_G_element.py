@@ -14,7 +14,8 @@ import numpy as np
 import pytest
 
 from eis_analysis.fitting import C, G, Q, R, fit_equivalent_circuit
-from eis_analysis.fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
+from eis_analysis.fitting.bounds import (PARAMETER_BOUNDS, classify_bound_status,
+                                         log_scale_ci_mask, log_search_bounds)
 from eis_analysis.fitting.jacobian import circuit_jacobian, element_jacobian
 
 FREQ = np.logspace(-2, 5, 60)
@@ -98,7 +99,51 @@ def test_nonzero_lower_bound_still_flagged():
     assert classify_bound_status(0.301, 0.3, 1.0) == 'lower'
 
 
-# --- 4. the payoff: an unresolvable parallel R becomes an interpretable G ---
+# --- 4. DE must still search G over decades ---
+
+def test_de_searches_G_in_log_space():
+    """Regression: G's zero lower bound must not drop it out of DE's log search.
+
+    DE draws its population uniformly over the search bounds. Linear on
+    [0, 1e4], essentially every member shorts the branch, the energies
+    collapse and DE stops after a handful of generations at ~100 % error.
+    log_search_bounds exists to keep that from happening, so G must not
+    follow log_scale_ci_mask here even though it does for the CI.
+    """
+    labels = ['R', 'G', 'C', 'n', 'α_CC']
+    lo = [PARAMETER_BOUNDS[k][0] for k in labels]
+    hi = [PARAMETER_BOUNDS[k][1] for k in labels]
+
+    mask, search_lo, search_hi = log_search_bounds(lo, hi, labels)
+    assert mask == [True, True, True, False, False]
+    # G is searched from 1e-10 S = 1e10 Ohm, mirroring R's upper bound
+    assert search_lo[1] == pytest.approx(-10.0)
+    assert search_hi[1] == pytest.approx(4.0)
+    # ...and it is the one parameter where search and CI semantics differ
+    assert log_scale_ci_mask(lo, hi) == [True, False, True, False, False]
+
+
+def test_de_converges_with_G_like_it_does_with_R():
+    """The DE stage itself must do the work, not leave it all to refinement."""
+    from eis_analysis.fitting import fit_circuit_diffevo
+
+    rng = np.random.default_rng(1)
+    truth = R(10) - (R(1e5) | C(1e-8)) - (R(1e3) | C(1e-5))
+    Z0 = truth.impedance(FREQ, truth.get_all_params())
+    Z = Z0 + 0.005 * np.abs(Z0) * (rng.standard_normal(len(FREQ))
+                                   + 1j * rng.standard_normal(len(FREQ)))
+
+    start = R(1) - (G(1) | C(1e-12)) - (G(1) | C(1e-12))
+    result, _, _ = fit_circuit_diffevo(start, FREQ, Z, seed=42)
+
+    assert [lab for lab in result.diagnostics.log_search_params
+            if lab.startswith('G')] == ['G0', 'G1']
+    # Before the fix this was ~100 % after 4-5 generations
+    assert result.de_error < 5.0
+    assert result.diagnostics.de_iterations > 20
+
+
+# --- 5. the payoff: an unresolvable parallel R becomes an interpretable G ---
 
 def _blocking_coating_data():
     """L-free R0 - (R_huge | Q): R is far too large for the window to resolve."""
@@ -139,7 +184,7 @@ def test_fit_quality_matches_the_R_parametrization():
     assert fit_G.fit_error_rel == pytest.approx(fit_R.fit_error_rel, rel=1e-3)
 
 
-# --- 5. integration ---
+# --- 6. integration ---
 
 def test_parses_from_circuit_expression():
     from eis_analysis.cli.utils import parse_circuit_expression
@@ -158,6 +203,20 @@ def test_oxide_analysis_reads_G_as_the_parallel_resistance():
     with_G = _find_capacitive_elements(R(10) - (G(1e-8) | C(1e-6)), FREQ)
     with_R = _find_capacitive_elements(R(10) - (R(1e8) | C(1e-6)), FREQ)
     assert with_G[0]['R'] == pytest.approx(with_R[0]['R'], rel=1e-9)
+
+
+def test_oxide_analysis_reads_a_series_G_as_series_resistance():
+    from eis_analysis.analysis.oxide import _find_series_resistance
+    assert _find_series_resistance(G(0.1) - (R(1e5) | C(1e-6))) == pytest.approx(10.0)
+    # G = 0 is an open series branch and contributes nothing
+    assert _find_series_resistance(G(0.0) - (R(1e5) | C(1e-6))) is None
+
+
+def test_migration_hint_stays_off_unrelated_parse_errors():
+    from eis_analysis.cli.utils import parse_circuit_expression
+    with pytest.raises(ValueError, match="name 'X' is not defined") as exc:
+        parse_circuit_expression("R(10) - (G(1e-9) | X(3))")
+    assert "renamed to GE" not in str(exc.value)
 
 
 def test_oxide_analysis_treats_zero_conductance_as_no_DC_path():

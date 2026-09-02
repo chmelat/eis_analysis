@@ -411,9 +411,11 @@ def _estimate_cpe_capacitance_brug(
 
 def _find_series_resistance(circuit) -> Optional[float]:
     """
-    Sum of R elements on the series path of the circuit (outside any
+    Sum of R and G elements on the series path of the circuit (outside any
     parallel combination) — the ohmic/electrolyte resistance Rs needed
-    by the Brug formula.
+    by the Brug formula. G contributes 1/G, matching how
+    `parallel_resistance` reads it; G = 0 is an open series branch and
+    contributes nothing.
 
     Returns None if no such element exists or the sum is not positive.
     """
@@ -425,6 +427,10 @@ def _find_series_resistance(circuit) -> Optional[float]:
         if isinstance(node, R):
             total += node.params[0]
             found = True
+        elif isinstance(node, G):
+            if node.G > 0:
+                total += 1 / node.G
+                found = True
         elif isinstance(node, Series):
             for elem in node.elements:
                 traverse(elem)

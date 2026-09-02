@@ -19,6 +19,7 @@ from scipy.optimize import differential_evolution, least_squares, OptimizeWarnin
 
 from .circuit import FitResult, FitDiagnostics, Circuit
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
+                     log_search_bounds,
                      validate_fixed_params)
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics
@@ -268,13 +269,15 @@ def fit_circuit_diffevo(
         initial_guess = [v for v, f in zip(initial_guess_full, fixed_params) if not f]
         lower_bounds = [lb for lb, f in zip(lower_bounds_full, fixed_params) if not f]
         upper_bounds = [ub for ub, f in zip(upper_bounds_full, fixed_params) if not f]
+        free_labels = ([lab for lab, f in zip(param_labels, fixed_params) if not f]
+                       if param_labels is not None else None)
     else:
         initial_guess = initial_guess_full
         lower_bounds = lower_bounds_full
         upper_bounds = upper_bounds_full
+        free_labels = param_labels
 
     initial_guess = np.array(initial_guess)
-    bounds = list(zip(lower_bounds, upper_bounds))
 
     # Clip initial guess to bounds
     initial_guess = np.clip(initial_guess, lower_bounds, upper_bounds)
@@ -286,11 +289,13 @@ def fit_circuit_diffevo(
     # population energies are so nearly equal that DE's convergence test
     # (std <= tol * |mean|) can fire after the first generation. Searching
     # log10 of those parameters spreads the population over the decades
-    # instead. The CPE exponent n (0.3-1.0) keeps its linear scale.
-    log_mask = np.array(
-        log_scale_ci_mask(list(lower_bounds), list(upper_bounds)),
-        dtype=bool
+    # instead. The CPE exponent n (0.3-1.0) keeps its linear scale; G is
+    # searched in log space despite its zero lower bound (see
+    # log_search_bounds, which is why this is not log_scale_ci_mask).
+    log_mask_list, de_lower, de_upper = log_search_bounds(
+        list(lower_bounds), list(upper_bounds), free_labels
     )
+    log_mask = np.array(log_mask_list, dtype=bool)
     # Labels of the log-searched parameters, for the diagnostics line. The mask
     # is in free-parameter space; map it back to full-space labels.
     free_indices = [i for i, f in enumerate(fixed_params or [False] * len(initial_guess_full))
@@ -335,9 +340,15 @@ def fit_circuit_diffevo(
     # Step 1: Run Differential Evolution, in the search space chosen above
     de_objective = (_LogSpaceCost(cost_function, log_mask) if log_mask.any()
                     else cost_function)
-    de_bounds = [(np.log10(lb) if m else lb, np.log10(ub) if m else ub)
-                 for (lb, ub), m in zip(bounds, log_mask)]
-    de_x0 = np.where(log_mask, np.log10(initial_guess), initial_guess)
+    de_bounds = list(zip(de_lower, de_upper))
+    # G's initial guess may be exactly 0, which has no logarithm. Floor it
+    # before the transform and let the clip put it back onto the search bound.
+    de_x0 = np.clip(
+        np.where(log_mask,
+                 np.log10(np.maximum(initial_guess, np.finfo(float).tiny)),
+                 initial_guess),
+        de_lower, de_upper
+    )
 
     try:
         with warnings.catch_warnings(record=True):

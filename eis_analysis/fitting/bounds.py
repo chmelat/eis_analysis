@@ -78,6 +78,14 @@ DEFAULT_BOUNDS = (1e-15, 1e15)
 # each) from linear-range parameters like the CPE exponent n (0.3-1.0).
 LOG_SCALE_BOUND_RATIO = 1e6
 
+# Search floor for parameters whose lower bound is 0: log10(0) does not exist,
+# so without an explicit floor DE would fall back to a linear search. G's floor
+# mirrors PARAMETER_BOUNDS['R']'s upper bound (1e-10 S = 1e10 Ohm), so a
+# conductance is searched over exactly the range the resistance it replaces
+# would have been. alpha_CC also has a zero lower bound but is a bounded
+# exponent rather than a scale parameter, and correctly stays linear.
+LOG_SEARCH_FLOOR = {'G': 1e-10}
+
 
 def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[float]]:
     """
@@ -209,6 +217,54 @@ def log_scale_ci_mask(
     ]
 
 
+def log_search_bounds(
+    lower_bounds: List[float],
+    upper_bounds: List[float],
+    param_labels: Optional[List[str]] = None
+) -> Tuple[List[bool], List[float], List[float]]:
+    """
+    Search space for differential evolution, one entry per parameter.
+
+    Deliberately not `log_scale_ci_mask`, although the two agree on every
+    parameter with a positive lower bound. They answer different questions:
+    a lower bound of exactly 0 makes a parameter linear for *reporting* --
+    that is what lets G carry a symmetric interval through zero -- while
+    leaving it a scale parameter for *searching*. Drawn uniformly from
+    [0, 1e4], essentially every G in the population shorts its branch, so
+    the population energies are nearly equal and DE's convergence test
+    (std <= tol * |mean|) fires within a few generations. LOG_SEARCH_FLOOR
+    supplies the positive lower limit the logarithm needs; the least_squares
+    refinement that follows searches in linear space and can still reach
+    exactly 0.
+
+    Parameters
+    ----------
+    lower_bounds, upper_bounds : list of float
+        Bounds in the space DE optimizes (free parameters only)
+    param_labels : list of str, optional
+        Labels aligned with the bounds, used to look up LOG_SEARCH_FLOOR.
+        Without them a zero lower bound simply stays linear.
+
+    Returns
+    -------
+    mask : list of bool
+        True where the parameter is searched as log10(value)
+    lower, upper : list of float
+        Search bounds, already in log10 where `mask` is True
+    """
+    floors = ([LOG_SEARCH_FLOOR.get(label, 0.0) for label in param_labels]
+              if param_labels is not None else [0.0] * len(lower_bounds))
+
+    mask, lower, upper = [], [], []
+    for lb, ub, floor in zip(lower_bounds, upper_bounds, floors):
+        search_lb = lb if lb > 0 else floor
+        use_log = search_lb > 0 and ub / search_lb > LOG_SCALE_BOUND_RATIO
+        mask.append(use_log)
+        lower.append(float(np.log10(search_lb) if use_log else lb))
+        upper.append(float(np.log10(ub) if use_log else ub))
+    return mask, lower, upper
+
+
 def validate_fixed_params(
     values: List[float],
     lower_bounds: Optional[List[float]],
@@ -328,6 +384,8 @@ __all__ = [
     'build_bound_status',
     'classify_bound_status',
     'log_scale_ci_mask',
+    'log_search_bounds',
     'PARAMETER_BOUNDS',
     'LOG_SCALE_BOUND_RATIO',
+    'LOG_SEARCH_FLOOR',
 ]

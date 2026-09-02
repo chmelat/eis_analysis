@@ -43,7 +43,23 @@ Complete change history for all project versions.
 
   `--analyze-oxide` reads `G` as the parallel resistance `R = 1/G`, so
   thickness and tau still come out. `G = 0` reports no DC path, the same
-  convention the blocking-dielectric branches already used.
+  convention the blocking-dielectric branches already used. A `G` on the
+  series path counts as `1/G` toward `R_s` for the Brug formula.
+
+- **`log_search_bounds()` in `fitting/bounds.py`** decides which parameters
+  differential evolution searches as `log10(value)`. Previously DE reused
+  `log_scale_ci_mask()` for this, which requires a strictly positive lower
+  bound - so `G` was searched linearly on `[0, 1e4]`, where nearly every
+  population member shorts its branch. The energies collapse and DE's
+  convergence test fires after four or five generations at ~100 % error:
+  `--de` returned either a failed fit or a plausible-looking one with the
+  branch shorted, and the least_squares refinement was doing all the work.
+  The two criteria answer different questions and are now separate
+  functions - a zero lower bound makes a parameter linear for *reporting*
+  while leaving it a scale parameter for *searching*. `G` is searched from
+  `LOG_SEARCH_FLOOR` (1e-10 S = 1e10 Ohm, mirroring `R`'s upper bound); the
+  refinement still runs in linear space and can reach exactly 0. The CPE
+  exponent `n` and the Cole-Cole `alpha_CC` stay linear in both.
 
 ### Changed
 

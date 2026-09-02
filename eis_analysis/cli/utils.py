@@ -153,8 +153,10 @@ def parse_circuit_expression(expr: str):
         return circuit
     except Exception as e:
         # G took (sigma, tau) as the Gerischer element until v0.29.0, so an
-        # old expression fails here on arity alone, saying nothing about it.
+        # old expression fails on arity alone, saying nothing about the
+        # rename. Only a TypeError can be that failure - a NameError or
+        # SyntaxError mentioning G is about something else entirely.
         hint = (" G is now conductance and takes one value in siemens, "
                 "G(1e-9); the Gerischer element was renamed to GE."
-                if 'G(' in expr else "")
+                if isinstance(e, TypeError) and 'G(' in expr else "")
         raise ValueError(f"Cannot parse circuit expression '{expr}': {e}.{hint}")
