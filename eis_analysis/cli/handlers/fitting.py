@@ -188,9 +188,10 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
     # and power to see whether each is there at all.
     logger.warning(f"  Residuals are not random "
                    f"(Re/Im, {d.window_decades:.1f} decade window):")
+    span_re, span_im = (abs(s.slope) * d.window_decades for s in (d.real, d.imag))
     logger.warning(
         f"    trend: {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "
-        f"span {_fmt_pair(d.real.slope_span, d.imag.slope_span, '.2g')} "
+        f"span {_fmt_pair(span_re, span_im, '.2g')} "
         f"(p = {_fmt_pair(d.real.slope_p, d.imag.slope_p, '.1e')})")
     logger.warning(
         f"    wave:  {_fmt_pair(d.real.period_decades, d.imag.period_decades, '.1f')} decades, "

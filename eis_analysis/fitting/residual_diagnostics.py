@@ -91,13 +91,11 @@ class SeriesDiagnostics:
         negative z means far fewer sign changes than chance allows.
     slope : float
         Slope of a least-squares line through the residuals, per decade of
-        frequency, in the units of the weighted residuals.
-    slope_span : float
-        The change that slope makes across the measured window
-        (|slope| * window), so the trend can be compared with `amplitude`:
-        same units, the trend's full swing against the wave's half-swing.
-        Together they answer "which of the two shapes is the larger part of
-        this residual?" - the question a single verdict used to answer by
+        frequency, in the units of the weighted residuals. Times the window it
+        gives the trend's total swing, which is what the reader compares with
+        `amplitude` - same units, the trend's full swing against the wave's
+        half-swing - to see which of the two shapes is the larger part of this
+        residual. That is the question a single verdict used to answer by
         discarding one of them.
     slope_p : float
         p-value of the slope. NaN when the series has no variance. Optimistic
@@ -127,7 +125,6 @@ class SeriesDiagnostics:
     runs_z: float
     runs_p: float
     slope: float
-    slope_span: float
     slope_p: float
     period_decades: float
     amplitude: float
@@ -251,39 +248,6 @@ def runs_test(residuals: NDArray[np.float64]) -> Tuple[int, float, float, float]
     return runs, float(expected), float(z), float(p)
 
 
-def linear_trend(
-    log_freq: NDArray[np.float64],
-    residuals: NDArray[np.float64]
-) -> Tuple[float, float, float]:
-    """
-    Least-squares line through a residual series against log10(f).
-
-    The trend is fitted first and removed before the periodogram runs, which
-    is what lets both shapes be reported at once. A drift and a wave otherwise
-    compete for the same periodogram peak: the drift wins it at a period near
-    the window width, and any genuine wave underneath it disappears.
-
-    Parameters
-    ----------
-    log_freq : ndarray of float
-        log10 of the frequencies, ordered.
-    residuals : ndarray of float
-        Residuals aligned with `log_freq`.
-
-    Returns
-    -------
-    slope, intercept, p : float, float, float
-        Slope per decade, its intercept, and the two-sided p-value of the
-        slope. p is NaN when the series has no variance. The p-value assumes
-        independent points and is therefore optimistic exactly when the
-        residuals are systematic - it ranks the two shapes against each other,
-        it does not certify either.
-    """
-    fit = linregress(np.asarray(log_freq, dtype=float),
-                     np.asarray(residuals, dtype=float))
-    return float(fit.slope), float(fit.intercept), float(fit.pvalue)
-
-
 def dominant_period(
     log_freq: NDArray[np.float64],
     residuals: NDArray[np.float64]
@@ -298,8 +262,8 @@ def dominant_period(
     peak follows from its power, and is the number the reader compares
     against the trend's span.
 
-    Pass the residuals with any linear trend already removed (see
-    `linear_trend`), otherwise the peak is the trend.
+    Pass the residuals with any linear trend already removed, otherwise the
+    peak is the trend.
 
     Parameters
     ----------
@@ -349,15 +313,19 @@ def dominant_period(
 
 def _series_diagnostics(
     log_freq: NDArray[np.float64],
-    residuals: NDArray[np.float64],
-    window: float
+    residuals: NDArray[np.float64]
 ) -> SeriesDiagnostics:
     """Run all the statistics on one residual series."""
     rho = lag1_autocorrelation(residuals)
     runs, expected, z, p = runs_test(residuals)
-    slope, intercept, slope_p = linear_trend(log_freq, residuals)
+
+    # The line is fitted and removed before the periodogram runs, which is
+    # what lets both shapes be reported at once: otherwise a drift and a wave
+    # compete for the same peak, the drift wins it at a period near the window
+    # width, and any genuine wave underneath it disappears.
+    trend = linregress(log_freq, residuals)
     period, power, amplitude = dominant_period(
-        log_freq, residuals - (slope * log_freq + intercept))
+        log_freq, residuals - (trend.slope * log_freq + trend.intercept))
 
     n = len(residuals)
     # Effective sample size for an AR(1) process. Reported because it puts a
@@ -378,9 +346,8 @@ def _series_diagnostics(
         runs=runs,
         runs_z=z,
         runs_p=p,
-        slope=slope,
-        slope_span=abs(slope) * window,
-        slope_p=slope_p,
+        slope=float(trend.slope),
+        slope_p=float(trend.pvalue),
         period_decades=period,
         amplitude=amplitude,
         power=power,
@@ -468,8 +435,8 @@ def analyze_residuals(
     window = float(log_freq[-1] - log_freq[0])
 
     return ResidualDiagnostics(
-        real=_series_diagnostics(log_freq, residuals_real, window),
-        imag=_series_diagnostics(log_freq, residuals_imag, window),
+        real=_series_diagnostics(log_freq, residuals_real),
+        imag=_series_diagnostics(log_freq, residuals_imag),
         window_decades=window,
     )
 
@@ -480,7 +447,6 @@ __all__ = [
     'analyze_residuals',
     'lag1_autocorrelation',
     'runs_test',
-    'linear_trend',
     'dominant_period',
     'MIN_PERIODOGRAM_POWER',
 ]

@@ -23,7 +23,6 @@ from eis_analysis.fitting.residual_diagnostics import (
     analyze_residuals,
     dominant_period,
     lag1_autocorrelation,
-    linear_trend,
     runs_test,
 )
 
@@ -62,7 +61,7 @@ def test_ripple_is_systematic_and_its_period_is_recovered():
     assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
     assert d.real.amplitude == pytest.approx(3.0, rel=0.15)
     assert d.real.power > 0.5
-    assert d.real.slope_span < 0.5 * d.real.amplitude   # the wave carries it
+    assert abs(d.real.slope) * d.window_decades < 0.5 * d.real.amplitude  # the wave carries it
 
 
 def test_single_bump_is_systematic_and_reads_as_a_long_wave():
@@ -85,7 +84,7 @@ def test_monotone_drift_is_carried_by_the_trend():
     assert d.real.lag1_autocorr > 0.8
     assert d.real.slope_p < 1e-6
     # What is left after the line is a fraction of what the line itself does.
-    assert d.real.slope_span > 5 * d.real.amplitude
+    assert abs(d.real.slope) * d.window_decades > 5 * d.real.amplitude
 
 
 def test_a_drift_and_a_ripple_are_both_reported():
@@ -197,11 +196,11 @@ def test_amplitude_cannot_exceed_the_residual_it_came_from():
     assert d.real.amplitude <= np.ptp(drift)
 
 
-def test_linear_trend_recovers_a_known_slope():
-    slope, intercept, p = linear_trend(LOG_FREQ, 0.5 * LOG_FREQ - 2 + _noise(5, scale=0.1))
-    assert slope == pytest.approx(0.5, rel=0.05)
-    assert intercept == pytest.approx(-2.0, abs=0.1)
-    assert p < 1e-20
+def test_a_known_slope_is_recovered():
+    d = analyze_residuals(*_with_residual(0.5 * LOG_FREQ - 2 + _noise(5, scale=0.1)),
+                          weighting='uniform')
+    assert d.real.slope == pytest.approx(0.5, rel=0.05)
+    assert d.real.slope_p < 1e-20
 
 
 # --- known-value checks against the closed form ---
@@ -282,7 +281,7 @@ def test_sparse_spectrum_does_not_alias_a_drift_into_a_ripple():
         d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
         assert d.real.period_decades >= floor, f"aliased at seed {seed}"
         # ...and the drift is reported where it belongs, on the trend line
-        assert d.real.slope_span > 5 * d.real.amplitude, f"seed {seed}"
+        assert abs(d.real.slope) * d.window_decades > 5 * d.real.amplitude, f"seed {seed}"
 
 
 def test_nyquist_floor_still_admits_a_resolvable_ripple():

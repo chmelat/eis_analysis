@@ -47,12 +47,13 @@ Complete change history for all project versions.
   returned an amplitude of 11.3 on residuals spanning 6; the power form cannot
   exceed `sqrt(2 * variance)` by construction.
 
-  Python API: `SeriesDiagnostics` gains `slope`, `slope_span`, `slope_p` and
-  `amplitude`; `period_decades` is now always the measured period (NaN when
-  none is resolvable) rather than `None` for anything the old rule called a
-  trend, and `period_over_window` and `MAX_PERIOD_FRACTION` are gone with it.
-  `dominant_period` returns `(period, power, amplitude)` and expects a
-  detrended series; the new `linear_trend` provides the line.
+  Python API: `SeriesDiagnostics` gains `slope`, `slope_p` and `amplitude`
+  (the trend's span across the window is `abs(slope) * window_decades`);
+  `period_decades` is now always the measured period (NaN when none is
+  resolvable) rather than `None` for anything the old rule called a trend, and
+  `period_over_window` and `MAX_PERIOD_FRACTION` are gone with it.
+  `dominant_period` returns `(period, power, amplitude)` and expects a series
+  with its linear trend already removed.
 
 ---
 
