@@ -289,9 +289,9 @@ def fit_circuit_diffevo(
     # population energies are so nearly equal that DE's convergence test
     # (std <= tol * |mean|) can fire after the first generation. Searching
     # log10 of those parameters spreads the population over the decades
-    # instead. The CPE exponent n (0.3-1.0) keeps its linear scale; G is
-    # searched in log space despite its zero lower bound (see
-    # log_search_bounds, which is why this is not log_scale_ci_mask).
+    # instead. The CPE exponent n (0.3-1.0) keeps its linear scale; G too is
+    # searched in log space, despite its zero lower bound - see
+    # log_search_bounds.
     log_mask_list, de_lower, de_upper = log_search_bounds(
         list(lower_bounds), list(upper_bounds), free_labels
     )
@@ -342,13 +342,10 @@ def fit_circuit_diffevo(
                     else cost_function)
     de_bounds = list(zip(de_lower, de_upper))
     # G's initial guess may be exactly 0, which has no logarithm. Floor it
-    # before the transform and let the clip put it back onto the search bound.
-    de_x0 = np.clip(
-        np.where(log_mask,
-                 np.log10(np.maximum(initial_guess, np.finfo(float).tiny)),
-                 initial_guess),
-        de_lower, de_upper
-    )
+    # before the transform; the clip puts it back onto the search bound.
+    x0_positive = np.maximum(initial_guess, np.finfo(float).tiny)
+    de_x0 = np.clip(np.where(log_mask, np.log10(x0_positive), initial_guess),
+                    de_lower, de_upper)
 
     try:
         with warnings.catch_warnings(record=True):

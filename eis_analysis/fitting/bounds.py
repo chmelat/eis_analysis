@@ -78,12 +78,9 @@ DEFAULT_BOUNDS = (1e-15, 1e15)
 # each) from linear-range parameters like the CPE exponent n (0.3-1.0).
 LOG_SCALE_BOUND_RATIO = 1e6
 
-# Search floor for parameters whose lower bound is 0: log10(0) does not exist,
-# so without an explicit floor DE would fall back to a linear search. G's floor
-# mirrors PARAMETER_BOUNDS['R']'s upper bound (1e-10 S = 1e10 Ohm), so a
-# conductance is searched over exactly the range the resistance it replaces
-# would have been. alpha_CC also has a zero lower bound but is a bounded
-# exponent rather than a scale parameter, and correctly stays linear.
+# Positive lower limit `log_search_bounds` substitutes for a zero bound. G's
+# mirrors PARAMETER_BOUNDS['R']'s upper bound (1e-10 S = 1e10 Ohm), so it is
+# searched over the range the resistance it replaces would have been.
 LOG_SEARCH_FLOOR = {'G': 1e-10}
 
 
@@ -235,7 +232,8 @@ def log_search_bounds(
     (std <= tol * |mean|) fires within a few generations. LOG_SEARCH_FLOOR
     supplies the positive lower limit the logarithm needs; the least_squares
     refinement that follows searches in linear space and can still reach
-    exactly 0.
+    exactly 0. alpha_CC also has a zero lower bound but is a bounded
+    exponent rather than a scale parameter, and correctly stays linear.
 
     Parameters
     ----------
@@ -252,8 +250,8 @@ def log_search_bounds(
     lower, upper : list of float
         Search bounds, already in log10 where `mask` is True
     """
-    floors = ([LOG_SEARCH_FLOOR.get(label, 0.0) for label in param_labels]
-              if param_labels is not None else [0.0] * len(lower_bounds))
+    labels = param_labels or [''] * len(lower_bounds)
+    floors = [LOG_SEARCH_FLOOR.get(label, 0.0) for label in labels]
 
     mask, lower, upper = [], [], []
     for lb, ub, floor in zip(lower_bounds, upper_bounds, floors):
@@ -387,5 +385,4 @@ __all__ = [
     'log_search_bounds',
     'PARAMETER_BOUNDS',
     'LOG_SCALE_BOUND_RATIO',
-    'LOG_SEARCH_FLOOR',
 ]

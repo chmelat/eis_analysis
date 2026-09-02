@@ -427,10 +427,9 @@ def _find_series_resistance(circuit) -> Optional[float]:
         if isinstance(node, R):
             total += node.params[0]
             found = True
-        elif isinstance(node, G):
-            if node.G > 0:
-                total += 1 / node.G
-                found = True
+        elif isinstance(node, G) and node.G > 0:
+            total += 1 / node.G
+            found = True
         elif isinstance(node, Series):
             for elem in node.elements:
                 traverse(elem)
