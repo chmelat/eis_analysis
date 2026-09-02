@@ -147,11 +147,9 @@ def _residual_diagnostics(
 ) -> Optional[ResidualDiagnostics]:
     """Residual shape tests, or None if they fail.
 
-    The call sits inside the fitting handler's try/except, whose handler
-    reports "Fitting error - try adjusting --circuit" and returns no result.
-    A diagnostic must never cost the user a converged fit, and in the
-    candidate-comparison path it would drop that circuit from the BIC table
-    with a misleading cause.
+    The call sits inside the fitting handler's try/except, which reports a
+    fitting error and returns no result. A diagnostic must never cost the
+    user a converged fit.
     """
     try:
         return analyze_residuals(frequencies, Z, Z_fit, weighting)
@@ -160,8 +158,10 @@ def _residual_diagnostics(
         return None
 
 
-def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
+def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
     """Log the residual shape tests. Pure formatter over ResidualDiagnostics."""
+    if d is None:
+        return
     if d.real is None or d.imag is None:
         for warning in d.warnings:
             logger.warning(f"  {warning}")
@@ -455,9 +455,8 @@ def _fit_voigt_chain(
 
     # The Voigt chain is where "too few elements" is directly actionable:
     # --voigt-auto-M or a larger --voigt-n-per-decade is the fix.
-    residuals = _residual_diagnostics(frequencies, Z, Z_fit, args.weighting)
-    if residuals is not None:
-        _log_residual_diagnostics(residuals)
+    _log_residual_diagnostics(
+        _residual_diagnostics(frequencies, Z, Z_fit, args.weighting))
 
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()

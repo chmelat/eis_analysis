@@ -69,10 +69,9 @@ MIN_PERIODOGRAM_POWER = 0.2
 MIN_PERIOD_DECADES = 0.4
 
 # Periods shorter than this multiple of the sample spacing cannot be resolved,
-# only aliased. Without the floor a 10-point spectrum over 6 decades (spacing
-# 0.67) reports a pure monotone drift as a 0.62-decade "ripple" at power 0.98,
-# for every seed tried - the alias sits at the sampling interval, and the CLI
-# then prescribes adding a branch when the opposite fix is needed.
+# only aliased - and the alias lands at the sampling interval, where it reads
+# as a short ripple and inverts the advice the CLI gives
+# (test_sparse_spectrum_does_not_alias_a_drift_into_a_ripple).
 NYQUIST_PERIOD_FACTOR = 2.0
 
 
@@ -374,10 +373,7 @@ def analyze_residuals(
     >>> round(d.real.period_decades, 1)
     1.5
 
-    A constant offset is deliberately *not* flagged - it has no shape, and its
-    size is what `fit_error_rel` already reports:
-
-    >>> analyze_residuals(f, Z, Z * 1.01).is_systematic
+    >>> analyze_residuals(f, Z, Z * 1.01).is_systematic   # offset has no shape
     False
     """
     frequencies = np.asarray(frequencies, dtype=float)
@@ -419,8 +415,5 @@ __all__ = [
     'lag1_autocorrelation',
     'runs_test',
     'dominant_period',
-    'RUNS_P_THRESHOLD',
     'MAX_PERIOD_FRACTION',
-    'MIN_PERIODOGRAM_POWER',
-    'NYQUIST_PERIOD_FACTOR',
 ]
