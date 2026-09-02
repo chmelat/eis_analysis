@@ -139,6 +139,27 @@ def _fmt_pair(real: float, imag: float, fmt: str) -> str:
                       for v in (real, imag))
 
 
+def _residual_diagnostics(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complex128],
+    Z_fit: NDArray[np.complex128],
+    weighting: str
+) -> Optional[ResidualDiagnostics]:
+    """Residual shape tests, or None if they fail.
+
+    The call sits inside the fitting handler's try/except, whose handler
+    reports "Fitting error - try adjusting --circuit" and returns no result.
+    A diagnostic must never cost the user a converged fit, and in the
+    candidate-comparison path it would drop that circuit from the BIC table
+    with a misleading cause.
+    """
+    try:
+        return analyze_residuals(frequencies, Z, Z_fit, weighting)
+    except Exception as exc:
+        logger.debug(f"Residual diagnostics skipped: {exc}", exc_info=True)
+        return None
+
+
 def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
     """Log the residual shape tests. Pure formatter over ResidualDiagnostics."""
     if d.real is None or d.imag is None:
@@ -157,9 +178,12 @@ def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
     # A named period means a ripple - the circuit has the right shape but too
     # few elements. No period means a bump or a drift: an element is missing
     # or is of the wrong kind. The two call for different fixes, which is the
-    # whole reason the periodogram is here.
+    # whole reason the periodogram is here - so only a part that actually
+    # failed the runs test may name one. A part whose residuals are noise
+    # still has a periodogram peak somewhere, and letting it speak would
+    # prescribe the opposite repair to the part that is genuinely wrong.
     periods = [s.period_decades for s in (d.real, d.imag)
-               if s.period_decades is not None]
+               if s.is_systematic and s.period_decades is not None]
     if periods:
         shape = (f"ripple of {np.mean(periods):.1f} decades "
                  f"in a {d.window_decades:.1f} decade window - too few elements")
@@ -429,6 +453,12 @@ def _fit_voigt_chain(
         _dof=max(2 * len(frequencies) - len(initial_params), 1)
     )
 
+    # The Voigt chain is where "too few elements" is directly actionable:
+    # --voigt-auto-M or a larger --voigt-n-per-decade is the fix.
+    residuals = _residual_diagnostics(frequencies, Z, Z_fit, args.weighting)
+    if residuals is not None:
+        _log_residual_diagnostics(residuals)
+
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()
     freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
@@ -542,7 +572,7 @@ def _fit_standard_circuit(
             )
 
         # Log fit results. Z_fit is bound by every optimizer branch above.
-        _log_fit_result(result, analyze_residuals(
+        _log_fit_result(result, _residual_diagnostics(
             frequencies, Z, Z_fit, args.weighting))
 
         save_figure(fig, args.save, save_suffix, args.format)

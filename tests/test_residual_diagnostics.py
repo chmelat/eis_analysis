@@ -210,3 +210,59 @@ def test_n_eff_collapses_when_residuals_are_correlated():
     # rho1 ~ 0.99 drives n_eff towards 1, where ln(n_eff) = 0 would remove the
     # BIC complexity penalty entirely.
     assert d.real.n_eff < 0.05 * len(FREQ)
+
+
+# --- regressions from the v0.30.0 review ---
+
+def test_sparse_spectrum_does_not_alias_a_drift_into_a_ripple():
+    """A period below the Nyquist limit of the sampling can only be an alias.
+
+    Before the floor, a 10-point spectrum over 6 decades (spacing 0.67) read a
+    pure monotone drift as a 0.62-decade ripple at power 0.98 for every seed -
+    and the CLI then prescribed adding a branch, the opposite of the fix.
+    """
+    n = 10
+    f = np.logspace(-2, 4, n)
+    x = np.log10(f)
+    flat = np.full(n, 100 + 0j)
+
+    for seed in range(6):
+        drift = 3 * np.tanh((x - 1.0) / 2) + np.random.default_rng(seed).standard_normal(n) * 0.5
+        d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
+        assert d.real.period_decades is None, f"aliased at seed {seed}"
+
+
+def test_nyquist_floor_still_admits_a_resolvable_ripple():
+    """The floor must not silence periods the sampling can actually resolve."""
+    ripple = 3 * np.sin(2 * np.pi * LOG_FREQ / 1.5) + _noise(3)
+    d = analyze_residuals(*_with_residual(ripple), weighting='uniform')
+    assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
+
+
+def test_shape_verdict_ignores_a_part_that_is_not_systematic():
+    """Only a part that failed the runs test may name the shape.
+
+    A noise part still has a periodogram peak somewhere; letting it speak
+    would prescribe 'add a branch' while the genuinely broken part is asking
+    for a different element type.
+    """
+    from eis_analysis.cli.handlers.fitting import _log_residual_diagnostics
+
+    noise_part = 0.3 * np.sin(2 * np.pi * LOG_FREQ / 1.5) + _noise(11, scale=1.5)
+    drift_part = 30 * np.tanh((LOG_FREQ - 1.5) / 2)
+    residual = noise_part + 1j * drift_part
+    d = analyze_residuals(FREQ, FLAT_Z, FLAT_Z - residual, weighting='uniform')
+
+    assert d.is_systematic                      # driven by the imaginary part
+    periods = [s.period_decades for s in (d.real, d.imag)
+               if s.is_systematic and s.period_decades is not None]
+    assert periods == [], "a non-systematic part must not name the shape"
+    _log_residual_diagnostics(d)                # must not raise
+
+
+def test_cli_wrapper_survives_a_broken_diagnostic():
+    """A diagnostic failure must never cost the user a converged fit."""
+    from eis_analysis.cli.handlers import fitting as handler
+
+    broken = np.array([1.0, 2.0])               # length mismatch -> raises
+    assert handler._residual_diagnostics(FREQ, FLAT_Z, broken, 'modulus') is None

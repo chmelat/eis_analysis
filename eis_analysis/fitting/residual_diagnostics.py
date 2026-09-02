@@ -54,15 +54,26 @@ RUNS_P_THRESHOLD = 0.01
 # above it is reported as a trend rather than named as a period.
 MAX_PERIOD_FRACTION = 0.5
 
-# Below this normalized Lomb-Scargle power the peak is not distinguishable
-# from what white noise produces (measured: 0.06-0.09 on white-noise residuals,
-# 0.33-0.95 on every systematic case tested).
+# Below this normalized Lomb-Scargle power the peak is not far enough above
+# what white noise produces. Over 2000 white-noise series of 80 points the peak
+# power has median 0.10, p95 0.16 and max 0.30, so 0.2 still lets 0.9% through
+# on its own; every systematic case tested landed at 0.33-0.98. The residual
+# gate is not this threshold alone - the caller also requires the runs test to
+# have rejected independence, which white noise does not.
 MIN_PERIODOGRAM_POWER = 0.2
 
-# Shortest period the periodogram is asked about, in decades. Anything shorter
-# approaches point-to-point alternation, which is noise rather than structure,
-# and the runs test already covers it.
+# Shortest period the periodogram is asked about, in decades, before the
+# Nyquist floor below raises it. Anything shorter approaches point-to-point
+# alternation, which is noise rather than structure, and the runs test already
+# covers it.
 MIN_PERIOD_DECADES = 0.4
+
+# Periods shorter than this multiple of the sample spacing cannot be resolved,
+# only aliased. Without the floor a 10-point spectrum over 6 decades (spacing
+# 0.67) reports a pure monotone drift as a 0.62-decade "ripple" at power 0.98,
+# for every seed tried - the alias sits at the sampling interval, and the CLI
+# then prescribes adding a branch when the opposite fix is needed.
+NYQUIST_PERIOD_FACTOR = 2.0
 
 
 @dataclass
@@ -247,19 +258,25 @@ def dominant_period(
     -------
     period_decades, power : float, float
         Period at the peak and its normalized power in [0, 1]. Both NaN when
-        the window is too narrow to hold even MIN_PERIOD_DECADES, or when the
-        series has no variance.
+        the spectrum is too sparse or too narrow to resolve any period, or
+        when the series has no variance.
     """
     r = np.asarray(residuals, dtype=float)
     r = r - r.mean()
     window = float(log_freq[-1] - log_freq[0])
 
-    if window <= MIN_PERIOD_DECADES or np.sum(r ** 2) <= 0:
+    # Shortest resolvable period: the Nyquist limit of the actual sampling,
+    # never below MIN_PERIOD_DECADES. Median spacing rather than mean - a
+    # spectrum with one large gap is still sampled at its usual rate.
+    spacing = float(np.median(np.diff(log_freq)))
+    shortest = max(MIN_PERIOD_DECADES, NYQUIST_PERIOD_FACTOR * spacing)
+
+    if window <= shortest or np.sum(r ** 2) <= 0:
         return float('nan'), float('nan')
 
     # One candidate period per ~2% of the window: fine enough that the peak
     # is located to better than the reporting precision, cheap at this size.
-    periods = np.linspace(MIN_PERIOD_DECADES, window, 500)
+    periods = np.linspace(shortest, window, 500)
     power = lombscargle(log_freq, r, 2 * np.pi / periods, normalize=True)
     peak = int(np.argmax(power))
     return float(periods[peak]), float(power[peak])
@@ -350,9 +367,18 @@ def analyze_residuals(
     >>> import numpy as np
     >>> f = np.logspace(-2, 5, 80)
     >>> Z = np.full(80, 100 + 0j)
-    >>> d = analyze_residuals(f, Z, Z * 1.01)      # constant offset
+    >>> ripple = 3 * np.sin(2 * np.pi * np.log10(f) / 1.5)
+    >>> d = analyze_residuals(f, Z, Z - ripple, weighting='uniform')
     >>> d.is_systematic
     True
+    >>> round(d.real.period_decades, 1)
+    1.5
+
+    A constant offset is deliberately *not* flagged - it has no shape, and its
+    size is what `fit_error_rel` already reports:
+
+    >>> analyze_residuals(f, Z, Z * 1.01).is_systematic
+    False
     """
     frequencies = np.asarray(frequencies, dtype=float)
     Z = np.asarray(Z, dtype=complex)
@@ -396,4 +422,5 @@ __all__ = [
     'RUNS_P_THRESHOLD',
     'MAX_PERIOD_FRACTION',
     'MIN_PERIODOGRAM_POWER',
+    'NYQUIST_PERIOD_FACTOR',
 ]

@@ -306,8 +306,8 @@ eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 
 **Are the residuals noise?** The fit error says how *large* the residuals are,
 not what *shape* they have, and a model missing an element can still fit to a
-few percent while its residuals march smoothly across the spectrum. Every fit
-therefore ends with a residual line:
+few percent while its residuals march smoothly across the spectrum. Both
+`--circuit` and `--voigt-chain` therefore end with a residual line:
 
 ```
   Fit error: 4.35% (rel), 322.63 Ohm (abs)
