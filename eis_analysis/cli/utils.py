@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
-from ..fitting import R, C, Q, L, W, Wo, K, GE, CC
+from ..fitting import R, C, Q, L, G, W, Wo, K, GE, CC
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ def parse_circuit_expression(expr: str):
     Notes
     -----
     Uses eval() with restricted namespace for safety. Only circuit element
-    classes (R, C, Q, L, W, Wo, K, GE, CC) are available in the evaluation
+    classes (R, C, Q, L, G, W, Wo, K, GE, CC) are available in the evaluation
     context.
     """
     # Safe namespace for eval - only circuit elements
@@ -140,6 +140,7 @@ def parse_circuit_expression(expr: str):
         'C': C,
         'Q': Q,
         'L': L,
+        'G': G,
         'W': W,
         'Wo': Wo,
         'K': K,
@@ -150,5 +151,17 @@ def parse_circuit_expression(expr: str):
     try:
         circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
         return circuit
+    except TypeError as e:
+        # G used to be the Gerischer element and took (sigma, tau). It is now
+        # conductance and takes one argument, so an old expression fails here
+        # with a bare arity TypeError that says nothing about the rename.
+        if 'G(' in expr and '__init__() takes from 1 to 2' in str(e):
+            raise ValueError(
+                f"Cannot parse circuit expression '{expr}': G is now the "
+                "conductance element and takes a single value in siemens, "
+                "G(1e-9). The Gerischer element was renamed to GE, so write "
+                "GE(sigma, tau) for it."
+            )
+        raise ValueError(f"Cannot parse circuit expression '{expr}': {e}")
     except Exception as e:
         raise ValueError(f"Cannot parse circuit expression '{expr}': {e}")

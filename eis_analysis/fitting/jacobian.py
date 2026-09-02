@@ -21,6 +21,7 @@ So:
 Element Derivatives
 -------------------
 R:   Z = R           -> dZ/dR = 1
+G:   Z = 1/G         -> dZ/dG = -1/G^2 = -Z^2
 C:   Z = 1/(jwC)     -> dZ/dC = -Z/C
 L:   Z = jwL         -> dZ/dL = jw
 Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
@@ -46,7 +47,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, Q, W, Wo, K, GE, CC, CircuitElement
+from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, CircuitElement
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -61,7 +62,7 @@ def element_jacobian(
     Parameters
     ----------
     element : CircuitElement
-        Circuit element (R, C, L, Q, W, Wo, K, GE)
+        Circuit element (R, C, L, G, Q, W, Wo, K, GE)
     freq : ndarray of float
         Frequencies [Hz]
     params : list of float
@@ -87,6 +88,17 @@ def element_jacobian(
         R_val = params[0]
         Z = R_val * np.ones(n_freq, dtype=complex)
         dZ = np.ones((n_freq, 1), dtype=complex)
+        return Z, dZ
+
+    # Conductance: Z = 1/G -> dZ/dG = -1/G^2 = -Z^2
+    if isinstance(element, G):
+        # G is clipped at G_MIN for the same reason as in G.impedance: the
+        # exact reciprocal of 0 is inf, and 0 * inf in the Parallel chain
+        # rule below would be NaN. With the clip, (Z_total/Z_G)^2 * dZ_G/dG
+        # collapses to -Z_total^2, which is the derivative wanted at G = 0.
+        G_val = max(params[0], element.G_MIN)
+        Z = (1 / G_val) * np.ones(n_freq, dtype=complex)
+        dZ = -(Z ** 2).reshape(-1, 1)
         return Z, dZ
 
     # Capacitor: Z = 1/(jwC)

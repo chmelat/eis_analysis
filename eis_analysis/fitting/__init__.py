@@ -21,6 +21,7 @@ Circuit Elements:
 - W: Warburg semi-infinite diffusion
 - Wo: Warburg bounded diffusion
 - K: Voigt element with tau parametrization (R, tau)
+- G: Conductance, Y = G (parallel R reparametrized so G = 0 is reachable)
 - GE: Gerischer element for reaction-diffusion (sigma, tau)
 - CC: Cole-Cole dielectric relaxation (C_inf, dC, tau, alpha)
 
@@ -64,7 +65,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, W, Wo, K, GE, CC, CircuitElement
+from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -115,6 +116,7 @@ __all__ = [
     'W',
     'Wo',
     'K',
+    'G',
     'GE',
     'CC',
     'CircuitElement',

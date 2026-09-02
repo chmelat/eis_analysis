@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from ..fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
 from ..fitting.circuit import FitResult
-from ..fitting.circuit_elements import R, C, Q, K, CC
+from ..fitting.circuit_elements import R, C, G, Q, K, CC
 from ..fitting.circuit_builder import Series, Parallel
 from .config import (
     EPSILON_0,
@@ -179,14 +179,23 @@ def _find_capacitive_elements(
     results = []
 
     def parallel_resistance(node) -> Optional[float]:
-        """Resistance of the R elements that are direct children of a Parallel."""
-        r_elements = [e for e in node.elements if isinstance(e, R)]
+        """Resistance of the R/G elements that are direct children of a Parallel.
+
+        G is a resistance parametrized as its own reciprocal, so it defines
+        the parallel resistance exactly as R does. G = 0 is an open branch:
+        R = 1/G is infinite, which is reported as None (no DC path), the
+        same convention the blocking-dielectric branches use.
+        """
+        r_elements = [e for e in node.elements if isinstance(e, (R, G))]
         if not r_elements:
             return None
         if len(r_elements) > 1:
-            logger.warning("Multiple R elements in one parallel "
+            logger.warning("Multiple R/G elements in one parallel "
                            "combination - using the last one")
-        return r_elements[-1].params[0]
+        last = r_elements[-1]
+        if isinstance(last, G):
+            return last.resistance if np.isfinite(last.resistance) else None
+        return last.params[0]
 
     def traverse(node, R_parallel: Optional[float]) -> None:
         if isinstance(node, Parallel):

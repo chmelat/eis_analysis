@@ -16,6 +16,15 @@ PARAMETER_BOUNDS = {
     # Resistance: 0.1 mOhm - 10 TOhm
     'R': (1e-4, 1e10),
 
+    # Conductance: 0 - 10 kS. The lower bound is exactly 0.0 - that is the
+    # whole point of the element. G = 0 (an open branch) is a regular point
+    # of the model, so it must be reachable, and lb = 0 makes
+    # log_scale_ci_mask()'s "lb > 0" test fail, keeping G LINEAR: the fit
+    # reports G = (0 +- s) S with a symmetric interval instead of a
+    # meaningless log-space one. The upper bound mirrors PARAMETER_BOUNDS['R']
+    # (1e-4 Ohm = 1e4 S), so G and R cover the same physical domain.
+    'G': (0.0, 1e4),
+
     # Capacitance: 1 fF - 100 mF
     'C': (1e-15, 1e-1),
 
@@ -82,6 +91,7 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
 
     Ranges:
     - R (resistance): 0.1 mOhm - 10 GOhm (batteries to coatings)
+    - G (conductance): 0 - 10 kS (0 = open branch, a valid result)
     - C (capacitance): 1 fF - 100 mF (parasitic to large electrode)
     - L (inductance): 1 pH - 100 uH (parasitic, cabling)
     - Q (CPE coefficient): 1 pF*s^(n-1) - 100 mF*s^(n-1)
@@ -136,6 +146,14 @@ def classify_bound_status(
 
     Threshold: 1 decade on log scale (when bounds span >6 decades) or 1% of
     the range on linear scale.
+
+    A lower bound of exactly 0 is never reported. The diagnostic exists to
+    flag values pinned against an *artificial* edge of the parameter box,
+    where the fit is constrained rather than converged. Zero is not such an
+    edge: it is the physical limit of a non-negative quantity (conductance
+    G = 0 is an open branch, Cole-Cole alpha = 0 is Debye relaxation), the
+    model stays regular there, and those parameters are linear-scale, so
+    their symmetric interval already reports how well zero is resolved.
     """
     if not (np.isfinite(lower) and np.isfinite(upper)):
         return ''
@@ -152,7 +170,7 @@ def classify_bound_status(
         rng = upper - lower
         if not np.isfinite(rng) or rng <= 0:
             return ''
-        if value - lower < 0.01 * rng:
+        if lower != 0 and value - lower < 0.01 * rng:
             return 'lower'
         if upper - value < 0.01 * rng:
             return 'upper'

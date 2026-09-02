@@ -348,7 +348,7 @@ def test_multiple_R_in_parallel_warns(caplog):
 
     assert oxide is not None
     assert oxide.element_R == 2000.0  # last one wins (documented behavior)
-    assert 'Multiple R elements' in caplog.text
+    assert 'Multiple R/G elements' in caplog.text
 
 
 def test_multiple_cap_in_parallel_warns(caplog):

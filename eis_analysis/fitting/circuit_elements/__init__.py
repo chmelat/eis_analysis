@@ -25,13 +25,13 @@ Date: 2025-12-14
 
 The element classes are organized into submodules:
     base        - CircuitElement abstract base class
-    basic       - R, C, L (lumped ideal elements)
+    basic       - R, C, L, G (lumped ideal elements; G = conductance, Y = G)
     distributed - Q, W, Wo (CPE and Warburg diffusion)
     composite   - K, GE (Voigt R-τ and Gerischer)
 """
 from .base import CircuitElement
-from .basic import R, C, L
+from .basic import R, C, L, G
 from .distributed import Q, W, Wo, CC
 from .composite import K, GE
 
-__all__ = ['R', 'C', 'Q', 'L', 'W', 'Wo', 'K', 'GE', 'CC', 'CircuitElement']
+__all__ = ['R', 'C', 'Q', 'L', 'G', 'W', 'Wo', 'K', 'GE', 'CC', 'CircuitElement']
