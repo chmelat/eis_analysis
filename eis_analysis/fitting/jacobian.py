@@ -92,10 +92,8 @@ def element_jacobian(
 
     # Conductance: Z = 1/G -> dZ/dG = -1/G^2 = -Z^2
     if isinstance(element, G):
-        # G is clipped at G_MIN for the same reason as in G.impedance: the
-        # exact reciprocal of 0 is inf, and 0 * inf in the Parallel chain
-        # rule below would be NaN. With the clip, (Z_total/Z_G)^2 * dZ_G/dG
-        # collapses to -Z_total^2, which is the derivative wanted at G = 0.
+        # Clipped as in G.impedance; the parallel chain rule then evaluates
+        # to -Z_total^2 instead of 0 * inf.
         G_val = max(params[0], element.G_MIN)
         Z = (1 / G_val) * np.ones(n_freq, dtype=complex)
         dZ = -(Z ** 2).reshape(-1, 1)

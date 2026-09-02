@@ -25,7 +25,6 @@ FREQ = np.logspace(-2, 5, 60)
 def test_impedance_is_reciprocal_of_conductance():
     Z = G(2e-3).impedance(FREQ, [2e-3])
     assert np.allclose(Z, 500.0 + 0j)
-    assert np.all(np.isreal(Z.imag == 0))
 
 
 def test_matches_equivalent_resistor_in_a_parallel_branch():
@@ -41,11 +40,6 @@ def test_string_argument_fixes_the_parameter():
     assert g.fixed_params == [True]
     assert g.G == 1e-9
     assert repr(g) == 'G("1e-09")'
-
-
-def test_resistance_property():
-    assert G(1e-9).resistance == pytest.approx(1e9)
-    assert np.isinf(G(0.0).resistance)
 
 
 # --- 2. G = 0 is finite everywhere ---
@@ -106,9 +100,9 @@ def test_nonzero_lower_bound_still_flagged():
 
 # --- 4. the payoff: an unresolvable parallel R becomes an interpretable G ---
 
-def _blocking_coating_data(seed=0):
+def _blocking_coating_data():
     """L-free R0 - (R_huge | Q): R is far too large for the window to resolve."""
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(0)
     circuit = R(12.0) - (R(5e9) | Q(3e-7, 0.88))
     Z = circuit.impedance(FREQ, circuit.get_all_params())
     noise = 0.01 * np.abs(Z)

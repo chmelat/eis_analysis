@@ -151,17 +151,10 @@ def parse_circuit_expression(expr: str):
     try:
         circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
         return circuit
-    except TypeError as e:
-        # G used to be the Gerischer element and took (sigma, tau). It is now
-        # conductance and takes one argument, so an old expression fails here
-        # with a bare arity TypeError that says nothing about the rename.
-        if 'G(' in expr and '__init__() takes from 1 to 2' in str(e):
-            raise ValueError(
-                f"Cannot parse circuit expression '{expr}': G is now the "
-                "conductance element and takes a single value in siemens, "
-                "G(1e-9). The Gerischer element was renamed to GE, so write "
-                "GE(sigma, tau) for it."
-            )
-        raise ValueError(f"Cannot parse circuit expression '{expr}': {e}")
     except Exception as e:
-        raise ValueError(f"Cannot parse circuit expression '{expr}': {e}")
+        # G took (sigma, tau) as the Gerischer element until v0.29.0, so an
+        # old expression fails here on arity alone, saying nothing about it.
+        hint = (" G is now conductance and takes one value in siemens, "
+                "G(1e-9); the Gerischer element was renamed to GE."
+                if 'G(' in expr else "")
+        raise ValueError(f"Cannot parse circuit expression '{expr}': {e}.{hint}")

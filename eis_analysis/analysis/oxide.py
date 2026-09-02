@@ -194,7 +194,7 @@ def _find_capacitive_elements(
                            "combination - using the last one")
         last = r_elements[-1]
         if isinstance(last, G):
-            return last.resistance if np.isfinite(last.resistance) else None
+            return 1 / last.G if last.G > 0 else None
         return last.params[0]
 
     def traverse(node, R_parallel: Optional[float]) -> None:

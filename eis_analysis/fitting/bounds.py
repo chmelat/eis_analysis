@@ -16,13 +16,10 @@ PARAMETER_BOUNDS = {
     # Resistance: 0.1 mOhm - 10 TOhm
     'R': (1e-4, 1e10),
 
-    # Conductance: 0 - 10 kS. The lower bound is exactly 0.0 - that is the
-    # whole point of the element. G = 0 (an open branch) is a regular point
-    # of the model, so it must be reachable, and lb = 0 makes
-    # log_scale_ci_mask()'s "lb > 0" test fail, keeping G LINEAR: the fit
-    # reports G = (0 +- s) S with a symmetric interval instead of a
-    # meaningless log-space one. The upper bound mirrors PARAMETER_BOUNDS['R']
-    # (1e-4 Ohm = 1e4 S), so G and R cover the same physical domain.
+    # Conductance: 0 - 10 kS (the upper bound mirrors R's lower one, so G and
+    # R cover the same domain). The lower bound is exactly 0.0 so that
+    # log_scale_ci_mask()'s "lb > 0" test fails and G stays LINEAR, like
+    # alpha_CC below: an open branch must be a reachable, reportable result.
     'G': (0.0, 1e4),
 
     # Capacitance: 1 fF - 100 mF

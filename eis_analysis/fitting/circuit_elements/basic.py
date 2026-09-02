@@ -133,20 +133,10 @@ class G(CircuitElement):
 
     Y_G = G,  Z_G = 1 / G
 
-    Electrically identical to ``R(1/G)``, but the two are not
-    interchangeable for *fitting*. A parallel resistance the data cannot
-    determine from above drives R towards its upper bound (10 GOhm), which
-    is an artificial edge of the parameter box, not a feature of the model:
-    the Jacobian column dZ/dR ~ 1/R^2 collapses there, the covariance
-    becomes numerically meaningless, and the reported error is spurious
-    precision rather than a large uncertainty. The same physical limit is
-    G -> 0, a finite point where dZ/dG = -Z^2 stays well conditioned. The
-    fit then returns G = (0 +- s) S, whose one-sided interval is a genuine
-    lower bound on R.
-
-    Use G in place of a parallel R when the resistance may be too large to
-    resolve (blocking coatings, intact oxide layers). For a resistance the
-    data determines, R is the more readable parametrization.
+    The same resistor as ``R(1/G)``, but it fits differently: G = 0 is
+    inside the allowed range where R's upper bound is not, so a resistance
+    the data cannot determine from above gets a usable interval instead of
+    a pinned parameter. See doc/CIRCUIT_PARSER.md, "G - Conductance".
 
     Parameters
     ----------
@@ -189,11 +179,6 @@ class G(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['G']
-
-    @property
-    def resistance(self) -> float:
-        """Equivalent resistance R = 1/G [Ohm]; inf for G = 0."""
-        return 1 / self.G if self.G > 0 else np.inf
 
     def __repr__(self) -> str:
         if self.fixed_params[0]:
