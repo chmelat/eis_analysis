@@ -17,13 +17,10 @@ Three statistics, computed separately for the real and imaginary parts:
 - Dominant period from a Lomb-Scargle periodogram over log10(f), reported
   relative to the width of the measured window.
 
-The first two answer "is this systematic?"; only the third says *what kind*.
-Measured on Lin-KK reconstructions limited to M RC elements over a 7-decade
-window, rho1 stays near +0.92 and the runs z near -7 for every M from 3 to 10
-- while the period tracks M monotonically, 3.96 decades down to 1.26. A short
-period means a ripple: the model has the right shape but too few elements. A
-period near the window width means a single bump or a drift: an element is
-missing or is of the wrong type.
+The first two answer "is this systematic?"; only the third says *what kind* -
+a short period is a ripple (right elements, too few of them), a period near
+the window width is a bump or a drift (an element missing or of the wrong
+type). doc/WEIGHTING_AND_STATISTICS.md carries the reading for users.
 
 Nothing here changes a fit or a criterion. In particular `n_eff` is reported
 but deliberately not fed into AIC/BIC - see its note in `_series_diagnostics`.
@@ -38,7 +35,6 @@ from numpy.typing import NDArray
 from scipy.signal import lombscargle
 from scipy.stats import norm
 
-from ..utils.impedance import sort_by_frequency
 from .diagnostics import compute_weights
 
 logger = logging.getLogger(__name__)
@@ -84,8 +80,6 @@ class SeriesDiagnostics:
         Informational only - see the note in `_series_diagnostics`.
     runs : int
         Observed number of sign runs.
-    runs_expected : float
-        Runs expected if the signs were independent.
     runs_z, runs_p : float
         Normal-approximation z statistic and two-sided p-value. A large
         negative z means far fewer sign changes than chance allows.
@@ -104,7 +98,6 @@ class SeriesDiagnostics:
     lag1_autocorr: float
     n_eff: float
     runs: int
-    runs_expected: float
     runs_z: float
     runs_p: float
     period_decades: Optional[float]
@@ -304,7 +297,6 @@ def _series_diagnostics(
         lag1_autocorr=rho,
         n_eff=float(n_eff),
         runs=runs,
-        runs_expected=expected,
         runs_z=z,
         runs_p=p,
         period_decades=period if is_ripple else None,
@@ -375,10 +367,10 @@ def analyze_residuals(
             "Residual diagnostics need positive frequencies (log10 scale)"
         ])
 
-    # sort_by_frequency handles Z; the fit must follow the same permutation.
+    # sort_by_frequency takes a pair; the fit has to follow the same
+    # permutation, so the order is applied to all three directly.
     order = np.argsort(frequencies)
-    frequencies, Z = sort_by_frequency(frequencies, Z)
-    Z_fit = Z_fit[order]
+    frequencies, Z, Z_fit = frequencies[order], Z[order], Z_fit[order]
 
     weights = compute_weights(Z, weighting)
     residuals_real = weights * (Z.real - Z_fit.real)

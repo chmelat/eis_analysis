@@ -27,7 +27,6 @@ from eis_analysis.fitting.residual_diagnostics import (
 
 FREQ = np.logspace(-2, 5, 80)
 LOG_FREQ = np.log10(FREQ)
-WINDOW = LOG_FREQ[-1] - LOG_FREQ[0]          # 7 decades
 FLAT_Z = np.full(len(FREQ), 100 + 0j)
 
 

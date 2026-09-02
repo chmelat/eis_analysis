@@ -26,8 +26,7 @@ from ...fitting import (
     DiffEvoResult,
 )
 from ...fitting.diagnostics import compute_fit_metrics
-from ...fitting.residual_diagnostics import (
-    ResidualDiagnostics, SeriesDiagnostics, analyze_residuals)
+from ...fitting.residual_diagnostics import ResidualDiagnostics, analyze_residuals
 from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
 from .model_comparison import score_candidates, log_comparison
 
@@ -134,13 +133,10 @@ def _log_multistart_diagnostics(multistart_result: MultistartResult) -> None:
         logger.warning(f"  {warning}")
 
 
-def _fmt_pair(real: SeriesDiagnostics, imag: SeriesDiagnostics,
-              attr: str, fmt: str) -> str:
+def _fmt_pair(real: float, imag: float, fmt: str) -> str:
     """Format one statistic for both parts as 'Re / Im'."""
-    return " / ".join(
-        "n/a" if not np.isfinite(v) else format(v, fmt)
-        for v in (getattr(real, attr), getattr(imag, attr))
-    )
+    return " / ".join("n/a" if not np.isfinite(v) else format(v, fmt)
+                      for v in (real, imag))
 
 
 def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
@@ -150,8 +146,10 @@ def _log_residual_diagnostics(d: ResidualDiagnostics) -> None:
             logger.warning(f"  {warning}")
         return
 
-    logger.info(f"  Residuals: rho1 = {_fmt_pair(d.real, d.imag, 'lag1_autocorr', '+.2f')}"
-                f" (Re/Im), runs p = {_fmt_pair(d.real, d.imag, 'runs_p', '.1e')}")
+    logger.info(
+        f"  Residuals: rho1 = "
+        f"{_fmt_pair(d.real.lag1_autocorr, d.imag.lag1_autocorr, '+.2f')} (Re/Im), "
+        f"runs p = {_fmt_pair(d.real.runs_p, d.imag.runs_p, '.1e')}")
 
     if not d.is_systematic:
         return
