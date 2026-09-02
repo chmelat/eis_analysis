@@ -325,6 +325,25 @@ as designed.
   the real noise is very different, these criteria degrade along with every
   other statistic built on the same assumption.
 
+  The independence half of that assumption is now measured rather than
+  assumed. Every fit prints a `Residuals:` line with the lag-1 autocorrelation
+  and a runs-test p-value, and warns when the residuals are not random. When
+  it warns, `n` overstates how much independent information the spectrum
+  carries, and the AIC/BIC arithmetic above is built on sand - a circuit
+  missing an element is being compared against another circuit missing an
+  element. Fix the model first; the ranking of a shortlist of inadequate
+  circuits is not worth reading.
+
+  The obvious repair - substituting an effective sample size
+  `n_eff = n(1-rho)/(1+rho)` for `n` - is deliberately *not* applied, though
+  `n_eff` is reported. It is computed from the residuals, so it differs per
+  candidate and their BICs would no longer sit on a common scale; it does
+  nothing when the model is adequate (`rho ~ 0`), which is when model
+  selection actually happens; and where it does bite it degenerates. A
+  measured `rho1` of `0.987` gives `n_eff = 1.0`, hence `ln(n_eff) = 0` and no
+  complexity penalty at all. Correlated residuals in EIS are model error, not
+  AR(1) noise, and the formula treats them as noise.
+
 - **They only compare what you propose.** Nothing is invented. A shortlist of
   three bad circuits produces a confident winner that is still a bad circuit.
 

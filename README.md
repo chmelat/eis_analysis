@@ -304,6 +304,35 @@ eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 ```
 
+**Are the residuals noise?** The fit error says how *large* the residuals are,
+not what *shape* they have, and a model missing an element can still fit to a
+few percent while its residuals march smoothly across the spectrum. Every fit
+therefore ends with a residual line:
+
+```
+  Fit error: 4.35% (rel), 322.63 Ohm (abs)
+  Quality: Good (<10.0%)
+  Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
+!   Residuals are not random: ripple of 3.5 decades in a 7.1 decade window - too few elements
+```
+
+`rho1` is the lag-1 autocorrelation, ~0 for independent residuals and near 1
+when neighbouring points share a systematic offset. `runs p` is a runs test
+against the median: the p-value that this many sign changes could come from
+independent residuals. A quality of `Good` alongside that warning is not a
+contradiction - the fit is close, and still the wrong model.
+
+When it warns, the wording says which fix to try:
+
+- **ripple** - the circuit has the right kind of elements but too few of them.
+  Add another parallel branch. The period shrinks as elements are added.
+- **trend** - an element is missing or is of the wrong type. Try `Q` instead of
+  `C`, or add a Warburg.
+
+This is also the assumption AIC and BIC are built on, so a warning here means
+the comparison table is ranking circuits that are all inadequate. Fix the model
+before reading it.
+
 **Detailed documentation:** [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md), [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md), [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) (weighting, fit error, standard errors and confidence intervals)
 
 ### Voigt chain (automatic circuit)

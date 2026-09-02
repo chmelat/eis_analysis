@@ -4,6 +4,78 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.30.0 (2026-09-02)
+
+### Added
+
+- **Every fit now says whether its residuals are noise.** The fit error
+  reports how *large* the residuals are and nothing about their *shape*,
+  though the two questions have different answers: a model missing a
+  relaxation can fit `example/real_gamry_example.DTA` to 4.35 % - `Quality:
+  Good` - while its residuals march smoothly across the spectrum. Until now
+  the only way to notice was to look at the plot, which is what
+  `doc/WEIGHTING_AND_STATISTICS.md` told you to do.
+
+  ```
+    Fit error: 4.35% (rel), 322.63 Ohm (abs)
+    Quality: Good (<10.0%)
+    Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
+  !   Residuals are not random: ripple of 3.5 decades in a 7.1 decade window - too few elements
+  ```
+
+  Three statistics, computed separately for the real and imaginary parts:
+  the lag-1 autocorrelation, a Wald-Wolfowitz runs test against the median,
+  and the dominant period of a Lomb-Scargle periodogram over `log10(f)`.
+
+  The first two answer "is this systematic?". Only the third says what kind,
+  which is what makes the warning actionable. Measured on Lin-KK
+  reconstructions capped at M RC elements over a 7-decade window, `rho1`
+  stays near `+0.92` and the runs `z` near `-7` for every M from 3 to 10 -
+  they cannot tell M = 3 from M = 10. The period tracks M monotonically:
+
+  | M | rho1 | runs z | period | / window |
+  |---|---|---|---|---|
+  | 3 | +0.90 | -8.88 | 3.96 dec | 0.57 |
+  | 4 | +0.95 | -8.69 | 2.89 dec | 0.41 |
+  | 6 | +0.94 | -7.63 | 2.46 dec | 0.35 |
+  | 10 | +0.92 | -6.30 | 1.26 dec | 0.18 |
+
+  So a period well inside the window is a ripple - the circuit has the right
+  kind of elements and too few of them - while a period at the window width
+  is a bump or a drift, meaning an element is missing or is of the wrong
+  type. On the example above, adding the third branch the ripple asks for
+  drops the real-part runs p from `1.9e-13` to `1.8e-07` and changes the
+  verdict to a trend.
+
+  A periodogram rather than the sinusoid fit this started as: the residual
+  of a misspecified circuit is generally not a sinusoid, so a fit would
+  return a period equal to the window width together with a confidence
+  interval that looks tight. The amplitude it would also return is roughly
+  the RSS that `fit_error_rel` already reports.
+
+  Python API: `analyze_residuals(frequencies, Z, Z_fit, weighting)` in
+  `eis_analysis.fitting`, returning a `ResidualDiagnostics`.
+
+### Changed
+
+- **`doc/MODEL_SELECTION_AIC_BIC.md` and `doc/WEIGHTING_AND_STATISTICS.md`**
+  now point at those numbers instead of asking the reader to judge the
+  residual plot. The independence of residuals was already listed as an
+  unchecked assumption behind AIC/BIC; it is now measured, and a warning
+  means the comparison table is ranking circuits that are all inadequate.
+
+  The obvious repair - substituting an effective sample size
+  `n_eff = n(1-rho)/(1+rho)` for `n` - is deliberately **not** applied,
+  though `n_eff` is reported. It is computed from the residuals, so it
+  differs per candidate and their BICs would no longer share a scale; it
+  does nothing when the model is adequate (`rho ~ 0`), which is when model
+  selection happens; and where it bites it degenerates - a measured `rho1`
+  of `0.987` gives `n_eff = 1.0`, so `ln(n_eff) = 0` and there is no
+  complexity penalty left. Correlated residuals in EIS are model error, not
+  AR(1) noise.
+
+---
+
 ## Version 0.29.0 (2026-09-02)
 
 ### Added

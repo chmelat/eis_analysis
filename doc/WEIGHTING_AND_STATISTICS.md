@@ -456,7 +456,9 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 2. **Circuit fitting**
    - Use `--weighting modulus` (default)
    - Check fit error < 10%
-   - Check residuals (should not show systematic trends)
+   - Check the `Residuals:` line: `rho1` near 0 and runs `p` above 0.01 mean
+     the residuals are noise. A warning there means the model is missing
+     structure, whatever the fit error says - a 4% fit can still be wrong.
 
 3. **Parameters**
    - Check 95% CI - are they reasonable?
@@ -471,7 +473,8 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 | High fit error | Wrong circuit model | Try different circuit |
 | High parameter SE | Overparameterization | Simplify circuit |
 | High cond. number | Parameter correlation | Fix some parameters |
-| Systematic residuals | Missing circuit element | Add element (CPE, Warburg) |
+| Residual warning: ripple | Right elements, too few of them | Add another parallel branch |
+| Residual warning: trend | Element missing or of the wrong type | Try CPE instead of C, or add Warburg |
 
 ---
 

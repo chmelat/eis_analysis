@@ -39,6 +39,8 @@ from eis_analysis import (
     FitResult,               # Dataclass with fit results
     FitDiagnostics,          # Dataclass with fit diagnostics
     compute_information_criteria,  # AIC/BIC for model selection
+    analyze_residuals,       # Are the residuals noise, or missing structure?
+    ResidualDiagnostics,     # Dataclass with residual shape tests
     MultistartResult,        # Dataclass with multi-start results
     MultistartDiagnostics,   # Dataclass with multi-start diagnostics
     DiffEvoResult,           # Dataclass with DE results
@@ -421,6 +423,37 @@ result.cov             # Covariance matrix (ndarray or None)
 result.diagnostics     # FitDiagnostics dataclass
 result.all_warnings    # List of all warnings (convenience property)
 ```
+
+### Are the residuals noise? (`analyze_residuals`)
+
+The fit error says how large the residuals are, not what shape they have. A
+circuit missing an element can fit to a few percent while its residuals move
+smoothly across the spectrum, and only the shape distinguishes the two.
+
+```python
+from eis_analysis.fitting import analyze_residuals
+
+Z_fit = result.circuit.impedance(freq, list(result.params_opt))
+d = analyze_residuals(freq, Z, Z_fit, weighting='modulus')
+
+d.is_systematic            # True when either part fails the runs test
+d.real.lag1_autocorr       # ~0 for noise, ->1 for a systematic offset
+d.real.runs_p              # p-value of the runs test against the median
+d.real.period_decades      # dominant period, or None when it is a trend
+d.real.n_eff               # AR(1) effective sample size (see below)
+```
+
+`period_decades` is the one that says *what kind* of failure it is. A period
+well inside the measured window is a ripple - the right elements, too few of
+them. A period at the window width, reported as `None` with
+`period_over_window` near 1, is a bump or a drift: an element is missing or is
+of the wrong type.
+
+The real and imaginary parts are tested separately, and the frequencies are
+sorted internally - both statistics read consecutive points as neighbours.
+
+`n_eff = n(1-rho)/(1+rho)` is reported but is **not** substituted for `n` in
+`compute_information_criteria`; see doc/MODEL_SELECTION_AIC_BIC.md for why.
 
 ### Comparing candidate circuits (AIC/BIC)
 
