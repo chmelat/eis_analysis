@@ -48,7 +48,7 @@ python3 -m pytest tests/ -m ""           # Everything, benchmark included
 python3 -m pytest tests/test_drt.py -v   # Run specific test
 
 # Code quality
-ruff check eis_analysis/                 # Lint code
+ruff check eis_analysis/ tests/          # Lint code
 mypy eis_analysis/                       # Type check
 ```
 
@@ -135,8 +135,8 @@ before a release.
 ### Linting and Type Checking
 
 ```bash
-ruff check eis_analysis/                 # Static analysis
-ruff check eis_analysis/ --fix           # Auto-fix issues
+ruff check eis_analysis/ tests/          # Static analysis
+ruff check eis_analysis/ tests/ --fix    # Auto-fix issues
 mypy eis_analysis/                       # Type checking
 ```
 
