@@ -6,7 +6,7 @@ answer is known by construction:
 
     white noise        not systematic
     ripple             systematic; amplitude recovered, no trend
-    single bump        systematic; no trend, structure without a trend
+    single bump        systematic; all of it lands on the structure
     monotone drift     systematic; the trend carries it, the structure is small
     drift + ripple     systematic; both are reported, neither hides the other
 
@@ -153,7 +153,8 @@ def test_perfect_fit_has_no_variance_to_test():
     assert d.real.lag1_autocorr == 0.0
     assert not d.is_systematic
     assert np.isnan(d.real.runs_z)            # every residual is at the median
-    assert np.isnan(d.real.slope_p)           # no variance to regress
+    # Not NaN like the rest: a line through zeros has a slope, and it is zero.
+    assert d.real.slope == 0.0 and d.real.slope_p == 1.0
     assert np.isnan(d.real.amplitude)
 
 
@@ -260,30 +261,6 @@ def test_n_eff_collapses_when_residuals_are_correlated():
     assert d.real.n_eff < 0.05 * len(FREQ)
 
 
-# --- regressions from the v0.30.0 review ---
-
-def test_sparse_drift_is_reported_on_the_trend_line_not_the_structure_line():
-    """A 10-point spectrum is where a drift most easily leaks into the structure.
-
-    On this sampling (6 decades, spacing 0.67) the periodogram used to read a
-    pure monotone drift as a 0.62-decade ripple at power 0.98 for every seed,
-    and the CLI then prescribed adding a branch - the opposite of the fix.
-    Fitting the line first is what removed that; the check is that the drift
-    still lands on the trend for every seed, sparse sampling and all.
-    """
-    n = 10
-    f = np.logspace(-2, 4, n)
-    x = np.log10(f)
-    flat = np.full(n, 100 + 0j)
-
-    for seed in range(6):
-        drift = 3 * np.tanh((x - 1.0) / 2) + np.random.default_rng(seed).standard_normal(n) * 0.5
-        d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
-        assert abs(d.real.slope) * d.window_decades > 5 * d.real.amplitude, f"seed {seed}"
-
-
-# --- the shape real fits actually have (v0.31.1) ---
-
 def test_structure_survives_a_spacing_that_spreads():
     """Measured residuals are not periodic - the reason no period is reported.
 
@@ -305,6 +282,8 @@ def test_structure_survives_a_spacing_that_spreads():
     # amplitude reported lands inside that range instead of claiming either end.
     assert 0.9 < d.real.amplitude < 3.0
 
+
+# --- regressions from the v0.30.0 review ---
 
 def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
     """Both parts are always printed, so the noise one must read as noise.

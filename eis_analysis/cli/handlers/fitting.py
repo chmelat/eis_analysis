@@ -193,20 +193,15 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
         f"    trend:     {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "
         f"span {_fmt_pair(span_re, span_im, '.2g')} "
         f"(p = {_fmt_pair(d.real.slope_p, d.imag.slope_p, '.1e')})")
-    # No period on this line. It would only mean something if the structure
-    # repeated at a fixed spacing, and measured residuals do not - see
-    # `residual_structure`. What is left is how big the structure is and how
-    # concentrated, which is what the comparison with `span` needs anyway.
+    # No period on this line - see `residual_structure` for why.
     logger.warning(
-        f"    structure: amplitude "
-        f"{_fmt_pair(d.real.amplitude, d.imag.amplitude, '.2g')} "
+        f"    structure: amplitude {_fmt_pair(d.real.amplitude, d.imag.amplitude, '.2g')} "
         f"(power {_fmt_pair(d.real.power, d.imag.power, '.2f')}, "
         f"noise < {MIN_PERIODOGRAM_POWER})")
     logger.warning("    A trend means an element is missing or of the wrong type. "
-                   "Structure left")
-    logger.warning("    after it means the right elements, too few of them - the "
-                   "residual plot")
-    logger.warning("    shows where.")
+                   "Structure left after")
+    logger.warning("    it means the right elements, too few of them - the residual "
+                   "plot shows where.")
 
 
 def _log_fit_result(result: FitResult,

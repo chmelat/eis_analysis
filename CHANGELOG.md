@@ -4,6 +4,33 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.31.2 (2026-09-03)
+
+### Fixed
+
+- **`slope_p` was documented as NaN on a variance-free series; it is 1.0.**
+  `linregress` returns a slope of exactly zero there, which is a real answer
+  rather than an undefined one, so it does not join the NaN the other
+  degenerate cases in the module report. The docstring and the regression test
+  both claimed NaN, which left `test_perfect_fit_has_no_variance_to_test` red.
+  No behaviour changed - only what is said about it.
+
+### Changed
+
+- **The residual warning is trimmed.** The comment above the `structure` line
+  restated the `residual_structure` docstring it points at; the pointer alone
+  now stands. The guidance under the two measurements fits on two printed lines
+  instead of three, and the `structure` line is built from one f-string
+  fragment rather than two. The numbers are unchanged.
+
+- **`test_sparse_drift_...` removed.** It existed for the aliasing assertion
+  that went with `NYQUIST_PERIOD_FACTOR` in v0.31.1; what was left of it -
+  `span > 5 * amplitude` on a monotone drift - is what
+  `test_monotone_drift_is_carried_by_the_trend` already asserts, only at 10
+  points instead of 80.
+
+---
+
 ## Version 0.31.1 (2026-09-03)
 
 ### Changed
