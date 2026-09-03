@@ -3,7 +3,6 @@
 (fitting/diffevo.py).
 
 Covers:
-- DE_STRATEGIES mapping and fallback
 - _DECostFunction: free/fixed parameter reconstruction, scalar cost,
   picklability (its stated purpose for workers > 1)
 - fit_circuit_diffevo: parameter recovery, return contract, reproducibility
@@ -15,6 +14,7 @@ DE is stochastic by default (seed=None). Integration tests pass an explicit
 """
 
 import pickle
+from functools import lru_cache
 
 import numpy as np
 import pytest
@@ -29,7 +29,6 @@ from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.diffevo import (
     fit_circuit_diffevo,
     _DECostFunction,
-    DE_STRATEGIES,
     DiffEvoResult,
 )
 from eis_analysis.fitting.diagnostics import compute_weights
@@ -62,20 +61,19 @@ def true_impedance():
     return make_circuit(TRUE).impedance(FREQ, TRUE)
 
 
-# =============================================================================
-# DE_STRATEGIES
-# =============================================================================
+@lru_cache(maxsize=None)
+def standard_fit():
+    """The seed=42, maxiter=200 fit that most tests below inspect.
 
-def test_de_strategies_mapping():
-    assert DE_STRATEGIES == {
-        1: 'randtobest1bin',
-        2: 'best1bin',
-        3: 'rand1bin',
-    }
-
-
-def test_de_strategies_unknown_falls_back_to_default():
-    assert DE_STRATEGIES.get(99, 'randtobest1bin') == 'randtobest1bin'
+    They all ask a different question of the same run, and DE is
+    deterministic under a fixed seed, so the run is done once. Roughly 1 s
+    each otherwise, and there were eight of them.
+    """
+    result, Z_fit, fig = fit_circuit_diffevo(
+        make_circuit(), FREQ, true_impedance(), seed=42, maxiter=200
+    )
+    plt.close('all')
+    return result, Z_fit, fig
 
 
 # =============================================================================
@@ -138,18 +136,25 @@ def test_recovers_parameters_on_noise_free_data():
 
 
 def test_return_contract():
-    Z = true_impedance()
-    result, Z_fit, fig = fit_circuit_diffevo(
-        make_circuit(), FREQ, Z, seed=42, maxiter=200
-    )
-    try:
-        assert isinstance(result, DiffEvoResult)
-        assert isinstance(result.best_result, FitResult)
-        assert Z_fit.shape == FREQ.shape
-        assert np.all(np.isfinite(Z_fit))
-        assert isinstance(fig, plt.Figure)
-    finally:
-        plt.close('all')
+    """Types, shapes and the fields every caller reads are populated."""
+    result, Z_fit, fig = standard_fit()
+    assert isinstance(result, DiffEvoResult)
+    assert isinstance(result.best_result, FitResult)
+    assert Z_fit.shape == FREQ.shape
+    assert np.all(np.isfinite(Z_fit))
+    assert isinstance(fig, plt.Figure)
+
+    assert isinstance(result.improvement, float)
+    assert result.n_evaluations > 0
+    assert result.de_error >= 0.0
+    assert result.final_error >= 0.0
+
+    d = result.diagnostics
+    assert d.de_iterations > 0
+    assert d.de_evaluations > 0
+    assert d.total_evaluations > 0
+    assert isinstance(d.de_converged, bool)
+    assert len(d.initial_guess) == 3  # full parameter vector
 
 
 def test_seed_makes_runs_reproducible():
@@ -228,35 +233,12 @@ def test_fixed_param_indices_in_diagnostics():
 
 def test_refinement_never_worse_than_de():
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
+    result, _, _ = standard_fit()
     # The code keeps the better of DE / least_squares on the *optimized*
     # objective (weighted SSR). The reported relative error is a different
     # metric and need not follow it, so it cannot be asserted here.
     assert (weighted_ssr(result.best_result.params_opt, Z)
             <= result.diagnostics.de_cost * (1 + 1e-9))
-
-
-def test_diagnostics_populated():
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
-    d = result.diagnostics
-    assert d.de_iterations > 0
-    assert d.de_evaluations > 0
-    assert d.total_evaluations > 0
-    assert isinstance(d.de_converged, bool)
-    assert len(d.initial_guess) == 3  # full parameter vector
-
-
-def test_diffevoresult_fields():
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
-    assert isinstance(result.improvement, float)
-    assert result.n_evaluations > 0
-    assert result.de_error >= 0.0
-    assert result.final_error >= 0.0
 
 
 # =============================================================================
@@ -266,8 +248,7 @@ def test_diffevoresult_fields():
 def test_diagnostics_expose_objective_costs():
     """de_cost matches the weighted SSR recomputed at the DE solution."""
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
+    result, _, _ = standard_fit()
     d = result.diagnostics
     # No fixed params -> de_result.x (free) is the full parameter vector.
     de_cost_recomputed = weighted_ssr(result.de_result.x, Z)
@@ -278,8 +259,7 @@ def test_diagnostics_expose_objective_costs():
 def test_selection_picks_lower_objective():
     """The returned fit has the smaller weighted SSR of {DE, refined}."""
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
+    result, _, _ = standard_fit()
     d = result.diagnostics
     best_cost = weighted_ssr(result.best_result.params_opt, Z)
     assert best_cost == pytest.approx(min(d.de_cost, d.refined_cost),
@@ -288,9 +268,7 @@ def test_selection_picks_lower_objective():
 
 def test_improvement_is_objective_based():
     """improvement is the relative reduction of the optimized objective (SSR)."""
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
+    result, _, _ = standard_fit()
     d = result.diagnostics
     expected = (d.de_cost - d.refined_cost) / d.de_cost * 100
     assert result.improvement == pytest.approx(expected, rel=1e-9)
@@ -344,8 +322,7 @@ def test_covariance_computed_at_returned_point():
     """Reported covariance matches s^2 (J^T J)^-1 with J and residuals both
     evaluated at the returned parameters."""
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=200)
-    plt.close('all')
+    result, _, _ = standard_fit()
     # No fixed params -> params_opt is the full == free vector.
     params_opt = np.asarray(result.best_result.params_opt)
     w = compute_weights(Z, 'modulus')
