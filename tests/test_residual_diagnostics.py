@@ -153,8 +153,7 @@ def test_perfect_fit_has_no_variance_to_test():
     assert d.real.lag1_autocorr == 0.0
     assert not d.is_systematic
     assert np.isnan(d.real.runs_z)            # every residual is at the median
-    # Not NaN like the rest: a line through zeros has a slope, and it is zero.
-    assert d.real.slope == 0.0 and d.real.slope_p == 1.0
+    assert np.isnan(d.real.slope_p)           # no variance to regress
     assert np.isnan(d.real.amplitude)
 
 

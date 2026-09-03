@@ -92,10 +92,7 @@ class SeriesDiagnostics:
         larger part of this residual. That is the question a single verdict
         used to answer by discarding one of them.
     slope_p : float
-        p-value of the slope. 1.0 when the residuals have no variance at all:
-        `linregress` returns a slope of exactly zero there, which is a real
-        answer rather than an undefined one, so this is not the NaN the other
-        degenerate cases in this module report. Optimistic
+        p-value of the slope. NaN when the series has no variance. Optimistic
         for correlated residuals - it assumes independent points, which is the
         very thing the runs test is there to check - so read it as a ranking
         of the two parts, not as an exact probability.
