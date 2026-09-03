@@ -405,6 +405,9 @@ eis data.DTA \
 
 ## Related documentation
 
+- [RESIDUAL_DIAGNOSTICS.md](RESIDUAL_DIAGNOSTICS.md) - the `Residuals:` line
+  this section refers to, and why it has to be quiet before a ranking means
+  anything
 - [DRT_INTUITION.md](DRT_INTUITION.md) - how many processes are there? Decide
   this before writing the shortlist
 - [GMM_BAYESIAN_INTUITION.md](GMM_BAYESIAN_INTUITION.md) - the same BIC idea

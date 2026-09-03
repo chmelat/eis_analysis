@@ -464,6 +464,9 @@ sorted internally - both statistics read consecutive points as neighbours.
 `n_eff = n(1-rho)/(1+rho)` is reported but is **not** substituted for `n` in
 `compute_information_criteria`; see doc/MODEL_SELECTION_AIC_BIC.md for why.
 
+What the numbers mean and how to act on them:
+[RESIDUAL_DIAGNOSTICS.md](RESIDUAL_DIAGNOSTICS.md).
+
 ### Comparing candidate circuits (AIC/BIC)
 
 A lower fit error does not mean a better model: adding an element almost

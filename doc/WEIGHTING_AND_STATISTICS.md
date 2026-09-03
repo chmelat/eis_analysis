@@ -462,9 +462,8 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
    - The warning reports both shapes, `trend` and `structure`, each with its
      own significance; compare the trend's `span` with the structure's
      `amplitude` to see which dominates, and fix whichever is real (often
-     both). No period accompanies the structure - measured residuals do not
-     repeat at a fixed spacing, so a period would be an amplitude-weighted
-     average of local ones.
+     both). Full reading:
+     [RESIDUAL_DIAGNOSTICS.md](RESIDUAL_DIAGNOSTICS.md).
 
 3. **Parameters**
    - Check 95% CI - are they reasonable?

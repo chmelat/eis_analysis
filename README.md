@@ -345,19 +345,12 @@ shape dominates - the example above is mostly a drift with structure riding on
 it. Neither line is a verdict: read the `p` and the `power` and act on
 whichever is real, or on both.
 
-No period is printed with the structure. A period only means something if the
-shape repeats at a fixed spacing, and measured residuals generally do not: on a
-reference oxide fit the extrema spread out towards high frequency (successive
-spacings of 1.6, 1.5 and 2.5 decades) while their amplitude decayed, and the
-single period fitted to that was an amplitude-weighted average of local
-spacings - which is why the real and imaginary parts of the same fit reported
-4.0 and 4.7 decades. The `amplitude` and `power` make no claim of repetition
-and survive it; `rho1` and `runs p`, which assume nothing about scale, remain
-the detectors of record.
-
 This is also the assumption AIC and BIC are built on, so a warning here means
 the comparison table is ranking circuits that are all inadequate. Fix the model
 before reading it.
+
+New to this line? [doc/RESIDUAL_DIAGNOSTICS.md](doc/RESIDUAL_DIAGNOSTICS.md)
+is the intuitive introduction: two worked repairs, and the limits.
 
 **Detailed documentation:** [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md), [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md), [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) (weighting, fit error, standard errors and confidence intervals)
 
@@ -714,6 +707,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 | [doc/CIRCUIT_PARSER.md](doc/CIRCUIT_PARSER.md) | Circuit parser syntax |
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md) | Choosing between circuits (AIC/BIC) |
+| [doc/RESIDUAL_DIAGNOSTICS.md](doc/RESIDUAL_DIAGNOSTICS.md) | Are the residuals noise? - intuitive introduction |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
 | [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md) | Z-HIT validation |
 | [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md) | DRT - intuitive introduction |
