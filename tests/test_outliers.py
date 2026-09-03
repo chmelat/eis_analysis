@@ -123,13 +123,9 @@ def test_lower_threshold_flags_more_points():
     freq = np.logspace(-2, 5, 30)
     r = np.full(30, 0.5)
     r[[5, 10, 15]] = [3.0, 6.0, 9.0]
-    def n_at(t):
-        return len(find_outliers(freq, fake_result(r), None,
-                                 max_residual=t).points)
-
-    assert n_at(8.0) == 1
-    assert n_at(5.0) == 2
-    assert n_at(2.0) == 3
+    for threshold, expected in [(8.0, 1), (5.0, 2), (2.0, 3)]:
+        found = find_outliers(freq, fake_result(r), None, max_residual=threshold)
+        assert len(found.points) == expected, f'at max_residual={threshold}'
 
 
 def test_method_baseline_factor_suppresses_a_noisy_reconstruction():

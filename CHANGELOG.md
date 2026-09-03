@@ -17,29 +17,9 @@ Complete change history for all project versions.
 ### Changed
 
 - **The test suite runs in ~45 s instead of ~81 s, at 522 tests instead of
-  526.** No coverage was traded for it beyond the four tests named below.
-
-  - `tests/test_zscope_benchmark.py` is marked `slow` and excluded by default
-    (`[tool.pytest.ini_options]` in `pyproject.toml`). It is the release
-    benchmark - four reference circuits at three noise levels, ~14 s. Run
-    everything with `pytest -m ""`, or just the benchmark with `pytest -m slow`.
-  - Eight tests in `test_diffevo.py` each ran the same seeded DE fit and then
-    asked it a different question; they now share one `lru_cache`d run. Same
-    for two pairs in `test_de_log_search.py`. That pattern was already in
-    `test_zscope_benchmark.py`.
-  - `test_voigt_chain` in `test_cli_integration.py` refitted the 30-parameter
-    chain nonlinearly - 11 s - and asserted only that the result was not None.
-    The claim is made by `test_voigt_chain_cli_stderr_is_inf` through the CLI
-    handler, and the linear fit has its own file.
-  - `get_synthetic_data()` in `test_cli_integration.py` now seeds the global
-    RNG. `generate_synthetic_data` takes no seed, so the file fitted different
-    data on every run and `test_voigt_chain` alone varied between 0.5 s and
-    18 s.
-  - Removed: `test_de_strategies_mapping` (a dict literal asserted against
-    itself) and `test_de_strategies_unknown_falls_back_to_default` (asserted
-    that `dict.get` returns its default). `test_return_contract`,
-    `test_diagnostics_populated` and `test_diffevoresult_fields` made one claim
-    between them and are now one test.
+  526.** Duplicated optimizer runs were shared, four redundant tests removed,
+  and `tests/test_zscope_benchmark.py` marked `slow` - it is the release
+  regression benchmark, so run `pytest -m ""` before tagging.
 
 ---
 
