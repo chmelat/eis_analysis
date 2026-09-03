@@ -39,6 +39,16 @@ py-modules = ["eis"]
 [tool.setuptools.packages.find]
 include = ["eis_analysis*"]
 
+[tool.pytest.ini_options]
+# The ZScope regression benchmark fits four reference circuits at three noise
+# levels with DE - roughly 14 s, a sixth of the suite - to catch degradations
+# in the optimizer, the analytic Jacobian or an element's impedance. That is
+# worth running before a release, not on every edit, so it is marked `slow`
+# and excluded by default. Run it with `pytest -m ""` (everything) or
+# `pytest -m slow` (only the benchmark).
+addopts = '-m "not slow"'
+markers = ["slow: long-running regression benchmarks, excluded by default"]
+
 [tool.ruff.lint]
 # Pinned explicitly rather than relying on ruff's defaults. CI installs ruff
 # unpinned, so a release that widens the default rule set turns the lint job red

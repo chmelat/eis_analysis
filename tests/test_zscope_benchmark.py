@@ -38,6 +38,9 @@ import matplotlib.pyplot as plt
 from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.fitting.diffevo import fit_circuit_diffevo
 
+# Excluded from the default run; see [tool.pytest.ini_options] in pyproject.
+pytestmark = pytest.mark.slow
+
 # Same grid as the ZScope benchmark data
 FREQ = np.logspace(-2, 5, 80)
 

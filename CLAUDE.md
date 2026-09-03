@@ -43,7 +43,8 @@ python3 eis.py data.DTA --lambda 0.5     # Manual regularization
 python3 eis.py data.DTA --peak-method gmm  # GMM peak detection
 
 # Testing
-python3 -m pytest tests/                 # Run all tests
+python3 -m pytest tests/                 # Run tests (skips the slow benchmark)
+python3 -m pytest tests/ -m ""           # Everything, benchmark included
 python3 -m pytest tests/test_drt.py -v   # Run specific test
 
 # Code quality
@@ -101,11 +102,17 @@ Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-speci
 ### Running Tests
 
 ```bash
-python3 -m pytest tests/                 # All tests
+python3 -m pytest tests/                 # Default run (~45 s)
+python3 -m pytest tests/ -m ""           # Everything, benchmark included (~60 s)
+python3 -m pytest tests/ -m slow         # Only the ZScope benchmark
 python3 -m pytest tests/ -v              # Verbose output
 python3 -m pytest tests/test_K_element.py  # Specific file
 python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
 ```
+
+`tests/test_zscope_benchmark.py` is marked `slow` and excluded by default: it
+fits four reference circuits at three noise levels with DE (~14 s). Run it
+before a release.
 
 ### Writing Tests
 
