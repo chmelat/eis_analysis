@@ -123,7 +123,10 @@ def test_lower_threshold_flags_more_points():
     freq = np.logspace(-2, 5, 30)
     r = np.full(30, 0.5)
     r[[5, 10, 15]] = [3.0, 6.0, 9.0]
-    n_at = lambda t: len(find_outliers(freq, fake_result(r), None, max_residual=t).points)
+    def n_at(t):
+        return len(find_outliers(freq, fake_result(r), None,
+                                 max_residual=t).points)
+
     assert n_at(8.0) == 1
     assert n_at(5.0) == 2
     assert n_at(2.0) == 3
