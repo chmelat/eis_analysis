@@ -124,8 +124,15 @@ def create_test_args(**kwargs) -> argparse.Namespace:
 # =============================================================================
 
 def get_synthetic_data():
-    """Generate synthetic EIS data for testing."""
+    """Generate synthetic EIS data for testing.
+
+    `generate_synthetic_data` draws its noise from the global `np.random`
+    and takes no seed, so without this the whole file gets different data on
+    every run - and the fits that follow take a different number of
+    iterations each time.
+    """
     from eis_analysis.io import generate_synthetic_data
+    np.random.seed(0)
     return generate_synthetic_data(
         Rs=10,
         R0=1e5,
