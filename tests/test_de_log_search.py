@@ -11,6 +11,7 @@ refinement. DE now searches log10 of those parameters.
 """
 
 import pickle
+from functools import lru_cache
 
 import numpy as np
 import pytest
@@ -50,6 +51,20 @@ def make_circuit(values=(100.0, 100.0, 1e-4, 0.8)):
 
 def true_impedance():
     return make_circuit(TRUE).impedance(FREQ, TRUE)
+
+
+@lru_cache(maxsize=None)
+def _fit(maxiter):
+    """DE on the high-impedance sample, one run per maxiter.
+
+    Several tests below read different fields of the same deterministic run;
+    the cache keeps it at one DE per distinct maxiter.
+    """
+    result, _, _ = fit_circuit_diffevo(
+        make_circuit(), FREQ, true_impedance(), seed=42, maxiter=maxiter
+    )
+    plt.close('all')
+    return result
 
 
 # =============================================================================
@@ -99,10 +114,7 @@ def test_log_space_cost_is_picklable():
 
 def test_de_alone_finds_basin_on_high_impedance_data():
     """The DE stage itself must reach the data, not leave it to the refinement."""
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=300)
-    plt.close('all')
-    diag = result.diagnostics
+    diag = _fit(300).diagnostics
 
     assert diag.de_iterations > 1        # used to stop early on the plateau
     assert diag.de_error < 30.0          # used to be 97.7% with linear sampling
@@ -110,18 +122,13 @@ def test_de_alone_finds_basin_on_high_impedance_data():
 
 def test_log_searched_params_reported():
     """Diagnostics name which parameters were searched logarithmically."""
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
-
-    assert result.diagnostics.log_search_params == ['R0', 'R1', 'Q0']  # not n0
+    assert _fit(100).diagnostics.log_search_params == ['R0', 'R1', 'Q0']  # not n0
 
 
 def test_de_result_x_is_in_linear_space():
     """de_result.x must come back as physical parameters, not log10 of them."""
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
+    result = _fit(100)
 
     w = compute_weights(Z, 'modulus')
     cost = _DECostFunction(make_circuit(), FREQ, Z, w)
@@ -146,18 +153,14 @@ def test_fixed_param_excluded_from_log_search():
 
 def test_stalled_de_warns():
     """maxiter=1 leaves DE far from the data - the fit is then the local run."""
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=1)
-    plt.close('all')
+    result = _fit(1)
 
     assert any('Global search contributed nothing' in w
                for w in result.best_result.all_warnings)
 
 
 def test_healthy_de_does_not_warn():
-    Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=300)
-    plt.close('all')
+    result = _fit(300)
 
     assert not any('Global search contributed nothing' in w
                    for w in result.best_result.all_warnings)
