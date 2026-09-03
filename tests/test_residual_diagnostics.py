@@ -5,9 +5,9 @@ missing something - so the tests are built around five residual shapes whose
 answer is known by construction:
 
     white noise        not systematic
-    ripple             systematic; period and amplitude recovered, no trend
-    single bump        systematic; no trend, a wave as long as the window
-    monotone drift     systematic; the trend carries it, the wave is small
+    ripple             systematic; amplitude recovered, no trend
+    single bump        systematic; no trend, structure without a trend
+    monotone drift     systematic; the trend carries it, the structure is small
     drift + ripple     systematic; both are reported, neither hides the other
 
 Plus the degenerate inputs that would otherwise divide by zero, and one
@@ -21,7 +21,7 @@ from eis_analysis.fitting import C, R, fit_equivalent_circuit
 from eis_analysis.fitting.residual_diagnostics import (
     MIN_PERIODOGRAM_POWER,
     analyze_residuals,
-    dominant_period,
+    residual_structure,
     lag1_autocorrelation,
     runs_test,
 )
@@ -47,33 +47,33 @@ def test_white_noise_is_not_systematic():
     assert not d.is_systematic
     assert abs(d.real.lag1_autocorr) < 0.3
     assert d.real.runs_p > 0.05
-    assert d.real.power < MIN_PERIODOGRAM_POWER   # a peak, but not a wave
+    assert d.real.power < MIN_PERIODOGRAM_POWER   # a peak, but not structure
     assert d.real.slope_p > 0.05                  # and no trend either
 
 
-def test_ripple_is_systematic_and_its_period_is_recovered():
+def test_ripple_is_systematic_and_its_amplitude_is_recovered():
     ripple = 3 * np.sin(2 * np.pi * LOG_FREQ / 1.5) + _noise(3)
     d = analyze_residuals(*_with_residual(ripple), weighting='uniform')
 
     assert d.is_systematic
     assert d.real.lag1_autocorr > 0.8
     assert d.real.runs_p < 1e-6
-    assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
     assert d.real.amplitude == pytest.approx(3.0, rel=0.15)
     assert d.real.power > 0.5
-    assert abs(d.real.slope) * d.window_decades < 0.5 * d.real.amplitude  # the wave carries it
+    # the structure carries it, not the trend
+    assert abs(d.real.slope) * d.window_decades < 0.5 * d.real.amplitude
 
 
-def test_single_bump_is_systematic_and_reads_as_a_long_wave():
-    """A symmetric bump has no net slope; its shape is a wave the window barely holds."""
+def test_single_bump_is_systematic_and_reads_as_structure_not_trend():
+    """A symmetric bump has no net slope, so all of it must land on the structure line."""
     bump = 3 * np.exp(-((LOG_FREQ - 1.5) / 1.2) ** 2) + _noise(3)
     d = analyze_residuals(*_with_residual(bump), weighting='uniform')
 
     assert d.is_systematic
     assert d.real.runs_p < 1e-6
     assert d.real.slope_p > 0.05                        # no trend to report
-    assert d.real.period_decades > 0.5 * d.window_decades
     assert d.real.power > MIN_PERIODOGRAM_POWER
+    assert d.real.amplitude > abs(d.real.slope) * d.window_decades
 
 
 def test_monotone_drift_is_carried_by_the_trend():
@@ -100,9 +100,8 @@ def test_a_drift_and_a_ripple_are_both_reported():
 
     assert d.is_systematic
     assert d.real.slope_p < 1e-6                        # the trend is there
-    assert d.real.period_decades == pytest.approx(3.7, abs=0.4)
     assert d.real.amplitude == pytest.approx(1.0, rel=0.3)
-    assert d.real.power > MIN_PERIODOGRAM_POWER         # ...and so is the wave
+    assert d.real.power > MIN_PERIODOGRAM_POWER         # ...and so is the ripple
 
 
 # --- ordering: the statistics read neighbours, so the sort is load-bearing ---
@@ -117,7 +116,7 @@ def test_result_is_independent_of_input_ordering():
 
     assert shuffled.real.lag1_autocorr == pytest.approx(ordered.real.lag1_autocorr)
     assert shuffled.real.runs == ordered.real.runs
-    assert shuffled.real.period_decades == pytest.approx(ordered.real.period_decades)
+    assert shuffled.real.amplitude == pytest.approx(ordered.real.amplitude)
 
 
 def test_descending_frequency_matches_ascending():
@@ -155,7 +154,7 @@ def test_perfect_fit_has_no_variance_to_test():
     assert not d.is_systematic
     assert np.isnan(d.real.runs_z)            # every residual is at the median
     assert np.isnan(d.real.slope_p)           # no variance to regress
-    assert np.isnan(d.real.period_decades)
+    assert np.isnan(d.real.amplitude)
 
 
 def test_runs_test_undefined_when_every_crossing_is_on_one_side():
@@ -173,10 +172,10 @@ def test_lag1_of_constant_series_is_zero():
     assert lag1_autocorrelation(np.full(10, 5.0)) == 0.0
 
 
-def test_dominant_period_needs_a_window():
+def test_residual_structure_needs_a_window():
     """A window narrower than the shortest period asked about yields nothing."""
-    period, power, amplitude = dominant_period(np.linspace(0.0, 0.2, 10), _noise(1)[:10])
-    assert np.isnan(period) and np.isnan(power) and np.isnan(amplitude)
+    power, amplitude = residual_structure(np.linspace(0.0, 0.2, 10), _noise(1)[:10])
+    assert np.isnan(power) and np.isnan(amplitude)
 
 
 def test_amplitude_cannot_exceed_the_residual_it_came_from():
@@ -263,32 +262,48 @@ def test_n_eff_collapses_when_residuals_are_correlated():
 
 # --- regressions from the v0.30.0 review ---
 
-def test_sparse_spectrum_does_not_alias_a_drift_into_a_ripple():
-    """A period below the Nyquist limit of the sampling can only be an alias.
+def test_sparse_drift_is_reported_on_the_trend_line_not_the_structure_line():
+    """A 10-point spectrum is where a drift most easily leaks into the structure.
 
-    Before the floor, a 10-point spectrum over 6 decades (spacing 0.67) read a
-    pure monotone drift as a 0.62-decade ripple at power 0.98 for every seed -
-    and the CLI then prescribed adding a branch, the opposite of the fix.
+    On this sampling (6 decades, spacing 0.67) the periodogram used to read a
+    pure monotone drift as a 0.62-decade ripple at power 0.98 for every seed,
+    and the CLI then prescribed adding a branch - the opposite of the fix.
+    Fitting the line first is what removed that; the check is that the drift
+    still lands on the trend for every seed, sparse sampling and all.
     """
     n = 10
     f = np.logspace(-2, 4, n)
     x = np.log10(f)
     flat = np.full(n, 100 + 0j)
 
-    floor = 2.0 * np.median(np.diff(x))
     for seed in range(6):
         drift = 3 * np.tanh((x - 1.0) / 2) + np.random.default_rng(seed).standard_normal(n) * 0.5
         d = analyze_residuals(f, flat, flat - drift.astype(complex), weighting='uniform')
-        assert d.real.period_decades >= floor, f"aliased at seed {seed}"
-        # ...and the drift is reported where it belongs, on the trend line
         assert abs(d.real.slope) * d.window_decades > 5 * d.real.amplitude, f"seed {seed}"
 
 
-def test_nyquist_floor_still_admits_a_resolvable_ripple():
-    """The floor must not silence periods the sampling can actually resolve."""
-    ripple = 3 * np.sin(2 * np.pi * LOG_FREQ / 1.5) + _noise(3)
-    d = analyze_residuals(*_with_residual(ripple), weighting='uniform')
-    assert d.real.period_decades == pytest.approx(1.5, abs=0.15)
+# --- the shape real fits actually have (v0.31.1) ---
+
+def test_structure_survives_a_spacing_that_spreads():
+    """Measured residuals are not periodic - the reason no period is reported.
+
+    On a reference oxide fit the extrema spread out towards high frequency
+    (successive spacings of 1.6, 1.5 and 2.5 decades) while their amplitude
+    decayed. A chirp reproduces that: no single period describes it, so the
+    period the periodogram used to print was an amplitude-weighted average of
+    local spacings, and it differed between Re and Im on the same fit. Power
+    and amplitude make no such claim, and must still see the structure.
+    """
+    # Phase quadratic in log f -> spacing grows; amplitude decays with it.
+    phase = 2 * np.pi * (LOG_FREQ - LOG_FREQ[0]) ** 2 / 25
+    chirp = 3 * np.exp(-(LOG_FREQ - LOG_FREQ[0]) / 6) * np.sin(phase) + _noise(3, scale=0.2)
+    d = analyze_residuals(*_with_residual(chirp), weighting='uniform')
+
+    assert d.is_systematic                              # the runs test does not care
+    assert d.real.power > MIN_PERIODOGRAM_POWER         # nor does the power collapse
+    # The envelope runs from 3.0 down to 0.9 across the window, and the one
+    # amplitude reported lands inside that range instead of claiming either end.
+    assert 0.9 < d.real.amplitude < 3.0
 
 
 def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
@@ -312,7 +327,7 @@ def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
     with caplog.at_level('WARNING'):
         _log_residual_diagnostics(d)
     printed = caplog.text
-    assert 'trend:' in printed and 'wave:' in printed
+    assert 'trend:' in printed and 'structure:' in printed
 
 
 def test_cli_wrapper_survives_a_broken_diagnostic():

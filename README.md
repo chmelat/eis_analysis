@@ -314,10 +314,11 @@ few percent while its residuals march smoothly across the spectrum. Both
   Quality: Good (<10.0%)
   Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
 !   Residuals are not random (Re/Im, 7.1 decade window):
-!     trend: +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
-!     wave:  3.7 / 3.5 decades, amplitude 0.84 / 0.22 (power 0.90 / 0.48, noise < 0.2)
-!     A trend, or a wave as long as the window, means an element is missing or
-!     of the wrong type. A shorter wave means the right elements, too few of them.
+!     trend:     +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
+!     structure: amplitude 0.84 / 0.22 (power 0.90 / 0.48, noise < 0.2)
+!     A trend means an element is missing or of the wrong type. Structure left
+!     after it means the right elements, too few of them - the residual plot
+!     shows where.
 ```
 
 `rho1` is the lag-1 autocorrelation, ~0 for independent residuals and near 1
@@ -333,17 +334,26 @@ residuals commonly carry both at once and each asks for a different repair:
   units per decade, with `span` its total change across the window and `p` its
   significance. A real trend means an element is missing or is of the wrong
   type. Try `Q` instead of `C`, or add a Warburg.
-- **wave** - the period and amplitude of the strongest wave left once that line
-  is removed, with the periodogram `power` as its significance (white noise
-  stays below 0.2). A real wave means the circuit has the right kind of
-  elements but too few of them. Add another parallel branch; the period shrinks
-  as elements are added. The window width is the longest period measurable, so
-  a wave reported at it is a single hump - read it as a trend, not as a repeat.
+- **structure** - how much shape is left once that line is removed, as an
+  `amplitude` in the same weighted units, with the periodogram `power` as its
+  significance (white noise stays below 0.2). Real structure means the circuit
+  has the right kind of elements but too few of them. Add another parallel
+  branch; the residual plot shows which frequencies are unaccounted for.
 
 `span` and `amplitude` are in the same units, so comparing them says which
-shape dominates - the example above is mostly a drift with a wave riding on it.
-Neither line is a verdict: read the `p` and the `power` and act on whichever is
-real, or on both.
+shape dominates - the example above is mostly a drift with structure riding on
+it. Neither line is a verdict: read the `p` and the `power` and act on
+whichever is real, or on both.
+
+No period is printed with the structure. A period only means something if the
+shape repeats at a fixed spacing, and measured residuals generally do not: on a
+reference oxide fit the extrema spread out towards high frequency (successive
+spacings of 1.6, 1.5 and 2.5 decades) while their amplitude decayed, and the
+single period fitted to that was an amplitude-weighted average of local
+spacings - which is why the real and imaginary parts of the same fit reported
+4.0 and 4.7 decades. The `amplitude` and `power` make no claim of repetition
+and survive it; `rho1` and `runs p`, which assume nothing about scale, remain
+the detectors of record.
 
 This is also the assumption AIC and BIC are built on, so a warning here means
 the comparison table is ranking circuits that are all inadequate. Fix the model

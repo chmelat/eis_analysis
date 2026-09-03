@@ -4,6 +4,62 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.31.1 (2026-09-03)
+
+### Changed
+
+- **The residual warning no longer prints a period.** The `wave` line reported
+  the period of the strongest wave left after the trend was removed. That
+  number is only meaningful if the residual repeats at a fixed spacing, and
+  measured residuals generally do not. On a reference oxide fit the extrema
+  spread out towards high frequency - successive spacings of 1.6, 1.5 and 2.5
+  decades in the real part, and roughly geometric with ratio ~1.5 in the
+  imaginary part - while their amplitude decayed from +-6-9% on the first
+  oscillation to +2.5% on the third. A single period fitted to that is an
+  amplitude-weighted average of local spacings, which is also why the two parts
+  of the same fit reported 4.0 and 4.7 decades: the difference measured where
+  the amplitude sat, not the structure.
+
+  The line is now `structure`, carrying only the amplitude and the periodogram
+  power:
+
+  ```
+    Residuals: rho1 = +0.99 / +0.99 (Re/Im), runs p = 8.3e-17 / 5.4e-16
+  !   Residuals are not random (Re/Im, 7.0 decade window):
+  !     trend:     -2.2 / -2.3 per decade, span 15 / 16 (p = 7.6e-04 / 1.6e-03)
+  !     structure: amplitude 14 / 17 (power 0.73 / 0.89, noise < 0.2)
+  !     A trend means an element is missing or of the wrong type. Structure left
+  !     after it means the right elements, too few of them - the residual plot
+  !     shows where.
+  ```
+
+  Both numbers survive the loss of periodicity, because neither claims the
+  shape repeats: normalized power is the share of the variance the best single
+  sinusoid explains at *any* scale, and the amplitude follows from it. That
+  share does fall as the spacing spreads, so the structure line is the least
+  sensitive of the three statistics; `rho1` and the runs test assume nothing
+  about scale and remain the detectors of record.
+
+  The guidance loses the "a wave as long as the window is a single hump" case,
+  which needed the period to state. Without it the reading is the plain
+  comparison the two numbers already supported: trend against structure, in the
+  same units.
+
+  Python API: `SeriesDiagnostics.period_decades` is gone. `dominant_period` is
+  now `residual_structure` and returns `(power, amplitude)`.
+
+- **`NYQUIST_PERIOD_FACTOR` removed.** It raised the shortest period the
+  periodogram was asked about to twice the sample spacing, so that a period
+  below the sampling limit could not be *reported*. With no period reported it
+  changes nothing measurable: over 2000 white-noise trials at 10, 20 and 80
+  points the peak power distribution is identical with and without it (p95
+  0.82 / 0.54 / 0.15 either way), as are the sparse-drift and aliased-ripple
+  cases it was written for - aliasing folds a short period to a longer apparent
+  one, which both search grids already contain. `MIN_PERIOD_DECADES` alone now
+  sets the search floor and defines resolvability.
+
+---
+
 ## Version 0.31.0 (2026-09-02)
 
 ### Changed

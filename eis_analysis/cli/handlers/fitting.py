@@ -180,32 +180,33 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
         return
 
     # Both shapes, always, with their own significance - never a choice
-    # between them. Residuals commonly carry a trend and a wave at once, and
-    # naming only the stronger one prescribes half the repair: the trend says
-    # an element is missing or of the wrong type, the wave says the elements
-    # are right but too few. The reader compares the trend's span with the
-    # wave's amplitude (same units) to see which dominates, and the p-value
-    # and power to see whether each is there at all.
+    # between them. Residuals commonly carry a trend and leftover structure at
+    # once, and naming only the stronger one prescribes half the repair: the
+    # trend says an element is missing or of the wrong type, the structure
+    # says the elements are right but too few. The reader compares the trend's
+    # span with the structure's amplitude (same units) to see which dominates,
+    # and the p-value and power to see whether each is there at all.
     logger.warning(f"  Residuals are not random "
                    f"(Re/Im, {d.window_decades:.1f} decade window):")
     span_re, span_im = (abs(s.slope) * d.window_decades for s in (d.real, d.imag))
     logger.warning(
-        f"    trend: {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "
+        f"    trend:     {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "
         f"span {_fmt_pair(span_re, span_im, '.2g')} "
         f"(p = {_fmt_pair(d.real.slope_p, d.imag.slope_p, '.1e')})")
+    # No period on this line. It would only mean something if the structure
+    # repeated at a fixed spacing, and measured residuals do not - see
+    # `residual_structure`. What is left is how big the structure is and how
+    # concentrated, which is what the comparison with `span` needs anyway.
     logger.warning(
-        f"    wave:  {_fmt_pair(d.real.period_decades, d.imag.period_decades, '.1f')} decades, "
-        f"amplitude {_fmt_pair(d.real.amplitude, d.imag.amplitude, '.2g')} "
+        f"    structure: amplitude "
+        f"{_fmt_pair(d.real.amplitude, d.imag.amplitude, '.2g')} "
         f"(power {_fmt_pair(d.real.power, d.imag.power, '.2f')}, "
         f"noise < {MIN_PERIODOGRAM_POWER})")
-    # The window width is the longest period the periodogram can return, so a
-    # wave reported at it is one hump rather than a repeat - the same reading
-    # as a trend. Said in the guidance line instead of as another threshold in
-    # the code: the reader has both numbers in front of them.
-    logger.warning("    A trend, or a wave as long as the window, means an element is "
-                   "missing or")
-    logger.warning("    of the wrong type. A shorter wave means the right elements, too "
-                   "few of them.")
+    logger.warning("    A trend means an element is missing or of the wrong type. "
+                   "Structure left")
+    logger.warning("    after it means the right elements, too few of them - the "
+                   "residual plot")
+    logger.warning("    shows where.")
 
 
 def _log_fit_result(result: FitResult,

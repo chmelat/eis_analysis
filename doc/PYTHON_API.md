@@ -439,15 +439,24 @@ d = analyze_residuals(freq, Z, Z_fit, weighting='modulus')
 d.is_systematic            # True when either part fails the runs test
 d.real.lag1_autocorr       # ~0 for noise, ->1 for a systematic offset
 d.real.runs_p              # p-value of the runs test against the median
-d.real.period_decades      # dominant period, or None when it is a trend
+d.real.slope, d.real.slope_p   # the trend, per decade, with its p-value
+d.real.amplitude, d.real.power # the structure left once the trend is removed
 d.real.n_eff               # AR(1) effective sample size (see below)
 ```
 
-`period_decades` is the one that says *what kind* of failure it is. A period
-well inside the measured window is a ripple - the right elements, too few of
-them. A period at the window width, reported as `None` with
-`period_over_window` near 1, is a bump or a drift: an element is missing or is
-of the wrong type.
+The last two pairs say *what kind* of failure it is, and they are read
+together. `abs(slope) * d.window_decades` is the trend's total swing across
+the window and is in the same units as `amplitude`, so the ratio says which
+shape dominates: a trend means an element is missing or is of the wrong type,
+structure surviving the trend means the right elements and too few of them.
+`power` is the normalized Lomb-Scargle peak, and white noise stays below
+`MIN_PERIODOGRAM_POWER` (0.2).
+
+No period is reported. `residual_structure` explains why: a period only means
+something if the residual repeats at a fixed spacing, and measured residuals
+generally do not - their extrema spread out towards high frequency while the
+amplitude decays, so a fitted period is an amplitude-weighted average of local
+spacings and differs between the real and imaginary parts of the same fit.
 
 The real and imaginary parts are tested separately, and the frequencies are
 sorted internally - both statistics read consecutive points as neighbours.
