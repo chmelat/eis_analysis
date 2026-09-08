@@ -4,10 +4,17 @@ Complete change history for all project versions.
 
 ---
 
-## Unreleased (towards 0.32.0)
+## Version 0.32.0 (2026-09-08)
 
-CLI output unification, stage by stage. The plan, the target convention and
-the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
+CLI output unification, in five stages. Five library modules used to write
+the CLI's output themselves; they now compute, return a result, and let the
+CLI print it. 124 `logger.info` calls left the library, and `tests/` lost
+113 of its 146 `caplog` references - the ones that were asserting on
+formatted strings rather than on behaviour.
+
+The plan, the target convention and the criterion for splitting warnings
+between result data and the log are in `doc/CLI_OUTPUT_UNIFICATION.md`. The
+rule for new modules is in `CLAUDE.md`.
 
 ### Changed - BREAKING
 
