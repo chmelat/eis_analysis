@@ -420,15 +420,15 @@ def _log_mu_optimization(mu_opt: MuOptimization,
         logger.info(f"  Negative R_i: {mu_opt.n_negative}/{mu_opt.n_R} "
                     f"({mu_opt.n_negative / mu_opt.n_R * 100:.1f}%)")
 
-    log_separator(60)
+    log_separator()
     logger.info(f"  Optimal M: {mu_opt.M}, mu: {mu_opt.mu:.4f}")
 
 
 def _log_voigt_chain(diag: VoigtChainDiagnostics) -> None:
     """Report the four steps behind the Voigt chain initial guess."""
-    log_separator(60)
+    log_separator()
     logger.info("Voigt chain initial guess estimation (Lin-KK compatible)")
-    log_separator(60)
+    log_separator()
 
     # Step 1 and 2: how the tau grid was chosen, and the regression on it
     if diag.mu_optimization is not None:
@@ -498,7 +498,7 @@ def _log_voigt_chain(diag: VoigtChainDiagnostics) -> None:
     if diag.include_L and diag.L_value is not None:
         logger.info(f"  Inductance: L = {diag.L_value:.3e} H")
     logger.info(f"  Total parameters: {diag.n_params}")
-    log_separator(60)
+    log_separator()
 
 
 def _fit_voigt_chain(
@@ -651,9 +651,9 @@ def _fit_standard_circuit(
         ) from e
 
     # Log circuit expression
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Equivalent circuit")
-    logger.info("=" * 60)
+    log_separator()
     logger.info(f"Circuit: {circuit_expr}")
 
     try:

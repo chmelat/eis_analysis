@@ -4,6 +4,19 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Every section rule the CLI prints is 60 characters wide.** It was 50
+  where `log_separator()` was called and 60 where the width was written
+  inline, with no rule behind which - so an oxide or DRT section came out
+  narrower than the banner enclosing it and read as a nested block. The
+  width is `SEPARATOR_WIDTH` in `cli/logging.py`, and the remaining inline
+  copies are gone. Ten separators widened; nothing else changed.
+
+---
+
 ## Version 0.32.0 (2026-09-08)
 
 CLI output unification, in five stages. Five library modules used to write

@@ -14,6 +14,13 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+# Width of every section rule the CLI prints. 60 because that is the width of
+# the outermost frame - the startup banner and "Analysis complete" in eis.py -
+# and a narrower section rule inside it reads as a nested block rather than a
+# sibling. Use log_separator(); the constant is for the few places that build
+# a report as a string instead of logging it line by line.
+SEPARATOR_WIDTH = 60
+
 
 # =============================================================================
 # Custom Formatters
@@ -103,14 +110,14 @@ def setup_logging(args: argparse.Namespace) -> None:
         root_logger.addHandler(debug_handler)
 
 
-def log_separator(length: int = 50, char: str = "=") -> None:
+def log_separator(length: int = SEPARATOR_WIDTH, char: str = "=") -> None:
     """
     Log a separator line for visual clarity.
 
     Parameters
     ----------
     length : int
-        Length of separator line (default: 50)
+        Length of separator line (default: SEPARATOR_WIDTH)
     char : str
         Character to use for separator (default: "=")
     """

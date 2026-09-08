@@ -71,9 +71,9 @@ def _run_analysis(args) -> None:
     """
     peak_method = args.peak_method
 
-    log_separator(60)
+    log_separator()
     logger.info(f"EIS Analysis ({get_version_string()})")
-    log_separator(60)
+    log_separator()
 
     # Load the full measured spectrum
     data = load_eis_data(args)
@@ -123,9 +123,9 @@ def _run_analysis(args) -> None:
     if not args.no_show:
         plt.show()
 
-    log_separator(60)
+    log_separator()
     logger.info("Analysis complete")
-    log_separator(60)
+    log_separator()
 
 
 def main():

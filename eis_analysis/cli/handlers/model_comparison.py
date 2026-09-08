@@ -15,6 +15,7 @@ from typing import List, NamedTuple, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from ..logging import log_separator
 from ...fitting import FitResult
 from ...fitting.diagnostics import compute_information_criteria
 
@@ -109,10 +110,10 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
 
     width = min(max(max(len(s.expression) for s in scores), 24), 44)
 
-    logger.info("=" * 60)
+    log_separator()
     logger.info(f"Circuit comparison (n = {n_residuals} residuals, "
                 f"weighting = {weighting})")
-    logger.info("=" * 60)
+    log_separator()
     # 'rank' orders by BIC, '-c' is the position on the command line - the
     # figures are saved under that number, not under the rank.
     logger.info(f"  {'rank':>4}  {'-c':>2}  {'Circuit':<{width}}  {'k':>2}  "
@@ -149,4 +150,4 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
     logger.info("")
     logger.info(f"Selected by BIC: {scores[0].expression}  "
                 f"(candidate {scores[0].index})")
-    logger.info("=" * 60)
+    log_separator()

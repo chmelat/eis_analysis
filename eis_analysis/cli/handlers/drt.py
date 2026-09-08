@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from numpy.typing import NDArray
 
-from ..logging import log_separator
+from ..logging import log_separator, SEPARATOR_WIDTH
 from ..utils import save_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
@@ -356,9 +356,9 @@ def run_voigt_analysis(
 
 def _print_suggestion_diagnostics(suggestion: VoigtSuggestion) -> None:
     """Print how the suggestion was arrived at, ahead of the report itself."""
-    log_separator(60)
+    log_separator()
     logger.info("Automatic circuit suggestion from DRT")
-    log_separator(60)
+    log_separator()
     logger.info(f"R_inf (from data) = {suggestion.R_inf:.2f} Ohm")
     logger.info(f"R_pol (from data) = {suggestion.R_pol:.2f} Ohm")
 
@@ -389,9 +389,9 @@ def _format_voigt_report(suggestion: VoigtSuggestion) -> str:
     Moved here from fitting/auto_suggest.py: it was always terminal output.
     """
     lines = []
-    lines.append("=" * 60)
+    lines.append("=" * SEPARATOR_WIDTH)
     lines.append("VOIGT ELEMENT ANALYSIS (R||C) FROM DRT")
-    lines.append("=" * 60)
+    lines.append("=" * SEPARATOR_WIDTH)
 
     # Detection method
     lines.append(f"Peak detection method: {suggestion.method.upper()}")
@@ -401,7 +401,7 @@ def _format_voigt_report(suggestion: VoigtSuggestion) -> str:
     if len(elements) == 0:
         lines.append("No Voigt elements found")
         lines.append(f"Quality: {suggestion.quality}")
-        lines.append("=" * 60)
+        lines.append("=" * SEPARATOR_WIDTH)
         return "\n".join(lines)
 
     lines.append(f"Found {len(elements)} Voigt elements:")
@@ -470,6 +470,6 @@ def _format_voigt_report(suggestion: VoigtSuggestion) -> str:
         example_parts.append("...")
     lines.append(f"     Example: {' - '.join(example_parts)}")
 
-    lines.append("=" * 60)
+    lines.append("=" * SEPARATOR_WIDTH)
 
     return "\n".join(lines)

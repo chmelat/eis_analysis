@@ -57,9 +57,11 @@ Původní počty logovacích volání míchaly tři různé věci. Rozpad podle 
    nevyprodukovala, zůstává `logger.warning`. Kritérium a hranice: R1.
 4. `logger.debug` je povolen kdekoliv.
 5. Funkce vrací dataclass, ne tuple ani dict.
-6. Oddělovač: jednotně `log_separator()` (50 znaků). Inline `"=" * 60`
-   zmizí spolu s `logger.info`, takže se to vyřeší samo — jen se hlídá,
-   aby nové řádky v handlerech psaly `log_separator()`.
+6. Oddělovač: jednotně `log_separator()`, šířka `SEPARATOR_WIDTH = 60`.
+   HOTOVO. Původně tu stálo 50 (default funkce), ale průzkum ukázal, že
+   60 je šířka vnějšího rámce — banner a "Analysis complete" v `eis.py` —
+   a užší předěl uvnitř něj se čte jako zanořený blok, ne jako sourozenec.
+   Deset oddělovačů se rozšířilo z 50 na 60, nic jiného se nezměnilo.
 
 ## 4. Pořadí
 

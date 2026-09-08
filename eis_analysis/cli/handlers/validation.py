@@ -12,6 +12,7 @@ from typing import Optional
 
 from numpy.typing import NDArray
 
+from ..logging import log_separator
 from ..utils import save_figure
 from ...validation import (
     kramers_kronig_validation,
@@ -56,9 +57,9 @@ def run_kk_validation(
     if args.no_kk:
         return None
 
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Kramers-Kronig validation")
-    logger.info("=" * 60)
+    log_separator()
 
     result = kramers_kronig_validation(
         frequencies, Z,
@@ -130,9 +131,9 @@ def run_zhit_validation(
     if args.no_zhit:
         return None
 
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Z-HIT validation")
-    logger.info("=" * 60)
+    log_separator()
 
     result = zhit_validation(
         frequencies, Z,
@@ -196,9 +197,9 @@ def report_outliers(
     # Own section header: the table draws on BOTH validations (see the
     # `flagged by` column), so printing it bare right after the Z-HIT block
     # made it read as part of Z-HIT.
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Per-point residual check")
-    logger.info("=" * 60)
+    log_separator()
 
     for method in report.skipped:
         logger.info(f"{method}: over half the points exceed {args.max_residual:.1f}% - "

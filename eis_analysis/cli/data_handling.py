@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 import numpy as np
 
+from .logging import log_separator
 from .utils import EISAnalysisError, LoadedData
 from ..io import (
     LoadResult,
@@ -58,9 +59,9 @@ def _log_synthetic_params() -> None:
     Y0_0, n0 = SYNTHETIC_DATA_PARAMS['Q0']
     Y0_1, n1 = SYNTHETIC_DATA_PARAMS['Q1']
 
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Generating synthetic data")
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Circuit: Rs - (R0||Q0) - (R1||Q1)")
     logger.info(f"Rs = {SYNTHETIC_DATA_PARAMS['Rs']} Ω")
     logger.info(f"R0 = {SYNTHETIC_DATA_PARAMS['R0']:.2e} Ω, Q0 = ({Y0_0:.2e} S·s^n, n={n0})")
@@ -76,9 +77,9 @@ def print_metadata(metadata: Dict[str, Any]) -> None:
     metadata : dict
         Metadata dictionary from parse_dta_metadata()
     """
-    logger.info("=" * 60)
+    log_separator()
     logger.info("DTA file metadata")
-    logger.info("=" * 60)
+    log_separator()
 
     # Sample identification
     if metadata.get('title'):
@@ -116,7 +117,7 @@ def print_metadata(metadata: Dict[str, Any]) -> None:
     if metadata.get('pstat'):
         logger.info(f"  Potentiostat: {metadata['pstat']}")
 
-    logger.info("=" * 60)
+    log_separator()
 
 
 def _print_load_summary(result: LoadResult) -> None:
@@ -241,9 +242,9 @@ def filter_by_frequency(
     # Own section header so the filter output is not visually attached to the
     # preceding Z-HIT validation block. The filter applies to all analysis
     # stages below (visualization, R_inf, DRT, circuit fit), not to validation.
-    logger.info("=" * 60)
+    log_separator()
     logger.info("Frequency filtering (analysis range)")
-    logger.info("=" * 60)
+    log_separator()
 
     frequencies = data.frequencies
     Z = data.Z
