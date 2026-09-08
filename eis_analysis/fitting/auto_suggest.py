@@ -8,7 +8,8 @@ Does NOT generate circuit strings - provides information for manual circuit buil
 
 import numpy as np
 import logging
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
@@ -31,13 +32,69 @@ from .config import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class VoigtElement:
+    """One relaxation process read off a DRT peak."""
+    id: int              # 1-based, ordered by tau
+    tau: float           # time constant [s]
+    freq: float          # characteristic frequency [Hz]
+    R: float             # resistance from the peak area [Ohm]
+    C: float             # tau / R [F]
+    warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class VoigtSuggestion:
+    """
+    Voigt elements read off a DRT spectrum, with the diagnostics behind them.
+
+    Carries the counts the report is built from (`n_peaks_raw` before the
+    edge and height filters, `n_peaks_valid` after) because the reader
+    cannot tell from the element list alone that peaks were dropped.
+
+    Attributes
+    ----------
+    elements : list of VoigtElement
+        The suggested elements, ordered by tau
+    quality : str
+        'good', 'acceptable', 'uncertain' or 'poor'
+    total_R : float
+        Sum of the element resistances [Ohm]
+    R_pol, R_inf : float
+        Polarization and high-frequency resistance from the data [Ohm]
+    ratio : float
+        total_R / R_pol; inf when R_pol is zero
+    method : str
+        'gmm' or 'scipy' - which peak detection produced the elements
+    n_peaks_raw, n_peaks_valid : int
+        Peaks detected, and peaks the suggestion is built from
+    warnings : list of str
+        Caveats about the analysis. `quality` is derived from how many
+        there are, which is why a dropped peak is not one of them - see
+        `excluded_peaks`.
+    excluded_peaks : list of str
+        Why individual peaks were dropped, one entry each
+    """
+    elements: List[VoigtElement]
+    quality: str
+    total_R: float
+    R_pol: float
+    R_inf: float
+    ratio: float
+    method: str
+    n_peaks_raw: int = 0
+    n_peaks_valid: int = 0
+    warnings: List[str] = field(default_factory=list)
+    excluded_peaks: List[str] = field(default_factory=list)
+
+
 def analyze_voigt_elements(
     tau: NDArray[np.float64],
     gamma: NDArray[np.float64],
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     peaks_gmm: Optional[List[Dict]] = None
-) -> Dict:
+) -> VoigtSuggestion:
     """
     Analyze Voigt elements (R||C) from DRT spectrum.
 
@@ -68,22 +125,9 @@ def analyze_voigt_elements(
 
     Returns
     -------
-    voigt_info : dict
-        Information about Voigt elements:
-        - 'elements': list of dict, each contains:
-            - 'id': int (1-based index)
-            - 'tau': float [s]
-            - 'freq': float [Hz]
-            - 'R': float [Ohm]
-            - 'C': float [F]
-            - 'warnings': list of str
-        - 'quality': str ('good', 'acceptable', 'uncertain', 'poor')
-        - 'total_R': float (sum R_i) [Ohm]
-        - 'R_pol': float (from data) [Ohm]
-        - 'R_inf': float (from data) [Ohm]
-        - 'ratio': float (total_R / R_pol)
-        - 'warnings': list of str (global warnings)
-        - 'method': str ('gmm' or 'scipy')
+    VoigtSuggestion
+        The elements, the counts behind them and any caveat. Nothing is
+        logged; the CLI composes its section from this.
 
     Notes
     -----
@@ -95,41 +139,25 @@ def analyze_voigt_elements(
     Examples
     --------
     >>> tau, gamma, fig, peaks, _ = calculate_drt(freq, Z)
-    >>> voigt_info = analyze_voigt_elements(tau, gamma, freq, Z, peaks)
-    >>> print(f"Found {len(voigt_info['elements'])} Voigt elements")
-    >>> print(f"Analysis quality: {voigt_info['quality']}")
+    >>> suggestion = analyze_voigt_elements(tau, gamma, freq, Z, peaks)
+    >>> print(f"Found {len(suggestion.elements)} Voigt elements")
+    >>> print(f"Analysis quality: {suggestion.quality}")
 
     See Also
     --------
     config.MAX_VOIGT_ELEMENTS : Maximum number of parallel RC elements
     config.DRT_PEAK_HEIGHT_THRESHOLD : Minimum peak height (10% of maximum)
-    format_voigt_report : Format output for terminal
     """
-    logger.info("="*60)
-    logger.info("Automatic circuit suggestion from DRT")
-    logger.info("="*60)
-
-    diagnostics: Dict[str, Any] = {
-        'n_peaks_raw': 0,
-        'n_peaks_valid': 0,
-        'peaks_info': [],
-        'warnings': [],
-        'quality': 'unknown',
-        'method': 'gmm' if peaks_gmm is not None else 'scipy'
-    }
+    warnings: List[str] = []
+    excluded_peaks: List[str] = []
+    method = 'gmm' if peaks_gmm is not None else 'scipy'
 
     # Basic characteristics from data (DRY: uses utils.impedance)
     n_avg = min(5, max(1, len(frequencies) // 10))
     R_pol_data, R_inf, R_dc = calculate_rpol(frequencies, Z, n_avg)
 
-    logger.info(f"R_inf (from data) = {R_inf:.2f} Ohm")
-    logger.info(f"R_pol (from data) = {R_pol_data:.2f} Ohm")
-
     # Find peaks - either from GMM or scipy
     if peaks_gmm is not None and len(peaks_gmm) > 0:
-        # Use GMM peaks
-        logger.info(f"Using GMM peak detection ({len(peaks_gmm)} peaks)")
-
         # Convert GMM peaks to format compatible with rest of function
         # Find nearest index in tau for each GMM peak
         peak_indices = []
@@ -141,7 +169,6 @@ def analyze_voigt_elements(
         properties = {}  # GMM doesn't need properties from find_peaks
     else:
         # Use scipy.find_peaks (original method)
-        logger.info("Using scipy.find_peaks peak detection")
         min_distance = max(3, len(tau) // 20)  # At least 5% of spectrum width
         peaks, properties = find_peaks(
             gamma,
@@ -150,13 +177,10 @@ def analyze_voigt_elements(
             prominence=np.max(gamma) * DRT_PEAK_PROMINENCE_THRESHOLD
         )
 
-    diagnostics['n_peaks_raw'] = len(peaks)
-    logger.info(f"Found {len(peaks)} peaks in DRT spectrum")
+    n_peaks_raw = len(peaks)
 
     if len(peaks) == 0:
-        diagnostics['warnings'].append("No peaks found")
-        diagnostics['quality'] = 'poor'
-        logger.warning("DRT contains no distinct peaks")
+        warnings.append("DRT contains no distinct peaks")
 
         # Fallback: single Voigt element estimated from -Z'' maximum
         idx_max_zimag = np.argmax(-Z.imag)
@@ -164,25 +188,20 @@ def analyze_voigt_elements(
         tau_char = 1 / (2 * np.pi * f_char)
         C_est = tau_char / R_pol_data if R_pol_data > 0 else 1e-6
 
-        return {
-            'elements': [
-                {
-                    'id': 1,
-                    'tau': tau_char,
-                    'freq': f_char,
-                    'R': R_pol_data,
-                    'C': C_est,
-                    'warnings': ['estimated from -Z\'\' maximum (no DRT peaks)']
-                }
-            ],
-            'quality': 'poor',
-            'total_R': R_pol_data,
-            'R_pol': R_pol_data,
-            'R_inf': R_inf,
-            'ratio': 1.0,
-            'warnings': diagnostics['warnings'],
-            'method': diagnostics['method']
-        }
+        return VoigtSuggestion(
+            elements=[VoigtElement(
+                id=1, tau=tau_char, freq=f_char, R=R_pol_data, C=C_est,
+                warnings=["estimated from -Z'' maximum (no DRT peaks)"])],
+            quality='poor',
+            total_R=R_pol_data,
+            R_pol=R_pol_data,
+            R_inf=R_inf,
+            ratio=1.0,
+            method=method,
+            n_peaks_raw=n_peaks_raw,
+            n_peaks_valid=0,
+            warnings=warnings,
+            excluded_peaks=excluded_peaks)
 
     # Filter peaks at edges (may be artifacts or truncated)
     edge_margin = max(2, len(tau) // 20)  # 5% from edge
@@ -210,8 +229,6 @@ def analyze_voigt_elements(
             peak_info['warnings'].append(f'low height (<{GMM_PEAK_HEIGHT_FACTOR*100:.0f}% of max)')
             # Don't mark as invalid, just warn
 
-        diagnostics['peaks_info'].append(peak_info)
-
         if peak_info['valid']:
             valid_peaks.append(peak)
         else:
@@ -219,32 +236,29 @@ def analyze_voigt_elements(
             # suggestion (otherwise the count silently shrinks, e.g. 2 -> 1).
             f_peak = 1 / (2 * np.pi * tau[peak])
             reason = '; '.join(peak_info['warnings'])
-            logger.warning(
-                f"  Peak at tau = {tau[peak]:.2e} s (f = {f_peak:.2e} Hz) "
+            excluded_peaks.append(
+                f"Peak at tau = {tau[peak]:.2e} s (f = {f_peak:.2e} Hz) "
                 f"excluded: {reason}"
             )
 
-    diagnostics['n_peaks_valid'] = len(valid_peaks)
-
     # If all peaks were at edges, use at least the highest one
     if len(valid_peaks) == 0 and len(peaks) > 0:
-        diagnostics['warnings'].append("All peaks at edges, using highest")
         highest_peak = peaks[np.argmax(gamma[peaks])]
         valid_peaks = [highest_peak]
-        logger.warning("All peaks are at tau range edges")
-        logger.warning(f"Using highest peak at tau = {tau[highest_peak]:.2e} s")
+        warnings.append(f"All peaks at tau range edges, using the highest "
+                        f"at tau = {tau[highest_peak]:.2e} s")
+
+    n_peaks_valid = len(valid_peaks)
 
     # Sort peaks by tau (smallest to largest)
     valid_peaks = sorted(valid_peaks, key=lambda p: tau[p])
 
-    logger.info(f"Valid peaks for circuit suggestion: {len(valid_peaks)}")
-
     # Limit number of Voigt elements (config.MAX_VOIGT_ELEMENTS)
     if len(valid_peaks) > MAX_VOIGT_ELEMENTS:
-        diagnostics['warnings'].append(
-            f"Too many peaks ({len(valid_peaks)}), limited to {MAX_VOIGT_ELEMENTS}"
+        warnings.append(
+            f"Too many peaks ({len(valid_peaks)}), limited to "
+            f"{MAX_VOIGT_ELEMENTS} most prominent"
         )
-        logger.warning(f"Found {len(valid_peaks)} peaks, limiting to {MAX_VOIGT_ELEMENTS} most prominent")
         # Select most prominent peaks
         peak_heights = [gamma[p] for p in valid_peaks]
         top_indices = np.argsort(peak_heights)[-MAX_VOIGT_ELEMENTS:]
@@ -252,7 +266,6 @@ def analyze_voigt_elements(
 
     # Calculate Voigt elements from peaks
     n_voigt = len(valid_peaks)
-    logger.info(f"Analyzing {n_voigt} Voigt elements")
 
     ln_tau = np.log(tau)
     total_R_from_peaks = 0
@@ -287,7 +300,7 @@ def analyze_voigt_elements(
         if R_i < 1:
             R_i = R_pol_data / n_voigt
             elem_warnings.append('heuristic R estimate (integration failed)')
-            diagnostics['warnings'].append(f"Peak {i+1}: used heuristic R estimate")
+            warnings.append(f"Peak {i+1}: used heuristic R estimate")
 
         total_R_from_peaks += R_i
 
@@ -302,172 +315,41 @@ def analyze_voigt_elements(
             C_i = 1e-1
             elem_warnings.append('C clamped to upper limit (1e-1 F)')
 
-        # Create element dict
-        element = {
-            'id': i + 1,
-            'tau': tau_i,
-            'freq': f_i,
-            'R': R_i,
-            'C': C_i,
-            'warnings': elem_warnings
-        }
-
-        elements.append(element)
-
-        logger.info(f"  Element {i+1}: tau = {tau_i:.2e} s, f = {f_i:.2e} Hz, R = {R_i:.1f} Ohm, C = {C_i:.2e} F")
+        elements.append(VoigtElement(
+            id=i + 1, tau=tau_i, freq=f_i, R=R_i, C=C_i,
+            warnings=elem_warnings))
 
     # Consistency check: sum of R_i should be close to R_pol
     if total_R_from_peaks > 0:
         ratio = R_pol_data / total_R_from_peaks
         if ratio < RPOL_RATIO_WARNING_THRESHOLD_LOW or ratio > RPOL_RATIO_WARNING_THRESHOLD_HIGH:
-            diagnostics['warnings'].append(
-                f"Inconsistency: sum(R_i) = {total_R_from_peaks:.1f} Ohm vs R_pol = {R_pol_data:.1f} Ohm"
-            )
-            logger.warning(
-                f"Sum of resistances from peaks ({total_R_from_peaks:.1f} Ohm) "
-                f"differs from R_pol ({R_pol_data:.1f} Ohm)"
+            warnings.append(
+                f"Inconsistency: sum(R_i) = {total_R_from_peaks:.1f} Ohm "
+                f"vs R_pol = {R_pol_data:.1f} Ohm"
             )
 
     # Quality assessment
-    if len(diagnostics['warnings']) == 0:
+    if len(warnings) == 0:
         quality = 'good'
-    elif len(diagnostics['warnings']) <= 2:
+    elif len(warnings) <= 2:
         quality = 'acceptable'
     else:
         quality = 'uncertain'
 
-    logger.info(f"Analysis quality: {quality}")
-    if diagnostics['warnings']:
-        logger.info("Warnings:")
-        for w in diagnostics['warnings']:
-            logger.info(f"  - {w}")
-
-    # Build return dict
     ratio = total_R_from_peaks / R_pol_data if R_pol_data > 0 else float('inf')
 
-    return {
-        'elements': elements,
-        'quality': quality,
-        'total_R': total_R_from_peaks,
-        'R_pol': R_pol_data,
-        'R_inf': R_inf,
-        'ratio': ratio,
-        'warnings': diagnostics['warnings'],
-        'method': diagnostics['method']
-    }
+    return VoigtSuggestion(
+        elements=elements,
+        quality=quality,
+        total_R=total_R_from_peaks,
+        R_pol=R_pol_data,
+        R_inf=R_inf,
+        ratio=ratio,
+        method=method,
+        n_peaks_raw=n_peaks_raw,
+        n_peaks_valid=n_peaks_valid,
+        warnings=warnings,
+        excluded_peaks=excluded_peaks)
 
 
-def format_voigt_report(voigt_info: dict) -> str:
-    """
-    Format Voigt analysis into readable report.
-
-    Parameters
-    ----------
-    voigt_info : dict
-        Result from analyze_voigt_elements()
-
-    Returns
-    -------
-    report : str
-        Formatted report for terminal
-    """
-    lines = []
-    lines.append("=" * 60)
-    lines.append("VOIGT ELEMENT ANALYSIS (R||C) FROM DRT")
-    lines.append("=" * 60)
-
-    # Detection method
-    method = voigt_info['method'].upper()
-    lines.append(f"Peak detection method: {method}")
-    lines.append("")
-
-    # Elements
-    elements = voigt_info['elements']
-    if len(elements) == 0:
-        lines.append("No Voigt elements found")
-        lines.append(f"Quality: {voigt_info['quality']}")
-        lines.append("=" * 60)
-        return "\n".join(lines)
-
-    lines.append(f"Found {len(elements)} Voigt elements:")
-    lines.append("")
-
-    # Element table
-    lines.append("  ID | tau [s]    | f [Hz]     | R [Ohm]   | C [F]      | Warnings")
-    lines.append("  " + "-" * 72)
-
-    for elem in elements:
-        warnings_str = ", ".join(elem['warnings']) if elem['warnings'] else "-"
-        if len(warnings_str) > 20:
-            warnings_str = warnings_str[:17] + "..."
-
-        line = (f"  {elem['id']:2d} | "
-                f"{elem['tau']:10.2e} | "
-                f"{elem['freq']:10.2e} | "
-                f"{elem['R']:9.1f} | "
-                f"{elem['C']:10.2e} | "
-                f"{warnings_str}")
-        lines.append(line)
-
-    lines.append("")
-
-    # R_pol validation
-    lines.append("Consistency validation:")
-    lines.append(f"  Sum R_i (from peaks): {voigt_info['total_R']:9.1f} Ohm")
-    lines.append(f"  R_pol (from data):    {voigt_info['R_pol']:9.1f} Ohm")
-    ratio_val = voigt_info['ratio']
-    if ratio_val == float('inf'):
-        lines.append("  Ratio:                INF (R_pol = 0)")
-    else:
-        lines.append(f"  Ratio:                {ratio_val:9.2f}")
-
-    if ratio_val < 0.5 or ratio_val > 2.0:
-        lines.append("  WARNING: Large difference between sum(R_i) and R_pol!")
-
-    lines.append("")
-
-    # Quality
-    quality_map = {
-        'good': 'GOOD',
-        'acceptable': 'ACCEPTABLE',
-        'uncertain': 'UNCERTAIN',
-        'poor': 'POOR'
-    }
-    quality_en = quality_map.get(voigt_info['quality'], voigt_info['quality'])
-    lines.append(f"Analysis quality: {quality_en}")
-
-    # Global warnings
-    if voigt_info['warnings']:
-        lines.append("")
-        lines.append("Warnings:")
-        for warning in voigt_info['warnings']:
-            lines.append(f"  - {warning}")
-
-    lines.append("")
-
-    # Recommendations for manual circuit building
-    lines.append("Recommendations for manual circuit building:")
-    lines.append("  1. Start with R_inf (series resistance):")
-    lines.append("     R(R_inf)")
-
-    lines.append("  2. Add Voigt elements (R||C) for each peak:")
-    for i, _elem in enumerate(elements, 1):
-        lines.append(f"     Element {i}: (R(R{i}) | C(C{i}))")
-
-    lines.append("  3. Connect elements in series with '-' operator:")
-
-    # Example circuit (symbolic)
-    example_parts = ["R(R_inf)"]
-    for i in range(1, min(len(elements) + 1, 4)):  # Max 3 elements
-        example_parts.append(f"(R(R{i}) | C(C{i}))")
-    if len(elements) > 3:
-        example_parts.append("...")
-    example = " - ".join(example_parts)
-    lines.append(f"     Example: {example}")
-
-    lines.append("=" * 60)
-
-    return "\n".join(lines)
-
-
-__all__ = ['analyze_voigt_elements', 'format_voigt_report']
+__all__ = ['analyze_voigt_elements', 'VoigtSuggestion', 'VoigtElement']

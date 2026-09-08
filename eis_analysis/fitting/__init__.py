@@ -84,7 +84,7 @@ from .residual_diagnostics import (
     analyze_residuals, ResidualDiagnostics, SeriesDiagnostics)
 
 # Import Voigt element analysis from DRT
-from .auto_suggest import analyze_voigt_elements, format_voigt_report
+from .auto_suggest import analyze_voigt_elements, VoigtSuggestion, VoigtElement
 
 # Import Voigt chain linear fitting
 from .voigt_chain import (
@@ -140,7 +140,8 @@ __all__ = [
     'SeriesDiagnostics',
     'CovarianceResult',
     'analyze_voigt_elements',
-    'format_voigt_report',
+    'VoigtSuggestion',
+    'VoigtElement',
 
     # Voigt chain linear fitting
     'fit_voigt_chain_linear',

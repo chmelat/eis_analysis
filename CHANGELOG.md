@@ -33,6 +33,18 @@ the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
   handler knowing they were there. They are gone from that section; the
   Voigt chain still reports them under `--voigt-auto-M`, where they belong.
 
+- **`analyze_voigt_elements()` returns a `VoigtSuggestion` instead of a
+  dict**, and `format_voigt_report()` is gone from the public API - it was
+  terminal formatting, and now lives in `cli/handlers/drt.py` with the rest
+  of the section. Two defects surfaced on the way: the dict's
+  `n_peaks_valid` was counted before the fallback that puts a peak back, so
+  it disagreed with the count printed beside it (nothing read the field, so
+  nobody noticed); and three caveats were each worded twice, once for the
+  log and once for the report. Peaks dropped at the tau edges are reported
+  in `excluded_peaks` rather than `warnings`, because `quality` is derived
+  from how many warnings there are and counting them would have downgraded
+  the verdict on any spectrum with edge peaks.
+
 - Caveats about the data (small frequency range, duplicate frequencies,
   truncated sweep, guessed CSV columns) are entries in `LoadResult.warnings`
   rather than log records. Failures of the operation itself - an unreadable

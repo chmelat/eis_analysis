@@ -153,7 +153,34 @@ Verifikace: `python3 -m pytest tests/test_kramers_kronig.py tests/test_voigt_cha
 `python3 eis.py example/*.DTA --validate` nesmí vypsat žádný mu řádek mimo
 sekci fittingu.
 
-### Etapa 3 — `fitting/auto_suggest.py`
+### Etapa 3 — `fitting/auto_suggest.py` — HOTOVO
+
+Dvě věci, které se ukázaly až při porovnání výstupu, a nejsou kosmetika:
+
+- **`n_peaks_valid` v dictu neodpovídalo tomu, co se tisklo.** Pole se
+  plnilo *před* nouzovým návratem nejvyššího piku, tištěný řádek "Valid
+  peaks for circuit suggestion" se počítal *po* něm — takže dict říkal 0 a
+  výstup 1. Nikomu to nevadilo, protože pole nikdo nečetl. Sjednoceno na
+  hodnotu, kterou popisuje tištěný popisek: počet piků, ze kterých návrh
+  vznikl.
+- **Vyřazené piky mají vlastní pole `excluded_peaks`, ne `warnings`.**
+  `quality` se odvozuje z *počtu* varování, takže kdyby se vyřazené piky
+  slily do `warnings`, spektrum s dvěma okrajovými piky by spadlo z
+  `acceptable` na `uncertain`. To je změna vědeckého verdiktu, ne výstupu;
+  dělící čára drží původní chování a je zdokumentovaná na dataclass.
+
+Dále: `format_voigt_report()` je pryč z veřejného API, žije jako
+`_format_voigt_report()` v `cli/handlers/drt.py` vedle nového
+`_print_suggestion_diagnostics()`. Zanikl mrtvý `diagnostics['peaks_info']`
+— plnil se a nikdy nečetl.
+
+Změny výstupu, všechny zamýšlené: varování se tisknou pohromadě na konci
+diagnostického bloku místo průběžně; trojice duplicitních formulací téhož
+(dict + logger) splynula do jednoho záznamu; a blok "Analysis quality +
+Warnings" se netiskne dvakrát, protože jeho druhá kopie byla v reportu
+hned pod ním.
+
+Původní zadání:
 
 Jediný modul, který dělá B i C zároveň.
 

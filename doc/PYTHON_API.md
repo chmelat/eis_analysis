@@ -47,7 +47,7 @@ from eis_analysis import (
     DiffEvoDiagnostics,      # Dataclass with DE diagnostics
     # Voigt analysis
     analyze_voigt_elements,
-    format_voigt_report,
+    VoigtSuggestion,        # Dataclass with the Voigt suggestion
     # Oxide analysis
     analyze_oxide_layer,
     # Circuit elements for manual building
@@ -76,10 +76,11 @@ tau, gamma = drt_result.tau, drt_result.gamma
 peaks_gmm = drt_result.peaks
 
 # 4. Voigt element analysis
-voigt_info = analyze_voigt_elements(
+suggestion = analyze_voigt_elements(
     tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm
 )
-print(format_voigt_report(voigt_info))  # Box-style report
+for elem in suggestion.elements:
+    print(f"tau={elem.tau:.2e} s, R={elem.R:.1f} Ohm, C={elem.C:.2e} F")
 
 # 5. Manual circuit building based on Voigt analysis
 # For example for 2 elements:
@@ -685,9 +686,9 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 **Voigt element analysis from DRT:**
 
 ```python
-from eis_analysis.fitting import analyze_voigt_elements, format_voigt_report
+from eis_analysis.fitting import analyze_voigt_elements
 
-voigt_info = analyze_voigt_elements(
+suggestion = analyze_voigt_elements(
     tau,                  # From calculate_drt()
     gamma,                # From calculate_drt()
     frequencies,
@@ -695,29 +696,21 @@ voigt_info = analyze_voigt_elements(
     peaks_gmm=None        # GMM peaks from calculate_drt() (optional)
 )
 
-# voigt_info is a dict with keys:
-#   'elements': list of dict, each containing:
-#       - 'id': int (1-based index)
-#       - 'tau': float [s]
-#       - 'freq': float [Hz]
-#       - 'R': float [Ohm]
-#       - 'C': float [F]
-#       - 'warnings': list of str
-#   'quality': str ('good', 'acceptable', 'uncertain', 'poor')
-#   'total_R': float (sum R_i) [Ohm]
-#   'R_pol': float (from data) [Ohm]
-#   'R_inf': float (from data) [Ohm]
-#   'ratio': float (total_R / R_pol)
-#   'warnings': list of str (global warnings)
-#   'method': str ('gmm' or 'scipy')
+# suggestion is a VoigtSuggestion:
+#   .elements       list of VoigtElement (.id, .tau, .freq, .R, .C, .warnings)
+#   .quality        'good', 'acceptable', 'uncertain' or 'poor'
+#   .total_R        sum of the element resistances [Ohm]
+#   .R_pol, .R_inf  from the data [Ohm]
+#   .ratio          total_R / R_pol
+#   .method         'gmm' or 'scipy'
+#   .n_peaks_raw    peaks detected
+#   .n_peaks_valid  peaks the suggestion is built from
+#   .warnings       caveats about the analysis (quality follows their count)
+#   .excluded_peaks why individual peaks were dropped
 
-# Formatted report (as in CLI)
-report = format_voigt_report(voigt_info)
-print(report)
-# Displays box-style table with tau, f, R, C for each element
-
-# Or process programmatically
-for elem in voigt_info['elements']:
+# The CLI's report block is cli/handlers/drt.py; a library caller reads
+# the fields directly
+for elem in suggestion.elements:
     print(f"Element {elem['id']}: tau={elem['tau']:.2e} s, R={elem['R']:.1f} Ohm, C={elem['C']:.2e} F")
 ```
 
@@ -836,7 +829,6 @@ from eis_analysis import (
     zhit_validation,
     calculate_drt,
     analyze_voigt_elements,
-    format_voigt_report,
     fit_equivalent_circuit,
     R, C  # Circuit elements
 )
@@ -864,19 +856,16 @@ drt_result = calculate_drt(
 )
 
 # Voigt analysis
-voigt_info = analyze_voigt_elements(
+suggestion = analyze_voigt_elements(
     drt_result.tau, drt_result.gamma, frequencies, Z,
     peaks_gmm=drt_result.peaks
 )
 
-# Display report
-print(format_voigt_report(voigt_info))
-
 # Build circuit manually based on analysis
-# For example for 2 detected elements:
 circuit = R(drt_result.R_inf)
-for elem in voigt_info['elements']:
-    circuit = circuit - (R(elem['R']) | C(elem['C']))
+for elem in suggestion.elements:
+    print(f"tau={elem.tau:.2e} s, R={elem.R:.1f} Ohm, C={elem.C:.2e} F")
+    circuit = circuit - (R(elem.R) | C(elem.C))
 
 # Fit
 result, Z_fit, fig_fit = fit_equivalent_circuit(frequencies, Z, circuit)

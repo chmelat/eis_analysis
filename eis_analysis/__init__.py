@@ -60,7 +60,7 @@ from .fitting import (
     fit_circuit_multistart,  # Multi-start optimization
     fit_circuit_diffevo,  # Differential evolution optimization
     analyze_voigt_elements,
-    format_voigt_report,
+    VoigtSuggestion,
     # Result dataclasses
     FitResult,
     FitDiagnostics,
@@ -113,7 +113,7 @@ __all__ = [
     'fit_circuit_multistart',
     'fit_circuit_diffevo',
     'analyze_voigt_elements',
-    'format_voigt_report',
+    'VoigtSuggestion',
     'FitResult',
     'FitDiagnostics',
     'MultistartResult',

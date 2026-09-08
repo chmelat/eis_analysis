@@ -540,23 +540,21 @@ def test_voigt_edge_peak_excluded_and_logged(caplog):
         {'tau_center': tau[-1]},
     ]
 
-    with caplog.at_level(logging.WARNING, logger='eis_analysis.fitting.auto_suggest'):
-        info = analyze_voigt_elements(tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm)
+    suggestion = analyze_voigt_elements(tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm)
 
     # Only the interior peak survives -> a single Voigt element.
-    assert len(info['elements']) == 1, (
-        f"expected 1 valid element, got {len(info['elements'])}"
+    assert len(suggestion.elements) == 1, (
+        f"expected 1 valid element, got {len(suggestion.elements)}"
     )
 
-    # The exclusion must be logged with the edge reason.
-    excluded = [r.getMessage() for r in caplog.records
-                if 'excluded' in r.getMessage()]
-    assert excluded, "edge-excluded peak was not logged"
+    # The exclusion must be reported, with the edge as the reason.
+    excluded = suggestion.excluded_peaks
+    assert excluded, "edge-excluded peak was not reported"
     assert 'right edge' in excluded[0], (
-        f"log line lacks the reason: {excluded[0]!r}"
+        f"warning lacks the reason: {excluded[0]!r}"
     )
-    print(f"  Logged exclusion: {excluded[0].strip()}")
-    print("  [OK] Edge peak excluded and logged")
+    print(f"  Reported exclusion: {excluded[0].strip()}")
+    print("  [OK] Edge peak excluded and reported")
 
 
 
