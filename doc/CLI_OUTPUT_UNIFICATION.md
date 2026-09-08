@@ -114,7 +114,28 @@ Verifikace: `python3 -m pytest tests/test_io_data_loading.py` (15 caplog
 míst přepsat na `result.warnings`), `python3 eis.py example/*.DTA` dává
 stejný výstup jako před změnou.
 
-### Etapa 2 — `fitting/voigt_chain/mu_optimization.py`
+### Etapa 2 — `fitting/voigt_chain/mu_optimization.py` — HOTOVO
+
+Odchylky od návrhu:
+
+- **Iterační tabulku zatím netiskne CLI, ale `fit_voigt_chain_linear()`.**
+  Ten je sám ve skupině C (etapa 4) a nevrací výsledek, takže se k iteracím
+  handler nedostane. Tisk je v něm jako dočasné `_log_mu_optimization()`
+  s poznámkou, že ho etapa 4 přesune do `cli/handlers/fitting.py` spolu se
+  zbytkem kroků. Etapa 2 tím řeší to podstatné — zamoření KK sekce.
+- `calc_mu()` si ponechává `logger.warning` ("all R_i are negative"): vrací
+  float, žádný výsledek to nekvalifikuje. Kritérium R1.
+- Varování o dosažení `max_M` je jeden záznam místo tří řádků. V obou
+  volajících se nespustí (oba předávají `allow_negative=True`).
+- Zanikla mrtvá jména `elements_mu` a `L_value_mu` — 6-tuple se rozbaloval
+  do proměnných, které nikdo nečetl.
+- Ověřovací příkaz v původním zadání byl špatně: `--validate` neexistuje,
+  KK běží vždy. Ověřeno běžným během a `--voigt-chain --voigt-auto-M`.
+
+Výsledek: 17 řádků mu-optimalizace zmizelo z KK sekce, v sekci fittingu
+zůstaly beze změny. Jinde se výstup nezměnil.
+
+Původní zadání:
 
 Nejsilnější argument z celého seznamu: `find_optimal_M_mu()` volá
 `validation/kramers_kronig.py:411`, tedy modul, který sám konvenci A

@@ -67,6 +67,7 @@ from .fitting import (
 from .mu_optimization import (
     calc_mu,
     find_optimal_M_mu,
+    MuOptimization,
 )
 
 __all__ = [
@@ -85,4 +86,5 @@ __all__ = [
     # Mu optimization
     'calc_mu',
     'find_optimal_M_mu',
+    'MuOptimization',
 ]

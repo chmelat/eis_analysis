@@ -26,6 +26,13 @@ the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
 - **`log_metadata()` is gone from the public API.** It was console output
   living in `io/`; it is now `print_metadata()` in `cli/data_handling.py`.
 
+- **`find_optimal_M_mu()` returns a `MuOptimization` instead of a 6-tuple**,
+  and logs nothing. Kramers-Kronig calls it, so 17 lines of element-count
+  search used to appear inside the KK section of the CLI output - ahead of
+  the summary line that reports the same M and mu, and without the KK
+  handler knowing they were there. They are gone from that section; the
+  Voigt chain still reports them under `--voigt-auto-M`, where they belong.
+
 - Caveats about the data (small frequency range, duplicate frequencies,
   truncated sweep, guessed CSV columns) are entries in `LoadResult.warnings`
   rather than log records. Failures of the operation itself - an unreadable

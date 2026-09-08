@@ -318,6 +318,51 @@ def estimate_R_linear(
     return elements, residual, L_value, C_value
 
 
+def _log_mu_optimization(mu_opt, mu_threshold: float, max_M: int,
+                         fit_type: str, weighting: str,
+                         include_L: bool, include_C: bool,
+                         allow_negative: bool) -> None:
+    """
+    Report the mu search that find_optimal_M_mu no longer prints itself.
+
+    Lives here only until this module reports through a result of its own;
+    then it moves to cli/handlers/fitting.py with the rest of the steps.
+    """
+    weighting_labels = {
+        'uniform': 'uniform (w=1)',
+        'sqrt': 'sqrt (w=1/sqrt|Z|)',
+        'modulus': 'modulus (w=1/|Z|)',
+        'proportional': 'proportional (w=1/|Z|^2)'
+    }
+    logger.info(f"  mu threshold: {mu_threshold}")
+    logger.info(f"  Max M: {max_M}")
+    logger.info(f"  Fit type: {fit_type}")
+    logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
+    logger.info(f"  Include L: {include_L}")
+    if include_C:
+        logger.info(f"  Include C (series): {include_C}")
+    logger.info(f"  Allow negative R_i: {allow_negative}")
+    logger.info("")
+
+    for it in mu_opt.iterations:
+        logger.info(f"  Iter {it.iteration:2d}: M={it.M:2d}, mu={it.mu:.4f}, "
+                    f"residual={it.residual:.3e}, "
+                    f"negative R_i={it.n_negative}/{it.n_R}")
+
+    logger.info("")
+    if not mu_opt.reached_max_M:
+        logger.info(f"Optimal M found: M = {mu_opt.M}")
+        logger.info(f"  mu = {mu_opt.mu:.4f} <= {mu_threshold}")
+    for warning in mu_opt.warnings:
+        logger.warning(warning)
+
+    if mu_opt.n_negative > 0:
+        logger.info(f"  Negative R_i: {mu_opt.n_negative}/{mu_opt.n_R} "
+                    f"({mu_opt.n_negative / mu_opt.n_R * 100:.1f}%)")
+
+    logger.info("=" * 60)
+
+
 def fit_voigt_chain_linear(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
@@ -400,7 +445,7 @@ def fit_voigt_chain_linear(
 
         # Use mu optimization to find optimal M (Lin-KK style)
         logger.info("Step 1: Auto-optimizing M using mu metric (Lin-KK)")
-        M_opt, mu_final, tau, elements_mu, L_value_mu, _ = find_optimal_M_mu(
+        mu_opt = find_optimal_M_mu(
             frequencies, Z,
             mu_threshold=mu_threshold,
             max_M=max_M,
@@ -411,6 +456,9 @@ def fit_voigt_chain_linear(
             allow_negative=True,  # mu metric requires negative R detection
             weighting=weighting
         )
+        M_opt, mu_final, tau = mu_opt.M, mu_opt.mu, mu_opt.tau
+        _log_mu_optimization(mu_opt, mu_threshold, max_M, fit_type, weighting,
+                             include_L, False, True)
         logger.info(f"  Optimal M: {M_opt}, mu: {mu_final:.4f}")
 
         # Step 2: Refit with NNLS to get physically meaningful R values

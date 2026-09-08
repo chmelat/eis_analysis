@@ -407,8 +407,9 @@ def lin_kk_native(
     """
     from ..fitting.voigt_chain import find_optimal_M_mu
 
-    # Find optimal M using mu metric
-    M, mu, tau, elements, L_value, C_value = find_optimal_M_mu(
+    # Find optimal M using mu metric. Its progress stays on the result:
+    # the KK section reports M and mu in its own summary line.
+    mu_opt = find_optimal_M_mu(
         frequencies, Z,
         mu_threshold=mu_threshold,
         max_M=max_M,
@@ -420,6 +421,8 @@ def lin_kk_native(
         allow_negative=True,
         weighting=weighting
     )
+    M, mu, tau, elements = mu_opt.M, mu_opt.mu, mu_opt.tau, mu_opt.elements
+    L_value, C_value = mu_opt.L_value, mu_opt.C_value
 
     extend_decades = 0.0
 
