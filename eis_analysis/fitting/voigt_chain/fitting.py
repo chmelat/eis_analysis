@@ -7,8 +7,12 @@ using linear regression.
 
 import numpy as np
 import logging
-from typing import Tuple, List, Optional
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Tuple, List, Optional
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:  # circular at runtime: mu_optimization imports from here
+    from .mu_optimization import MuOptimization
 
 from .validation import validate_eis_data, validate_tau
 from .tau_grid import generate_tau_grid
@@ -22,6 +26,65 @@ logger = logging.getLogger(__name__)
 
 # Type alias for Voigt chain circuit
 VoigtChain = Series
+
+
+@dataclass
+class VoigtChainDiagnostics:
+    """
+    How fit_voigt_chain_linear() arrived at its circuit.
+
+    Mirrors the four steps the CLI reports: how the tau grid was chosen,
+    what the regression produced, what pruning removed, and what the
+    circuit ended up as. A caller that only wants the circuit can ignore
+    all of it; the CLI cannot compose its section without it.
+    """
+    # Step 1 - tau grid: either the mu search or a fixed grid
+    auto_optimize_M: bool
+    mu_optimization: Optional["MuOptimization"] = None
+    mu_threshold: float = 0.85
+    max_M: int = 50
+    n_per_decade: int = 3
+    extend_decades: float = 0.0
+    n_tau_generated: int = 0
+
+    # Step 2 - linear regression
+    fit_type: str = 'complex'
+    weighting: str = 'modulus'
+    allow_negative: bool = False
+    include_Rs: bool = True
+    include_L: bool = True
+    R_s: float = 0.0
+    R_i_min: Optional[float] = None   # from the regression, before pruning
+    R_i_max: Optional[float] = None
+    residual: float = 0.0
+    L_value: Optional[float] = None
+
+    # Step 3 - pruning
+    pruning_enabled: bool = False
+    prune_threshold: float = 0.0
+    threshold_relative: float = 0.0
+    threshold_absolute: float = 0.0
+    threshold_effective: float = 0.0
+    n_before_prune: int = 0
+    n_after_prune: int = 0
+
+    # Step 4 - the circuit that survived pruning
+    n_elements: int = 0
+    R_i_min_kept: Optional[float] = None
+    R_i_max_kept: Optional[float] = None
+    tau_min: Optional[float] = None
+    tau_max: Optional[float] = None
+    n_params: int = 0
+
+    warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class VoigtChainFit:
+    """Result of fit_voigt_chain_linear(): the circuit and how it was built."""
+    circuit: Circuit
+    initial_params: List[float]
+    diagnostics: VoigtChainDiagnostics
 
 
 def estimate_R_linear(
@@ -318,51 +381,6 @@ def estimate_R_linear(
     return elements, residual, L_value, C_value
 
 
-def _log_mu_optimization(mu_opt, mu_threshold: float, max_M: int,
-                         fit_type: str, weighting: str,
-                         include_L: bool, include_C: bool,
-                         allow_negative: bool) -> None:
-    """
-    Report the mu search that find_optimal_M_mu no longer prints itself.
-
-    Lives here only until this module reports through a result of its own;
-    then it moves to cli/handlers/fitting.py with the rest of the steps.
-    """
-    weighting_labels = {
-        'uniform': 'uniform (w=1)',
-        'sqrt': 'sqrt (w=1/sqrt|Z|)',
-        'modulus': 'modulus (w=1/|Z|)',
-        'proportional': 'proportional (w=1/|Z|^2)'
-    }
-    logger.info(f"  mu threshold: {mu_threshold}")
-    logger.info(f"  Max M: {max_M}")
-    logger.info(f"  Fit type: {fit_type}")
-    logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
-    logger.info(f"  Include L: {include_L}")
-    if include_C:
-        logger.info(f"  Include C (series): {include_C}")
-    logger.info(f"  Allow negative R_i: {allow_negative}")
-    logger.info("")
-
-    for it in mu_opt.iterations:
-        logger.info(f"  Iter {it.iteration:2d}: M={it.M:2d}, mu={it.mu:.4f}, "
-                    f"residual={it.residual:.3e}, "
-                    f"negative R_i={it.n_negative}/{it.n_R}")
-
-    logger.info("")
-    if not mu_opt.reached_max_M:
-        logger.info(f"Optimal M found: M = {mu_opt.M}")
-        logger.info(f"  mu = {mu_opt.mu:.4f} <= {mu_threshold}")
-    for warning in mu_opt.warnings:
-        logger.warning(warning)
-
-    if mu_opt.n_negative > 0:
-        logger.info(f"  Negative R_i: {mu_opt.n_negative}/{mu_opt.n_R} "
-                    f"({mu_opt.n_negative / mu_opt.n_R * 100:.1f}%)")
-
-    logger.info("=" * 60)
-
-
 def fit_voigt_chain_linear(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
@@ -377,7 +395,7 @@ def fit_voigt_chain_linear(
     mu_threshold: float = 0.85,
     max_M: int = 50,
     weighting: str = 'modulus'
-) -> Tuple[Circuit, List[float]]:
+) -> VoigtChainFit:
     """
     Fit Voigt chain to EIS data using linear regression (Lin-KK method).
 
@@ -419,10 +437,10 @@ def fit_voigt_chain_linear(
 
     Returns
     -------
-    circuit : VoigtChain
-        Circuit object: R_s - K(R1, tau1) - K(R2, tau2) - ... [- L]
-    initial_params : list of float
-        Initial parameter values [R_s, R_1, tau_1, R_2, tau_2, ..., [L]]
+    VoigtChainFit
+        The circuit, its initial parameters, and the diagnostics behind the
+        four steps. Nothing is logged; the CLI composes its section from
+        the diagnostics.
 
     References
     ----------
@@ -432,9 +450,14 @@ def fit_voigt_chain_linear(
     # Validate inputs
     validate_eis_data(frequencies, Z, context="fit_voigt_chain_linear")
 
-    logger.info("="*60)
-    logger.info("Voigt chain initial guess estimation (Lin-KK compatible)")
-    logger.info("="*60)
+    diag = VoigtChainDiagnostics(
+        auto_optimize_M=auto_optimize_M,
+        mu_threshold=mu_threshold, max_M=max_M,
+        n_per_decade=n_per_decade, extend_decades=extend_decades,
+        fit_type=fit_type, weighting=weighting,
+        allow_negative=allow_negative,
+        include_Rs=include_Rs, include_L=include_L,
+        prune_threshold=prune_threshold)
 
     L_value = None
 
@@ -444,7 +467,6 @@ def fit_voigt_chain_linear(
         from .mu_optimization import find_optimal_M_mu
 
         # Use mu optimization to find optimal M (Lin-KK style)
-        logger.info("Step 1: Auto-optimizing M using mu metric (Lin-KK)")
         mu_opt = find_optimal_M_mu(
             frequencies, Z,
             mu_threshold=mu_threshold,
@@ -456,13 +478,10 @@ def fit_voigt_chain_linear(
             allow_negative=True,  # mu metric requires negative R detection
             weighting=weighting
         )
-        M_opt, mu_final, tau = mu_opt.M, mu_opt.mu, mu_opt.tau
-        _log_mu_optimization(mu_opt, mu_threshold, max_M, fit_type, weighting,
-                             include_L, False, True)
-        logger.info(f"  Optimal M: {M_opt}, mu: {mu_final:.4f}")
+        tau = mu_opt.tau
+        diag.mu_optimization = mu_opt
 
         # Step 2: Refit with NNLS to get physically meaningful R values
-        logger.info("Step 2: Refit with NNLS (R_i >= 0) for physical circuit")
         elements, residual, L_value, _ = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=include_Rs,
@@ -483,25 +502,16 @@ def fit_voigt_chain_linear(
             R_i = elements[:R_i_end]
     else:
         # Use fixed n_per_decade
-        logger.info(f"Step 1: Generating tau grid ({n_per_decade} per decade, +{extend_decades} dec extension)")
         tau = generate_tau_grid(frequencies, n_per_decade, extend_decades)
-        logger.info(f"  Generated {len(tau)} time constants")
+        diag.n_tau_generated = len(tau)
 
         # Warn if too many tau (can cause NNLS convergence issues)
         if len(tau) > 20 and not allow_negative:
-            logger.warning(f"  NOTE: {len(tau)} tau is a lot - may cause convergence issues.")
-            logger.warning("  Recommendation: try --voigt-n-per-decade 2 or --voigt-extend-decades 0.5")
+            diag.warnings.append(
+                f"{len(tau)} tau is a lot - may cause convergence issues; "
+                f"try --voigt-n-per-decade 2 or --voigt-extend-decades 0.5")
 
         # Step 2: Linear regression for R values
-        method_str = "NNLS (R_i >= 0)" if not allow_negative else "pseudoinverse (allows R_i < 0)"
-        weighting_labels = {
-            'uniform': 'uniform (w=1)',
-            'sqrt': 'sqrt (w=1/sqrt|Z|)',
-            'modulus': 'modulus (w=1/|Z|, Lin-KK standard)',
-            'proportional': 'proportional (w=1/|Z|^2)'
-        }
-        logger.info(f"Step 2: Linear regression (method: {method_str}, fit_type: {fit_type})")
-        logger.info(f"  Weighting: {weighting_labels.get(weighting, weighting)}")
         elements, residual, L_value, _ = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=include_Rs,
@@ -524,17 +534,11 @@ def fit_voigt_chain_linear(
         else:
             R_i = elements[R_i_start:]
 
-    # Log results
-    if include_Rs:
-        logger.info(f"  R_s (series): {R_s:.3e} Ohm")
-    else:
-        logger.info("  R_s not included (set to 0)")
-
+    diag.R_s = R_s
+    diag.residual = residual
+    diag.L_value = L_value
     if len(R_i) > 0:
-        logger.info(f"  R_i range: [{R_i.min():.3e}, {R_i.max():.3e}] Ohm")
-    logger.info(f"  Residual: {residual:.3e}")
-    if include_L and L_value is not None:
-        logger.info(f"  L (inductance): {L_value:.3e} H")
+        diag.R_i_min, diag.R_i_max = float(R_i.min()), float(R_i.max())
 
     # Step 3: Prune small R_i values
     if prune_threshold > 0 and len(R_i) > 0:
@@ -550,28 +554,21 @@ def fit_voigt_chain_linear(
         # Use the SMALLER of the two thresholds (more conservative pruning)
         threshold_effective = min(threshold_relative, threshold_absolute)
 
-        logger.info("Step 3: Pruning small R_i")
-        logger.info(f"  Relative threshold: {prune_threshold * 100:.1f}% of max = {threshold_relative:.3e} Ohm")
-        logger.info(f"  Absolute threshold: 0.1% of R_pol = {threshold_absolute:.3e} Ohm")
-        logger.info(f"  Effective threshold: {threshold_effective:.3e} Ohm")
+        diag.pruning_enabled = True
+        diag.threshold_relative = threshold_relative
+        diag.threshold_absolute = threshold_absolute
+        diag.threshold_effective = threshold_effective
 
         keep_mask = np.abs(R_i) >= threshold_effective
 
-        n_before = len(R_i)
-        n_after = np.sum(keep_mask)
-        n_pruned = n_before - n_after
+        diag.n_before_prune = len(R_i)
+        diag.n_after_prune = int(np.sum(keep_mask))
 
-        if n_pruned > 0:
-            logger.info(f"  Removed {n_pruned} elements (kept {n_after}/{n_before})")
+        if diag.n_after_prune < diag.n_before_prune:
             R_i = R_i[keep_mask]
             tau = tau[keep_mask]
-        else:
-            logger.info("  No elements pruned (all above threshold)")
-    else:
-        logger.info("Step 3: Pruning disabled")
 
     # Step 4: Build circuit using K(R, tau) elements
-    logger.info(f"Step 4: Building circuit with {len(R_i)} K elements")
 
     # Start with R_s if included
     circuit: Optional[Circuit]
@@ -597,25 +594,18 @@ def fit_voigt_chain_linear(
     # Add inductance if fitted
     if include_L and L_value is not None:
         circuit = circuit - L(L_value)
-        logger.info(f"  Added inductance: L = {L_value:.3e} H")
 
     # Extract initial parameters
     initial_params = circuit.get_all_params()
 
-    logger.info("")
-    logger.info("Initial guess summary:")
-    if include_Rs:
-        logger.info(f"  R_s = {R_s:.3e} Ohm")
+    # The summary describes the pruned chain, so these are re-read here
+    diag.n_elements = len(R_i)
     if len(R_i) > 0:
-        logger.info(f"  {len(R_i)} K elements:")
-        logger.info(f"    R_i in [{R_i.min():.3e}, {R_i.max():.3e}] Ohm")
-        logger.info(f"    tau_i in [{tau.min():.3e}, {tau.max():.3e}] s")
-    if include_L and L_value is not None:
-        logger.info(f"  Inductance: L = {L_value:.3e} H")
-    logger.info(f"  Total parameters: {len(initial_params)}")
-    logger.info("="*60)
+        diag.R_i_min_kept, diag.R_i_max_kept = float(R_i.min()), float(R_i.max())
+        diag.tau_min, diag.tau_max = float(tau.min()), float(tau.max())
+    diag.n_params = len(initial_params)
 
-    return circuit, initial_params
+    return VoigtChainFit(circuit, initial_params, diag)
 
 
 __all__ = ['estimate_R_linear', 'fit_voigt_chain_linear', 'VoigtChain']

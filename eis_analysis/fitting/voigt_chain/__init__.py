@@ -60,6 +60,8 @@ from .solvers import (
 from .fitting import (
     estimate_R_linear,
     fit_voigt_chain_linear,
+    VoigtChainFit,
+    VoigtChainDiagnostics,
     VoigtChain,
 )
 
@@ -81,6 +83,8 @@ __all__ = [
     # Main fitting
     'estimate_R_linear',
     'fit_voigt_chain_linear',
+    'VoigtChainFit',
+    'VoigtChainDiagnostics',
     'VoigtChain',
 
     # Mu optimization

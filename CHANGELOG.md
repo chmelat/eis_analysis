@@ -45,6 +45,12 @@ the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
   from how many warnings there are and counting them would have downgraded
   the verdict on any spectrum with edge peaks.
 
+- **`fit_voigt_chain_linear()` returns a `VoigtChainFit`** - the circuit,
+  its initial parameters, and a `VoigtChainDiagnostics` describing the four
+  steps it took - instead of a `(circuit, params)` tuple, and logs nothing.
+  The step-by-step narration is now printed by `cli/handlers/fitting.py`,
+  which is also where the mu-search block from v0.32.0's stage 2 ended up.
+
 - Caveats about the data (small frequency range, duplicate frequencies,
   truncated sweep, guessed CSV columns) are entries in `LoadResult.warnings`
   rather than log records. Failures of the operation itself - an unreadable

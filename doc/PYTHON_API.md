@@ -376,6 +376,7 @@ from eis_analysis.fitting import (
     fit_voigt_chain_linear,
     # Result types
     FitResult,
+    VoigtChainFit,
     MultistartResult,
     DiffEvoResult,
 )
@@ -611,7 +612,7 @@ de_result.diagnostics.total_evaluations  # Total evaluations
 ```python
 from eis_analysis.fitting import fit_voigt_chain_linear
 
-circuit, params = fit_voigt_chain_linear(
+chain = fit_voigt_chain_linear(
     frequencies,
     Z,
     n_per_decade=3,           # Time constants per decade
@@ -626,8 +627,13 @@ circuit, params = fit_voigt_chain_linear(
     weighting='modulus'     # Weighting type
 )
 
-# circuit: Circuit object with fitted parameters
-# params: list of fitted parameter values
+# chain is a VoigtChainFit:
+#   .circuit          Circuit object with fitted parameters
+#   .initial_params   list of fitted parameter values
+#   .diagnostics      VoigtChainDiagnostics - the four steps behind it
+#                     (tau grid, regression, pruning, final chain), which
+#                     is what the CLI prints its section from
+circuit, params = chain.circuit, chain.initial_params
 ```
 
 **DE vs Multi-start:**
@@ -1004,15 +1010,16 @@ data = load_data('data.DTA')
 frequencies, Z = data.frequencies, data.Z
 
 # Voigt chain linear fit (no nonlinear optimization)
-circuit, params = fit_voigt_chain_linear(
+chain = fit_voigt_chain_linear(
     frequencies, Z,
     n_per_decade=3,
     auto_optimize_M=True,    # Auto-select number of elements
     mu_threshold=0.85
 )
 
-print(f"Circuit: {circuit}")
-print(f"Parameters: {params}")
+print(f"Circuit: {chain.circuit}")
+print(f"Parameters: {chain.initial_params}")
+print(f"M chosen: {chain.diagnostics.mu_optimization.M}")
 
 # Compute fitted impedance
 Z_fit = circuit.impedance(frequencies, params)

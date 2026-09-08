@@ -194,7 +194,23 @@ Jediný modul, který dělá B i C zároveň.
 
 Verifikace: `python3 -m pytest tests/test_cli_integration.py -k voigt`.
 
-### Etapa 4 — `fitting/voigt_chain/fitting.py`
+### Etapa 4 — `fitting/voigt_chain/fitting.py` — HOTOVO
+
+- `VoigtChainDiagnostics` musí nést **dva rozsahy `R_i`**, ne jeden.
+  `Step 2` tiskne rozsah z regrese (`[0.000e+00, 1.323e+06]`), souhrn na
+  konci rozsah po prořezání (`[1.997e+03, 1.323e+06]`). S jedním polem by
+  jedno z těch čísel bylo tiše špatně — proto `R_i_min/max` (z regrese) a
+  `R_i_min_kept/max_kept` (po prořezání).
+- Dočasné `_log_mu_optimization()` z etapy 2 se přesunulo z modulu do
+  `cli/handlers/fitting.py`, jak bylo slíbeno. Výstup cesty
+  `--voigt-auto-M` je po přesunu bajt po bajtu stejný.
+- Varování o velkém počtu tau je jeden záznam místo dvou řádků.
+
+Ověřeno na třech cestách: pevná mřížka, `--voigt-auto-M`, a vypnuté
+prořezávání (`--voigt-prune-threshold 0`). Jediný rozdíl je to spojené
+varování.
+
+Původní zadání:
 
 33 `info` řádků je narace postupu "Step 1..4" (mu optimalizace, tau grid,
 regrese, prořezání, stavba obvodu) plus závěrečné shrnutí.

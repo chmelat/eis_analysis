@@ -467,12 +467,13 @@ def test_voigt_chain():
 
     frequencies, Z = get_synthetic_data()
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         frequencies, Z,
         n_per_decade=2,
         extend_decades=0.5,
         prune_threshold=0.05
     )
+    circuit, params = chain.circuit, chain.initial_params
 
     assert circuit is not None, "Should return a circuit"
     assert params is not None, "Should return parameters"

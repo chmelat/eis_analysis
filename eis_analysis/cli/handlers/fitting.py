@@ -21,10 +21,12 @@ from ...fitting import (
     fit_circuit_multistart,
     fit_circuit_diffevo,
     fit_voigt_chain_linear,
+    VoigtChainDiagnostics,
     FitResult,
     MultistartResult,
     DiffEvoResult,
 )
+from ...fitting.voigt_chain import MuOptimization
 from ...fitting.diagnostics import compute_fit_metrics
 from ...fitting.residual_diagnostics import (
     MIN_PERIODOGRAM_POWER,
@@ -384,6 +386,121 @@ def _compare_circuits(
     return scores[0].result, figures[scores[0].index - 1]
 
 
+def _log_mu_optimization(mu_opt: MuOptimization,
+                         diag: VoigtChainDiagnostics) -> None:
+    """Report the mu search behind the element count."""
+    weighting_labels = {
+        'uniform': 'uniform (w=1)',
+        'sqrt': 'sqrt (w=1/sqrt|Z|)',
+        'modulus': 'modulus (w=1/|Z|)',
+        'proportional': 'proportional (w=1/|Z|^2)'
+    }
+    logger.info("Step 1: Auto-optimizing M using mu metric (Lin-KK)")
+    logger.info(f"  mu threshold: {diag.mu_threshold}")
+    logger.info(f"  Max M: {diag.max_M}")
+    logger.info(f"  Fit type: {diag.fit_type}")
+    logger.info(f"  Weighting: {weighting_labels.get(diag.weighting, diag.weighting)}")
+    logger.info(f"  Include L: {diag.include_L}")
+    logger.info("  Allow negative R_i: True")
+    logger.info("")
+
+    for it in mu_opt.iterations:
+        logger.info(f"  Iter {it.iteration:2d}: M={it.M:2d}, mu={it.mu:.4f}, "
+                    f"residual={it.residual:.3e}, "
+                    f"negative R_i={it.n_negative}/{it.n_R}")
+
+    logger.info("")
+    if not mu_opt.reached_max_M:
+        logger.info(f"Optimal M found: M = {mu_opt.M}")
+        logger.info(f"  mu = {mu_opt.mu:.4f} <= {diag.mu_threshold}")
+    for warning in mu_opt.warnings:
+        logger.warning(warning)
+
+    if mu_opt.n_negative > 0:
+        logger.info(f"  Negative R_i: {mu_opt.n_negative}/{mu_opt.n_R} "
+                    f"({mu_opt.n_negative / mu_opt.n_R * 100:.1f}%)")
+
+    log_separator(60)
+    logger.info(f"  Optimal M: {mu_opt.M}, mu: {mu_opt.mu:.4f}")
+
+
+def _log_voigt_chain(diag: VoigtChainDiagnostics) -> None:
+    """Report the four steps behind the Voigt chain initial guess."""
+    log_separator(60)
+    logger.info("Voigt chain initial guess estimation (Lin-KK compatible)")
+    log_separator(60)
+
+    # Step 1 and 2: how the tau grid was chosen, and the regression on it
+    if diag.mu_optimization is not None:
+        _log_mu_optimization(diag.mu_optimization, diag)
+        logger.info("Step 2: Refit with NNLS (R_i >= 0) for physical circuit")
+    else:
+        logger.info(f"Step 1: Generating tau grid ({diag.n_per_decade} per decade, "
+                    f"+{diag.extend_decades} dec extension)")
+        logger.info(f"  Generated {diag.n_tau_generated} time constants")
+        for warning in diag.warnings:
+            logger.warning(warning)
+
+        method_str = ("pseudoinverse (allows R_i < 0)" if diag.allow_negative
+                      else "NNLS (R_i >= 0)")
+        weighting_labels = {
+            'uniform': 'uniform (w=1)',
+            'sqrt': 'sqrt (w=1/sqrt|Z|)',
+            'modulus': 'modulus (w=1/|Z|, Lin-KK standard)',
+            'proportional': 'proportional (w=1/|Z|^2)'
+        }
+        logger.info(f"Step 2: Linear regression (method: {method_str}, "
+                    f"fit_type: {diag.fit_type})")
+        logger.info(f"  Weighting: "
+                    f"{weighting_labels.get(diag.weighting, diag.weighting)}")
+
+    if diag.include_Rs:
+        logger.info(f"  R_s (series): {diag.R_s:.3e} Ohm")
+    else:
+        logger.info("  R_s not included (set to 0)")
+    if diag.R_i_min is not None:
+        logger.info(f"  R_i range: [{diag.R_i_min:.3e}, {diag.R_i_max:.3e}] Ohm")
+    logger.info(f"  Residual: {diag.residual:.3e}")
+    if diag.include_L and diag.L_value is not None:
+        logger.info(f"  L (inductance): {diag.L_value:.3e} H")
+
+    # Step 3: pruning
+    if diag.pruning_enabled:
+        n_pruned = diag.n_before_prune - diag.n_after_prune
+        logger.info("Step 3: Pruning small R_i")
+        logger.info(f"  Relative threshold: {diag.prune_threshold * 100:.1f}% "
+                    f"of max = {diag.threshold_relative:.3e} Ohm")
+        logger.info(f"  Absolute threshold: 0.1% of R_pol = "
+                    f"{diag.threshold_absolute:.3e} Ohm")
+        logger.info(f"  Effective threshold: {diag.threshold_effective:.3e} Ohm")
+        if n_pruned > 0:
+            logger.info(f"  Removed {n_pruned} elements "
+                        f"(kept {diag.n_after_prune}/{diag.n_before_prune})")
+        else:
+            logger.info("  No elements pruned (all above threshold)")
+    else:
+        logger.info("Step 3: Pruning disabled")
+
+    # Step 4: the circuit
+    logger.info(f"Step 4: Building circuit with {diag.n_elements} K elements")
+    if diag.include_L and diag.L_value is not None:
+        logger.info(f"  Added inductance: L = {diag.L_value:.3e} H")
+
+    logger.info("")
+    logger.info("Initial guess summary:")
+    if diag.include_Rs:
+        logger.info(f"  R_s = {diag.R_s:.3e} Ohm")
+    if diag.n_elements > 0:
+        logger.info(f"  {diag.n_elements} K elements:")
+        logger.info(f"    R_i in [{diag.R_i_min_kept:.3e}, "
+                    f"{diag.R_i_max_kept:.3e}] Ohm")
+        logger.info(f"    tau_i in [{diag.tau_min:.3e}, {diag.tau_max:.3e}] s")
+    if diag.include_L and diag.L_value is not None:
+        logger.info(f"  Inductance: L = {diag.L_value:.3e} H")
+    logger.info(f"  Total parameters: {diag.n_params}")
+    log_separator(60)
+
+
 def _fit_voigt_chain(
     frequencies: NDArray,
     Z: NDArray,
@@ -413,7 +530,7 @@ def _fit_voigt_chain(
     log_separator()
 
     try:
-        circuit, initial_params = fit_voigt_chain_linear(
+        chain = fit_voigt_chain_linear(
             frequencies, Z,
             n_per_decade=args.voigt_n_per_decade,
             extend_decades=args.voigt_extend_decades,
@@ -426,6 +543,8 @@ def _fit_voigt_chain(
             max_M=args.voigt_max_M,
             weighting=args.weighting
         )
+        circuit, initial_params = chain.circuit, chain.initial_params
+        _log_voigt_chain(chain.diagnostics)
         logger.info(f"Created circuit: {circuit}")
         logger.info(f"Number of parameters: {len(initial_params)}")
     except Exception as e:

@@ -99,9 +99,10 @@ def test_nnls_fit_produces_valid_result(two_voigt_data):
     noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z + noise
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z_noisy, n_per_decade=3, allow_negative=False
     )
+    circuit, params = chain.circuit, chain.initial_params
 
     Z_fit = circuit.impedance(freq, params)
     error_rel = 100 * np.sqrt(np.mean(np.abs(Z_noisy - Z_fit)**2)) / np.mean(np.abs(Z_noisy))
@@ -118,9 +119,10 @@ def test_nnls_produces_nonnegative_R(two_voigt_data):
     noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z + noise
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z_noisy, n_per_decade=3, allow_negative=False
     )
+    circuit, params = chain.circuit, chain.initial_params
 
     # R values: R_s at index 0, then R_i at odd indices (R_s, R1, tau1, R2, tau2, ...)
     # Skip last element if it's L
@@ -141,9 +143,10 @@ def test_pseudoinverse_fit_works(two_voigt_data):
     noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z + noise
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z_noisy, auto_optimize_M=True, mu_threshold=0.85
     )
+    circuit, params = chain.circuit, chain.initial_params
 
     Z_fit = circuit.impedance(freq, params)
     error_rel = 100 * np.sqrt(np.mean(np.abs(Z_noisy - Z_fit)**2)) / np.mean(np.abs(Z_noisy))
@@ -163,9 +166,10 @@ def test_voigt_chain_as_initial_guess(two_voigt_data):
     noise = 0.02 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z + noise
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z_noisy, n_per_decade=2, extend_decades=0.5, prune_threshold=0.05
     )
+    circuit = chain.circuit
 
     result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
 
@@ -180,9 +184,10 @@ def test_three_time_constants(three_voigt_data):
     noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z + noise
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z_noisy, n_per_decade=3, extend_decades=1.0, prune_threshold=0.02
     )
+    circuit = chain.circuit
 
     result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
 
@@ -244,9 +249,10 @@ def test_voigt_chain_linear_imag_fit_end_to_end():
     freq = np.logspace(4, -1, 40)
     Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
 
-    circuit, params = fit_voigt_chain_linear(
+    chain = fit_voigt_chain_linear(
         freq, Z, n_per_decade=3, fit_type='imag', allow_negative=True
     )
+    circuit, params = chain.circuit, chain.initial_params
     Z_fit = circuit.impedance(freq, params)
     fit_error_rel, _, _ = compute_fit_metrics(Z, Z_fit, 'modulus')
 

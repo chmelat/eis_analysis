@@ -89,6 +89,8 @@ from .auto_suggest import analyze_voigt_elements, VoigtSuggestion, VoigtElement
 # Import Voigt chain linear fitting
 from .voigt_chain import (
     fit_voigt_chain_linear,
+    VoigtChainFit,
+    VoigtChainDiagnostics,
     generate_tau_grid,
     compute_voigt_matrix,
     estimate_R_linear,
@@ -145,6 +147,8 @@ __all__ = [
 
     # Voigt chain linear fitting
     'fit_voigt_chain_linear',
+    'VoigtChainFit',
+    'VoigtChainDiagnostics',
     'generate_tau_grid',
     'compute_voigt_matrix',
     'estimate_R_linear',
