@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.32.2 (2026-09-08)
+
+### Fixed
+
+- **A parameter guess outside its bounds no longer kills `--de`.** Writing a
+  CPE exponent at or below its lower bound - `--circuit "R(10)-(R(200)|Q(2e-5,0.3))"`
+  - ended the run with
+
+  ```
+  RuntimeError: DE optimization failed: Some entries in x0 lay outside the
+  specified bounds
+  ```
+
+  even though the guess had just been clipped into those bounds. Clipped *onto*
+  them, in fact, and that is the whole defect: `differential_evolution`
+  rescales `x0` to `[0, 1]` as `(x - midpoint) / span + 0.5`, and for a value
+  sitting exactly on a bound that arithmetic returns `-1.1e-16`, which scipy
+  rejects. The CPE exponent's range is only `(0.3, 1.0)`, so it was the easiest
+  one to hit; every parameter had the same edge.
+
+  The starting point is now held `DE_X0_BOUND_MARGIN` (1e-9 of the bound span)
+  inside instead of on the bound - nine orders of magnitude above the rounding
+  error and far below any parameter's physical resolution. On the exponent's
+  range it moves the start by 7e-10.
+
+  Only the starting point moved; the search bounds are unchanged, so a
+  parameter whose optimum lies at a bound still reaches it. `G` with a guess of
+  exactly 0 (its lower bound is 0 by design) fits as before.
+
+---
+
 ## Version 0.32.1 (2026-09-08)
 
 ### Changed

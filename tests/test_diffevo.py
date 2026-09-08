@@ -24,7 +24,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from eis_analysis.fitting import R, C
+from eis_analysis.fitting import R, C, Q
 from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.diffevo import (
     fit_circuit_diffevo,
@@ -333,3 +333,33 @@ def test_covariance_computed_at_returned_point():
     expected = compute_covariance_matrix(J, residuals, n_params=len(params_opt))
     np.testing.assert_allclose(result.best_result.params_stderr,
                                expected.stderr, rtol=1e-6, atol=1e-12)
+
+
+# =============================================================================
+# Starting point on a bound (regression)
+# =============================================================================
+
+CPE_TRUE = [10.0, 200.0, 2e-5, 0.85]  # Rs, R_ct, Q, n
+
+
+@pytest.mark.parametrize('n_guess', [0.2, 0.3, 1.0, 2.0])
+def test_initial_guess_outside_bounds_does_not_crash_de(n_guess):
+    """A guess outside its bounds is clipped ONTO one, which DE used to reject.
+
+    differential_evolution rescales x0 to [0, 1] and a value sitting exactly on
+    a bound can come back as -1.1e-16, raising "Some entries in x0 lay outside
+    the specified bounds". The CPE exponent has the narrow range (0.3, 1.0), so
+    writing n <= 0.3 into --circuit was enough to kill the run. Both ends are
+    covered here; the fit must still recover the true parameters.
+    """
+    freq = np.logspace(5, -2, 40)
+    Z = (R(CPE_TRUE[0]) - (R(CPE_TRUE[1]) | Q(CPE_TRUE[2], CPE_TRUE[3]))
+         ).impedance(freq, CPE_TRUE)
+
+    circuit = R(CPE_TRUE[0]) - (R(CPE_TRUE[1]) | Q(CPE_TRUE[2], n_guess))
+    try:
+        result, _, _ = fit_circuit_diffevo(circuit, freq, Z, seed=0)
+        recovered = np.asarray(result.best_result.params_opt, dtype=float)
+        np.testing.assert_allclose(recovered, CPE_TRUE, rtol=0.01)
+    finally:
+        plt.close('all')

@@ -35,6 +35,16 @@ DE_STRATEGIES = {
     3: 'rand1bin',
 }
 
+# How far inside its bounds the DE starting point is held, as a fraction of
+# the bound span. differential_evolution rescales x0 to [0, 1] as
+# (x - midpoint) / span + 0.5 and rejects the result if it falls outside, so a
+# value sitting exactly ON a bound can come back as -1.1e-16 and raise
+# "Some entries in x0 lay outside the specified bounds". 1e-9 of the span is
+# some nine orders of magnitude above that rounding error and still far below
+# any parameter's physical resolution - on the CPE exponent's (0.3, 1.0) range
+# it moves the start by 7e-10.
+DE_X0_BOUND_MARGIN = 1e-9
+
 
 class _DECostFunction:
     """Picklable cost function for differential evolution with workers > 1."""
@@ -342,10 +352,18 @@ def fit_circuit_diffevo(
                     else cost_function)
     de_bounds = list(zip(de_lower, de_upper))
     # G's initial guess may be exactly 0, which has no logarithm. Floor it
-    # before the transform; the clip puts it back onto the search bound.
+    # before the transform; the clip puts it back inside the search bounds.
+    #
+    # Inside, not onto: initial_guess was clipped to these same bounds above,
+    # so any guess outside them lands exactly on one - a CPE exponent n <= 0.3
+    # written into --circuit, for instance - and scipy rejects such an x0 (see
+    # DE_X0_BOUND_MARGIN).
     x0_positive = np.maximum(initial_guess, np.finfo(float).tiny)
+    de_lower_arr = np.asarray(de_lower, dtype=float)
+    de_upper_arr = np.asarray(de_upper, dtype=float)
+    x0_margin = DE_X0_BOUND_MARGIN * (de_upper_arr - de_lower_arr)
     de_x0 = np.clip(np.where(log_mask, np.log10(x0_positive), initial_guess),
-                    de_lower, de_upper)
+                    de_lower_arr + x0_margin, de_upper_arr - x0_margin)
 
     try:
         with warnings.catch_warnings(record=True):
