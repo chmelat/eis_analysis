@@ -95,6 +95,16 @@ Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-speci
 - Visualization separated from algorithms (headless use)
 - Domain logic isolated (extensibility for other domains)
 
+**Console output (new modules must follow this - see `doc/CLI_OUTPUT_UNIFICATION.md`):**
+- No `logger.info` in a library module. It is UI; return it instead.
+- Return a result dataclass (`*Result`), never a tuple or dict. Put on it
+  what you would have printed, including how you got there (branch taken,
+  thresholds, counts) - the CLI cannot compose a section without it.
+- A warning that qualifies a result goes in its `warnings: List[str]`.
+  A warning about an operation that produced no result stays `logger.warning`.
+- `logger.debug` is fine anywhere.
+- Printing happens only in `cli/handlers/`, separators via `log_separator()`.
+
 ---
 
 ## Testing
