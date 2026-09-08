@@ -15,11 +15,10 @@ import numpy as np
 
 from .utils import EISAnalysisError, LoadedData
 from ..io import (
+    LoadResult,
     load_data,
     load_csv_data,
-    parse_dta_metadata,
     parse_ocv_curve,
-    log_metadata,
     generate_synthetic_data,
 )
 
@@ -68,6 +67,67 @@ def _log_synthetic_params() -> None:
     logger.info(f"R1 = {SYNTHETIC_DATA_PARAMS['R1']:.2e} Ω, Q1 = ({Y0_1:.2e} S·s^n, n={n1})")
 
 
+def print_metadata(metadata: Dict[str, Any]) -> None:
+    """
+    Print DTA file metadata as a CLI section.
+
+    Parameters
+    ----------
+    metadata : dict
+        Metadata dictionary from parse_dta_metadata()
+    """
+    logger.info("=" * 60)
+    logger.info("DTA file metadata")
+    logger.info("=" * 60)
+
+    # Sample identification
+    if metadata.get('title'):
+        logger.info(f"Sample: {metadata['title']}")
+    if metadata.get('date') or metadata.get('time'):
+        date_str = metadata.get('date', '?')
+        time_str = metadata.get('time', '?')
+        logger.info(f"Measurement date: {date_str} {time_str}")
+
+    # Notes
+    if metadata.get('notes'):
+        logger.info("Notes:")
+        for note in metadata['notes']:
+            logger.info(f"  - {note}")
+
+    # EIS parameters
+    logger.info("")
+    logger.info("Measurement parameters:")
+
+    if metadata.get('area') is not None:
+        logger.info(f"  Sample area: {metadata['area']:.4f} cm²")
+
+    if metadata.get('vdc') is not None:
+        logger.info(f"  DC voltage: {metadata['vdc']:.4f} V")
+
+    if metadata.get('vac') is not None:
+        logger.info(f"  AC voltage: {metadata['vac']:.2f} mV rms")
+
+    if metadata.get('freq_init') is not None and metadata.get('freq_final') is not None:
+        logger.info(f"  Frequency range: {metadata['freq_final']:.2e} - {metadata['freq_init']:.2e} Hz")
+
+    if metadata.get('pts_per_dec') is not None:
+        logger.info(f"  Points per decade: {metadata['pts_per_dec']:.0f}")
+
+    if metadata.get('pstat'):
+        logger.info(f"  Potentiostat: {metadata['pstat']}")
+
+    logger.info("=" * 60)
+
+
+def _print_load_summary(result: LoadResult) -> None:
+    """Print the caveats and the one-line summary for a loaded spectrum."""
+    for warning in result.warnings:
+        logger.warning(warning)
+    f = result.frequencies
+    logger.info(f"Loaded {len(f)} points from {result.filename}")
+    logger.info(f"Frequency range: {f.min():.2e} - {f.max():.2e} Hz")
+
+
 def load_eis_data(args: argparse.Namespace) -> LoadedData:
     """
     Load EIS data from file or generate synthetic data.
@@ -104,9 +164,12 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
         ext = os.path.splitext(args.input)[1].lower()
         try:
             if ext == '.dta':
-                frequencies, Z = load_data(args.input)
-                metadata = parse_dta_metadata(args.input)
-                log_metadata(metadata)
+                loaded = load_data(args.input)
+                frequencies, Z = loaded.frequencies, loaded.Z
+                metadata = loaded.metadata
+                _print_load_summary(loaded)
+                if metadata is not None:
+                    print_metadata(metadata)
                 # Load OCV data if available
                 ocv_data = parse_ocv_curve(args.input)
                 if ocv_data is not None:
@@ -119,7 +182,9 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
                     logger.info(f"  OCV = {ocv_mV:.1f} mV "
                                 f"(mean {mean_mV:.1f} mV, drift {drift_mV:.2f} mV)")
             elif ext == '.csv':
-                frequencies, Z = load_csv_data(args.input)
+                loaded = load_csv_data(args.input)
+                frequencies, Z = loaded.frequencies, loaded.Z
+                _print_load_summary(loaded)
             else:
                 raise EISAnalysisError(
                     f"Unsupported format '{ext}'. Supported: .DTA (Gamry), .csv"

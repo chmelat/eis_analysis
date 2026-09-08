@@ -295,7 +295,8 @@ def test_auto_extend_reduces_imag_residual_on_capacitive_tail():
     # On data with a strong low-frequency capacitive tail, the bounded tau
     # grid (auto_extend_decades=False) cannot reconstruct Z'' near the edge,
     # giving a large imaginary residual. Extending the grid fixes it.
-    f, Z = load_data(REAL_DTA)
+    loaded = load_data(REAL_DTA)
+    f, Z = loaded.frequencies, loaded.Z
     off = lin_kk_native(f, Z, auto_extend_decades=False)
     on = lin_kk_native(f, Z, auto_extend_decades=True,
                        extend_decades_range=(0.0, 1.0))
@@ -310,7 +311,8 @@ def test_auto_extend_reduces_imag_residual_on_capacitive_tail():
 def test_kk_validation_default_enables_auto_extend():
     # Wrapper default (auto_extend_decades=True) must not show the spurious
     # imaginary residual on the example spectrum.
-    f, Z = load_data(REAL_DTA)
+    loaded = load_data(REAL_DTA)
+    f, Z = loaded.frequencies, loaded.Z
     result = kramers_kronig_validation(f, Z)
     try:
         assert result.success is True

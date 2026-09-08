@@ -55,7 +55,8 @@ from eis_analysis import (
 )
 
 # 1. Load data
-frequencies, Z = load_data('data.DTA')
+data = load_data('data.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # 2. Kramers-Kronig validation (Lin-KK)
 kk_result = kramers_kronig_validation(frequencies, Z)
@@ -115,19 +116,22 @@ from eis_analysis.io import (
     load_csv_data,
     parse_dta_metadata,
     parse_ocv_curve,
-    log_metadata,
 )
 
-# Automatic format detection (.DTA or .csv)
-frequencies, Z = load_data('data.DTA')
+# Both loaders return a LoadResult: the spectrum, the DTA metadata (None
+# for CSV), and any caveat about the data. Nothing is printed - a caveat
+# such as a truncated sweep is data you can act on or ignore.
+result = load_data('data.DTA')
+frequencies, Z = result.frequencies, result.Z
+for w in result.warnings:
+    print(w)
 
 # Explicit CSV loading
-frequencies, Z = load_csv_data('data.csv')
+result = load_csv_data('data.csv')
 
-# Parse metadata from Gamry .DTA file
+# Parse metadata separately (load_data already puts it on the result)
 metadata = parse_dta_metadata('data.DTA')
 # metadata contains: AREA, VDC, VAC, FREQ, DATE, TIME, NOTES, PSTAT
-log_metadata(metadata)  # Log metadata to console
 
 # Parse OCV (Open Circuit Voltage) curve from DTA file
 ocv_data = parse_ocv_curve('data.DTA')
@@ -804,7 +808,8 @@ from eis_analysis import load_data, calculate_drt
 import matplotlib.pyplot as plt
 
 # Load data
-frequencies, Z = load_data('my_data.DTA')
+data = load_data('my_data.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # DRT with automatic lambda
 result = calculate_drt(
@@ -837,7 +842,8 @@ from eis_analysis import (
 )
 
 # Load and validate
-frequencies, Z = load_data('data.DTA')
+data = load_data('data.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # Kramers-Kronig validation (Lin-KK)
 kk_result = kramers_kronig_validation(frequencies, Z)
@@ -894,7 +900,8 @@ for dta_file in data_dir.glob('*.DTA'):
     print(f"Processing {dta_file.name}...")
 
     # Analysis
-    frequencies, Z = load_data(dta_file)
+    data = load_data(dta_file)
+    frequencies, Z = data.frequencies, data.Z
     result = calculate_drt(
         frequencies, Z,
         auto_lambda=True,
@@ -916,7 +923,8 @@ from eis_analysis import load_data, fit_equivalent_circuit, R, C
 from eis_analysis.analysis import analyze_oxide_layer
 
 # Load data
-frequencies, Z = load_data('oxide_sample.DTA')
+data = load_data('oxide_sample.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # Build circuit using operator overloading
 circuit = R(100) - (R(500) | C(1e-6)) - (R(2000) | C(5e-6))
@@ -951,7 +959,8 @@ from eis_analysis import (
 )
 
 # Load data
-frequencies, Z = load_data('complex_sample.DTA')
+data = load_data('complex_sample.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # Complex circuit with Q elements (many parameters)
 circuit = R(100) - (R(500) | Q(1e-6, 0.9)) - (R(2000) | Q(1e-5, 0.85))
@@ -1002,7 +1011,8 @@ print(f"DE error: {de_result.final_error:.3f}%")
 from eis_analysis import load_data, fit_voigt_chain_linear
 
 # Load data
-frequencies, Z = load_data('data.DTA')
+data = load_data('data.DTA')
+frequencies, Z = data.frequencies, data.Z
 
 # Voigt chain linear fit (no nonlinear optimization)
 circuit, params = fit_voigt_chain_linear(

@@ -15,7 +15,6 @@ example/EISPOT-test1.DTA (OCVCURVE + ZCURVE + full metadata, European
 decimals) anchor the parsers to a current real-world Gamry file.
 """
 
-import logging
 import os
 
 import numpy as np
@@ -101,13 +100,18 @@ def _write_encoded(tmp_path, name, text, encoding):
     return str(p)
 
 
+def _fz(result):
+    """The spectrum out of a LoadResult; most tests only look at the arrays."""
+    return result.frequencies, result.Z
+
+
 # ---------------------------------------------------------------------------
 # A) read_gamry_native / load_data
 # ---------------------------------------------------------------------------
 
 def test_load_data_happy_path(tmp_path):
     rows = _rows(12)
-    f, Z = load_data(_write(tmp_path, "ok.DTA", _make_dta(rows)))
+    f, Z = _fz(load_data(_write(tmp_path, "ok.DTA", _make_dta(rows))))
     assert len(f) == 12 and len(Z) == 12
     assert np.iscomplexobj(Z)
     assert np.allclose(f, [r[0] for r in rows])
@@ -116,13 +120,13 @@ def test_load_data_happy_path(tmp_path):
 
 def test_european_decimal_parsed(tmp_path):
     rows = [(1000.5, 12.25, -3.75)] + _rows(11)
-    f, Z = read_gamry_native(_write(tmp_path, "eu.DTA", _make_dta(rows, decimal=",")))
+    f, Z = _fz(read_gamry_native(_write(tmp_path, "eu.DTA", _make_dta(rows, decimal=","))))
     assert np.isclose(f[0], 1000.5)
     assert np.isclose(Z[0].real, 12.25) and np.isclose(Z[0].imag, -3.75)
 
 
 def test_experimentaborted_truncates(tmp_path):
-    f, Z = load_data(_write(tmp_path, "abort.DTA", _make_dta(_rows(20), aborted_after=12)))
+    f, Z = _fz(load_data(_write(tmp_path, "abort.DTA", _make_dta(_rows(20), aborted_after=12))))
     assert len(f) == 12
 
 
@@ -149,7 +153,7 @@ def test_malformed_lines_skipped(tmp_path):
         "\t3\t3\t800.0\t101.0\t-11.0",   # valid
         "\t4\t4\t700.0\t102.0\t-12.0",   # valid
     ]) + "\n"
-    f, Z = read_gamry_native(_write(tmp_path, "mal.DTA", text))
+    f, Z = _fz(read_gamry_native(_write(tmp_path, "mal.DTA", text)))
     assert len(f) == 3
 
 
@@ -164,7 +168,7 @@ def test_nonpositive_and_nonfinite_filtered(tmp_path):
         "\t3\t3\t900.0\tinf\t-10.0",      # non-finite Zreal -> filtered
         "\t4\t4\t800.0\t100.0\t-11.0",    # valid
     ]) + "\n"
-    f, Z = read_gamry_native(_write(tmp_path, "nf.DTA", text))
+    f, Z = _fz(read_gamry_native(_write(tmp_path, "nf.DTA", text)))
     assert len(f) == 2
     assert np.all(f > 0) and np.all(np.isfinite(Z))
 
@@ -174,13 +178,12 @@ def test_load_data_too_few_points_raises(tmp_path):
         load_data(_write(tmp_path, "few.DTA", _make_dta(_rows(5))))
 
 
-def test_load_data_duplicate_freq_warns(tmp_path, caplog):
+def test_load_data_duplicate_freq_warns(tmp_path):
     rows = _rows(12)
     rows[1] = (rows[0][0], rows[1][1], rows[1][2])  # duplicate first frequency
-    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
-        f, Z = load_data(_write(tmp_path, "dup.DTA", _make_dta(rows)))
-    assert len(f) == 12
-    assert any("duplicate" in r.message.lower() for r in caplog.records)
+    result = load_data(_write(tmp_path, "dup.DTA", _make_dta(rows)))
+    assert len(result.frequencies) == 12
+    assert any("duplicate" in w.lower() for w in result.warnings)
 
 
 def test_expected_points_from_header():
@@ -198,25 +201,23 @@ def test_expected_points_returns_none_without_usable_header(metadata):
     assert expected_points(metadata) is None
 
 
-def test_truncated_sweep_warns(tmp_path, caplog):
+def test_truncated_sweep_warns(tmp_path):
     """A run stopped above FREQFINAL is short of the header count."""
     rows = _rows(20, fmin=1e2, fmax=1e5)  # header asks for 31
     path = _write(tmp_path, "short.DTA",
                   _make_dta(rows, sweep=(1e5, 1e2, 10.0)))
-    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
-        f, _ = load_data(path)
-    assert len(f) == 20
-    assert any("truncated" in r.message.lower() for r in caplog.records)
+    result = load_data(path)
+    assert len(result.frequencies) == 20
+    assert any("truncated" in w.lower() for w in result.warnings)
 
 
 @pytest.mark.parametrize("n", [31, 32])  # exact, and Gamry's one-point overshoot
-def test_complete_sweep_does_not_warn(tmp_path, caplog, n):
+def test_complete_sweep_does_not_warn(tmp_path, n):
     """A full sweep, and the endpoint overshoot, stay silent."""
     path = _write(tmp_path, f"full{n}.DTA",
                   _make_dta(_rows(n, fmin=1e2, fmax=1e5), sweep=(1e5, 1e2, 10.0)))
-    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
-        load_data(path)
-    assert not any("truncated" in r.message.lower() for r in caplog.records)
+    result = load_data(path)
+    assert not any("truncated" in w.lower() for w in result.warnings)
 
 
 def test_columns_located_by_header_name(tmp_path):
@@ -234,13 +235,13 @@ def test_columns_located_by_header_name(tmp_path):
         "\tPt\tTime\tZreal\tZimag\tZmod\tFreq",   # Freq last, not third
         "\t#\ts\tohm\tohm\tohm\tHz",
     ] + rows) + "\n"
-    f, Z = read_gamry_native(_write(tmp_path, "order.DTA", text))
+    f, Z = _fz(read_gamry_native(_write(tmp_path, "order.DTA", text)))
     assert len(f) == 12  # the truncated row dropped, the rest kept
     assert np.isclose(f[0], 1000.0) and np.isclose(f[-1], 989.0)
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
-def test_unnamed_columns_fall_back_to_standard_order(tmp_path, caplog):
+def test_unnamed_columns_fall_back_to_standard_order(tmp_path):
     """An unrecognizable header keeps the old positional behaviour, loudly."""
     text = "\n".join([
         "TAG\tEISPOT",
@@ -248,10 +249,10 @@ def test_unnamed_columns_fall_back_to_standard_order(tmp_path, caplog):
         "\tA\tB\tC\tD\tE",
         "\t#\ts\tHz\tohm\tohm",
     ] + [f"\t{i}\t{i}\t{1000 - i}\t{100 + i}\t{-(10 + i)}" for i in range(12)]) + "\n"
-    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
-        f, Z = read_gamry_native(_write(tmp_path, "noname.DTA", text))
+    result = read_gamry_native(_write(tmp_path, "noname.DTA", text))
+    f, Z = _fz(result)
     assert np.isclose(f[0], 1000.0) and np.isclose(Z[0].real, 100.0)
-    assert any("standard order" in r.message for r in caplog.records)
+    assert any("standard order" in w for w in result.warnings)
 
 
 def test_abort_before_sweep_names_the_abort(tmp_path):
@@ -280,7 +281,7 @@ def test_ocv_stops_at_next_section(tmp_path):
 
 def test_csv_comma_standard(tmp_path):
     rows = _rows(12)
-    f, Z = load_csv_data(_write(tmp_path, "c.csv", _make_csv(rows)))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "c.csv", _make_csv(rows))))
     assert len(f) == 12
     assert np.allclose(f, [r[0] for r in rows])
     assert np.isclose(Z[0].real, 100.0)
@@ -288,37 +289,37 @@ def test_csv_comma_standard(tmp_path):
 
 def test_csv_semicolon_european(tmp_path):
     text = _make_csv(_rows(12), delimiter=";", decimal=",", headers=("freq", "Zreal", "Zimag"))
-    f, Z = load_csv_data(_write(tmp_path, "eu.csv", text))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "eu.csv", text)))
     assert len(f) == 12
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
 def test_csv_tab_delimited(tmp_path):
     text = _make_csv(_rows(12), delimiter="\t", headers=("f", "Re(Z)", "Im(Z)"))
-    f, Z = load_csv_data(_write(tmp_path, "t.csv", text))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "t.csv", text)))
     assert len(f) == 12
 
 
 def test_csv_comment_lines_skipped(tmp_path):
     text = _make_csv(_rows(12), comments=("# exported data", "# units: Hz, Ohm"))
-    f, Z = load_csv_data(_write(tmp_path, "cm.csv", text))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "cm.csv", text)))
     assert len(f) == 12
 
 
 def test_csv_header_autodetect(tmp_path):
     text = _make_csv(_rows(12), headers=("Frequency [Hz]", "Re(Z)", "Im(Z)"))
-    f, Z = load_csv_data(_write(tmp_path, "ad.csv", text))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "ad.csv", text)))
     assert len(f) == 12
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
-def test_csv_positional_fallback(tmp_path, caplog):
+def test_csv_positional_fallback(tmp_path):
     # Headers that match no known pattern -> fall back to columns 0,1,2.
     text = _make_csv(_rows(12), headers=("alpha", "beta", "gamma"))
-    with caplog.at_level(logging.WARNING, logger="eis_analysis.io.data_loading"):
-        f, Z = load_csv_data(_write(tmp_path, "pos.csv", text))
+    result = load_csv_data(_write(tmp_path, "pos.csv", text))
+    f, Z = _fz(result)
     assert len(f) == 12
-    assert any("positional" in r.message.lower() for r in caplog.records)
+    assert any("positional" in w.lower() for w in result.warnings)
 
 
 def test_csv_header_only_raises(tmp_path):
@@ -431,7 +432,7 @@ def test_zcurve_data_unaffected_by_folding(tmp_path):
     rows = _rows(15)
     text = _make_dta(rows).replace("TITLE\tLABEL\tTest\tT",
                                    "TITLE\tLABEL\tVzorek \u010d. 1 p\u0159i 380 \u00b0C\tT")
-    f, Z = read_gamry_native(_write_encoded(tmp_path, "num.DTA", text, "cp1250"))
+    f, Z = _fz(read_gamry_native(_write_encoded(tmp_path, "num.DTA", text, "cp1250")))
     assert len(f) == 15
     assert np.isclose(f[0], rows[0][0]) and np.isclose(Z[0].real, rows[0][1])
 
@@ -471,7 +472,7 @@ def test_ocv_missing_file_returns_none():
 
 @pytest.mark.skipif(not os.path.exists(REAL_DTA), reason="example/EISPOT-test1.DTA missing")
 def test_smoke_load_real_dta():
-    f, Z = load_data(REAL_DTA)
+    f, Z = _fz(load_data(REAL_DTA))
     assert len(f) >= MIN_DATA_POINTS
     assert np.all(f > 0) and np.all(np.isfinite(Z))
 
@@ -501,6 +502,6 @@ def test_smoke_load_example_csv(name):
     path = os.path.join(EXAMPLE_DIR, name)
     if not os.path.exists(path):
         pytest.skip(f"{name} missing")
-    f, Z = load_csv_data(path)
+    f, Z = _fz(load_csv_data(path))
     assert len(f) >= MIN_DATA_POINTS
     assert np.all(f > 0)

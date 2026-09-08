@@ -9,7 +9,8 @@ import math
 import unicodedata
 import numpy as np
 import logging
-from typing import Tuple, Dict, Optional, Any, List
+from dataclasses import dataclass, field
+from typing import Dict, Optional, Any, List
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,38 @@ logger = logging.getLogger(__name__)
 # Validation constants
 MIN_DATA_POINTS = 10  # Minimum number of data points for analysis
 MIN_FREQUENCY_RANGE = 10  # Minimum ratio f_max/f_min
+
+
+@dataclass
+class LoadResult:
+    """
+    A spectrum as it came out of a file.
+
+    Caveats about the data land in `warnings` rather than on the console:
+    the loader has no idea whether it runs under the CLI, in a notebook or
+    in a batch script, and the caveat qualifies the returned spectrum the
+    way an uncertainty qualifies a measurement. Failures of the operation
+    itself (unreadable file, missing section) still raise or log, since
+    there is no result for them to qualify.
+
+    Attributes
+    ----------
+    frequencies : ndarray of float
+        Frequency values [Hz]
+    Z : ndarray of complex
+        Complex impedance values [Ohm]
+    filename : str
+        Path the data was read from
+    metadata : dict or None
+        DTA header metadata; None for formats that carry none (CSV)
+    warnings : list of str
+        Caveats about the data, in the order they were found
+    """
+    frequencies: NDArray[np.float64]
+    Z: NDArray[np.complex128]
+    filename: str
+    metadata: Optional[Dict[str, Any]] = None
+    warnings: List[str] = field(default_factory=list)
 
 
 def _read_dta_lines(filename: str) -> List[str]:
@@ -50,7 +83,7 @@ def _read_dta_lines(filename: str) -> List[str]:
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii').splitlines()
 
 
-def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+def read_gamry_native(filename: str) -> LoadResult:
     """
     Native parser for Gamry .DTA files.
 
@@ -64,10 +97,9 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
 
     Returns
     -------
-    frequencies : ndarray of float
-        Frequency values [Hz]
-    Z : ndarray of complex
-        Complex impedance values [Ω]
+    LoadResult
+        Spectrum plus any caveat about how it was read (an unnamed ZCURVE
+        header falls back to the standard column order and says so).
 
     Raises
     ------
@@ -116,12 +148,13 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
                          f"sweep started; the ZCURVE section contains no data")
 
     # Follow the header row rather than assuming columns 3 to 5.
+    warnings: List[str] = []
     header = lines[start_line + 1].split() if start_line + 1 < len(lines) else []
     try:
         col_freq, col_zreal, col_zimag = (header.index(n) for n in ('Freq', 'Zreal', 'Zimag'))
     except ValueError:
-        logger.warning(f"ZCURVE header in {filename} does not name Freq/Zreal/Zimag "
-                       f"({header or 'header row missing'}); assuming standard order")
+        warnings.append(f"ZCURVE header in {filename} does not name Freq/Zreal/Zimag "
+                        f"({header or 'header row missing'}); assuming standard order")
         col_freq, col_zreal, col_zimag = 2, 3, 4
 
     # A row must be long enough to hold the rightmost column we actually read.
@@ -170,7 +203,7 @@ def read_gamry_native(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.co
 
     logger.debug(f"Parsed {len(freq_array)} data points from {filename}")
 
-    return freq_array, Z
+    return LoadResult(freq_array, Z, filename, warnings=warnings)
 
 
 def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
@@ -412,59 +445,7 @@ def expected_points(metadata: Dict[str, Any]) -> Optional[int]:
     return round(math.log10(f_init / f_final) * per_decade) + 1
 
 
-def log_metadata(metadata: Dict[str, Any]) -> None:
-    """
-    Log metadata in a readable format.
-
-    Parameters
-    ----------
-    metadata : dict
-        Metadata dictionary from parse_dta_metadata()
-    """
-    logger.info("="*60)
-    logger.info("DTA file metadata")
-    logger.info("="*60)
-
-    # Sample identification
-    if metadata.get('title'):
-        logger.info(f"Sample: {metadata['title']}")
-    if metadata.get('date') or metadata.get('time'):
-        date_str = metadata.get('date', '?')
-        time_str = metadata.get('time', '?')
-        logger.info(f"Measurement date: {date_str} {time_str}")
-
-    # Notes
-    if metadata.get('notes'):
-        logger.info("Notes:")
-        for note in metadata['notes']:
-            logger.info(f"  - {note}")
-
-    # EIS parameters
-    logger.info("")
-    logger.info("Measurement parameters:")
-
-    if metadata.get('area') is not None:
-        logger.info(f"  Sample area: {metadata['area']:.4f} cm²")
-
-    if metadata.get('vdc') is not None:
-        logger.info(f"  DC voltage: {metadata['vdc']:.4f} V")
-
-    if metadata.get('vac') is not None:
-        logger.info(f"  AC voltage: {metadata['vac']:.2f} mV rms")
-
-    if metadata.get('freq_init') is not None and metadata.get('freq_final') is not None:
-        logger.info(f"  Frequency range: {metadata['freq_final']:.2e} - {metadata['freq_init']:.2e} Hz")
-
-    if metadata.get('pts_per_dec') is not None:
-        logger.info(f"  Points per decade: {metadata['pts_per_dec']:.0f}")
-
-    if metadata.get('pstat'):
-        logger.info(f"  Potentiostat: {metadata['pstat']}")
-
-    logger.info("="*60)
-
-
-def load_data(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+def load_data(filename: str) -> LoadResult:
     """
     Load data from Gamry .DTA file.
 
@@ -478,17 +459,16 @@ def load_data(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128
 
     Returns
     -------
-    frequencies : ndarray of float
-        Frequency values [Hz]
-    Z : ndarray of complex
-        Complex impedance values [Ω]
+    LoadResult
+        Spectrum, DTA header metadata, and any caveat about the data.
 
     Raises
     ------
     ValueError
         If data is invalid (empty, NaN, negative frequencies)
     """
-    frequencies, Z = read_gamry_native(filename)
+    result = read_gamry_native(filename)
+    frequencies, Z = result.frequencies, result.Z
 
     # Data validation
     if len(frequencies) == 0 or len(Z) == 0:
@@ -510,26 +490,27 @@ def load_data(filename: str) -> Tuple[NDArray[np.float64], NDArray[np.complex128
     # Edge case: frequency range
     freq_range = frequencies.max() / frequencies.min()
     if freq_range < MIN_FREQUENCY_RANGE:
-        logger.warning(f"Small frequency range: {freq_range:.1f}x (recommended >{MIN_FREQUENCY_RANGE}x)")
-        logger.warning("DRT analysis may have poor resolution")
+        result.warnings.append(
+            f"Small frequency range: {freq_range:.1f}x "
+            f"(recommended >{MIN_FREQUENCY_RANGE}x); DRT analysis may have poor resolution")
 
     # Edge case: duplicate frequencies
     if len(np.unique(frequencies)) != len(frequencies):
-        logger.warning("Dataset contains duplicate frequencies")
+        result.warnings.append("Dataset contains duplicate frequencies")
 
     # Edge case: sweep stopped before reaching the requested final frequency.
     # Only a shortfall is reported - see expected_points() on the overshoot.
-    metadata = parse_dta_metadata(filename)
-    n_expected = expected_points(metadata)
+    # The metadata is kept on the result so that callers need not parse the
+    # file a second time for it.
+    result.metadata = parse_dta_metadata(filename)
+    n_expected = expected_points(result.metadata)
     if n_expected is not None and len(frequencies) < n_expected:
-        logger.warning(f"Sweep may be truncated: {len(frequencies)} points, "
-                       f"header implies {n_expected}")
-        logger.warning(f"  Lowest measured frequency {frequencies.min():.2e} Hz, "
-                       f"header FREQFINAL {metadata['freq_final']:.2e} Hz")
+        result.warnings.append(
+            f"Sweep may be truncated: {len(frequencies)} points, header implies "
+            f"{n_expected} (lowest measured {frequencies.min():.2e} Hz, "
+            f"header FREQFINAL {result.metadata['freq_final']:.2e} Hz)")
 
-    logger.info(f"Loaded {len(frequencies)} points from {filename}")
-    logger.info(f"Frequency range: {frequencies.min():.2e} - {frequencies.max():.2e} Hz")
-    return frequencies, Z
+    return result
 
 
 def _detect_delimiter(header_line: str) -> str:
@@ -572,7 +553,7 @@ def _find_column_index(headers: List[str], patterns: List[str]) -> Optional[int]
 def load_csv_data(
     filename: str,
     delimiter: Optional[str] = None
-) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+) -> LoadResult:
     """
     Load EIS data from CSV file with auto-detection of columns and delimiter.
 
@@ -595,10 +576,9 @@ def load_csv_data(
 
     Returns
     -------
-    frequencies : ndarray of float
-        Frequency values [Hz]
-    Z : ndarray of complex
-        Complex impedance values [Ω]
+    LoadResult
+        Spectrum plus any caveat about the data (metadata is None; CSV
+        carries no header of its own).
 
     Raises
     ------
@@ -667,8 +647,9 @@ def load_csv_data(
     zimag_col = _find_column_index(headers, zimag_patterns)
 
     # Fallback to positional if headers not found
+    warnings: List[str] = []
     if freq_col is None or zreal_col is None or zimag_col is None:
-        logger.warning("Could not detect columns from headers, using positional (0, 1, 2)")
+        warnings.append("Could not detect columns from headers, using positional (0, 1, 2)")
         freq_col, zreal_col, zimag_col = 0, 1, 2
 
     logger.debug(f"Column indices: freq={freq_col}, zreal={zreal_col}, zimag={zimag_col}")
@@ -714,9 +695,7 @@ def load_csv_data(
 
     freq_range = freq_array.max() / freq_array.min()
     if freq_range < MIN_FREQUENCY_RANGE:
-        logger.warning(f"Small frequency range: {freq_range:.1f}x (recommended >{MIN_FREQUENCY_RANGE}x)")
+        warnings.append(f"Small frequency range: {freq_range:.1f}x "
+                        f"(recommended >{MIN_FREQUENCY_RANGE}x)")
 
-    logger.info(f"Loaded {len(freq_array)} points from {filename}")
-    logger.info(f"Frequency range: {freq_array.min():.2e} - {freq_array.max():.2e} Hz")
-
-    return freq_array, Z
+    return LoadResult(freq_array, Z, filename, warnings=warnings)

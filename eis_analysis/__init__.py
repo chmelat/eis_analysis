@@ -26,7 +26,7 @@ from .io import (
     load_csv_data,
     parse_dta_metadata,
     parse_ocv_curve,
-    log_metadata,
+    LoadResult,
     generate_synthetic_data,
 )
 
@@ -93,7 +93,7 @@ __all__ = [
     'load_csv_data',
     'parse_dta_metadata',
     'parse_ocv_curve',
-    'log_metadata',
+    'LoadResult',
     'generate_synthetic_data',
     # Validation
     'kramers_kronig_validation',

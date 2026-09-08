@@ -74,9 +74,29 @@ Každá etapa je samostatně vydatelná (zelené testy, vlastní commit, vlastn�
 | 4 | `fitting/voigt_chain/fitting.py` | 33 | tuple -> dataclass, 4 kroky postupu | M |
 | 5 | `analysis/oxide.py` | 43 | 96 caplog assertů v `tests/test_oxide.py` | L |
 
-### Etapa 1 — `io/data_loading.py`
+### Etapa 1 — `io/data_loading.py` — HOTOVO
 
-Stav: `load_data()` a `load_csv_data()` tisknou "Loaded N points" a rozsah
+Tři odchylky od původního návrhu, zjištěné až nad kódem:
+
+- Dataclass se jmenuje `LoadResult`, ne `LoadedData` — ten název už patří
+  kontejneru CLI v `cli/utils.py` (drží navíc `title` a `ocv_data` a pokrývá
+  i syntetická data, kde žádný soubor není). Nese `metadata`, protože
+  `load_data()` je stejně parsuje kvůli kontrole useknutého sweepu; CLI tím
+  přestalo číst soubor podruhé.
+- Převeden i `read_gamry_native()`, který plán nezmiňoval. Bez toho by
+  výhrada "hlavička nepojmenovává sloupce, beru standardní pořadí" neměla
+  kam jít a kritérium R1 by v tomto modulu neplatilo.
+- `print_metadata()` si v CLI ponechává `"=" * 60`, aby seděl se sousedním
+  blokem syntetických dat. Sjednocení šířky oddělovače (pravidlo 6) je
+  samostatný průchod na konci; udělat ho teď by výstup rozhodilo uprostřed
+  refaktoringu.
+
+Jediná změna výstupu: výhrada o useknutém sweepu je jeden řádek místo dvou
+(stejná informace). Ověřeno diffem výstupu CLI proti HEAD na `.DTA`,
+useknutém `.DTA` a `.csv` s nerozpoznanými sloupci. Syntetická data nejsou
+seedovaná, takže se u nich porovnávala jen struktura výstupu.
+
+Původní zadání: `load_data()` a `load_csv_data()` tisknou "Loaded N points" a rozsah
 frekvencí; `log_metadata(metadata)` je čistý printer, který žije v `io/`
 a je exportován ve veřejném API (`eis_analysis/__init__.py:29`).
 

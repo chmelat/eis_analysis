@@ -9,7 +9,7 @@ from .data_loading import (
     parse_dta_metadata,
     parse_ocv_curve,
     expected_points,
-    log_metadata
+    LoadResult,
 )
 from .synthetic import generate_synthetic_data
 
@@ -20,6 +20,6 @@ __all__ = [
     'parse_dta_metadata',
     'parse_ocv_curve',
     'expected_points',
-    'log_metadata',
+    'LoadResult',
     'generate_synthetic_data',
 ]

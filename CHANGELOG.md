@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased (towards 0.32.0)
+
+CLI output unification, stage by stage. The plan, the target convention and
+the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
+
+### Changed - BREAKING
+
+- **The loaders return a `LoadResult` instead of a `(frequencies, Z)` tuple.**
+  `load_data()`, `load_csv_data()` and `read_gamry_native()` now hand back the
+  spectrum together with the DTA metadata and a `warnings` list, and print
+  nothing at all. A library call no longer spams the caller's console, and
+  `load_data()` keeps the metadata it already parsed for the truncation check
+  so the CLI need not read the file a second time.
+
+  ```python
+  data = load_data('spectrum.DTA')
+  frequencies, Z = data.frequencies, data.Z
+  ```
+
+- **`log_metadata()` is gone from the public API.** It was console output
+  living in `io/`; it is now `print_metadata()` in `cli/data_handling.py`.
+
+- Caveats about the data (small frequency range, duplicate frequencies,
+  truncated sweep, guessed CSV columns) are entries in `LoadResult.warnings`
+  rather than log records. Failures of the operation itself - an unreadable
+  file, a missing section - still raise or log, since no result exists for
+  them to qualify. The truncated-sweep caveat is one line now instead of two;
+  the information is unchanged.
+
+---
+
 ## Version 0.31.3 (2026-09-03)
 
 ### Fixed
