@@ -7,8 +7,8 @@ and estimates oxide thickness from its capacitance.
 
 import numpy as np
 import logging
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass
+from typing import Optional, List, Dict, Any, Tuple
+from dataclasses import dataclass, field
 from numpy.typing import NDArray
 
 from ..fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
@@ -31,7 +31,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class OxideAnalysisResult:
-    """Result of oxide layer analysis."""
+    """
+    Result of oxide layer analysis.
+
+    Besides the numbers, this carries how they were arrived at: every
+    capacitive candidate the circuit offered, why one of them was picked,
+    and whether the capacitance came from the fit at all (`mode`). Without
+    those a reader cannot check the dominant-element choice, which is a
+    heuristic - the largest-R element may equally be a charge-transfer
+    process.
+    """
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
@@ -48,6 +57,15 @@ class OxideAnalysisResult:
     # thickness is the input and the permittivity the derived quantity
     permittivity: Optional[float] = None       # ε_r from known thickness
     permittivity_brug: Optional[float] = None  # ε_r from Brug C_eff
+
+    # How the capacitance was obtained
+    mode: str = 'circuit'       # 'circuit' (from the fit) or 'hf_estimate'
+    candidates: List[Dict[str, Any]] = field(default_factory=list)
+    selection_reason: str = ''  # why the dominant element was picked
+    n_hf_points: Optional[int] = None  # points behind the HF median estimate
+    epsilon_r: Optional[float] = None  # value assumed by analyze_oxide_layer
+    area_cm2: float = 1.0
+    warnings: List[str] = field(default_factory=list)
 
 
 def _cc_capacitance_regime(tau: float, frequencies: NDArray[np.float64]) -> str:
@@ -81,14 +99,14 @@ def _cc_capacitance_regime(tau: float, frequencies: NDArray[np.float64]) -> str:
     return 'high_frequency' if f_char < float(np.min(frequencies)) else 'static'
 
 
-def _log_cc_capacitance_choice(
+def _cc_capacitance_notes(
     cc: Dict[str, Any],
     frequencies: NDArray[np.float64]
-) -> None:
+) -> List[str]:
     """
     Explain which Cole-Cole capacitance was reported, and why.
 
-    Two independent checks, both worth logging:
+    Two independent checks, both worth reporting:
 
     1. Where f_char = 1/(2*pi*tau) sits relative to the measured window.
        This is what selects the reported value in `_cc_capacitance_regime`;
@@ -102,13 +120,14 @@ def _log_cc_capacitance_choice(
        be overridden by a caller (`generate_simple_bounds` derives them from
        the parameter labels), so PARAMETER_BOUNDS is authoritative here.
     """
+    notes: List[str] = []
     tau = cc['tau']
     f_char = 1.0 / (2.0 * np.pi * tau) if tau > 0 else None
     f_min = float(np.min(frequencies)) if frequencies.size else 0.0
     f_max = float(np.max(frequencies)) if frequencies.size else 0.0
 
     if cc['C_regime'] == 'high_frequency' and f_char is not None:
-        logger.warning(
+        notes.append(
             f"Cole-Cole relaxation lies BELOW the measured window: "
             f"f_char = 1/(2*pi*tau) = {f_char:.2e} Hz vs f_min = {f_min:.2e} Hz "
             f"({np.log10(f_min / f_char):.1f} decades below it). Every measured "
@@ -119,7 +138,7 @@ def _log_cc_capacitance_choice(
             f"the high-frequency value. Extend the sweep to lower frequencies "
             f"to determine dC.")
     elif f_char is not None and frequencies.size > 0 and f_min > 0 and f_char > f_max:
-        logger.warning(
+        notes.append(
             f"Cole-Cole relaxation lies ABOVE the measured window: "
             f"f_char = {f_char:.2e} Hz vs f_max = {f_max:.2e} Hz. The whole "
             f"window sits at omega*tau << 1, so the reported "
@@ -130,7 +149,7 @@ def _log_cc_capacitance_choice(
     elif (f_char is not None and frequencies.size > 0 and f_min > 0
           and min(np.log10(f_char / f_min),
                   np.log10(f_max / f_char)) < CC_WINDOW_EDGE_MARGIN_DECADES):
-        logger.warning(
+        notes.append(
             f"Cole-Cole relaxation sits within "
             f"{CC_WINDOW_EDGE_MARGIN_DECADES:g} decade(s) of the edge of the "
             f"measured window (f_char = {f_char:.2e} Hz, window "
@@ -143,17 +162,20 @@ def _log_cc_capacitance_choice(
         tau_lo, tau_hi = PARAMETER_BOUNDS['τ_CC']
         status = classify_bound_status(tau, tau_lo, tau_hi)
         if status:
-            logger.warning(
+            notes.append(
                 f"Cole-Cole tau = {tau:.2e} s sits at its {status} fitting bound "
                 f"({tau_lo:.0e} .. {tau_hi:.0e} s): the data did not determine "
                 f"it, so the relaxation strength dC and everything derived from "
                 f"it are unconstrained. Either extend the frequency range or fix "
                 f"tau to an independently known value.")
 
+    return notes
+
 
 def _find_capacitive_elements(
     circuit,
-    frequencies: NDArray[np.float64]
+    frequencies: NDArray[np.float64],
+    warnings: List[str]
 ) -> List[Dict[str, Any]]:
     """
     Find every capacitive element in the circuit: C, Q, K and CC.
@@ -190,8 +212,8 @@ def _find_capacitive_elements(
         if not r_elements:
             return None
         if len(r_elements) > 1:
-            logger.warning("Multiple R/G elements in one parallel "
-                           "combination - using the last one")
+            warnings.append("Multiple R/G elements in one parallel "
+                            "combination - using the last one")
         last = r_elements[-1]
         if isinstance(last, G):
             return 1 / last.G if last.G > 0 else None
@@ -239,7 +261,7 @@ def _find_capacitive_elements(
             if R_val <= 0:
                 # C = tau/R is undefined; a non-positive R would be dropped
                 # by the dominant-element filter anyway
-                logger.warning(f"K element with non-positive R = {R_val:g} Ω - skipping")
+                warnings.append(f"K element with non-positive R = {R_val:g} Ω - skipping")
                 return
             results.append({
                 'type': 'K',
@@ -290,8 +312,9 @@ def _element_size(element: Dict[str, Any]) -> float:
 
 
 def _select_dielectric_element(
-    candidates: List[Dict[str, Any]]
-) -> Dict[str, Any]:
+    candidates: List[Dict[str, Any]],
+    warnings: List[str]
+) -> Tuple[Dict[str, Any], str]:
     """
     Pick the element that carries the dielectric response.
 
@@ -311,20 +334,21 @@ def _select_dielectric_element(
     the long-standing heuristic, which only distinguishes an oxide barrier
     from a charge-transfer process. Elements with no parallel resistance have
     no R to compare and are ranked by capacitance instead.
+
+    Returns the element and a one-line statement of why it won, which the
+    caller reports: the choice is a heuristic and has to be checkable.
     """
     cc = [e for e in candidates if e['type'] == 'CC']
     if cc:
         if len(cc) > 1:
-            logger.warning(
+            warnings.append(
                 f"{len(cc)} Cole-Cole elements in circuit - using "
                 "the one with the largest static capacitance. With several "
                 "dielectric relaxations the layer assignment is yours to make.")
         dominant = max(cc, key=lambda e: e['C'])
-        logger.info(f"Dominant element: CC with C = {dominant['C']:.3e} F")
-        logger.info("Selected because the circuit models the dielectric "
-                    "relaxation explicitly; a plain C is its degenerate case "
-                    "(ΔC = 0), so the general model wins")
-        return dominant
+        return dominant, ("Selected because the circuit models the dielectric "
+                          "relaxation explicitly; a plain C is its degenerate "
+                          "case (ΔC = 0), so the general model wins")
 
     exact = [e for e in candidates if e['type'] in ('C', 'K')]
     tier = exact if exact else candidates
@@ -337,37 +361,31 @@ def _select_dielectric_element(
         dominant = max(with_R, key=lambda e: (e['R'], _element_size(e)))
         tied = [e for e in with_R if e['R'] == dominant['R']]
         if len(tied) > 1:
-            logger.warning(
+            warnings.append(
                 f"{len(tied)} capacitive elements share one parallel resistance "
                 f"(R = {dominant['R']:.1f} Ω) - using the largest, "
                 f"{_element_size(dominant):.3e}. They are one parallel "
                 "combination, so their individual values are not separately "
                 "identifiable from the spectrum.")
         if len(tier) > len(with_R):
-            logger.warning(
+            warnings.append(
                 f"{len(tier) - len(with_R)} capacitive element(s) have no "
                 "parallel resistance and cannot be ranked by the largest-R "
                 "heuristic - they were not considered for the dominant "
                 "element. Name the layer explicitly if one of them is it.")
-        logger.info(f"Dominant element: {dominant['type']} with "
-                    f"R = {dominant['R']:.1f} Ω")
-        logger.info("Selection assumes the largest-R element is the compact "
-                    "oxide barrier (verify: a charge-transfer process can "
-                    "also have the largest R)")
-        return dominant
+        return dominant, ("Selection assumes the largest-R element is the "
+                          "compact oxide barrier (verify: a charge-transfer "
+                          "process can also have the largest R)")
 
     # No resistance anywhere in the tier: rank by capacitance instead
     dominant = max(tier, key=_element_size)
     if len(tier) > 1:
-        logger.warning(
+        warnings.append(
             f"{len(tier)} capacitive elements with no parallel resistance - "
             "using the largest. Their individual values are not separately "
             "identifiable from the spectrum, so check the fit before relying "
             "on the split.")
-    logger.info(f"Dominant element: {dominant['type']} with "
-                f"C = {_element_size(dominant):.3e} F "
-                f"(no parallel resistance to rank by)")
-    return dominant
+    return dominant, "No parallel resistance to rank by; the largest wins"
 
 
 def _estimate_cpe_capacitance(Q_val: float, n: float, R_val: float) -> float:
@@ -443,15 +461,16 @@ def _extract_capacitance(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
     area_cm2: float,
-    fit_result: Optional[FitResult]
+    fit_result: Optional[FitResult],
+    warnings: List[str]
 ) -> Optional[Dict[str, Any]]:
     """
     Extract effective capacitance of the dominant capacitive element.
 
     Shared core of analyze_oxide_layer() and estimate_permittivity():
-    element selection, capacitance estimation, and related logging.
-    Deliberately does NOT compute or log thickness — each caller logs
-    only the quantity it actually derives from the capacitance.
+    element selection and capacitance estimation. Deliberately does NOT
+    compute thickness — each caller derives only its own quantity from the
+    capacitance. Caveats are appended to `warnings`.
 
     Returns
     -------
@@ -473,33 +492,13 @@ def _extract_capacitance(
         circuit = fit_result.circuit
 
         # Every C, Q, K and CC in the circuit, parallel resistance or not
-        elements = _find_capacitive_elements(circuit, frequencies)
+        elements = _find_capacitive_elements(circuit, frequencies, warnings)
 
         if not elements:
-            logger.warning("No capacitive element (C, Q, K, CC) found in circuit")
-            logger.warning("Falling back to high-frequency estimate...")
+            warnings.append("No capacitive element (C, Q, K, CC) found in "
+                            "circuit - falling back to high-frequency estimate")
             fit_result = None
         else:
-            # List all candidates so the dominant-element choice can be
-            # verified (largest R may also be a charge-transfer process)
-            logger.info(f"Found {len(elements)} capacitive element(s):")
-            for i, e in enumerate(elements, 1):
-                R_str = (f"R = {e['R']:.1f} Ω" if e['R'] is not None
-                         else "no parallel R")
-                if e['type'] == 'Q':
-                    logger.info(f"  [{i}] Q: {R_str}, "
-                                f"Q = {e['Q']:.3e}, n = {e['n']:.3f}")
-                elif e['type'] == 'CC':
-                    logger.info(f"  [{i}] CC: C_inf = {e['C_inf']:.3e} F, "
-                                f"ΔC = {e['dC']:.3e} F "
-                                f"(C_s = {e['C_static']:.3e} F), "
-                                f"tau = {e['tau']:.2e} s, alpha = {e['alpha']:.3f}")
-                else:
-                    tau_str = (f", tau = {e['tau']:.2e} s" if e['tau'] is not None
-                               else "")
-                    logger.info(f"  [{i}] {e['type']}: {R_str}, "
-                                f"C = {e['C']:.3e} F{tau_str}")
-
             # Which element carries the dielectric response? The criterion is
             # physical - admittance rising as omega^n with n close to 1 - not
             # the element type and not its position in the expression. C and K
@@ -512,7 +511,7 @@ def _extract_capacitance(
                 if e['type'] == 'Q' and not (e['R'] is not None and e['R'] > 0):
                     # Both Hsu-Mansfeld and Brug need the parallel resistance;
                     # without it a CPE cannot be converted to a capacitance
-                    logger.warning(
+                    warnings.append(
                         f"CPE with n = {e['n']:.3f} has no parallel resistance - "
                         "neither Hsu-Mansfeld nor Brug can convert it to a "
                         "capacitance, so it is not a candidate.")
@@ -523,12 +522,13 @@ def _extract_capacitance(
             non_ideal = [e for e in usable if e['n'] < CPE_N_RELIABLE_MIN]
 
             if dielectric:
-                dominant = _select_dielectric_element(dielectric)
+                dominant, selection_reason = _select_dielectric_element(
+                    dielectric, warnings)
             elif non_ideal:
                 # Nothing in the circuit behaves as a dielectric. Better than
                 # the spectral fallback - these are at least fitted parameters
                 # - but the result is not a dielectric capacitance.
-                logger.warning(
+                warnings.append(
                     f"No dielectric element in circuit: the only capacitive "
                     f"element(s) are CPEs with n < {CPE_N_RELIABLE_MIN} "
                     f"(largest n = {max(e['n'] for e in non_ideal):.3f}). Such a "
@@ -537,10 +537,11 @@ def _extract_capacitance(
                     "thickness or permittivity from it - has no dielectric "
                     "meaning. Reported only because it is still a fitted "
                     "parameter, unlike the high-frequency estimate.")
-                dominant = _select_dielectric_element(non_ideal)
+                dominant, selection_reason = _select_dielectric_element(
+                    non_ideal, warnings)
             else:
-                logger.warning("No convertible capacitive element found")
-                logger.warning("Falling back to high-frequency estimate...")
+                warnings.append("No convertible capacitive element found - "
+                                "falling back to high-frequency estimate")
                 fit_result = None
                 dominant = None
 
@@ -559,7 +560,7 @@ def _extract_capacitance(
                     tau = dominant['tau']
                 else:  # Q
                     if dominant['n'] < CPE_N_RELIABLE_MIN:
-                        logger.warning(
+                        warnings.append(
                             f"CPE exponent n = {dominant['n']:.3f} < "
                             f"{CPE_N_RELIABLE_MIN}: effective capacitance is not "
                             "well-defined; thickness estimate may be unreliable")
@@ -573,14 +574,14 @@ def _extract_capacitance(
                     # Brug (2D) comparison estimate - needs series resistance
                     R_s = _find_series_resistance(circuit)
                     if R_s is None:
-                        logger.info("No series R element in circuit - "
-                                    "Brug (2D) estimate not available")
+                        warnings.append("No series R element in circuit - "
+                                        "Brug (2D) estimate not available")
                     elif R_s < BRUG_RS_MIN_OHM:
                         # A CPE with n < 1 mimics a series resistance at high
                         # frequency, so R_s is often unidentifiable and the fit
                         # drives it to the optimizer floor. Brug's
                         # C ~ R_s^((1-n)/n) would then be arbitrarily small.
-                        logger.warning(
+                        warnings.append(
                             f"Series resistance R_s = {R_s:.3e} Ohm < "
                             f"{BRUG_RS_MIN_OHM:.3g} Ohm: the fit did not identify it "
                             "(a CPE with n < 1 mimics a series resistance at high "
@@ -597,38 +598,15 @@ def _extract_capacitance(
                 C_specific_brug = (C_eff_brug / area_cm2
                                    if C_eff_brug is not None else None)
 
-                # Log element info (thickness/permittivity logged by caller)
-                logger.info("")
-                logger.info("Results:")
-                logger.info(f"  Element type:       {dominant['type']}")
-                if dominant['R'] is not None:
-                    logger.info(f"  Resistance:         {dominant['R']:.1f} Ω")
-                elif dominant['type'] == 'CC':
-                    logger.info("  Resistance:         n/a (blocking dielectric)")
-                else:
-                    logger.info("  Resistance:         n/a (no parallel R "
-                                "in the circuit)")
                 if dominant['type'] == 'CC':
-                    logger.info(f"  Broadening alpha:   {dominant['alpha']:.3f}")
-                    logger.info(f"  C_inf / ΔC:         {dominant['C_inf']:.3e} F / "
-                                f"{dominant['dC']:.3e} F")
-                cc_suffix = ""
-                if dominant['type'] == 'CC':
-                    cc_suffix = ("  (C_inf, high-frequency limit)"
-                                 if dominant['C_regime'] == 'high_frequency'
-                                 else "  (static, C_inf + ΔC)")
-                logger.info(f"  Capacitance:        {C_eff:.3e} F{cc_suffix}")
-                if dominant['type'] == 'CC':
-                    _log_cc_capacitance_choice(dominant, frequencies)
+                    warnings.extend(_cc_capacitance_notes(dominant, frequencies))
                 if C_eff_brug is not None:
-                    logger.info(f"  C (Brug, 2D):       {C_eff_brug:.3e} F "
-                                f"(comparison; primary value is Hsu-Mansfeld, 3D)")
                     # Ratio is exactly (1 + R_ct/R_s)^((1-n)/n) and is always
                     # >= 1 for n <= 1; a large value means the pair no longer
                     # brackets C_eff, it just reflects how well R_s is known.
                     divergence = C_eff / C_eff_brug
                     if divergence > BRUG_HM_DIVERGENCE_MAX:
-                        logger.warning(
+                        warnings.append(
                             f"Hsu-Mansfeld and Brug C_eff differ by {divergence:.0f}x "
                             f"(> {BRUG_HM_DIVERGENCE_MAX:.0f}x): the two CPE models do "
                             "not bracket a single C_eff here. The ratio is "
@@ -636,14 +614,6 @@ def _extract_capacitance(
                             "R_ct/R_s and by n far from 1 - treat both values, and "
                             "any thickness or permittivity derived from them, as "
                             "order-of-magnitude estimates only.")
-                logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
-                if tau is not None and tau > 0:
-                    logger.info(f"  Time constant:      {tau:.3e} s")
-                    logger.info(f"  Char. frequency:    {1/(2*np.pi*tau):.2e} Hz")
-                else:
-                    # A capacitance with no parallel resistance has no RC time
-                    # constant - there is nothing to discharge through
-                    logger.info("  Time constant:      n/a (no parallel R)")
 
                 return {
                     'C_eff': C_eff,
@@ -653,24 +623,27 @@ def _extract_capacitance(
                     'element_type': dominant['type'],
                     'element_R': dominant['R'],
                     'element_tau': tau,
-                    'element_params': dict(dominant)
+                    'element_params': dict(dominant),
+                    'mode': 'circuit',
+                    'candidates': elements,
+                    'selection_reason': selection_reason,
+                    'n_hf_points': None,
                 }
 
     # === Mode 2: Fallback - high-frequency estimate ===
-    logger.info("Mode: High-frequency estimate (simplified)")
     # Stated as plainly as a parameter sitting on its bound: the number below
     # is a spectral guess, not a fitted quantity, and nothing downstream
     # distinguishes the two once they are printed side by side.
-    logger.warning(
+    warnings.append(
         "NOT FROM THE FIT: the capacitance below is estimated directly from "
         "the spectrum (median of C = -1/(omega*Z'') over the top frequency "
         "decade), because the circuit offered no capacitive element to read it "
         "from. It carries no confidence interval and the thickness or "
         "permittivity derived from it is an order-of-magnitude figure - treat "
         "it as such even when it happens to land near the expected value.")
-    logger.warning("For better accuracy, provide fitted circuit via fit_result")
-    logger.warning("For multilayer (series) systems the high-frequency estimate "
-                   "yields the series combination of layer capacitances")
+    warnings.append("For better accuracy, provide fitted circuit via fit_result")
+    warnings.append("For multilayer (series) systems the high-frequency estimate "
+                    "yields the series combination of layer capacitances")
 
     # Estimate C from imaginary impedance, C = -1 / (ω × Z''), as the
     # median over capacitive points in the top frequency decade
@@ -683,13 +656,13 @@ def _extract_capacitance(
         omega = 2 * np.pi * frequencies[capacitive_mask]
         C_values = -1 / (omega * Z.imag[capacitive_mask])
         C_estimate = float(np.median(C_values))
-        logger.info(f"  Median over {C_values.size} point(s) in the top frequency decade")
+        n_hf_points = int(C_values.size)
 
         # C_i is frequency-independent only when the capacitance dominates
         # (ωRC ≫ 1); a large spread means that assumption does not hold
         spread = float(np.max(C_values) / np.min(C_values))
         if spread > HF_C_SPREAD_MAX_RATIO:
-            logger.warning(
+            warnings.append(
                 f"C estimates vary by factor {spread:.2f} across the top "
                 f"frequency decade (ωRC ≫ 1 may not hold); "
                 "estimate may be unreliable")
@@ -703,15 +676,14 @@ def _extract_capacitance(
             return None
 
         if Z_imag_hf > 0:
-            logger.warning("Positive imaginary impedance (inductive) - result may be invalid")
+            warnings.append("Positive imaginary impedance (inductive) - "
+                            "result may be invalid")
 
+        n_hf_points = None
         omega_hf = 2 * np.pi * f_max
         C_estimate = -1 / (omega_hf * Z_imag_hf)
 
     C_specific = C_estimate / area_cm2
-
-    logger.info(f"  Capacitance:        {C_estimate:.3e} F")
-    logger.info(f"  Specific cap.:      {C_specific * 1e6:.2f} µF/cm²")
 
     return {
         'C_eff': C_estimate,
@@ -721,7 +693,11 @@ def _extract_capacitance(
         'element_type': 'estimate',
         'element_R': None,
         'element_tau': None,
-        'element_params': {}
+        'element_params': {},
+        'mode': 'hf_estimate',
+        'candidates': [],
+        'selection_reason': '',
+        'n_hf_points': n_hf_points,
     }
 
 
@@ -782,11 +758,9 @@ def analyze_oxide_layer(
     >>> oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
     >>> print(f"Thickness: {oxide.thickness_nm:.1f} nm")
     """
-    logger.info("=" * 50)
-    logger.info("Oxide layer analysis")
-    logger.info("=" * 50)
-
-    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result)
+    warnings: List[str] = []
+    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result,
+                                     warnings)
     if extracted is None:
         return None
 
@@ -801,13 +775,6 @@ def analyze_oxide_layer(
     if C_specific_brug is not None:
         d_brug_nm = EPSILON_0 * epsilon_r / C_specific_brug * 1e7
 
-    logger.info(f"  Oxide thickness:    {d_nm:.1f} nm")
-    if d_brug_nm is not None:
-        logger.info(f"  Thickness (Brug):   {d_brug_nm:.1f} nm "
-                    f"(2D model, for comparison)")
-    logger.info(f"  (assuming ε_r={epsilon_r}, area={area_cm2} cm²)")
-    logger.info("=" * 50)
-
     return OxideAnalysisResult(
         capacitance=extracted['C_eff'],
         capacitance_specific=C_specific,
@@ -818,7 +785,14 @@ def analyze_oxide_layer(
         element_params=extracted['element_params'],
         capacitance_brug=extracted['C_eff_brug'],
         capacitance_specific_brug=C_specific_brug,
-        thickness_brug_nm=d_brug_nm
+        thickness_brug_nm=d_brug_nm,
+        mode=extracted['mode'],
+        candidates=extracted['candidates'],
+        selection_reason=extracted['selection_reason'],
+        n_hf_points=extracted['n_hf_points'],
+        epsilon_r=epsilon_r,
+        area_cm2=area_cm2,
+        warnings=warnings
     )
 
 
@@ -873,13 +847,12 @@ def estimate_permittivity(
     >>> oxide = estimate_permittivity(freq, Z, thickness_nm=20, fit_result=result)
     >>> print(f"Permittivity: {oxide.permittivity:.1f}")
     """
-    logger.info("=" * 50)
-    logger.info("Permittivity estimation from known thickness")
-    logger.info("=" * 50)
+    warnings: List[str] = []
 
     # Get capacitance using the same element-selection logic as
-    # analyze_oxide_layer (no thickness is computed or logged here)
-    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result)
+    # analyze_oxide_layer (no thickness is computed here)
+    extracted = _extract_capacitance(frequencies, Z, area_cm2, fit_result,
+                                     warnings)
 
     if extracted is None:
         logger.error("Could not extract capacitance from data")
@@ -897,16 +870,6 @@ def estimate_permittivity(
     if C_specific_brug is not None:
         eps_r_brug = d_cm * C_specific_brug / EPSILON_0
 
-    logger.info(f"  Known thickness:    {thickness_nm:.1f} nm")
-    logger.info(f"  Permittivity ε_r:   {epsilon_r:.1f}")
-    if eps_r_brug is not None:
-        # .3g, not .1f: when n is far from 1 the two CPE models diverge by
-        # orders of magnitude and a fixed-point format would print "0.0"
-        logger.info(f"  ε_r (Brug):         {eps_r_brug:.3g} "
-                    f"(2D model, for comparison)")
-    logger.info(f"  (area={area_cm2} cm²)")
-    logger.info("=" * 50)
-
     return OxideAnalysisResult(
         capacitance=extracted['C_eff'],
         capacitance_specific=C_specific,
@@ -918,7 +881,13 @@ def estimate_permittivity(
         capacitance_brug=extracted['C_eff_brug'],
         capacitance_specific_brug=C_specific_brug,
         permittivity=epsilon_r,
-        permittivity_brug=eps_r_brug
+        permittivity_brug=eps_r_brug,
+        mode=extracted['mode'],
+        candidates=extracted['candidates'],
+        selection_reason=extracted['selection_reason'],
+        n_hf_points=extracted['n_hf_points'],
+        area_cm2=area_cm2,
+        warnings=warnings
     )
 
 

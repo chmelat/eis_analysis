@@ -144,7 +144,21 @@ class OxideAnalysisResult:
     # Inverse mode - set only by estimate_permittivity()
     permittivity: Optional[float]              # epsilon_r from known thickness
     permittivity_brug: Optional[float]         # epsilon_r from Brug C_eff
+    # How the capacitance was obtained
+    mode: str                    # 'circuit' (from the fit) or 'hf_estimate'
+    candidates: List[Dict]       # every capacitive element the circuit offered
+    selection_reason: str        # why the dominant one was picked
+    n_hf_points: Optional[int]   # points behind the HF median estimate
+    epsilon_r: Optional[float]   # value assumed by analyze_oxide_layer()
+    area_cm2: float
+    warnings: List[str]          # caveats about the result
 ```
+
+Neither function prints anything: `candidates`, `selection_reason` and
+`warnings` are what the CLI builds its section from, and a library caller
+reads them directly. The dominant-element choice is a heuristic - the
+largest-R element may equally be a charge-transfer process - so
+`candidates` is what lets you check it.
 
 ---
 

@@ -51,6 +51,14 @@ the criterion for splitting warnings are in `doc/CLI_OUTPUT_UNIFICATION.md`.
   The step-by-step narration is now printed by `cli/handlers/fitting.py`,
   which is also where the mu-search block from v0.32.0's stage 2 ended up.
 
+- **`analyze_oxide_layer()` and `estimate_permittivity()` print nothing.**
+  The CLI handler used not even to capture their return value - the whole
+  section was written from inside the module, which made it the purest case
+  of the convention being replaced. `OxideAnalysisResult` now carries what
+  was only ever printed: `candidates` (every capacitive element the circuit
+  offered), `selection_reason` (why one was picked - the dominant-element
+  rule is a heuristic and has to be checkable), `mode`, and `warnings`.
+
 - Caveats about the data (small frequency range, duplicate frequencies,
   truncated sweep, guessed CSV columns) are entries in `LoadResult.warnings`
   rather than log records. Failures of the operation itself - an unreadable

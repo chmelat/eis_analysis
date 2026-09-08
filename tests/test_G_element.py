@@ -200,8 +200,8 @@ def test_old_gerischer_syntax_gives_a_migration_error():
 
 def test_oxide_analysis_reads_G_as_the_parallel_resistance():
     from eis_analysis.analysis.oxide import _find_capacitive_elements
-    with_G = _find_capacitive_elements(R(10) - (G(1e-8) | C(1e-6)), FREQ)
-    with_R = _find_capacitive_elements(R(10) - (R(1e8) | C(1e-6)), FREQ)
+    with_G = _find_capacitive_elements(R(10) - (G(1e-8) | C(1e-6)), FREQ, [])
+    with_R = _find_capacitive_elements(R(10) - (R(1e8) | C(1e-6)), FREQ, [])
     assert with_G[0]['R'] == pytest.approx(with_R[0]['R'], rel=1e-9)
 
 
@@ -221,5 +221,5 @@ def test_migration_hint_stays_off_unrelated_parse_errors():
 
 def test_oxide_analysis_treats_zero_conductance_as_no_DC_path():
     from eis_analysis.analysis.oxide import _find_capacitive_elements
-    elements = _find_capacitive_elements(R(10) - (G(0.0) | C(1e-6)), FREQ)
+    elements = _find_capacitive_elements(R(10) - (G(0.0) | C(1e-6)), FREQ, [])
     assert elements[0]['R'] is None

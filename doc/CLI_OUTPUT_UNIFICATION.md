@@ -227,7 +227,34 @@ regrese, prořezání, stavba obvodu) plus závěrečné shrnutí.
 Verifikace: `python3 -m pytest tests/test_voigt_chain.py tests/test_cli_integration.py`;
 diff výstupu `python3 eis.py example/*.DTA --voigt` proti uložené referenci.
 
-### Etapa 5 — `analysis/oxide.py`
+### Etapa 5 — `analysis/oxide.py` — HOTOVO
+
+Odhad 96 caplog assertů seděl; přepis byl z větší části mechanický, protože
+skoro všechny testovaly text varování. Zavedený pomocník `_reported(oxide)`
+skládá `warnings` a `selection_reason` do jednoho hledatelného řetězce, takže
+assert zůstal čitelný. Tři testy se převedly na data, ne na text:
+
+- `test_candidates_listed_and_assumption_noted` kontroluje
+  `oxide.candidates` a `oxide.selection_reason` místo formátovaných řádků
+  `[1] C: R = 1000.0` — ty jsou teď formátování v CLI.
+- Oba testy `estimate_permittivity_*_does_not_log_thickness` se přejmenovaly
+  na `*_reports_permittivity_not_thickness` a kontrolují
+  `result.permittivity is not None` a `result.epsilon_r is None`. Testovaly
+  nepřítomnost řetězce ve výstupu; teď testují, která veličina je odvozená.
+- `test_oxide_inverse_mode` v `test_cli_integration.py` čte logger
+  `cli.handlers.oxide` místo `analysis.oxide`. To je legitimní použití
+  caplog — testuje se vrstva CLI.
+
+Pomocné funkce si předávají seznam `warnings` parametrem;
+`_select_dielectric_element()` navíc vrací dvojici `(prvek, důvod)`, protože
+výběr je heuristika a musí být přezkoumatelný. `_log_cc_capacitance_choice()`
+se přejmenoval na `_cc_capacitance_notes()` a vrací seznam.
+
+Ověřeno na pěti větvích: HF odhad, HF odhad + `--thickness`, Voigtův řetězec
+(K prvky), CPE s Brugem, a Cole-Cole. Voigt i CC vyšly identicky; u zbytku je
+jediný rozdíl přesun varování na konec sekce.
+
+Původní zadání:
 
 Nejdražší, dělat naposledy. `cli/handlers/oxide.py:69,76` dnes návratovou
 hodnotu **vůbec nezachytí** — `OxideAnalysisResult` existuje, ale veškerý

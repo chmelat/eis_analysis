@@ -831,7 +831,7 @@ def test_oxide_inverse_mode(caplog):
     frequencies, Z = get_synthetic_data()
     args = create_test_args(analyze_oxide=True, thickness=20.0)
 
-    with caplog.at_level(logging.INFO, logger='eis_analysis.analysis.oxide'):
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.oxide'):
         run_oxide_analysis(frequencies, Z, args, None, None)
 
     assert 'Permittivity' in caplog.text, "Should report permittivity"
