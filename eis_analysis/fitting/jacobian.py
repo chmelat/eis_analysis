@@ -25,9 +25,9 @@ G:   Z = 1/G         -> dZ/dG = -1/G^2 = -Z^2
 C:   Z = 1/(jwC)     -> dZ/dC = -Z/C
 L:   Z = jwL         -> dZ/dL = jw
 Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
-W:   Z = s(1-j)/sqrt(w) -> dZ/ds = Z/s
-Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = Z/Rw, dZ/dtau = complex formula
-K:   Z = R/(1+jwt)   -> dZ/dR = Z/R, dZ/dtau = -jw*Z^2/R
+W:   Z = s(1-j)/sqrt(w) -> dZ/ds = (1-j)/sqrt(w)
+Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = tanh(u)/u, dZ/dtau = complex formula
+K:   Z = R/(1+jwt)   -> dZ/dR = 1/(1+jwt), dZ/dtau = -jw*R/(1+jwt)^2
 GE:  Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
 CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
      P = dZ/dC* = -Z/C*
@@ -132,7 +132,9 @@ def element_jacobian(
     if isinstance(element, W):
         sigma_val = params[0]
         Z = sigma_val / np.sqrt(omega) * (1 - 1j)
-        dZ_dsigma = Z / sigma_val
+        # Written out rather than as Z/sigma: sigma = 0 is a legitimate value
+        # (the element is absent) and Z/sigma would be 0/0 = nan there.
+        dZ_dsigma = (1 - 1j) / np.sqrt(omega)
         return Z, dZ_dsigma.reshape(-1, 1)
 
     # Warburg open: Z = Rw * tanh(u) / u, where u = sqrt(jw*tau)
@@ -142,8 +144,9 @@ def element_jacobian(
         tanh_u = np.tanh(u)
         Z = Rw_val * tanh_u / u
 
-        # dZ/dRw = Z/Rw
-        dZ_dRw = Z / Rw_val
+        # dZ/dRw = tanh(u)/u. Written out rather than as Z/Rw: Rw = 0 is a
+        # legitimate value (the element is absent) and Z/Rw is 0/0 there.
+        dZ_dRw = tanh_u / u
 
         # dZ/dtau: use chain rule
         # Z = Rw * tanh(u)/u
@@ -165,11 +168,14 @@ def element_jacobian(
         denom = 1 + 1j * omega * tau_val
         Z = R_val / denom
 
-        # dZ/dR = 1/(1 + jw*tau) = Z/R
-        dZ_dR = Z / R_val
+        # Both written without dividing by R: a Voigt element with R = 0 is a
+        # short, which is legitimate and is exactly what NNLS returns for a
+        # pruned chain. The Z/R and Z^2/R forms are 0/0 = nan there.
+        # dZ/dR = 1/(1 + jw*tau)
+        dZ_dR = 1 / denom
 
-        # dZ/dtau = -R * jw / (1 + jw*tau)^2 = -jw * Z^2 / R
-        dZ_dtau = -1j * omega * Z**2 / R_val
+        # dZ/dtau = -jw * R / (1 + jw*tau)^2
+        dZ_dtau = -1j * omega * R_val / denom**2
 
         dZ = np.column_stack([dZ_dR, dZ_dtau])
         return Z, dZ

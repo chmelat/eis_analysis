@@ -14,7 +14,7 @@ Two things are worth pinning down, and they are not the same thing:
 import numpy as np
 import pytest
 
-from eis_analysis.fitting import R, C, Q, W
+from eis_analysis.fitting import R, C, K, Q, W, Wo
 from eis_analysis.fitting.config import SIGNIFICANCE_NEGLIGIBLE
 from eis_analysis.fitting.diagnostics import compute_significance
 
@@ -136,9 +136,39 @@ def test_scale_invariant(freq):
     assert np.allclose(S, S_scaled, rtol=1e-9)
 
 
-def test_zero_parameter_scores_zero(freq):
-    """A parameter that is exactly zero cannot influence the impedance."""
-    circuit = R(10) - (R(1000) | C(1e-6)) - R(0.0)
+@pytest.mark.parametrize("circuit, n_zero", [
+    (R(10) - (R(1000) | C(1e-6)) - R(0.0), 1),        # dZ/dR is a constant
+    (R(10) - K(0.0, 1e-3) - K(500, 1e-2), 2),         # both K columns divide by R
+    (R(10) - (R(1000) | C(1e-6)) - W(0.0), 1),
+    (R(10) - (R(1000) | C(1e-6)) - Wo(0.0, 1.0), 2),
+])
+def test_zero_prefactor_scores_zero(circuit, n_zero, freq):
+    """An element switched off by a zero prefactor scores 0, not NaN.
+
+    R = 0 in a Voigt element is a short, not a degenerate circuit, and it is
+    exactly what NNLS returns for a pruned chain - so this is the common case
+    on the --voigt-chain path, not an exotic one. The analytic derivatives are
+    written to avoid dividing by the prefactor for that reason; the naive
+    dZ/dR = Z/R form is 0/0 here and used to poison the whole column.
+
+    Note the zeros are not always where the zero parameter is: a K element with
+    R = 0 has a finite dZ/dtau of zero as well, so both its columns go to zero.
+    """
     S = compute_significance(circuit, freq, circuit.get_all_params())
 
-    assert S[-1] == 0.0
+    assert np.all(np.isfinite(S)), f"non-finite significance: {S}"
+    assert np.count_nonzero(S == 0.0) == n_zero
+
+
+def test_degenerate_circuit_is_not_silently_zeroed(freq):
+    """C = 0 is an open circuit, |Z| = inf - there is nothing to report.
+
+    Distinct from the case above: a zero prefactor switches an element off and
+    leaves the network finite, while a zero capacitance makes the whole
+    impedance infinite. Reporting 0 there would claim the parameter is
+    irrelevant, when in fact the model has no meaningful value at all.
+    """
+    circuit = R(10) - (R(1000) | C(1e-6)) - C(0.0)
+    S = compute_significance(circuit, freq, circuit.get_all_params())
+
+    assert np.all(np.isnan(S))

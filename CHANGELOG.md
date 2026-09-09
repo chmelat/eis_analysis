@@ -27,11 +27,11 @@ Complete change history for all project versions.
   does: high `S` with a wide CI means genuine entanglement with another
   parameter, low `S` means dead weight.
 
-  Available on all three fitting paths (`least_squares`/multistart, `--de`,
-  `--voigt-chain`) as `FitResult.params_significance`, and computed always -
-  it costs one Jacobian evaluation after the fit. A circuit containing an
-  element with no analytic derivative yields `None` and the column is omitted
-  rather than the run failing.
+  Printed by `--circuit` and `--de`, and computed always - it costs one
+  Jacobian evaluation after the fit. `--voigt-chain` prints no parameter table
+  at all, so there it is available only as `FitResult.params_significance` via
+  the Python API. A circuit containing an element with no analytic derivative
+  yields `None` and the column is omitted rather than the run failing.
 
   Note that "significance" also appears in the residual diagnostics, where it
   means the p-value of a trend - a statement about the fit, not about a

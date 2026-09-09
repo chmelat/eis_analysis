@@ -304,9 +304,9 @@ eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 ```
 
-**Does every element earn its place?** Each parameter line carries an `S`, its
-significance - the largest relative change it causes in `|Z|` anywhere in the
-measured window, `S = max |dln|Z|/dlnP|`:
+**Does every element earn its place?** With `--circuit` or `--de`, each
+parameter line carries an `S`, its significance - the largest relative change
+it causes in `|Z|` anywhere in the measured window, `S = max |dln|Z|/dlnP|`:
 
 ```
   Parameters:

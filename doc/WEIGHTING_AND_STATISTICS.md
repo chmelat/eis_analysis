@@ -501,8 +501,13 @@ decades away at alpha ~ 0.9 gives about 6. Not an error; the "fraction of |Z|"
 reading simply does not apply there.
 
 **Edge cases:**
-- A parameter that is exactly zero gets S = 0 (P is in the numerator).
-  Consistent: a zero parameter really does not influence the impedance.
+- A **zero prefactor** - `R = 0` in a Voigt element, `sigma = 0` in a Warburg -
+  gets S = 0. The element is switched off, the network stays finite, and the
+  limit really is zero. This is the common case on the `--voigt-chain` path,
+  where NNLS returns exact zeros for pruned elements.
+- A **degenerate circuit** does not: `C = 0` in series is an open circuit with
+  `|Z| = inf`, and every S comes back NaN rather than 0. Claiming 0 there would
+  say the parameter is irrelevant, when in fact no value is meaningful.
 - A circuit containing an element with no analytic derivative yields `None`,
   and the CLI omits the column rather than failing.
 - Fixed parameters get a value too - it says whether the value you fixed
