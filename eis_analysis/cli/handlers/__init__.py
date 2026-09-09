@@ -10,7 +10,7 @@ working.
               apply_zhit_reconstruction, report_outliers
 - rinf:       run_rinf_estimation
 - drt:        run_drt_analysis, run_voigt_analysis
-- fitting:    run_circuit_fitting, mark_zhit_fit
+- fitting:    run_circuit_fitting
 - oxide:      run_oxide_analysis
 """
 
@@ -22,7 +22,7 @@ from .validation import (
 )
 from .rinf import run_rinf_estimation
 from .drt import run_drt_analysis, run_voigt_analysis
-from .fitting import run_circuit_fitting, mark_zhit_fit
+from .fitting import run_circuit_fitting
 from .oxide import run_oxide_analysis
 
 __all__ = [
@@ -34,6 +34,5 @@ __all__ = [
     'run_drt_analysis',
     'run_voigt_analysis',
     'run_circuit_fitting',
-    'mark_zhit_fit',
     'run_oxide_analysis',
 ]

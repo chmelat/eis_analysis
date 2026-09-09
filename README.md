@@ -226,21 +226,14 @@ eis data.DTA --circuit 'R()-(R()|Q())-(R()|Q())' --fit-on zhit
 eis data.DTA --fit-on all
 ```
 
-The run reports how far the data moved (mean and maximum magnitude shift), so a
-spectrum the correction does nothing for is visible as such. With `--save`, the
-fit plot carries a note that it was fitted on the reconstruction - its
-"Measured" curve is the reconstructed one.
+The run reports how far the data moved, so a spectrum the correction does
+nothing for is visible as such, and the saved fit plot notes that its "Data"
+curve is the reconstructed one.
 
-When to use it: the phase is trustworthy and `|Z|` is not. That is drift, and
-the per-point residual check reports it as "deviations at the lowest
-frequencies". It is the wrong tool for noise, for a bad contact, or for a
-spectrum whose phase is itself corrupted - Z-HIT integrates the phase, so an
-error there propagates into the reconstructed magnitude. The second-order term
-differentiates the phase numerically, which amplifies high-frequency phase
-noise; the reconstruction inherits that sensitivity.
-
-`--fit-on` needs the Z-HIT reconstruction and is therefore rejected together
-with `--no-zhit`.
+It is the wrong tool wherever the phase is not the trustworthy half: Z-HIT
+integrates the phase, so an error there propagates into the reconstructed
+magnitude, and the second-order term differentiates it, which amplifies
+high-frequency phase noise rather than smoothing it.
 
 **Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 

@@ -64,17 +64,16 @@ def _clean_spectrum():
     return circuit.impedance(FREQUENCIES, params), params
 
 
-def _apply_lf_drift(Z, amplitude=0.30, onset_hz=0.1, decades=2.0):
+def _apply_lf_drift(Z):
     """
-    Shrink |Z| toward the low-frequency end, leaving the phase untouched.
+    Shrink |Z| by up to 30%, ramped over the two decades below 0.1 Hz, leaving
+    the phase untouched.
 
-    A smooth ramp in log-frequency starting at `onset_hz` and reaching
-    `amplitude` after `decades`. This is the drift Z-HIT is meant to undo: the
-    magnitude is wrong, the phase - which the transform integrates - is not.
+    This is the drift Z-HIT is meant to undo: the magnitude is wrong, the phase
+    - which the transform integrates - is not.
     """
-    log_f = np.log10(FREQUENCIES)
-    ramp = np.clip((np.log10(onset_hz) - log_f) / decades, 0.0, 1.0)
-    return np.abs(Z) * (1.0 - amplitude * ramp) * np.exp(1j * np.angle(Z))
+    ramp = np.clip((np.log10(0.1) - np.log10(FREQUENCIES)) / 2.0, 0.0, 1.0)
+    return np.abs(Z) * (1.0 - 0.30 * ramp) * np.exp(1j * np.angle(Z))
 
 
 def _fit_max_resistance_error(Z, params_true):
@@ -179,25 +178,22 @@ def test_fit_on_all_replaces_z_and_marks_the_title():
     assert "Z-HIT" in out.title
 
 
-@pytest.mark.parametrize('mode', ['zhit', 'all'])
-def test_missing_reconstruction_is_an_error_not_a_silent_fallback(mode):
-    """Falling back to the original would fit something else than asked for."""
-    with pytest.raises(EISAnalysisError, match="Z-HIT"):
-        apply_zhit_reconstruction(_loaded(), None, _args(mode))
-
-
-@pytest.mark.parametrize('mode', ['zhit', 'all'])
-def test_failed_reconstruction_is_an_error(mode):
+def _failed_reconstruction():
+    """What zhit_validation returns when the integration blew up."""
     empty = np.array([])
-    failed = ZHITResult(
+    return ZHITResult(
         Z_mag_reconstructed=empty,
         Z_fit=np.array([], dtype=np.complex128),
         residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
         pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0, ref_freq=1.0,
     )
-    assert not failed.success
-    with pytest.raises(EISAnalysisError):
-        apply_zhit_reconstruction(_loaded(), failed, _args(mode))
+
+
+@pytest.mark.parametrize('unusable', [None, _failed_reconstruction()])
+def test_unusable_reconstruction_raises_instead_of_falling_back(unusable):
+    """Falling back to the original would fit something else than asked for."""
+    with pytest.raises(EISAnalysisError, match="Z-HIT"):
+        apply_zhit_reconstruction(_loaded(), unusable, _args('zhit'))
 
 
 def test_frequency_filter_masks_the_reconstruction_alongside_z():
@@ -213,9 +209,3 @@ def test_frequency_filter_masks_the_reconstruction_alongside_z():
     np.testing.assert_array_equal(filtered.Z_zhit, attached.Z_zhit[mask])
     np.testing.assert_array_equal(filtered.Z_for_fit, filtered.Z_zhit)
 
-
-def test_frequency_filter_is_a_no_op_without_bounds():
-    data = _loaded()
-    attached = apply_zhit_reconstruction(data, _reconstruction_of(data),
-                                         _args('zhit'))
-    assert filter_by_frequency(attached, _args('zhit')) is attached

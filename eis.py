@@ -53,7 +53,6 @@ from eis_analysis.cli import (
     run_drt_analysis,
     run_voigt_analysis,
     run_circuit_fitting,
-    mark_zhit_fit,
     run_oxide_analysis,
     # Utils
     EISAnalysisError,
@@ -120,10 +119,7 @@ def _run_analysis(args) -> None:
     run_voigt_analysis(drt_result, data.frequencies, data.Z, args)
 
     # Circuit fitting
-    fitted_result, fit_fig = run_circuit_fitting(
-        data.frequencies, data.Z_for_fit, args
-    )
-    mark_zhit_fit(fit_fig, args)
+    fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z_for_fit, args)
 
     # Oxide layer analysis
     run_oxide_analysis(

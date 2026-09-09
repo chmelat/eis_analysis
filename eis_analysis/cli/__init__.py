@@ -23,7 +23,6 @@ from .handlers import (
     run_drt_analysis,
     run_voigt_analysis,
     run_circuit_fitting,
-    mark_zhit_fit,
     run_oxide_analysis,
 )
 from .utils import (
@@ -53,7 +52,6 @@ __all__ = [
     'run_drt_analysis',
     'run_voigt_analysis',
     'run_circuit_fitting',
-    'mark_zhit_fit',
     'run_oxide_analysis',
     # Utils
     'EISAnalysisError',

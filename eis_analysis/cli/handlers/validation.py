@@ -166,12 +166,6 @@ def run_zhit_validation(
 # Z-HIT reconstruction as a data correction (--fit-on)
 # =============================================================================
 
-# Below this mean magnitude residual the reconstruction and the measurement are
-# the same curve within Z-HIT's own error floor, so --fit-on has nothing to
-# correct. Same band as the "excellent" label in _quality_label.
-ZHIT_RECONSTRUCTION_NEGLIGIBLE = 0.5
-
-
 def apply_zhit_reconstruction(
     data: LoadedData,
     zhit_result: Optional[ZHITResult],
@@ -226,25 +220,18 @@ def apply_zhit_reconstruction(
 
     # How far the data moved is the whole point of the switch; without it the
     # user cannot tell whether the correction did anything.
-    shift = zhit_result.mean_residual_mag
     logger.info(f"|Z| replaced by the reconstruction from the phase "
-                f"(mean shift {shift:.2f}%, max "
+                f"(mean shift {zhit_result.mean_residual_mag:.2f}%, max "
                 f"{abs(zhit_result.residuals_mag).max():.2f}%)")
-
-    if shift < ZHIT_RECONSTRUCTION_NEGLIGIBLE:
-        logger.info("Reconstruction matches the measurement within Z-HIT's own "
-                    "error floor - the correction changes essentially nothing")
+    logger.info("Applied to: " + ("every stage below" if args.fit_on == 'all'
+                                  else "the circuit fit only"))
 
     if args.fit_on == 'all':
-        logger.info("Applied to every stage below: R_inf, DRT, circuit fit, "
-                    "oxide analysis")
         # Title flows into visualize_data, so the Nyquist/Bode plot says which
         # curve it is showing.
         return replace(data, Z=zhit_result.Z_fit,
                        title=f"{data.title} (Z-HIT)")
 
-    logger.info("Applied to the circuit fit only; R_inf and DRT stay on the "
-                "measurement (use --fit-on all to change that)")
     return replace(data, Z_zhit=zhit_result.Z_fit)
 
 
