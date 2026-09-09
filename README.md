@@ -720,6 +720,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 | [doc/MULTISTART_OPTIMIZATION.md](doc/MULTISTART_OPTIMIZATION.md) | Multi-start optimization |
 | [doc/NONLINEAR_FIT_ANALYSIS.md](doc/NONLINEAR_FIT_ANALYSIS.md) | Nonlinear optimization overview |
 | [doc/OXIDE_ANALYSIS_GUIDE.md](doc/OXIDE_ANALYSIS_GUIDE.md) | Oxide layer analysis |
+| [doc/ZAHNER_ANALYSIS_REVIEW.md](doc/ZAHNER_ANALYSIS_REVIEW.md) | Zahner Analysis manual reviewed for ideas worth adopting - proposals, none implemented yet |
 
 ---
 
