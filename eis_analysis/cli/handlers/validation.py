@@ -227,6 +227,16 @@ def apply_zhit_reconstruction(
                                   else "the circuit fit only"))
 
     if args.fit_on == 'all':
+        # The reconstruction is least accurate at the edges of the spectrum:
+        # the second-order term differentiates the phase, and np.gradient falls
+        # back to one-sided differences there. On a noise-free, exactly K-K
+        # compliant reference spectrum the magnitude residual is 0.08% over the
+        # lowest decade but 1.0% over the highest - and R_inf reads only the
+        # highest. Worth saying out loud, because the drift being corrected is
+        # usually at the opposite end.
+        logger.warning("R_inf and the high-frequency end of the DRT now read a "
+                       "reconstructed edge, where Z-HIT is least accurate "
+                       "(~1% on clean reference data)")
         # Title flows into visualize_data, so the Nyquist/Bode plot says which
         # curve it is showing.
         return replace(data, Z=zhit_result.Z_fit,

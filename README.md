@@ -230,10 +230,19 @@ The run reports how far the data moved, so a spectrum the correction does
 nothing for is visible as such, and the saved fit plot notes that its "Data"
 curve is the reconstructed one.
 
-It is the wrong tool wherever the phase is not the trustworthy half: Z-HIT
-integrates the phase, so an error there propagates into the reconstructed
-magnitude, and the second-order term differentiates it, which amplifies
-high-frequency phase noise rather than smoothing it.
+It corrects drift, not noise, and the distinction is not cosmetic: the
+second-order term differentiates the phase, so phase noise is amplified rather
+than smoothed. On a stationary spectrum with 1% noise the reconstruction makes
+the fitted resistances several times *worse* than the measurement does. Use it
+when the per-point residual check reports a systematic deviation at the lowest
+frequencies - that is drift - and not to clean up a scattered one.
+
+The same derivative degrades at the edges of the frequency range, where
+`np.gradient` falls back to one-sided differences. On a noise-free, exactly
+K-K compliant spectrum the magnitude residual is 0.08% over the lowest decade
+and 1.0% over the highest. That matters mainly for `--fit-on all`, where R_inf
+and the high-frequency end of the DRT read that edge - the opposite end from
+the drift being corrected - so the run warns about it.
 
 **Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 

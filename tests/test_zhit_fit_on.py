@@ -114,6 +114,57 @@ def test_reconstruction_recovers_resistances_from_drifted_modulus():
     assert err_original / err_reconstructed > 20.0
 
 
+def test_reconstruction_costs_accuracy_on_noisy_stationary_data():
+    """The switch is not free: on noise without drift it makes the fit worse.
+
+    The second-order term differentiates the phase, so phase noise is amplified
+    rather than smoothed (open point 2 of doc/ZHIT_AUDIT_2026-04-26.md). This
+    pins the trade-off the README warns about, so it cannot quietly change.
+
+    Measured over seeds 0-4 at 1% noise, max resistance error raw vs
+    reconstructed: 0.45/2.88, 0.59/7.27, 0.33/1.48, 0.58/2.91, 1.60/1.45 -
+    usually several times worse, occasionally a wash. Seed 1 is used here for
+    its clear margin. Should the reconstruction ever learn to smooth the phase,
+    this test is meant to fail and be rewritten, not silently kept passing.
+    """
+    Z_clean, params_true = _clean_spectrum()
+    rng = np.random.default_rng(1)
+    sigma = np.abs(Z_clean) * 0.01
+    Z_noisy = Z_clean + rng.normal(0, sigma) + 1j * rng.normal(0, sigma)
+
+    reconstruction = zhit_validation(FREQUENCIES, Z_noisy)
+    plt.close('all')
+
+    err_raw = _fit_max_resistance_error(Z_noisy, params_true)
+    err_reconstructed = _fit_max_resistance_error(reconstruction.Z_fit,
+                                                  params_true)
+
+    assert err_raw < 2.0, f"1% noise alone should barely move the fit ({err_raw:.2f}%)"
+    assert err_reconstructed > 3 * err_raw, (
+        f"reconstruction no longer costs accuracy on noisy data "
+        f"({err_raw:.2f}% raw vs {err_reconstructed:.2f}% reconstructed) - "
+        "if that is a deliberate improvement, rewrite this test")
+
+
+def test_reconstruction_is_least_accurate_at_the_high_frequency_edge():
+    """Where --fit-on all's cost lands: np.gradient degrades at the edges.
+
+    R_inf and the high-frequency end of the DRT read only that edge, which is
+    the opposite end of the spectrum from the drift the switch corrects. The
+    CLI warns about this under --fit-on all.
+    """
+    Z_clean, _ = _clean_spectrum()
+    residuals = abs(zhit_validation(FREQUENCIES, Z_clean).residuals_mag)
+    plt.close('all')
+
+    lowest_decade = residuals[FREQUENCIES <= 1e-2].mean()
+    highest_decade = residuals[FREQUENCIES >= 1e4].mean()
+
+    # Measured: 0.08% vs 1.02% on this exactly K-K compliant spectrum.
+    assert lowest_decade < 0.3
+    assert highest_decade > 3 * lowest_decade
+
+
 def test_reconstruction_error_floor_on_undisturbed_data():
     """On a stationary spectrum the switch must cost almost nothing."""
     Z_clean, params_true = _clean_spectrum()

@@ -48,7 +48,11 @@ def _mark_zhit_fit(fig: plt.Figure, args: argparse.Namespace) -> None:
     --fit-on it would otherwise pass the reconstruction off as the measurement.
     A footer rather than a suptitle: the panel titles sit at the top.
     """
-    if args.fit_on == 'original':
+    # getattr, not args.fit_on: run_circuit_fitting is exported, and a caller
+    # building the namespace by hand predates --fit-on. In _fit_standard_circuit
+    # this call sits inside the broad except, so an AttributeError there would
+    # discard a fit that had already succeeded and logged its diagnostics.
+    if getattr(args, 'fit_on', 'original') == 'original':
         return
     fig.text(0.5, 0.005,
              'The "Data" curve is the Z-HIT reconstruction of |Z| from the '
@@ -311,7 +315,7 @@ def run_circuit_fitting(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_fit, input, circuit, voigt_chain, weighting,
-                       optimizer, multistart, de_*, save, format)
+                       optimizer, multistart, de_*, fit_on, save, format)
 
     Returns
     -------

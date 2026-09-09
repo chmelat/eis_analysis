@@ -105,3 +105,15 @@ def test_fit_on_conflicts_with_no_zhit(monkeypatch, mode):
 
 def test_fit_on_accepts_zhit_when_validation_runs(monkeypatch):
     assert parse(monkeypatch, '--fit-on', 'zhit').fit_on == 'zhit'
+
+
+def test_fit_on_zhit_conflicts_with_no_fit(monkeypatch):
+    # --fit-on zhit corrects only what the circuit fit reads; with --no-fit
+    # nothing reads it.
+    with pytest.raises(SystemExit):
+        parse(monkeypatch, '--fit-on', 'zhit', '--no-fit')
+
+
+def test_fit_on_all_is_allowed_with_no_fit(monkeypatch):
+    # --fit-on all still feeds R_inf and DRT, so it has work to do.
+    assert parse(monkeypatch, '--fit-on', 'all', '--no-fit').fit_on == 'all'

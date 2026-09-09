@@ -285,4 +285,14 @@ Examples:
             "drop --no-zhit"
         )
 
+    # --fit-on zhit corrects the data the circuit fit reads, and nothing else.
+    # With --no-fit there is no such reader, so the flag would only print a
+    # section and - if Z-HIT failed - abort a run that was never going to fit.
+    # --fit-on all is different: it feeds R_inf and DRT too.
+    if args.fit_on == 'zhit' and args.no_fit:
+        parser.error(
+            "--fit-on zhit has no effect with --no-fit; "
+            "use --fit-on all to correct R_inf and DRT as well"
+        )
+
     return args

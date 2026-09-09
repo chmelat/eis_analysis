@@ -33,9 +33,21 @@ Complete change history for all project versions.
 
   The run reports the mean and maximum magnitude shift, so a spectrum the
   correction does nothing for says so, and the saved fit plot carries a note
-  that its "Measured" curve is the reconstructed one. `--fit-on` is the source
-  of the reconstruction's only prerequisite, so it is rejected together with
-  `--no-zhit` at parse time rather than mid-run.
+  that its "Data" curve is the reconstructed one. `--fit-on` is rejected at
+  parse time together with `--no-zhit` (its only source) and, for
+  `--fit-on zhit`, with `--no-fit` (nothing would read the correction).
+
+  Two limits, both measured on a noise-free, exactly K-K compliant reference
+  spectrum and both pinned by tests. The reconstruction is least accurate at
+  the edges - `np.gradient` in the second-order term falls back to one-sided
+  differences there - so the magnitude residual runs 0.08% over the lowest
+  decade and 1.0% over the highest; `--fit-on all` therefore warns that R_inf
+  and the high-frequency end of the DRT now read a reconstructed edge, at the
+  opposite end of the spectrum from the drift being corrected. And the same
+  derivative amplifies phase noise rather than smoothing it: at 1% noise
+  without any drift the reconstruction typically makes the fitted resistances
+  several times *worse* than the raw data does. This corrects drift, not
+  noise.
 
   No new mathematics: `zhit_validation()` already returned the reconstruction.
   What was missing was carrying it past the `--f-min`/`--f-max` filter, which
