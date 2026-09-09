@@ -9,8 +9,9 @@ Complete change history for all project versions.
 ### Added
 
 - **Every parameter now reports its significance.** The fit output carries an
-  `S` next to each parameter - the largest relative change that parameter
-  causes in `|Z|` anywhere in the measured window:
+  `S` next to each parameter - `S_i = max_n |dln|Z_n|/dlnP_i|`, the largest
+  relative change that parameter causes in `|Z|` anywhere in the measured
+  window:
 
   ```
     Parameters:
@@ -20,43 +21,25 @@ Complete change history for all project versions.
       R2    = 1.00e-09  [fixed]  S=0.000 [negligible - element may be omitted]
   ```
 
-  `S_i = max_n |dln|Z_n|/dlnP_i|`, one value per parameter (a CPE contributes
-  two), measured against the impedance of the whole circuit at the measured
-  frequencies.
-
   This answers what the standard error cannot. A wide confidence interval has
   two very different causes - the parameter is irrelevant, or it is strongly
   correlated with another - and the CI alone does not distinguish them. `S`
-  does: around 1 the parameter dominates the impedance somewhere, below
-  `SIGNIFICANCE_NEGLIGIBLE` (0.01) the element does nothing and can be
-  dropped. High `S` with a wide CI therefore means genuine entanglement with
-  another parameter, while low `S` means dead weight.
-
-  The scale is not arbitrary. For an element entering linearly the expression
-  reduces to `R*cos(phi)/|Z|`, bounded by 1 and equal to the largest fraction
-  of `|Z|` the parameter accounts for. Parameters entering non-linearly are
-  not bounded - a CPE exponent gives `-alpha*ln(omega/omega_0)`, about 6 at
-  three decades from the normalisation frequency - and that is expected, not
-  a defect.
+  does: high `S` with a wide CI means genuine entanglement with another
+  parameter, low `S` means dead weight.
 
   Available on all three fitting paths (`least_squares`/multistart, `--de`,
-  `--voigt-chain`) as `FitResult.params_significance`, and computed always:
-  it costs one Jacobian evaluation after the fit, which `circuit_jacobian()`
-  already provides in exactly the form needed. A circuit containing an element
-  with no analytic derivative yields `None` and the column is omitted rather
-  than the run failing.
-
-  One deviation from the source it is taken from (Zahner Analysis manual
-  11/2023, section 2.2.2): that formula maximises the signed quantity, this
-  one the absolute value, since the question is the magnitude of the influence
-  and the "omit below 0.01" threshold only makes sense for a non-negative `S`.
+  `--voigt-chain`) as `FitResult.params_significance`, and computed always -
+  it costs one Jacobian evaluation after the fit. A circuit containing an
+  element with no analytic derivative yields `None` and the column is omitted
+  rather than the run failing.
 
   Note that "significance" also appears in the residual diagnostics, where it
   means the p-value of a trend - a statement about the fit, not about a
   parameter. Hence the field name `params_significance`.
 
-  See `doc/WEIGHTING_AND_STATISTICS.md` section 3.7, and
-  `doc/ZAHNER_ANALYSIS_REVIEW.md` section 1 for the source comparison.
+  How to read the number, why the scale is not arbitrary, and where this
+  departs from the source it is taken from: `doc/WEIGHTING_AND_STATISTICS.md`
+  section 3.7, and `doc/ZAHNER_ANALYSIS_REVIEW.md` section 1.
 
 ---
 

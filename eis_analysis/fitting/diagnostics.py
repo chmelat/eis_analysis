@@ -235,33 +235,17 @@ def compute_significance(
 
     Notes
     -----
-    Interpretation follows Zahner Analysis, section 2.2.2:
+    Z is the impedance of the *whole network*, not of the individual element,
+    and P is a scalar parameter, not an element - a CPE contributes two.
+    S ~ 1 means the parameter dominates the impedance somewhere in the window,
+    below SIGNIFICANCE_NEGLIGIBLE the element may be dropped, and above 1 is
+    normal for a parameter entering non-linearly.
 
-    - S ~ 1: the parameter dominates the impedance somewhere in the window.
-      For an element entering linearly (a resistor) S is bounded by 1 and is
-      roughly the largest fraction of |Z| that the parameter accounts for.
-    - S << 0.01: the element may be omitted from the model.
-    - S > 1 is possible for a parameter entering non-linearly. A CPE exponent
-      gives d ln|Z|/d ln(alpha) = -alpha*ln(omega/omega_0), which grows without
-      bound away from the normalisation frequency. Not an error, but the
-      "fraction of |Z|" reading no longer applies.
+    One deviation from the source: it maximises the signed quantity, this
+    maximises the absolute value.
 
-    Z is the impedance of the *whole network*, not of the individual element:
-    a small series resistor next to a large arc scores low even when it is
-    itself well determined. P is a scalar fit parameter, not an element - a CPE
-    contributes two (Q and n).
-
-    The ratio is a logarithmic derivative and therefore dimensionless, which is
-    what makes R [Ohm] and C [F] comparable on one scale.
-
-    A parameter that is exactly zero gets S = 0, since P appears in the
-    numerator. That is consistent: a zero parameter really does not influence
-    the impedance.
-
-    Deviation from the source: Zahner takes the maximum of the signed quantity.
-    We take the absolute value, because the question is the magnitude of the
-    influence, not its direction, and the "S << 0.01 -> omit" threshold only
-    makes sense for a non-negative S. See doc/ZAHNER_ANALYSIS_REVIEW.md.
+    Full derivation, the bound on a linear element, the edge cases and that
+    deviation: doc/WEIGHTING_AND_STATISTICS.md section 3.7.
 
     References
     ----------
