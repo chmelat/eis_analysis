@@ -262,6 +262,10 @@ def filter_by_frequency(
 
     frequencies = frequencies[mask]
     Z = Z[mask]
+    # The Z-HIT reconstruction was computed on the full spectrum and is aligned
+    # element-wise with Z, so it has to survive the same mask - otherwise the
+    # fit would pair reconstructed points with the wrong frequencies.
+    Z_zhit = data.Z_zhit[mask] if data.Z_zhit is not None else None
 
     filtered_count = len(frequencies)
     removed_count = original_count - filtered_count
@@ -281,5 +285,6 @@ def filter_by_frequency(
         Z=Z,
         title=data.title,
         metadata=data.metadata,
-        ocv_data=data.ocv_data
+        ocv_data=data.ocv_data,
+        Z_zhit=Z_zhit
     )

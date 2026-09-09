@@ -89,3 +89,19 @@ def test_repeated_circuit_collects_all_candidates(monkeypatch):
                  '--circuit', 'R(10)-(R(200)|Q(2e-5,0.85))')
     assert args.circuit == ['R(10)-(R(200)|C(2e-5))',
                             'R(10)-(R(200)|Q(2e-5,0.85))']
+
+
+def test_fit_on_defaults_to_original(monkeypatch):
+    assert parse(monkeypatch).fit_on == 'original'
+
+
+@pytest.mark.parametrize('mode', ['zhit', 'all'])
+def test_fit_on_conflicts_with_no_zhit(monkeypatch, mode):
+    # --fit-on feeds on the Z-HIT reconstruction, so --no-zhit leaves it with
+    # nothing to fit. Caught by the parser, not mid-run.
+    with pytest.raises(SystemExit):
+        parse(monkeypatch, '--fit-on', mode, '--no-zhit')
+
+
+def test_fit_on_accepts_zhit_when_validation_runs(monkeypatch):
+    assert parse(monkeypatch, '--fit-on', 'zhit').fit_on == 'zhit'

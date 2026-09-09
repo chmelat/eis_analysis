@@ -25,7 +25,7 @@ Z-HIT máme také. Tafel, Butler-Volmer, CV a solární články jsou mimo záb�
 | 4 | Log-polární residuum (clog) | střední | střední | `fitting/diagnostics.py`, `circuit.py` |
 | 5 | Series Fit (série spekter) | vysoký | velká | CLI, handlery, vizualizace |
 | 6 | Rovina komplexní kapacity, C(f) | střední | malá | `visualization/plots.py` |
-| 7 | Fit na Z-HIT rekonstrukci | malý | triviální | `cli/parser.py`, `handlers/fitting.py` |
+| 7 | Fit na Z-HIT rekonstrukci - **HOTOVO v 0.34.0** | malý | triviální | `cli/parser.py`, `handlers/validation.py` |
 | 8 | Element beroucí podobvod (PE) | koncepční | velká | `circuit_elements/base.py` |
 
 ---
@@ -297,6 +297,13 @@ Implementačně: rozšíření `visualize_data` o další panely, žádná nová
 
 ## 7. Fit na Z-HIT rekonstruovaných datech
 
+> **Stav: implementováno ve verzi 0.34.0.** Přepínač `--fit-on
+> {original,zhit,all}`; `apply_zhit_reconstruction()` v
+> `eis_analysis/cli/handlers/validation.py`. Hodnota `all` jde nad rámec
+> Zahnera - propíše rekonstrukci i do R_inf, DRT a oxidové analýzy, protože
+> drift nízkofrekvenčního modulu kazí DRT stejně jako fit. Uživatelský popis
+> je v README, sekce "Z-HIT as a correction".
+
 Zahner v Toolboxu nabízí fitovat proti *Original / Smoothed / Z-HIT*.
 
 Z-HIT tedy není jen validátor ("byl systém stacionární?"), ale i **oprava**:
@@ -304,8 +311,10 @@ u driftujícího nízkofrekvenčního konce se |Z| zrekonstruuje z fáze a fituj
 rekonstrukce. Typický případ z dokumentu: povlak nasákávající vodu, jehož
 impedance během měření nízkých frekvencí klesá.
 
-U nás je celá instalatérská část hotová (`zhit_reconstruct_magnitude`),
-chybí jen přepínač `--fit-on {original,zhit}`. Nejlevnější položka v seznamu.
+U nás byla celá instalatérská část hotová (`zhit_validation` vrací
+`ZHITResult.Z_fit`), chyběl jen přepínač. Nejlevnější položka v seznamu -
+matematika žádná nová, jen protažení už spočítaného pole přes frekvenční filtr
+do fitu.
 
 ## 8. Architektonická myšlenka: element, který bere podobvod
 
@@ -366,7 +375,7 @@ do normalizovaných os (Ω*cm²). U nás `--area` teče jen do oxidové analýzy
 1. ~~**Significance**~~ - HOTOVO v 0.33.0 (zbývá jen plot S_i(f))
 2. **Blokující difuze (coth)** - triviální doplnění mřížky, kterou máme skoro celou
 3. **Young-Göhr** - nejtrefnější do oxidové domény
-4. **Fit na Z-HIT rekonstrukci** - přepínač, instalatérství hotové
+4. ~~**Fit na Z-HIT rekonstrukci**~~ - HOTOVO v 0.34.0
 5. **Rovina komplexní kapacity** - vizualizace pro `CC`, které chybí
 6. **Log-polární residuum** - navazuje na existující srovnání váhování
 7. **Series Fit** - největší práce, největší změna použitelnosti

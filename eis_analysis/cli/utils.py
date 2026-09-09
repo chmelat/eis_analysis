@@ -50,12 +50,26 @@ class LoadedData:
         Metadata from DTA file
     ocv_data : dict or None
         OCV curve data from DTA file
+    Z_zhit : ndarray or None
+        Z-HIT reconstruction aligned element-wise with `Z`, attached by
+        `apply_zhit_reconstruction` under `--fit-on zhit`. None otherwise.
     """
     frequencies: NDArray[np.float64]
     Z: NDArray[np.complex128]
     title: str
     metadata: Optional[dict]
     ocv_data: Optional[dict] = None
+    Z_zhit: Optional[NDArray[np.complex128]] = None
+
+    @property
+    def Z_for_fit(self) -> NDArray[np.complex128]:
+        """Impedance the circuit fit runs on.
+
+        The Z-HIT reconstruction when one is attached (`--fit-on zhit`),
+        otherwise `Z` itself - which under `--fit-on all` *is* the
+        reconstruction, because that mode replaces `Z` outright.
+        """
+        return self.Z if self.Z_zhit is None else self.Z_zhit
 
 
 # =============================================================================

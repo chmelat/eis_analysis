@@ -243,3 +243,35 @@ yield similar results. pyimpspec's approach may be more robust for noisy data.
 
 4. pyimpspec library: https://github.com/vyrjana/pyimpspec
    (inspiration for implementation approach)
+
+
+## Second use: reconstruction as a data correction (v0.34.0)
+
+`ZHITResult.Z_fit` = `|Z_recon| * exp(j*phi)` is not only the reference curve
+the residuals are measured against. Under `--fit-on zhit` it *becomes* the data
+the circuit is fitted to; under `--fit-on all` it replaces the measurement for
+R_inf, DRT and the oxide analysis as well. This is the Original / Smoothed /
+Z-HIT choice Zahner Analysis offers in its fitter (see
+`doc/ZAHNER_ANALYSIS_REVIEW.md` §7).
+
+Two constraints follow from the way the transform works, and both are enforced
+by where the CLI calls it:
+
+- **The reconstruction is computed on the full spectrum.** Z-HIT integrates the
+  phase over `ln omega`, so a range truncated by `--f-min`/`--f-max` is a
+  different reconstruction, not a slice of the same one.
+  `apply_zhit_reconstruction()` therefore runs before `filter_by_frequency()`,
+  which then masks the reconstruction and the measurement together
+  (`LoadedData.Z_zhit`).
+
+- **The phase is trusted, the magnitude is not.** That is the whole premise:
+  the reconstruction keeps the measured phase and replaces only `|Z|`. It
+  corrects drift of the low-frequency modulus and nothing else. A spectrum
+  whose *phase* is corrupted gets a worse curve, not a better one - and the
+  second-order term differentiates the phase (open point 2 in
+  `doc/ZHIT_AUDIT_2026-04-26.md`), so phase noise is amplified rather than
+  smoothed.
+
+`tests/test_zhit_fit_on.py` pins the claim quantitatively: a 30% drift ramped
+over the lowest two decades biases the fitted resistances by ~20%, while the
+same fit against the reconstruction lands within ~0.1% of the truth.

@@ -2,6 +2,7 @@
 Equivalent circuit fitting handlers for the EIS CLI.
 
 - run_circuit_fitting: dispatch to Voigt-chain or standard circuit fitting
+- mark_zhit_fit: note on the fit figure which data the fit ran on
 - _fit_voigt_chain / _fit_standard_circuit: fitting backends
 - _log_* helpers: optimizer and fit-result diagnostics logging
 """
@@ -733,3 +734,32 @@ def _fit_standard_circuit(
         logger.error("Try adjusting --circuit expression")
         logger.debug("Traceback:", exc_info=True)
         return None, None
+
+
+def mark_zhit_fit(fig: Optional[plt.Figure], args: argparse.Namespace) -> None:
+    """
+    Note on the fit figure that the fit ran on the Z-HIT reconstruction.
+
+    The plot's "Data" legend entry comes from the fitting library, which only
+    ever sees an impedance array; under --fit-on it would claim the
+    reconstruction is the measurement. With --save the figure was already
+    written, so it is re-saved quietly - the same pattern as _mark_outliers()
+    in handlers/validation.py, where the path was reported once already.
+
+    Parameters
+    ----------
+    fig : Figure or None
+        Figure returned by run_circuit_fitting
+    args : argparse.Namespace
+        CLI arguments (uses: fit_on, save, format)
+    """
+    if fig is None or args.fit_on == 'original':
+        return
+
+    # A footer rather than a suptitle: the panels carry their own titles at the
+    # top and a suptitle lands on them. bbox_inches='tight' keeps this in frame.
+    fig.text(0.5, 0.005,
+             'The "Data" curve is the Z-HIT reconstruction of |Z| from the '
+             'phase, not the raw measurement',
+             ha='center', va='bottom', fontsize=8, style='italic', color='0.35')
+    save_figure(fig, args.save, 'fit', args.format, quiet=True)

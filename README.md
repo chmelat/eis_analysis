@@ -210,6 +210,38 @@ eis data.DTA --no-zhit
 eis data.DTA --no-kk
 ```
 
+#### Z-HIT as a correction: `--fit-on`
+
+Z-HIT is not only a validator ("was the system stationary?") but also a repair.
+Where the low-frequency modulus drifts during the measurement while the phase
+stays sound - a coating taking up water, whose impedance falls while the lowest
+decades are being recorded - `|Z|` can be reconstructed from the phase and the
+circuit fitted against the reconstruction instead of the measurement.
+
+```bash
+# Fit the circuit against the Z-HIT reconstruction, everything else unchanged
+eis data.DTA --circuit 'R()-(R()|Q())-(R()|Q())' --fit-on zhit
+
+# Propagate the reconstruction to R_inf, DRT and oxide analysis as well
+eis data.DTA --fit-on all
+```
+
+The run reports how far the data moved (mean and maximum magnitude shift), so a
+spectrum the correction does nothing for is visible as such. With `--save`, the
+fit plot carries a note that it was fitted on the reconstruction - its
+"Measured" curve is the reconstructed one.
+
+When to use it: the phase is trustworthy and `|Z|` is not. That is drift, and
+the per-point residual check reports it as "deviations at the lowest
+frequencies". It is the wrong tool for noise, for a bad contact, or for a
+spectrum whose phase is itself corrupted - Z-HIT integrates the phase, so an
+error there propagates into the reconstructed magnitude. The second-order term
+differentiates the phase numerically, which amplifies high-frequency phase
+noise; the reconstruction inherits that sensitivity.
+
+`--fit-on` needs the Z-HIT reconstruction and is therefore rejected together
+with `--no-zhit`.
+
 **Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 
 ### DRT analysis
@@ -560,6 +592,15 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 - `--epsilon-r` (default: 22.0) - Relative permittivity of oxide. Default 22 for ZrO2. Other oxides: Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9. Ignored (with a warning) when `--thickness` is given.
 - `--thickness` - Known oxide thickness [nm], e.g. from SEM/TEM. Reverses the analysis: the thickness becomes the input and the relative permittivity the estimated quantity.
 - `--area` (default: from DTA metadata, else 1.0) - Electrode area [cm^2]. Required for correct thickness calculation. An explicit value always takes precedence over the DTA metadata.
+
+### Fit input
+
+- `--fit-on` (default: original) - Which data the fit runs on. `original` is the
+  measurement. `zhit` fits the circuit against the Z-HIT reconstruction of `|Z|`
+  from the phase, leaving R_inf, DRT and the Nyquist/Bode plot on the
+  measurement. `all` substitutes the reconstruction for every stage below
+  validation. Corrects drift of the low-frequency modulus; cannot be combined
+  with `--no-zhit`, which is the source of the reconstruction.
 
 ### Jacobian
 

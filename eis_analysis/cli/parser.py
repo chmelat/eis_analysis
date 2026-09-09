@@ -170,6 +170,15 @@ Examples:
     fit_group.add_argument('--weighting', type=str, default='modulus',
                            choices=['uniform', 'sqrt', 'modulus', 'proportional'],
                            help='Weighting type for fitting (default: modulus)')
+    fit_group.add_argument('--fit-on', type=str, default='original',
+                           choices=['original', 'zhit', 'all'],
+                           help='Data the fit runs on: original (default), '
+                                'zhit (the circuit fit uses the Z-HIT '
+                                'reconstruction of |Z| from the phase), or all '
+                                '(the reconstruction also feeds R_inf, DRT and '
+                                'oxide analysis). Corrects drift of the '
+                                'low-frequency modulus; needs Z-HIT validation, '
+                                'so it cannot be combined with --no-zhit.')
     fit_group.add_argument('--no-fit', action='store_true',
                            help='Skip equivalent circuit fitting')
     fit_group.add_argument('--numeric-jacobian', action='store_true',
@@ -264,6 +273,16 @@ Examples:
         parser.error(
             f"--multistart has no effect with --optimizer {args.optimizer}; "
             "use --optimizer multistart (or drop --multistart)"
+        )
+
+    # --fit-on feeds on the Z-HIT reconstruction, so switching Z-HIT off leaves
+    # it with nothing to fit. Caught here rather than mid-run, where the
+    # spectrum is already loaded and the message arrives after the validation
+    # sections have scrolled past.
+    if args.fit_on != 'original' and args.no_zhit:
+        parser.error(
+            f"--fit-on {args.fit_on} needs the Z-HIT reconstruction; "
+            "drop --no-zhit"
         )
 
     return args

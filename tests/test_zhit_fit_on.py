@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""
+Tests for --fit-on: the Z-HIT reconstruction used as a data correction.
+
+Two things are checked here.
+
+1. The scientific claim. A spectrum whose low-frequency modulus drifts during
+   the measurement while the phase stays sound - a coating taking up water,
+   the case Zahner's Original/Smoothed/Z-HIT switch is built for - is fitted
+   both as measured and against the Z-HIT reconstruction of |Z| from the
+   phase. The reconstruction must recover the true resistances; the raw fit
+   must not.
+
+2. The plumbing. `apply_zhit_reconstruction` attaches or substitutes the
+   reconstruction per --fit-on, the frequency filter carries it under the same
+   mask, and `LoadedData.Z_for_fit` hands the right array to the fit.
+"""
+
+import argparse
+
+import numpy as np
+import pytest
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+from eis_analysis.cli.data_handling import filter_by_frequency
+from eis_analysis.cli.handlers.validation import apply_zhit_reconstruction
+from eis_analysis.cli.utils import EISAnalysisError, LoadedData
+from eis_analysis.fitting import fit_equivalent_circuit, R, Q
+from eis_analysis.validation import zhit_validation
+from eis_analysis.validation.zhit import ZHITResult
+
+
+# =============================================================================
+# Reference spectrum
+# =============================================================================
+# Rs - (R0||Q0) - (R1||Q1) with both relaxations well inside 1 mHz - 100 kHz
+# (tau0 ~ 0.1 ms, tau1 ~ 1 s), so both arcs close within the window and every
+# resistance is identifiable. Without that the low-frequency arc is open at the
+# edge, R1 runs to its bound on any perturbation, and the comparison below
+# would measure the bound rather than the correction.
+FREQUENCIES = np.logspace(-3, 5, 81)
+
+
+def _truth():
+    """The circuit the synthetic spectrum is generated from."""
+    return R(10) - (R(100) | Q(1e-6, 0.9)) - (R(1000) | Q(1e-3, 0.85))
+
+
+def _initial_guess():
+    """Deliberately off the truth by ~3x, so a passing fit means convergence."""
+    return R(30) - (R(300) | Q(3e-6, 0.8)) - (R(3000) | Q(3e-3, 0.8))
+
+
+# Indices of Rs, R0 and R1 in the flat parameter vector
+R_INDICES = (0, 1, 4)
+
+
+def _clean_spectrum():
+    circuit = _truth()
+    params = np.array(circuit.get_all_params(), dtype=float)
+    return circuit.impedance(FREQUENCIES, params), params
+
+
+def _apply_lf_drift(Z, amplitude=0.30, onset_hz=0.1, decades=2.0):
+    """
+    Shrink |Z| toward the low-frequency end, leaving the phase untouched.
+
+    A smooth ramp in log-frequency starting at `onset_hz` and reaching
+    `amplitude` after `decades`. This is the drift Z-HIT is meant to undo: the
+    magnitude is wrong, the phase - which the transform integrates - is not.
+    """
+    log_f = np.log10(FREQUENCIES)
+    ramp = np.clip((np.log10(onset_hz) - log_f) / decades, 0.0, 1.0)
+    return np.abs(Z) * (1.0 - amplitude * ramp) * np.exp(1j * np.angle(Z))
+
+
+def _fit_max_resistance_error(Z, params_true):
+    """Fit the reference circuit to Z, return the worst relative R error [%]."""
+    result, _, _ = fit_equivalent_circuit(
+        FREQUENCIES, Z, _initial_guess(), weighting='modulus'
+    )
+    plt.close('all')
+    params = np.array(result.params_opt, dtype=float)
+    return max(abs(params[i] - params_true[i]) / params_true[i]
+               for i in R_INDICES) * 100.0
+
+
+# =============================================================================
+# The scientific claim
+# =============================================================================
+
+def test_reconstruction_recovers_resistances_from_drifted_modulus():
+    """A 30% low-frequency modulus drift is undone by fitting the Z-HIT curve."""
+    Z_clean, params_true = _clean_spectrum()
+    Z_drifted = _apply_lf_drift(Z_clean)
+
+    reconstruction = zhit_validation(FREQUENCIES, Z_drifted)
+    plt.close('all')
+    assert reconstruction.success
+
+    err_original = _fit_max_resistance_error(Z_drifted, params_true)
+    err_reconstructed = _fit_max_resistance_error(reconstruction.Z_fit,
+                                                  params_true)
+
+    # Measured on this spectrum: 19.6% raw, 0.12% reconstructed (factor ~160).
+    # The thresholds keep an order of magnitude of headroom on each side.
+    assert err_original > 10.0, (
+        f"drift did not bias the raw fit ({err_original:.2f}%) - the test "
+        "no longer exercises what it claims to")
+    assert err_reconstructed < 1.0, (
+        f"reconstruction did not recover the resistances ({err_reconstructed:.2f}%)")
+    assert err_original / err_reconstructed > 20.0
+
+
+def test_reconstruction_error_floor_on_undisturbed_data():
+    """On a stationary spectrum the switch must cost almost nothing."""
+    Z_clean, params_true = _clean_spectrum()
+
+    reconstruction = zhit_validation(FREQUENCIES, Z_clean)
+    plt.close('all')
+
+    # Z-HIT has its own error floor (numerical integration plus the edge
+    # behavior of np.gradient in the second-order term). Measured: 0.58% mean
+    # magnitude residual, 0.12% resistance error.
+    assert reconstruction.mean_residual_mag < 2.0
+    assert _fit_max_resistance_error(reconstruction.Z_fit, params_true) < 1.0
+
+
+# =============================================================================
+# Plumbing
+# =============================================================================
+
+def _args(fit_on='original', f_min=None, f_max=None):
+    return argparse.Namespace(fit_on=fit_on, f_min=f_min, f_max=f_max)
+
+
+def _loaded():
+    Z, _ = _clean_spectrum()
+    return LoadedData(frequencies=FREQUENCIES, Z=Z, title="test",
+                      metadata=None)
+
+
+def _reconstruction_of(data):
+    result = zhit_validation(data.frequencies, data.Z)
+    plt.close('all')
+    return result
+
+
+def test_fit_on_original_leaves_data_untouched():
+    data = _loaded()
+    out = apply_zhit_reconstruction(data, _reconstruction_of(data),
+                                    _args('original'))
+    assert out is data
+    assert out.Z_zhit is None
+    assert out.Z_for_fit is out.Z
+
+
+def test_fit_on_zhit_attaches_reconstruction_without_replacing_z():
+    data = _loaded()
+    reconstruction = _reconstruction_of(data)
+    out = apply_zhit_reconstruction(data, reconstruction, _args('zhit'))
+
+    np.testing.assert_array_equal(out.Z, data.Z)          # R_inf/DRT untouched
+    np.testing.assert_array_equal(out.Z_zhit, reconstruction.Z_fit)
+    np.testing.assert_array_equal(out.Z_for_fit, reconstruction.Z_fit)
+
+
+def test_fit_on_all_replaces_z_and_marks_the_title():
+    data = _loaded()
+    reconstruction = _reconstruction_of(data)
+    out = apply_zhit_reconstruction(data, reconstruction, _args('all'))
+
+    np.testing.assert_array_equal(out.Z, reconstruction.Z_fit)
+    assert out.Z_zhit is None
+    np.testing.assert_array_equal(out.Z_for_fit, reconstruction.Z_fit)
+    assert "Z-HIT" in out.title
+
+
+@pytest.mark.parametrize('mode', ['zhit', 'all'])
+def test_missing_reconstruction_is_an_error_not_a_silent_fallback(mode):
+    """Falling back to the original would fit something else than asked for."""
+    with pytest.raises(EISAnalysisError, match="Z-HIT"):
+        apply_zhit_reconstruction(_loaded(), None, _args(mode))
+
+
+@pytest.mark.parametrize('mode', ['zhit', 'all'])
+def test_failed_reconstruction_is_an_error(mode):
+    empty = np.array([])
+    failed = ZHITResult(
+        Z_mag_reconstructed=empty,
+        Z_fit=np.array([], dtype=np.complex128),
+        residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
+        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0, ref_freq=1.0,
+    )
+    assert not failed.success
+    with pytest.raises(EISAnalysisError):
+        apply_zhit_reconstruction(_loaded(), failed, _args(mode))
+
+
+def test_frequency_filter_masks_the_reconstruction_alongside_z():
+    """Both arrays must survive the same mask or the fit pairs wrong points."""
+    data = _loaded()
+    attached = apply_zhit_reconstruction(data, _reconstruction_of(data),
+                                         _args('zhit'))
+
+    filtered = filter_by_frequency(attached, _args('zhit', f_min=1.0, f_max=1e3))
+
+    assert len(filtered.Z_zhit) == len(filtered.frequencies) < len(FREQUENCIES)
+    mask = (FREQUENCIES >= 1.0) & (FREQUENCIES <= 1e3)
+    np.testing.assert_array_equal(filtered.Z_zhit, attached.Z_zhit[mask])
+    np.testing.assert_array_equal(filtered.Z_for_fit, filtered.Z_zhit)
+
+
+def test_frequency_filter_is_a_no_op_without_bounds():
+    data = _loaded()
+    attached = apply_zhit_reconstruction(data, _reconstruction_of(data),
+                                         _args('zhit'))
+    assert filter_by_frequency(attached, _args('zhit')) is attached

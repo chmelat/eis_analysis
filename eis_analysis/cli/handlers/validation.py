@@ -3,17 +3,19 @@ Data validation handlers for the EIS CLI.
 
 - run_kk_validation: Kramers-Kronig validation
 - run_zhit_validation: Z-HIT validation
+- apply_zhit_reconstruction: --fit-on, Z-HIT reconstruction as a data correction
 - report_outliers: per-point suspicious-point report from both methods
 """
 
 import argparse
 import logging
+from dataclasses import replace
 from typing import Optional
 
 from numpy.typing import NDArray
 
 from ..logging import log_separator
-from ..utils import save_figure
+from ..utils import EISAnalysisError, LoadedData, save_figure
 from ...validation import (
     kramers_kronig_validation,
     zhit_validation,
@@ -158,6 +160,92 @@ def run_zhit_validation(
 
     save_figure(result.figure, args.save, 'zhit', args.format)
     return result
+
+
+# =============================================================================
+# Z-HIT reconstruction as a data correction (--fit-on)
+# =============================================================================
+
+# Below this mean magnitude residual the reconstruction and the measurement are
+# the same curve within Z-HIT's own error floor, so --fit-on has nothing to
+# correct. Same band as the "excellent" label in _quality_label.
+ZHIT_RECONSTRUCTION_NEGLIGIBLE = 0.5
+
+
+def apply_zhit_reconstruction(
+    data: LoadedData,
+    zhit_result: Optional[ZHITResult],
+    args: argparse.Namespace
+) -> LoadedData:
+    """
+    Attach or substitute the Z-HIT reconstruction according to --fit-on.
+
+    Z-HIT is not only a validator ("was the system stationary?") but also a
+    correction: where the low-frequency modulus drifts during the measurement
+    while the phase stays sound - a coating taking up water, say - |Z| can be
+    reconstructed from the phase and the circuit fitted against that instead.
+
+    Must be called on the FULL spectrum, before frequency filtering, because
+    that is where the reconstruction was computed: Z-HIT integrates the phase
+    over log-omega, so a truncated range is a different reconstruction.
+
+    Parameters
+    ----------
+    data : LoadedData
+        Loaded spectrum, unfiltered
+    zhit_result : ZHITResult or None
+        Result of run_zhit_validation
+    args : argparse.Namespace
+        CLI arguments (uses: fit_on)
+
+    Returns
+    -------
+    LoadedData
+        Unchanged for --fit-on original; with `Z_zhit` attached for `zhit`;
+        with `Z` itself replaced for `all`.
+
+    Raises
+    ------
+    EISAnalysisError
+        If the reconstruction was asked for but is not available.
+    """
+    if args.fit_on == 'original':
+        return data
+
+    if zhit_result is None or not zhit_result.success:
+        # Falling back to the original would quietly fit something other than
+        # what was asked for, and the fit report has no way to say so.
+        raise EISAnalysisError(
+            f"--fit-on {args.fit_on} needs the Z-HIT reconstruction, "
+            "but Z-HIT produced no result for this spectrum"
+        )
+
+    log_separator()
+    logger.info(f"Z-HIT reconstruction (--fit-on {args.fit_on})")
+    log_separator()
+
+    # How far the data moved is the whole point of the switch; without it the
+    # user cannot tell whether the correction did anything.
+    shift = zhit_result.mean_residual_mag
+    logger.info(f"|Z| replaced by the reconstruction from the phase "
+                f"(mean shift {shift:.2f}%, max "
+                f"{abs(zhit_result.residuals_mag).max():.2f}%)")
+
+    if shift < ZHIT_RECONSTRUCTION_NEGLIGIBLE:
+        logger.info("Reconstruction matches the measurement within Z-HIT's own "
+                    "error floor - the correction changes essentially nothing")
+
+    if args.fit_on == 'all':
+        logger.info("Applied to every stage below: R_inf, DRT, circuit fit, "
+                    "oxide analysis")
+        # Title flows into visualize_data, so the Nyquist/Bode plot says which
+        # curve it is showing.
+        return replace(data, Z=zhit_result.Z_fit,
+                       title=f"{data.title} (Z-HIT)")
+
+    logger.info("Applied to the circuit fit only; R_inf and DRT stay on the "
+                "measurement (use --fit-on all to change that)")
+    return replace(data, Z_zhit=zhit_result.Z_fit)
 
 
 # =============================================================================

@@ -83,6 +83,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         # Circuit Fitting
         'circuit': None,
         'weighting': 'modulus',
+        'fit_on': 'original',
         'no_fit': True,  # Skip by default unless specified
         'numeric_jacobian': False,
         'optimizer': 'de',

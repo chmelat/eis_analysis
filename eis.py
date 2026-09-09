@@ -14,6 +14,7 @@ Features:
 - Equivalent circuit fitting with operator syntax
 - Oxide layer thickness estimation
 - Robust R_inf estimation (--ri-fit)
+- Fitting on the Z-HIT reconstruction (--fit-on zhit)
 
 Usage:
     eis                             # synthetic data demo
@@ -46,11 +47,13 @@ from eis_analysis.cli import (
     # Handlers
     run_kk_validation,
     run_zhit_validation,
+    apply_zhit_reconstruction,
     report_outliers,
     run_rinf_estimation,
     run_drt_analysis,
     run_voigt_analysis,
     run_circuit_fitting,
+    mark_zhit_fit,
     run_oxide_analysis,
     # Utils
     EISAnalysisError,
@@ -88,6 +91,11 @@ def _run_analysis(args) -> None:
 
     report_outliers(data.frequencies, kk_result, zhit_result, args)
 
+    # --fit-on: the Z-HIT reconstruction as a drift correction. Attached here
+    # because this is the last point where the full spectrum still exists -
+    # the reconstruction was computed on it and stays aligned with it.
+    data = apply_zhit_reconstruction(data, zhit_result, args)
+
     # Filter to the analysis region
     data = filter_by_frequency(data, args)
 
@@ -112,7 +120,10 @@ def _run_analysis(args) -> None:
     run_voigt_analysis(drt_result, data.frequencies, data.Z, args)
 
     # Circuit fitting
-    fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z, args)
+    fitted_result, fit_fig = run_circuit_fitting(
+        data.frequencies, data.Z_for_fit, args
+    )
+    mark_zhit_fit(fit_fig, args)
 
     # Oxide layer analysis
     run_oxide_analysis(

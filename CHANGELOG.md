@@ -4,6 +4,50 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.34.0 (2026-09-09)
+
+### Added
+
+- **`--fit-on` fits the circuit against the Z-HIT reconstruction.** Z-HIT has
+  been a validator here since v0.10.0 - it answers "was the system
+  stationary?". It is also a repair, and that half went unused: where the
+  low-frequency modulus drifts during the measurement while the phase stays
+  sound, `|Z|` can be reconstructed from the phase and the circuit fitted
+  against the reconstruction.
+
+  ```bash
+  eis data.DTA --circuit 'R()-(R()|Q())-(R()|Q())' --fit-on zhit
+  eis data.DTA --fit-on all
+  ```
+
+  `zhit` swaps the data under the circuit fit alone; `all` also feeds R_inf,
+  DRT and the oxide analysis, because a drifting low-frequency tail distorts a
+  DRT spectrum as thoroughly as it does a fit. `original` (the default) is the
+  previous behavior.
+
+  The typical case is a coating taking up water, whose impedance falls while
+  the lowest decades are being recorded. On a synthetic spectrum with a 30%
+  drift ramped over the lowest two decades, the fitted resistances come out
+  ~20% wrong from the measurement and within ~0.1% of the truth from the
+  reconstruction (`tests/test_zhit_fit_on.py`).
+
+  The run reports the mean and maximum magnitude shift, so a spectrum the
+  correction does nothing for says so, and the saved fit plot carries a note
+  that its "Measured" curve is the reconstructed one. `--fit-on` is the source
+  of the reconstruction's only prerequisite, so it is rejected together with
+  `--no-zhit` at parse time rather than mid-run.
+
+  No new mathematics: `zhit_validation()` already returned the reconstruction.
+  What was missing was carrying it past the `--f-min`/`--f-max` filter, which
+  now masks it alongside the measurement - Z-HIT integrates the phase over the
+  full range, so the reconstruction is computed before filtering and cannot be
+  recomputed on the analysis window.
+
+  Suggested by `doc/ZAHNER_ANALYSIS_REVIEW.md` §7 (Zahner Analysis offers
+  Original / Smoothed / Z-HIT in its fitter).
+
+---
+
 ## Version 0.33.0 (2026-09-09)
 
 ### Added
