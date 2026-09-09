@@ -58,6 +58,18 @@ Complete change history for all project versions.
   Suggested by `doc/ZAHNER_ANALYSIS_REVIEW.md` §7 (Zahner Analysis offers
   Original / Smoothed / Z-HIT in its fitter).
 
+### Fixed
+
+- **`slope_p` no longer depends on which scipy is installed.** For a residual
+  series with no variance at all, `linregress` returns a p-value of 1.0 up to
+  scipy 1.14 and NaN from 1.15 on. `SeriesDiagnostics.slope_p` passed that
+  straight through, so the documented "NaN when the series has no variance"
+  held on one half of the supported range and not the other, and its
+  regression test was red on whichever half it was not currently pinned to -
+  the CI 3.9 job since v0.32.0, the 3.12 job for the two commits before that.
+  The degenerate case is now pinned to NaN in the module, matching every other
+  degenerate case it reports.
+
 ---
 
 ## Version 0.33.0 (2026-09-09)

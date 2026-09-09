@@ -322,6 +322,11 @@ def _series_diagnostics(
     # rest compete for the same peak, the drift wins it at a period near the
     # window width, and any genuine structure underneath it disappears.
     trend = linregress(log_freq, residuals)
+    # A flat series has nothing to regress. scipy reports that as NaN from
+    # 1.15 on and as p = 1.0 before it, so pin it to the NaN every other
+    # degenerate case here reports - the docstring promises one answer, not
+    # whichever one the installed scipy happens to give.
+    slope_p = float(trend.pvalue) if np.ptp(residuals) > 0 else float('nan')
     power, amplitude = residual_structure(
         log_freq, residuals - (trend.slope * log_freq + trend.intercept))
 
@@ -345,7 +350,7 @@ def _series_diagnostics(
         runs_z=z,
         runs_p=p,
         slope=float(trend.slope),
-        slope_p=float(trend.pvalue),
+        slope_p=slope_p,
         amplitude=amplitude,
         power=power,
         is_systematic=bool(np.isfinite(p) and p < RUNS_P_THRESHOLD),
