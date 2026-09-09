@@ -64,3 +64,14 @@ select = ["E4", "E7", "E9", "F"]
 python_version = "3.9"
 ignore_missing_imports = true
 warn_unused_ignores = true
+
+# matplotlib 3.11 ships inline types, so mypy stopped treating it as a missing
+# import and started parsing its source - against python_version 3.9, which
+# rejects the `match` statement in matplotlib/_afm.py. That is a blocking
+# error: the job checked nothing at all from matplotlib 3.11 until this
+# override, it only aborted. Skipping the import restores what
+# ignore_missing_imports gave when matplotlib was untyped (Any), and costs
+# nothing this project was actually using. Drop it when the 3.9 floor goes.
+[[tool.mypy.overrides]]
+module = "matplotlib.*"
+follow_imports = "skip"
