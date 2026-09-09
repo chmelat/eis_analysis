@@ -29,7 +29,7 @@ from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
                      validate_fixed_params)
-from .diagnostics import compute_weights, compute_fit_metrics
+from .diagnostics import compute_weights, compute_fit_metrics, compute_significance
 from .jacobian import make_jacobian_function
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,13 @@ class FitResult:
         Optimized parameters
     params_stderr : ndarray of float
         Standard errors of parameters (from covariance matrix)
+    params_significance : ndarray of float or None
+        Per-parameter sensitivity max|dln|Z|/dlnP|, aligned with params_opt.
+        Answers a different question than params_stderr: not how precisely a
+        parameter is determined, but whether it matters in this frequency
+        window at all. ~1 means it dominates somewhere, below
+        SIGNIFICANCE_NEGLIGIBLE the element may be dropped. None if the
+        circuit has an element with no analytic derivative.
     fit_error_rel : float
         Relative fit error [%]
     fit_error_abs : float
@@ -131,6 +138,10 @@ class FitResult:
     # computed in log space (see compute_confidence_interval). None means
     # no bound info was available; all CIs stay linear/symmetric.
     _ci_log_scale: Optional[List[bool]] = None
+    # Per-parameter sensitivity max|dln|Z|/dlnP|, aligned with params_opt.
+    # None when the circuit has an element with no analytic derivative.
+    # See compute_significance in diagnostics.py.
+    params_significance: Optional[NDArray[np.float64]] = None
 
     def _ci(self, confidence_level: float) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         # Non-finite stderr yields (-inf, +inf) per parameter inside
@@ -520,7 +531,8 @@ def fit_equivalent_circuit(
             n_free_params=len(initial_guess_for_opt),
             bound_status=bound_status,
             _dof=cov_result.dof,
-            _ci_log_scale=log_scale_ci_mask(lower_bounds, upper_bounds)
+            _ci_log_scale=log_scale_ci_mask(lower_bounds, upper_bounds),
+            params_significance=compute_significance(circuit, frequencies, params_opt)
         )
 
     except Exception as e:

@@ -8,10 +8,11 @@ Author: EIS Analysis Toolkit
 
 import numpy as np
 import logging
-from typing import Tuple
+from typing import Optional, Sequence, Tuple
 from numpy.typing import NDArray
 
 from .config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
+from .jacobian import circuit_jacobian
 
 logger = logging.getLogger(__name__)
 
@@ -200,8 +201,91 @@ def compute_information_criteria(
     return rss, float(aic), float(bic)
 
 
+def compute_significance(
+    circuit,
+    frequencies: NDArray[np.float64],
+    params: Sequence[float]
+) -> Optional[NDArray[np.float64]]:
+    """
+    Sensitivity of the network impedance to each parameter (Zahner significance).
+
+    S_i = max_n |d ln|Z_n| / d ln P_i|
+
+    One number per parameter, answering a different question than the standard
+    error: not "how precisely is this parameter determined?" but "does this
+    parameter matter in this frequency window at all?". A large standard error
+    conflates a parameter that is irrelevant with one that is merely correlated
+    with another; the significance separates them.
+
+    Parameters
+    ----------
+    circuit : CircuitElement or CompositeCircuit
+        The fitted circuit
+    frequencies : ndarray of float
+        Measurement frequencies [Hz] - the significance is a property of the
+        model *in the measured window*, not of the model in the abstract
+    params : sequence of float
+        All circuit parameters (fixed ones included), as in FitResult.params_opt
+
+    Returns
+    -------
+    significance : ndarray of float or None
+        One value per parameter, aligned with `params`. None if the circuit
+        contains an element with no analytic derivative.
+
+    Notes
+    -----
+    Interpretation follows Zahner Analysis, section 2.2.2:
+
+    - S ~ 1: the parameter dominates the impedance somewhere in the window.
+      For an element entering linearly (a resistor) S is bounded by 1 and is
+      roughly the largest fraction of |Z| that the parameter accounts for.
+    - S << 0.01: the element may be omitted from the model.
+    - S > 1 is possible for a parameter entering non-linearly. A CPE exponent
+      gives d ln|Z|/d ln(alpha) = -alpha*ln(omega/omega_0), which grows without
+      bound away from the normalisation frequency. Not an error, but the
+      "fraction of |Z|" reading no longer applies.
+
+    Z is the impedance of the *whole network*, not of the individual element:
+    a small series resistor next to a large arc scores low even when it is
+    itself well determined. P is a scalar fit parameter, not an element - a CPE
+    contributes two (Q and n).
+
+    The ratio is a logarithmic derivative and therefore dimensionless, which is
+    what makes R [Ohm] and C [F] comparable on one scale.
+
+    A parameter that is exactly zero gets S = 0, since P appears in the
+    numerator. That is consistent: a zero parameter really does not influence
+    the impedance.
+
+    Deviation from the source: Zahner takes the maximum of the signed quantity.
+    We take the absolute value, because the question is the magnitude of the
+    influence, not its direction, and the "S << 0.01 -> omit" threshold only
+    makes sense for a non-negative S. See doc/ZAHNER_ANALYSIS_REVIEW.md.
+
+    References
+    ----------
+    Zahner Analysis manual (11/2023), section 2.2.2 "Significance".
+    """
+    # circuit_jacobian is the right source: unweighted, un-negated dZ/dp with a
+    # column for every parameter. The optimizer's Jacobian is none of those.
+    try:
+        Z, dZ = circuit_jacobian(circuit, frequencies, list(params))
+    except NotImplementedError:
+        return None
+
+    # d|Z|/dp = Re(conj(Z) * dZ/dp) / |Z|, so the whole expression is
+    # Re(conj(Z) * dZ/dp) * P / |Z|^2. Clamp |Z|^2 the way compute_weights
+    # clamps |Z|: a data point at exactly zero impedance is not physical, but
+    # it must not turn the diagnostic into a division by zero.
+    Z_mag2 = np.maximum(np.abs(Z) ** 2, 1e-30)
+    relative = (Z.conj()[:, np.newaxis] * dZ).real * np.asarray(params, dtype=float)
+    return np.max(np.abs(relative / Z_mag2[:, np.newaxis]), axis=0)
+
+
 __all__ = [
     'compute_weights',
     'compute_fit_metrics',
     'compute_information_criteria',
+    'compute_significance',
 ]

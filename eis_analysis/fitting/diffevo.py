@@ -22,7 +22,7 @@ from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_ma
                      log_search_bounds,
                      validate_fixed_params)
 from .covariance import compute_covariance_matrix
-from .diagnostics import compute_weights, compute_fit_metrics
+from .diagnostics import compute_weights, compute_fit_metrics, compute_significance
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
 
@@ -579,7 +579,8 @@ def fit_circuit_diffevo(
         n_free_params=len(free_indices),
         bound_status=bound_status,
         _dof=cov_result.dof if cov_result is not None else 0,
-        _ci_log_scale=log_scale_ci_mask(lower_bounds_full, upper_bounds_full)
+        _ci_log_scale=log_scale_ci_mask(lower_bounds_full, upper_bounds_full),
+        params_significance=compute_significance(circuit, frequencies, params_opt)
     )
 
     # Build DiffEvoDiagnostics

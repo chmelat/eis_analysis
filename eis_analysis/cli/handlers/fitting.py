@@ -27,13 +27,14 @@ from ...fitting import (
     DiffEvoResult,
 )
 from ...fitting.voigt_chain import MuOptimization
-from ...fitting.diagnostics import compute_fit_metrics
+from ...fitting.diagnostics import compute_fit_metrics, compute_significance
 from ...fitting.residual_diagnostics import (
     MIN_PERIODOGRAM_POWER,
     ResidualDiagnostics,
     analyze_residuals,
 )
-from ...fitting.config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
+from ...fitting.config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
+                               SIGNIFICANCE_NEGLIGIBLE)
 from .model_comparison import score_candidates, log_comparison
 
 logger = logging.getLogger(__name__)
@@ -206,6 +207,15 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
                    "plot shows where.")
 
 
+def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) -> str:
+    """Format one parameter's significance for the parameter line, '' if absent."""
+    if significance is None or i >= len(significance):
+        return ""
+    if significance[i] < SIGNIFICANCE_NEGLIGIBLE:
+        return f"  S={significance[i]:.3f} [negligible - element may be omitted]"
+    return f"  S={significance[i]:.2f}"
+
+
 def _log_fit_result(result: FitResult,
                     residuals: Optional[ResidualDiagnostics] = None) -> None:
     """Log fit result with parameters, confidence intervals and residual shape."""
@@ -225,17 +235,22 @@ def _log_fit_result(result: FitResult,
     # Jacobian-based CI is not meaningful (locally non-quadratic surface), so
     # we suppress it and tag the line instead.
     bound_status = result.bound_status or [''] * len(result.params_opt)
+    significance = result.params_significance
     for i, (label, val, stderr) in enumerate(zip(labels, result.params_opt, result.params_stderr)):
         status = bound_status[i] if i < len(bound_status) else ''
+        # Significance is a separate question from the CI - it stays on the
+        # line even where the CI is suppressed, since "at a bound" and
+        # "irrelevant to the fit" are exactly the pair worth telling apart.
+        sig = _significance_suffix(significance, i)
         if status == 'lower' or status == 'upper':
-            logger.info(f"    {label:5s} = {val:.2e}  [at {status} bound — CI not meaningful]")
+            logger.info(f"    {label:5s} = {val:.2e}  [at {status} bound — CI not meaningful]{sig}")
         elif status == 'fixed':
-            logger.info(f"    {label:5s} = {val:.2e}  [fixed]")
+            logger.info(f"    {label:5s} = {val:.2e}  [fixed]{sig}")
         elif np.isinf(stderr) or np.isnan(stderr):
-            logger.info(f"    {label:5s} = {val:.2e} +/- inf")
+            logger.info(f"    {label:5s} = {val:.2e} +/- inf{sig}")
         else:
             low, high = ci_low[i], ci_high[i]
-            logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  [95% CI: {low:.2e}, {high:.2e}]")
+            logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  [95% CI: {low:.2e}, {high:.2e}]{sig}")
 
     # Fit quality
     logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")
@@ -581,7 +596,12 @@ def _fit_voigt_chain(
         fit_error_rel=fit_error_rel,
         fit_error_abs=fit_error_abs,
         quality=quality,
-        _dof=max(2 * len(frequencies) - len(initial_params), 1)
+        _dof=max(2 * len(frequencies) - len(initial_params), 1),
+        # The linear fit gives no uncertainty, but significance needs none -
+        # it is a property of the model at its parameters, not of the fit.
+        # A pruned Voigt chain is exactly where "which of these 16 elements
+        # earns its place?" is worth asking.
+        params_significance=compute_significance(circuit, frequencies, initial_params)
     )
 
     # The Voigt chain is where "too few elements" is directly actionable:

@@ -97,6 +97,19 @@ Threshold for good fit [%].
 Relative error 1-10% is typical for good fits in real systems.
 """
 
+SIGNIFICANCE_NEGLIGIBLE = 0.01
+"""
+Below this significance a parameter may be dropped from the model.
+
+From the Zahner Analysis manual (11/2023), section 2.2.2: "Significance values
+much less than 0.01 usually indicate that the corresponding impedance element
+may be omitted." The scale it sits on is fixed by the definition, not chosen:
+for an element entering the impedance linearly the significance is bounded by
+1 and is roughly the largest fraction of |Z| the parameter accounts for, so
+0.01 means the parameter never moves the modulus by more than a percent
+anywhere in the measured window. See compute_significance in diagnostics.py.
+"""
+
 # =============================================================================
 # Differential Evolution Diagnostics
 # =============================================================================
