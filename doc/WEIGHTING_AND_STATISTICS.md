@@ -427,6 +427,101 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 - If model is wrong, CI has no statistical meaning
 - Always check residuals and fit error
 
+### 3.7 Parameter Significance (S)
+
+**Definition:**
+
+```
+S_i = max_n | d|Z_n| * P_i / (dP_i * |Z_n|) |  =  max_n | d ln|Z_n| / d ln P_i |
+```
+
+where `n` runs over the measured frequencies.
+
+**Why it is not the standard error.** SE and CI answer *how precisely is this
+parameter determined*. A large SE has two very different causes, and it cannot
+tell them apart:
+
+- the parameter barely influences the impedance (it is irrelevant), or
+- it influences it strongly but is correlated with another parameter, so the
+  optimizer cannot separate the two.
+
+Significance answers the first question directly: **does this parameter move
+the impedance in the measured window at all?** Read the two together - a
+parameter with high S and a wide CI is genuinely correlated with another,
+while low S means the element is simply not doing anything.
+
+**What the symbols mean.**
+
+| Symbol | Meaning |
+|--------|---------|
+| `Z` | impedance of the **whole network**, not of the individual element |
+| `\|Z_n\|` | its modulus at the n-th measured frequency; the phase does not enter |
+| `P_i` | a **scalar fit parameter**, not an element - a CPE contributes two |
+| `n` | index of the measured sample; the maximum runs over the window |
+
+Because `Z` is the total impedance, a small series resistor next to a large
+arc scores low even when it is itself perfectly well determined. And because
+the maximum runs only over the measured frequencies, S is a property of the
+model *in this window* - an element whose feature lies outside the measured
+range scores low by construction, which is the intended reading.
+
+**Why this particular ratio.** It is a logarithmic derivative, so it is
+dimensionless and R [Ohm] and C [F] land on the same scale. A plain `d|Z|/dP`
+would not be comparable between parameters.
+
+**Interpretation:**
+
+| S | Meaning |
+|---|---------|
+| ~1 | the parameter dominates the impedance somewhere in the window |
+| 0.01 - 1 | contributes, but never dominates |
+| < `SIGNIFICANCE_NEGLIGIBLE` (0.01) | the element may be omitted from the model |
+| > 1 | only for parameters entering non-linearly (see below) |
+
+For an element entering linearly the value is bounded by 1. A series resistor
+has `dZ/dR = 1`, so the expression reduces to
+
+```
+S = R * cos(phi) / |Z|   <= 1,   equal to 1 exactly when Z = R
+```
+
+that is, roughly the largest fraction of |Z| the parameter accounts for. This
+is what fixes the scale and makes the 0.01 threshold meaningful rather than
+arbitrary.
+
+A parameter entering non-linearly is not bounded. For a CPE exponent,
+`|Z| ~ (omega/omega_0)^(-alpha)` gives
+
+```
+d ln|Z| / d ln(alpha) = -alpha * ln(omega/omega_0)
+```
+
+which grows without bound away from the normalisation frequency - three
+decades away at alpha ~ 0.9 gives about 6. Not an error; the "fraction of |Z|"
+reading simply does not apply there.
+
+**Edge cases:**
+- A parameter that is exactly zero gets S = 0 (P is in the numerator).
+  Consistent: a zero parameter really does not influence the impedance.
+- A circuit containing an element with no analytic derivative yields `None`,
+  and the CLI omits the column rather than failing.
+- Fixed parameters get a value too - it says whether the value you fixed
+  matters.
+
+**Deviation from the source.** Zahner takes the maximum of the signed
+quantity; we take the absolute value. The question is the magnitude of the
+influence, not its direction, and the "omit below 0.01" threshold only makes
+sense for a non-negative S.
+
+**Not to be confused with** the word "significance" in the residual
+diagnostics, where it means the p-value of a trend in the residuals. That is a
+statement about the *fit*; this one is about a *parameter*. The result field
+is named `params_significance` for exactly that reason.
+
+**Reference:** Zahner Analysis manual (11/2023), section 2.2.2. See
+[ZAHNER_ANALYSIS_REVIEW.md](ZAHNER_ANALYSIS_REVIEW.md) section 1 for how it
+compares with what the toolkit already reported.
+
 ---
 
 ## 4. Summary Table of Metrics
@@ -440,6 +535,7 @@ R1 = 1.03e+05 +/- 1.82e+01  [95% CI: 1.03e+05, 1.03e+05]
 | Fit error abs. | [0, inf) | Ohm | contextual | Fit quality |
 | SE | [0, inf) | [param] | < 10% of param | Parameter uncertainty |
 | 95% CI | - | [param] | narrow | Parameter uncertainty |
+| Significance (S) | [0, inf) | - | ~1 dominates, < 0.01 omit | Parameter relevance |
 | Cond. number (J_s^T J_s) | [1, inf) | - | < 10^10 | Fit stability |
 
 ---

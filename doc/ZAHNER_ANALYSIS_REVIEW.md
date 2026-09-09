@@ -19,7 +19,7 @@ Z-HIT máme také. Tafel, Butler-Volmer, CV a solární články jsou mimo záb�
 
 | # | Návrh | Přínos | Práce | Dotčené moduly |
 |---|-------|--------|-------|----------------|
-| 1 | Significance + significance plot | vysoký | malá | `fitting/covariance.py`, `jacobian.py`, `visualization/` |
+| 1 | Significance - **HOTOVO v 0.33.0** (plot zatím ne) | vysoký | malá | `fitting/diagnostics.py`, `circuit.py`, `diffevo.py` |
 | 2 | Young-Göhr element | vysoký | střední | `circuit_elements/composite.py`, `analysis/oxide.py` |
 | 3 | Blokující difuze (coth) | střední | malá | `circuit_elements/distributed.py` |
 | 4 | Log-polární residuum (clog) | střední | střední | `fitting/diagnostics.py`, `circuit.py` |
@@ -31,6 +31,12 @@ Z-HIT máme také. Tafel, Butler-Volmer, CV a solární články jsou mimo záb�
 ---
 
 ## 1. Significance - nejostřejší myšlenka dokumentu
+
+> **Stav: implementováno ve verzi 0.33.0.** `compute_significance()`
+> v `eis_analysis/fitting/diagnostics.py`, pole `FitResult.params_significance`,
+> sloupec `S=` u každého parametru ve výpisu fitu. Významy symbolů a odvození
+> níže platí; podrobnosti pro uživatele jsou v `doc/WEIGHTING_AND_STATISTICS.md`
+> §3.7. Significance plot S_i(f) implementován **není** - viz konec sekce.
 
 Zahner k parametru hlásí **dvě různá čísla**: `error` (přesnost) a `significance`
 
@@ -112,19 +118,19 @@ a jeden `max` přes vzorky. Zapadá to přímo do porovnávání `--circuit` var
 a do `auto_suggest` - automatické "tenhle prvek lze odebrat" je přesně
 deklarovaný cíl *Automation*.
 
-**Odchylka k rozhodnutí:** Zahnerův vzorec bere maximum **znaménkové** veličiny,
+**Odchylka od zdroje:** Zahnerův vzorec bere maximum **znaménkové** veličiny,
 bez vnějších svislic. Rozdíl nastane u parametru, jehož zvýšení |Z| *snižuje* -
 takovému Zahner vyhodnotí nízkou significance, zatímco `max |...|` vysokou.
-Pro naši implementaci se kloním k absolutní hodnotě
+Implementace používá absolutní hodnotu
 
 ```
 S_i = max_n | d ln|Z_n| / d ln P_i |
 ```
 
 protože ptát se chceme na *velikost* vlivu, ne na jeho směr, a práh
-"S << 0.01 -> lze vypustit" dává smysl jen pro nezáporné S. Je to ale
-vědomý odklon od zdroje, ne jeho reprodukce - při implementaci to patří
-do docstringu.
+"S << 0.01 -> lze vypustit" dává smysl jen pro nezáporné S. Je to vědomý
+odklon od zdroje, ne jeho reprodukce, a je uvedený v docstringu
+`compute_significance()`.
 
 **Bonus:** significance plot S_i(f), tedy křivka na frekvenci pro každý prvek -
 "kde který prvek řídí spektrum". Vizuálně komplementární k DRT peakům,
@@ -357,7 +363,7 @@ do normalizovaných os (Ω*cm²). U nás `--area` teče jen do oxidové analýzy
 
 ## Doporučené pořadí
 
-1. **Significance + significance plot** - nejlepší poměr přínos/práce
+1. ~~**Significance**~~ - HOTOVO v 0.33.0 (zbývá jen plot S_i(f))
 2. **Blokující difuze (coth)** - triviální doplnění mřížky, kterou máme skoro celou
 3. **Young-Göhr** - nejtrefnější do oxidové domény
 4. **Fit na Z-HIT rekonstrukci** - přepínač, instalatérství hotové

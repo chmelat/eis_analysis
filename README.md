@@ -304,6 +304,36 @@ eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 ```
 
+**Does every element earn its place?** Each parameter line carries an `S`, its
+significance - the largest relative change it causes in `|Z|` anywhere in the
+measured window, `S = max |dln|Z|/dlnP|`:
+
+```
+  Parameters:
+    R0    = 5.22e+02 +/- 8.29e+01  [95% CI: 3.81e+02, 7.15e+02]  S=1.00
+    R1    = 7.48e+04 +/- 5.65e+03  [95% CI: 6.44e+04, 8.68e+04]  S=0.99
+    C0    = 6.42e-08 +/- 6.34e-09  [95% CI: 5.28e-08, 7.80e-08]  S=0.99
+    R2    = 1.00e-09  [fixed]  S=0.000 [negligible - element may be omitted]
+```
+
+This is a different question from the standard error. A wide CI has two very
+different causes - the parameter is irrelevant, or it is strongly correlated
+with another - and the CI alone cannot tell them apart. `S` can: around 1 the
+parameter dominates the impedance somewhere, below 0.01 the element does
+nothing and can be dropped. So a parameter with high `S` and a wide CI is
+genuinely entangled with another one, while a low `S` simply means dead weight.
+
+Two things worth knowing before reading the number. `S` is measured against the
+impedance of the *whole circuit*, so a small series resistor next to a large arc
+scores low even when it is perfectly well determined; and the maximum runs only
+over the measured frequencies, so an element whose feature lies outside your
+range scores low by construction. Values above 1 are normal for parameters that
+enter non-linearly, such as a CPE exponent.
+
+**Note:** "significance" also appears in the residual diagnostics below, where
+it means the p-value of a trend. That is a statement about the *fit*; `S` is
+about a *parameter*.
+
 **Are the residuals noise?** The fit error says how *large* the residuals are,
 not what *shape* they have, and a model missing an element can still fit to a
 few percent while its residuals march smoothly across the spectrum. Both
