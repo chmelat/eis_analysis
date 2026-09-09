@@ -35,18 +35,68 @@ Z-HIT máme také. Tafel, Butler-Volmer, CV a solární články jsou mimo záb�
 Zahner k parametru hlásí **dvě různá čísla**: `error` (přesnost) a `significance`
 
 ```
-S_i = max_n | d|Z_n|/dP_i * P_i/|Z_n| |
+S_i = max_n ( d|Z_n| * P_i / (dP_i * |Z_n|) )
 ```
 
-kde `i` je index parametru a `n` index vzorku. Je to citlivost, ne nejistota,
-a odpovídá na jinou otázku: *je ten prvek v tomhle frekvenčním okně vůbec k něčemu?*
+Je to citlivost, ne nejistota, a odpovídá na jinou otázku:
+*je ten prvek v tomhle frekvenčním okně vůbec k něčemu?*
 
-Interpretace je v dokumentu kalibrovaná:
+### Význam symbolů
+
+| Symbol | Význam |
+|--------|--------|
+| `Z` | **celková impedance modelu** (`Z_theo = f(ω, P_1, ..., P_k)`), ne impedance jednoho prvku |
+| `\|Z_n\|` | její **modul** při n-té experimentální frekvenci ω_n; fáze do vzorce nevstupuje |
+| `P_i` | i-tý **skalární fitovací parametr** přenosové funkce, ne prvek |
+| `n` | index experimentálního vzorku (maximum jde přes měřené frekvence) |
+
+Dokument je u `Z` explicitní: *"reflects its influence on the **network**
+impedance"*. Proto má rezistor 338 nΩ v sérii s obloukem o kΩ nízkou
+significance - jeho změna neposune výslednou impedanci sítě, i když sám o sobě
+je dobře definovaný.
+
+`P_i` je parametr, ne element: rezistor přispívá jedním, CPE dvěma (V a α),
+Young-Göhr třemi. "Significance prvku" ve výsledkovém okně je ve skutečnosti
+significance jednotlivých parametrů.
+
+Vyhodnocuje se **v nafitovaném optimu** a **jen na měřených frekvencích** -
+significance je tedy vlastnost modelu *v daném měřicím okně*, ne modelu obecně.
+
+### Proč zrovna tenhle podíl
+
+Přeuspořádáním je vidět logaritmická derivace:
+
+```
+d|Z|/|Z|  /  dP/P  =  d ln|Z| / d ln P
+```
+
+Bezrozměrné, takže R [Ω] a C [F] leží na téže škále - jednotky se vykrátí.
+Obyčejné `d|Z|/dP` by porovnatelné nebylo.
+
+Pro sériový rezistor je `dZ/dR = 1`, tedy `d|Z|/dR = Re(Z)/|Z| = cos φ` a
+
+```
+S = R * cos φ / |Z|   <= 1,   rovno 1 právě když Z = R
+```
+
+S je tedy zhruba **největší podíl |Z|, za který ten parametr odpovídá**.
+Odtud plyne celá kalibrace dokumentu:
 
 - rezistor dominující části spektra dá S ~ 1
 - S << 0.01 znamená, že prvek lze z modelu vypustit
   (jejich příklad: R = 338 nΩ, S = 0.002)
 - nelineárně vstupující parametry (exponent α u CPE) mohou 1 přesáhnout
+
+Poslední bod je vidět přímo: `|Z_CPE| = (1/ω_0 V)*(ω/ω_0)^(-α)`, takže
+`ln|Z| = -α*ln(ω/ω_0) + konst.` a
+
+```
+d ln|Z| / d ln α = -α * ln(ω/ω_0)
+```
+
+což roste se vzdáleností od normalizační frekvence bez omezení - tři dekády
+od ω_0 dají při α ~ 0.9 hodnotu kolem 6. Není to chyba, jen u nelineárně
+vstupujícího parametru mizí interpretace "podíl na |Z|".
 
 **Proč to chceme:** `covariance.py` dá stderr a condition number. Velký stderr ale
 míchá dohromady dvě různé situace - *parametr je nepodstatný* a *parametr je
@@ -61,6 +111,20 @@ d|Z|/dP = (Re Z * dReZ/dP + Im Z * dImZ/dP) / |Z|
 a jeden `max` přes vzorky. Zapadá to přímo do porovnávání `--circuit` variant
 a do `auto_suggest` - automatické "tenhle prvek lze odebrat" je přesně
 deklarovaný cíl *Automation*.
+
+**Odchylka k rozhodnutí:** Zahnerův vzorec bere maximum **znaménkové** veličiny,
+bez vnějších svislic. Rozdíl nastane u parametru, jehož zvýšení |Z| *snižuje* -
+takovému Zahner vyhodnotí nízkou significance, zatímco `max |...|` vysokou.
+Pro naši implementaci se kloním k absolutní hodnotě
+
+```
+S_i = max_n | d ln|Z_n| / d ln P_i |
+```
+
+protože ptát se chceme na *velikost* vlivu, ne na jeho směr, a práh
+"S << 0.01 -> lze vypustit" dává smysl jen pro nezáporné S. Je to ale
+vědomý odklon od zdroje, ne jeho reprodukce - při implementaci to patří
+do docstringu.
 
 **Bonus:** significance plot S_i(f), tedy křivka na frekvenci pro každý prvek -
 "kde který prvek řídí spektrum". Vizuálně komplementární k DRT peakům,
