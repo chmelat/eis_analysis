@@ -75,6 +75,17 @@ Complete change history for all project versions.
   The same bound also excluded a legitimate large, fast capacitance
   (C_eff = 0.1 F at n = 0.6, tau_min = 1 ns needs A ~ 1e-3). Lower bound
   1e-4. A test now checks every DQ default against its own bounds.
+- **`R | DQ` reported the wrong resistance.** The DQ branch took its own
+  R_pol and discarded the enclosing parallel resistance, so a shunted
+  element reported 3.6e7 Ohm where the pair conducts 1e3 - and the
+  largest-R barrier heuristic ranked it on that number. It now reports the
+  combination, as every other element in a parallel branch does.
+- **The "capacitive plateau is extrapolated" warning fired for DQ elements
+  that lost the selection**, pointing the reader at a capacitance that took
+  no part in the reported thickness. It is now attached to the dominant
+  element only, like the Cole-Cole notes, and it gained their edge margin:
+  a plateau starting within one decade of f_max says that only its edge was
+  measured instead of passing silently.
 - **`R_pol` returned nan for a flat distribution.** n = 0 lies outside
   PARAMETER_BOUNDS, but bounds constrain only what is fitted - a parameter
   fixed as a string enters the fit as given - so `DQ(..., n="0", ...)` fits

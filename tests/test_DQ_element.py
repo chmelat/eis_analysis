@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from scipy.integrate import quad
 
-from eis_analysis.fitting import K, Q, R, DQ, fit_equivalent_circuit
+from eis_analysis.fitting import C, K, Q, R, DQ, fit_equivalent_circuit
 from eis_analysis.fitting.jacobian import element_jacobian
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
 from eis_analysis.cli.utils import parse_circuit_expression
@@ -60,11 +60,16 @@ def test_dq_wide_limit_is_ideal_cpe(freq):
     This is the defining relation to the element DQ generalises; it fails if
     the amplitude convention or the d(ln tau) measure ever changes.
 
-    The tolerance is a *truncation* floor, not a quadrature one: the CPE is
-    the limit of infinite bounds, and the mass beyond tau_max still missing
-    at 1 mHz is (w*tau_max)^(n-1)*sin(pi*n)/(pi*(1-n)) ~ 2e-4. Tightening it
-    would need a wider distribution than the quadrature can resolve, and a
-    wrong amplitude convention is off by tens of percent, not by 1e-3.
+    Both tolerances are floors that no amount of care removes, and they are
+    of different origin. Approaching the CPE needs bounds far outside the
+    window, here U = 60 - twice the width DQ_QUAD_NODES = 96 is sized for
+    (U_DQ <= 30), so mid-window the error is quadrature (measured 6.7e-5)
+    and at 1 mHz it is truncation: the mass beyond tau_max still missing
+    there is (w*tau_max)^(n-1)*sin(pi*n)/(pi*(1-n)) ~ 2e-4. Both are
+    deterministic, and the tolerances leave ~2.7x on each.
+
+    A wrong amplitude convention or measure - what this test is for - is off
+    by tens of percent, not by 1e-4.
     """
     A, n = 1e-3, 0.6
     tau_min, U = 1e-15, 60.0  # ~26 decades, window sits well inside
@@ -74,8 +79,8 @@ def test_dq_wide_limit_is_ideal_cpe(freq):
     Z_cpe = Q(Q_cpe, n).impedance(freq, [Q_cpe, n])
 
     rel_err = np.abs(Z_dq - Z_cpe) / np.abs(Z_cpe)
-    assert np.max(rel_err) < 1e-3, f"wide DQ is not an ideal CPE: {np.max(rel_err)}"
-    assert np.median(rel_err) < 1e-4, "wide DQ drifts from the CPE mid-window"
+    assert np.max(rel_err) < 7e-4, f"wide DQ is not an ideal CPE: {np.max(rel_err)}"
+    assert np.median(rel_err) < 2e-4, "wide DQ drifts from the CPE mid-window"
 
 
 def test_dq_narrow_limit_is_single_rc(freq):
@@ -369,3 +374,40 @@ def test_dq_flat_distribution_has_a_finite_R_pol():
     # and it agrees with the integral it is the omega -> 0 limit of
     Z_dc = dq.impedance(np.array([1e-9]), dq.params)[0]
     assert Z_dc.real == pytest.approx(dq.R_pol, rel=1e-4)
+
+
+def test_dq_reports_the_shunted_resistance(freq, dq_params):
+    """In R | DQ both paths reach DC; the reported R is the combination.
+
+    R_pol alone can be four orders larger than the parallel pair, which is
+    the number the largest-R barrier heuristic then ranks on.
+    """
+    R_shunt = 1e3
+    circuit = R(R_shunt) | DQ(*dq_params)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    R_pol = DQ(*dq_params).R_pol
+    assert R_pol > 100 * R_shunt, "fixture no longer exercises the shunt"
+    assert oxide.element_R == pytest.approx(
+        R_shunt * R_pol / (R_shunt + R_pol), rel=1e-12)
+
+
+def test_dq_plateau_warning_only_for_the_winner(freq, dq_params):
+    """A DQ that lost the selection must not warn about its capacitance.
+
+    Its C_eff played no part in the reported thickness, so a warning about
+    it points the reader at the wrong element.
+    """
+    A, n, _, U = dq_params
+    losing_dq = DQ(A, n, 1e-9, U)  # plateau at ~1.6e8 Hz, far out of window
+    circuit = (R(5e3) | C(1e-7)) - losing_dq
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_type == 'C'
+    assert not any('DQ:' in w for w in oxide.warnings), oxide.warnings

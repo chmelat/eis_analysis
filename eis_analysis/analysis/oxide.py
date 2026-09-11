@@ -99,6 +99,44 @@ def _cc_capacitance_regime(tau: float, frequencies: NDArray[np.float64]) -> str:
     return 'high_frequency' if f_char < float(np.min(frequencies)) else 'static'
 
 
+def _dq_plateau_notes(
+    dq: Dict[str, Any],
+    frequencies: NDArray[np.float64]
+) -> List[str]:
+    """Say whether DQ's capacitive plateau was measured or extrapolated.
+
+    C_eff is the omega -> inf limit of the element, reached above
+    f_cap = 1/(2*pi*tau_min). If that lies above the measured window the
+    capacitance - and every thickness or permittivity from it - is an
+    extrapolation; if it sits within the last decade of the window, only a
+    sliver of the plateau was measured. Same two tests, and the same edge
+    margin, as the Cole-Cole notes.
+
+    Attached to the dominant element only: a DQ that lost the selection
+    contributed nothing to the reported thickness, and warning about its
+    capacitance would point the reader at the wrong element.
+    """
+    tau_min = dq['tau_min']
+    if tau_min <= 0 or frequencies.size == 0:
+        return []
+
+    f_cap = 1.0 / (2.0 * np.pi * tau_min)
+    f_max = float(np.max(frequencies))
+
+    if f_cap > f_max:
+        return [f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, above the "
+                f"highest measured frequency {f_max:.3g} Hz - C_eff is an "
+                "extrapolation, and so is any thickness derived from it. Extend "
+                "the sweep upwards to measure it."]
+    if np.log10(f_max / f_cap) < CC_WINDOW_EDGE_MARGIN_DECADES:
+        return [f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, less than "
+                f"{CC_WINDOW_EDGE_MARGIN_DECADES:.0f} decade below the highest "
+                f"measured frequency {f_max:.3g} Hz - only its edge is measured, "
+                "so C_eff leans on the fitted power law. Check the confidence "
+                "interval on tau_DQ."]
+    return []
+
+
 def _cc_capacitance_notes(
     cc: Dict[str, Any],
     frequencies: NDArray[np.float64]
@@ -178,7 +216,7 @@ def _find_capacitive_elements(
     warnings: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Find every capacitive element in the circuit: C, Q, K and CC.
+    Find every capacitive element in the circuit: C, Q, K, CC and DQ.
 
     A capacitive element is a candidate on its own account, whether or not it
     shares a parallel combination with a resistance. Requiring a parallel R -
@@ -276,16 +314,17 @@ def _find_capacitive_elements(
             # plateau: R_pol and C_eff are limits of the fitted distribution,
             # exact within the model, so no Hsu-Mansfeld / Brug estimate is
             # needed on top - the reason DQ ranks with C and K, not with Q.
-            f_cap = 1.0 / (2.0 * np.pi * node.tau_min)
-            f_hi = float(np.max(frequencies)) if frequencies.size else None
-            if f_hi is not None and f_cap > f_hi:
-                warnings.append(
-                    f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, above "
-                    f"the highest measured frequency {f_hi:.3g} Hz - C_eff is "
-                    "an extrapolation, and so is any thickness derived from it")
+            # Whether C_eff is measured or extrapolated is decided later, on
+            # the winner alone (_dq_plateau_notes).
+            R_dc = node.R_pol
+            if R_parallel is not None and R_parallel > 0:
+                # In R | DQ both paths reach DC. The reported resistance and
+                # the largest-R barrier heuristic must see the combination;
+                # R_pol alone can be four orders too large.
+                R_dc = R_parallel * R_dc / (R_parallel + R_dc)
             results.append({
                 'type': 'DQ',
-                'R': node.R_pol,    # its own DC limit, not the enclosing R
+                'R': R_dc,          # R_pol, shunted by an enclosing parallel R
                 'C': node.C_eff,
                 # 1.0, like CC and for the same reason: above 1/tau_min the
                 # element *is* a capacitor, so C_eff is a limit of the model
@@ -358,7 +397,9 @@ def _select_dielectric_element(
        degenerate case (dC = 0), so if both somehow appear the general model
        wins; preferring the simpler element over the more general one would be
        backwards.
-    2. `C` and `K` - the capacitance is a fitted parameter, exact.
+    2. `C`, `K` and `DQ` - the capacitance is a fitted parameter (`DQ`'s
+       C_eff is an exact limit of the fitted distribution), no CPE
+       conversion in between.
     3. `Q` - a near-ideal CPE, whose capacitance still needs the
        Hsu-Mansfeld/Brug model on top of the fit.
 
@@ -523,11 +564,11 @@ def _extract_capacitance(
     if fit_result is not None:
         circuit = fit_result.circuit
 
-        # Every C, Q, K and CC in the circuit, parallel resistance or not
+        # Every C, Q, K, CC and DQ in the circuit, parallel resistance or not
         elements = _find_capacitive_elements(circuit, frequencies, warnings)
 
         if not elements:
-            warnings.append("No capacitive element (C, Q, K, CC) found in "
+            warnings.append("No capacitive element (C, Q, K, CC, DQ) found in "
                             "circuit - falling back to high-frequency estimate")
             fit_result = None
         else:
@@ -632,6 +673,8 @@ def _extract_capacitance(
 
                 if dominant['type'] == 'CC':
                     warnings.extend(_cc_capacitance_notes(dominant, frequencies))
+                if dominant['type'] == 'DQ':
+                    warnings.extend(_dq_plateau_notes(dominant, frequencies))
                 if C_eff_brug is not None:
                     # Ratio is exactly (1 + R_ct/R_s)^((1-n)/n) and is always
                     # >= 1 for n <= 1; a large value means the pair no longer
