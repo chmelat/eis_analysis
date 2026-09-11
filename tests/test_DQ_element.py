@@ -116,18 +116,14 @@ def test_dq_three_regimes(dq_params):
     assert slope == pytest.approx(-n, abs=0.03)
 
 
-def test_dq_derived_properties(dq_params):
-    """tau_max, R_pol and C_eff against their closed forms."""
-    A, n, tau_min, U = dq_params
-    dq = DQ(A, n, tau_min, U)
+def test_dq_c_eff_at_the_exponent_bound(dq_params):
+    """n = 1 is reachable (it is the upper bound) and must not divide by zero.
 
-    assert dq.tau_max == pytest.approx(tau_min * np.exp(U), rel=1e-12)
-    assert dq.R_pol == pytest.approx(
-        A * (dq.tau_max ** n - tau_min ** n) / n, rel=1e-12)
-    assert dq.C_eff == pytest.approx(
-        (1 - n) / (A * (tau_min ** (n - 1) - dq.tau_max ** (n - 1))), rel=1e-12)
+    The other two properties are checked in test_dq_three_regimes, against
+    the impedance itself rather than against their own algebra.
+    """
+    A, _, tau_min, U = dq_params
 
-    # n = 1 is reachable (it is the upper bound) and must not divide by zero
     assert DQ(A, 1.0, tau_min, U).C_eff == pytest.approx(1 / (A * U), rel=1e-12)
 
 
@@ -240,7 +236,7 @@ def test_dq_feeds_the_oxide_analysis(freq, dq_params):
     dq = DQ(A, n, tau_min, U)
     assert oxide.element_params['C'] == pytest.approx(dq.C_eff, rel=1e-12)
     assert oxide.element_R == pytest.approx(dq.R_pol, rel=1e-12)
-    assert oxide.element_params['tau_max'] == pytest.approx(dq.tau_max, rel=1e-12)
+    assert oxide.element_params['tau'] == pytest.approx(dq.tau_max, rel=1e-12)
 
     # Thickness from the plate-capacitor formula on that exact capacitance
     expected_d = 8.854e-14 * 22.0 * 1.0 / dq.C_eff  # cm

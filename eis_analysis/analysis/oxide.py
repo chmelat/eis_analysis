@@ -277,12 +277,12 @@ def _find_capacitive_elements(
             # exact within the model, so no Hsu-Mansfeld / Brug estimate is
             # needed on top - the reason DQ ranks with C and K, not with Q.
             f_cap = 1.0 / (2.0 * np.pi * node.tau_min)
-            if frequencies.size and f_cap > float(np.max(frequencies)):
+            f_hi = float(np.max(frequencies)) if frequencies.size else None
+            if f_hi is not None and f_cap > f_hi:
                 warnings.append(
                     f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, above "
-                    f"the highest measured frequency "
-                    f"{float(np.max(frequencies)):.3g} Hz - C_eff is an "
-                    "extrapolation, and so is any thickness derived from it")
+                    f"the highest measured frequency {f_hi:.3g} Hz - C_eff is "
+                    "an extrapolation, and so is any thickness derived from it")
             results.append({
                 'type': 'DQ',
                 'R': node.R_pol,    # its own DC limit, not the enclosing R
@@ -295,12 +295,11 @@ def _find_capacitive_elements(
                 # is inside the measured window, which is checked above.
                 'n': 1.0,
                 'n_power': node.n,
-                # One number cannot stand for a distribution: tau_max is
-                # reported because the slow end sets the low-frequency arc,
-                # and the full range travels beside it.
+                # One number cannot stand for a distribution: tau is the
+                # slow end, which sets the low-frequency arc, and tau_min
+                # travels beside it to give the range.
                 'tau': node.tau_max,
                 'tau_min': node.tau_min,
-                'tau_max': node.tau_max,
                 'U': node.U,
             })
 

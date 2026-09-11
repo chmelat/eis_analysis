@@ -387,8 +387,6 @@ class DQ(CircuitElement):
     @property
     def R_pol(self) -> float:
         """DC limit Z(0) = A·(τ_max^n - τ_min^n)/n [Ω]"""
-        if self.n == 0:
-            return self.A * self.U
         return self.A * (self.tau_max ** self.n - self.tau_min ** self.n) / self.n
 
     @property
