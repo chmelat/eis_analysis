@@ -359,7 +359,9 @@ def fit_equivalent_circuit(
 
     if fixed_params is not None and any(fixed_params):
         initial_guess_for_opt = [v for v, f in zip(initial_guess_list, fixed_params) if not f]
-        if lower_bounds is not None:
+        # _prepare_optimization() sets both bounds or neither; naming both
+        # here is what the body actually needs, and says so.
+        if lower_bounds is not None and upper_bounds is not None:
             bounds_for_opt = (
                 [lb for lb, f in zip(lower_bounds, fixed_params) if not f],
                 [ub for ub, f in zip(upper_bounds, fixed_params) if not f]
@@ -465,6 +467,10 @@ def fit_equivalent_circuit(
         for i, status in enumerate(bound_status):
             if status not in ('lower', 'upper'):
                 continue
+            # build_bound_status() reports 'lower'/'upper' only when both
+            # bound vectors exist, so reaching here with None is a broken
+            # invariant, not a missing value.
+            assert lower_bounds is not None and upper_bounds is not None
             params_at_bounds.append(i)
             name = param_labels[i] if param_labels is not None else str(i)
             bound_val = lower_bounds[i] if status == 'lower' else upper_bounds[i]
