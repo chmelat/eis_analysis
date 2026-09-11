@@ -24,6 +24,7 @@ Circuit Elements:
 - G: Conductance, Y = G (parallel R reparametrized so G = 0 is reachable)
 - GE: Gerischer element for reaction-diffusion (sigma, tau)
 - CC: Cole-Cole dielectric relaxation (C_inf, dC, tau, alpha)
+- DQ: Bounded power-law DRT / truncated CPE (A, n, tau_min, U)
 
 Main Functions:
 - fit_equivalent_circuit: Fit circuit to impedance data
@@ -65,7 +66,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, CircuitElement
+from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, DQ, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -125,6 +126,7 @@ __all__ = [
     'G',
     'GE',
     'CC',
+    'DQ',
     'CircuitElement',
 
     # Circuit builders
