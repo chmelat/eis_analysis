@@ -7,6 +7,8 @@ from scipy.integrate import quad
 
 from eis_analysis.fitting import K, Q, R, DQ, fit_equivalent_circuit
 from eis_analysis.fitting.jacobian import element_jacobian
+from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
+from eis_analysis.cli.utils import parse_circuit_expression
 
 
 @pytest.fixture
@@ -184,3 +186,27 @@ def test_dq_fit_runs_without_numeric_fallback(freq, dq_params):
 
     # Significance is None when any element lacks an analytic derivative
     assert result.params_significance is not None
+
+
+def test_dq_bounds_keep_width_linear(dq_params):
+    """All four DQ labels must be in PARAMETER_BOUNDS, U on a linear scale.
+
+    An unknown label falls back silently to (1e-15, 1e15), 30 decades, which
+    would put A_DQ's initial guess in the wrong place and make "U at its
+    upper bound" - the report that says the distribution runs past the
+    measured window - unreadable.
+    """
+    labels = DQ(*dq_params).get_param_labels()
+    lower, upper = generate_simple_bounds(labels)
+
+    assert log_scale_ci_mask(lower, upper) == [True, False, True, False]
+    assert (lower[3], upper[3]) == (0.1, 30.0)
+    assert upper[0] < 1e15, "A_DQ fell back to DEFAULT_BOUNDS"
+
+
+def test_dq_parses_from_circuit_string():
+    """The CLI reaches elements only through parse_circuit_expression()."""
+    circuit = parse_circuit_expression("L(1e-6) - R(20) - DQ(1.2e6, 0.57, 5e-2, 8)")
+
+    assert circuit.get_param_labels()[-4:] == ['A_DQ', 'n_DQ', 'τ_DQ', 'U_DQ']
+    assert circuit.get_all_params()[-4:] == [1.2e6, 0.57, 5e-2, 8.0]

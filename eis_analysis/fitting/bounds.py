@@ -67,6 +67,25 @@ PARAMETER_BOUNDS = {
     # The lower bound is exactly 0.0 so that log_scale_ci_mask()'s "lb > 0"
     # test fails and alpha stays a LINEAR parameter, like the CPE exponent n.
     'α_CC': (0.0, 0.9),
+
+    # DQ - amplitude of gamma(tau) = A*tau^n, in Ohm*s^-n (NOT a capacitance).
+    # The range is the image of Q's under A = sin(pi*n)/(pi*Q): with Q in
+    # (1e-12, 1e-1) and n in (0.3, 1.0), A runs from ~3 to ~1e11.
+    'A_DQ': (1e-2, 1e12),
+
+    # DQ - power-law exponent, the same quantity the CPE reports as n
+    'n_DQ': (0.3, 1.0),
+
+    # DQ - lower bound of the distribution (same range as the other taus)
+    'τ_DQ': (1e-9, 1e4),
+
+    # DQ - log-width U = ln(tau_max/tau_min). Capped at 30 (13 decades) by the
+    # quadrature: DQ_QUAD_NODES = 96 holds 3e-9 relative error up to there and
+    # degrades beyond it. The 300:1 span stays under LOG_SCALE_BOUND_RATIO, so
+    # U is treated as LINEAR - "U at its upper bound", i.e. the far end of the
+    # distribution lies outside the measured window, must be readable as a
+    # decimal width and not as decades.
+    'U_DQ': (0.1, 30.0),
 }
 
 DEFAULT_BOUNDS = (1e-15, 1e15)
