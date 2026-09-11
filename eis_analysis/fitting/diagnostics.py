@@ -92,8 +92,8 @@ def compute_fit_metrics(
     # the residual and the magnitude, so it is not double-counted with the
     # 1/|Z| that already defines a relative error. For modulus weighting
     # (w = 1/|Z|) this reduces to the mean relative error mean(|dZ|/|Z|).
-    fit_error_rel = np.sum(weights * abs_errors) / np.sum(weights * Z_mag_safe) * 100
-    fit_error_abs = np.mean(abs_errors)
+    fit_error_rel = float(np.sum(weights * abs_errors) / np.sum(weights * Z_mag_safe) * 100)
+    fit_error_abs = float(np.mean(abs_errors))
 
     # Log unweighted vs weighted difference if significant
     fit_error_rel_unweighted = np.mean(relative_errors) * 100
@@ -192,7 +192,7 @@ def compute_information_criteria(
     # correct limit - such a model wins every comparison - but -inf poisons
     # the delta arithmetic that follows, so clamp to the smallest positive
     # normal instead and let the ranking stay finite.
-    rss_safe = max(rss, np.finfo(float).tiny)
+    rss_safe = max(rss, float(np.finfo(float).tiny))
 
     log_likelihood_term = n * np.log(rss_safe / n)
     aic = log_likelihood_term + 2.0 * k

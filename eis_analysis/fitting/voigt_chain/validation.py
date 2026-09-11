@@ -43,7 +43,7 @@ def validate_eis_data(
 
     # Check frequencies are positive
     if np.any(frequencies <= 0):
-        n_invalid = np.sum(frequencies <= 0)
+        n_invalid = int(np.sum(frequencies <= 0))
         raise ValueError(
             f"{context}: frequencies must be positive "
             f"(found {n_invalid} non-positive values)"
@@ -87,7 +87,7 @@ def validate_tau(
         raise ValueError(f"{context}: empty tau array")
 
     if np.any(tau <= 0):
-        n_invalid = np.sum(tau <= 0)
+        n_invalid = int(np.sum(tau <= 0))
         raise ValueError(
             f"{context}: tau values must be positive "
             f"(found {n_invalid} non-positive values)"

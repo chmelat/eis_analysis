@@ -295,7 +295,7 @@ def estimate_R_linear(
                 D = float(tail[-1])
                 C_value = 1.0 / D if D != 0.0 else None
 
-        residual = np.linalg.norm(A_real_fit @ elements[:n_R_cols] - b_real)
+        residual = float(np.linalg.norm(A_real_fit @ elements[:n_R_cols] - b_real))
 
     elif fit_type == 'imag':
         # Fit only imaginary part
@@ -315,7 +315,7 @@ def estimate_R_linear(
             ws = 1 / (Z_real**2 + Z_imag**2 + 1e-30)
             elements[0] = np.sum(ws * (Z_real - z_re_fit)) / np.sum(ws)
 
-        residual = np.linalg.norm(A_imag @ elements - b_imag)
+        residual = float(np.linalg.norm(A_imag @ elements - b_imag))
         L_value = float(elements[L_col]) if include_L else None
 
         # Pop D = 1/C off the solution vector (C is kept out of elements)
@@ -346,7 +346,7 @@ def estimate_R_linear(
         # Compute residual
         res_real = A_real @ elements - b_real
         res_imag = A_imag @ elements - b_imag
-        residual = np.sqrt(np.sum(res_real**2) + np.sum(res_imag**2))
+        residual = float(np.sqrt(np.sum(res_real**2) + np.sum(res_imag**2)))
         L_value = float(elements[L_col]) if include_L else None
 
         # Pop D = 1/C off the solution vector (C is kept out of elements)
@@ -374,7 +374,7 @@ def estimate_R_linear(
     R_start = 1 if include_Rs else 0
     R_end = L_col if include_L else len(elements)
     R_i = elements[R_start:R_end]
-    n_negative = np.sum(R_i < 0)
+    n_negative = int(np.sum(R_i < 0))
     if n_negative > 0:
         logger.debug(f"  Negative R_i: {n_negative}/{len(R_i)}")
 
@@ -542,13 +542,13 @@ def fit_voigt_chain_linear(
 
     # Step 3: Prune small R_i values
     if prune_threshold > 0 and len(R_i) > 0:
-        R_max = np.max(np.abs(R_i))  # Use abs for allow_negative case
+        R_max = float(np.max(np.abs(R_i)))  # Use abs for allow_negative case
 
         # Relative threshold: fraction of max R_i
         threshold_relative = prune_threshold * R_max
 
         # Absolute minimum threshold: small fraction of total R_pol
-        R_pol_total = np.sum(np.abs(R_i))
+        R_pol_total = float(np.sum(np.abs(R_i)))
         threshold_absolute = 0.001 * R_pol_total  # 0.1% of total polarization resistance
 
         # Use the SMALLER of the two thresholds (more conservative pruning)

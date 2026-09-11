@@ -136,7 +136,7 @@ def _assess_peaks(reference_peaks: List[Tuple[float, float]],
     ref_log_taus = np.log10([tau for tau, _ in reference_peaks])
     tolerances = _match_tolerances(ref_log_taus)
 
-    persistence = np.zeros(len(reference_peaks), dtype=int)
+    persistence: NDArray[np.int_] = np.zeros(len(reference_peaks), dtype=int)
     max_drift = np.zeros(len(reference_peaks))
     max_r_variation = np.zeros(len(reference_peaks))
 

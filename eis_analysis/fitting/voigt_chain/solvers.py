@@ -83,7 +83,7 @@ def robust_nnls(
 
         if result.success or result.status == 1:  # 1 = max_iter reached but OK
             x = result.x
-            residual_norm = np.linalg.norm(A @ x - b)
+            residual_norm = float(np.linalg.norm(A @ x - b))
             return x, residual_norm
         else:
             logger.debug(f"lsq_linear failed: {result.message}")
@@ -108,7 +108,7 @@ def robust_nnls(
         x_reduced = np.maximum(x_reduced, 0)  # Ensure still non-negative
         x[nonzero_mask] = x_reduced
 
-    residual_norm = np.linalg.norm(A @ x - b)
+    residual_norm = float(np.linalg.norm(A @ x - b))
     return x, residual_norm
 
 

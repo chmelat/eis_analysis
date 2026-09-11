@@ -12,7 +12,7 @@ Strategy options:
 import numpy as np
 import logging
 import warnings
-from typing import Tuple, List, Optional, Any
+from typing import Dict, Tuple, List, Optional, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
@@ -257,7 +257,7 @@ def fit_circuit_diffevo(
 
     # Create indexed param labels
     if param_labels is not None:
-        label_counts = {}
+        label_counts: Dict[str, int] = {}
         param_labels_indexed = []
         for label in param_labels:
             if label in label_counts:

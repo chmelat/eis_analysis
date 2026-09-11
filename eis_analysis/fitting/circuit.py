@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 import warnings
-from typing import Tuple, Union, List, Optional
+from typing import Dict, Tuple, Union, List, Optional
 from numpy.typing import NDArray
 from scipy.optimize import least_squares, OptimizeWarning
 from dataclasses import dataclass, field
@@ -216,7 +216,7 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     param_labels_indexed = None
     if hasattr(circuit, 'get_param_labels'):
         param_labels_raw = circuit.get_param_labels()
-        label_counts = {}
+        label_counts: Dict[str, int] = {}
         param_labels_indexed = []
         for label in param_labels_raw:
             if label in label_counts:

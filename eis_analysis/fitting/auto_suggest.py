@@ -16,7 +16,7 @@ from scipy.signal import find_peaks
 try:
     from numpy import trapezoid as np_trapz
 except ImportError:  # NumPy < 2.0
-    from numpy import trapz as np_trapz
+    from numpy import trapz as np_trapz  # type: ignore[attr-defined,no-redef]
 
 from ..utils.impedance import calculate_rpol
 from .config import (

@@ -112,8 +112,8 @@ def calc_mu(R_i: NDArray[np.float64]) -> float:
     >>> calc_mu(R_i)
     0.9545  # Small negative mass
     """
-    neg_sum = np.sum(np.abs(R_i[R_i < 0]))
-    pos_sum = np.sum(np.abs(R_i[R_i >= 0]))
+    neg_sum = float(np.sum(np.abs(R_i[R_i < 0])))
+    pos_sum = float(np.sum(np.abs(R_i[R_i >= 0])))
 
     if pos_sum == 0:
         # All negative (very bad)

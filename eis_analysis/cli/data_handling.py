@@ -12,6 +12,7 @@ import os
 from typing import Any, Dict
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .logging import log_separator
 from .utils import EISAnalysisError, LoadedData
@@ -250,7 +251,7 @@ def filter_by_frequency(
     Z = data.Z
     original_count = len(frequencies)
 
-    mask = np.ones(len(frequencies), dtype=bool)
+    mask: NDArray[np.bool_] = np.ones(len(frequencies), dtype=bool)
 
     if args.f_min is not None:
         mask &= (frequencies >= args.f_min)

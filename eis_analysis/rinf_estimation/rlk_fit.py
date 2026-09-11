@@ -190,8 +190,8 @@ def fit_rlk_model(
                 R_inf = re1 + t * (re2 - re1)
 
                 Z_fit = np.full_like(Z_high, R_inf)
-                ss_res = np.sum((Z_high.real - R_inf)**2)
-                ss_tot = np.sum((Z_high.real - np.mean(Z_high.real))**2)
+                ss_res = float(np.sum((Z_high.real - R_inf)**2))
+                ss_tot = float(np.sum((Z_high.real - np.mean(Z_high.real))**2))
                 R_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
                 rel_error = np.sqrt(ss_res) / np.sqrt(np.sum(Z_high.real**2)) * 100
 

@@ -377,7 +377,7 @@ def zhit_validation(
         ref_freq = np.sqrt(frequencies[0] * frequencies[-1])
 
     # Find index closest to reference frequency
-    ref_idx = np.argmin(np.abs(frequencies - ref_freq))
+    ref_idx = int(np.argmin(np.abs(frequencies - ref_freq)))
     actual_ref_freq = frequencies[ref_idx]
     ln_Z_ref = np.log(Z_mag[ref_idx])
 

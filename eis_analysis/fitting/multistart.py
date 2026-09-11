@@ -203,7 +203,7 @@ def fit_circuit_multistart(
     all_errors: List[Optional[float]] = []
     result_indices: List[int] = []  # start_idx aligned with all_results
     n_successful = 0
-    diag_warnings = []
+    diag_warnings: List[str] = []
     failed_errors = []  # Track exceptions from failed fits
     perturbation_method = 'covariance'
 

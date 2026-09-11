@@ -180,7 +180,7 @@ def compute_covariance_matrix(
 
         # Numerical rank (scaled singular values above threshold)
         threshold = rcond * S[0]
-        rank = np.sum(S > threshold)
+        rank = int(np.sum(S > threshold))
 
         # Check conditioning
         is_well_conditioned = condition_number < 1e10
