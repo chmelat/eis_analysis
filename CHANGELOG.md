@@ -4,6 +4,70 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.35.0 (2026-09-11)
+
+### Added
+
+- **`DQ`: a CPE whose power law is truncated.** An ideal CPE is a power-law
+  distribution of relaxation times with no bounds, and that is what makes it
+  unphysical: gamma(tau) = A*tau^n is not normalisable. A fit containing a CPE
+  therefore has no DRT to recover - on our oxide spectra the DRT
+  reconstruction error runs 34-44% and the integral of gamma overshoots R_pol
+  by 1.7-3.7x - and no DC limit, which forces a separate conductance into the
+  model that half the samples cannot determine.
+
+  ```bash
+  eis data.DTA --circuit 'L(1e-6) - R(20) - DQ(1.2e6, 0.57, 5e-2, 8)' --analyze-oxide
+  ```
+
+  Truncating the distribution to [tau_min, tau_max] gives three regimes in one
+  element: a finite R_pol below 1/tau_max, the CPE slope inside, and a
+  capacitive plateau C_eff above 1/tau_min. One `DQ` thus does the work of
+  `G | Q | C`, but with R_pol and C_eff *derived* from the distribution rather
+  than independent - which is what removes the degeneracy that moves a fitted
+  C by ~11% depending on the frequency window.
+
+  Parametrised by (tau_min, U = ln(tau_max/tau_min)): box bounds cannot
+  express tau_max > tau_min, so the pair is kept ordered by construction.
+  `tau_max`, `R_pol` and `C_eff` are derived properties.
+
+  Measured, not argued. The same synthetic spectrum reconstructs to **0.05%**
+  as a bounded distribution and **18.0%** as an ideal CPE, which is the whole
+  case for the element. `DQ` and `(G|Q|C)` are cleanly distinguishable in both
+  directions (dBIC ~ 1300), and a `(G|Q|C)` fitted to `DQ` data lands on
+  err 5.42%, rho_1 = 0.977, runs p = 1.4e-15 - within striking distance of
+  what our real oxide spectra show (4.6-5.1%, ~0.95, ~1e-17) with the same
+  single-oscillation misfit shape. Suggestive, not proof.
+
+  The integral over ln(tau) is Gauss-Legendre, not a chain of discrete RC
+  members: the midpoint rule is O(h^2) and at a realistic N leaves a smooth
+  1e-4..1e-3 deviation - an artefact the size of the effect being studied.
+  Accuracy is set by nepers per node rather than decades of tau, so
+  `DQ_QUAD_NODES = 96` holds 3e-9 across the whole allowed width (U <= 30,
+  13 decades, which is where the bound comes from) at ~45 us per model call.
+
+  Two limits worth knowing. A bound outside the measured window is still
+  identifiable - tau_max is recovered from a 0.15%-noise spectrum even three
+  decades past the lowest frequency - but only through the power law: U
+  correlates with n at -0.85, so residual misspecification arrives as a biased
+  n. Read n beside the bound status of U, which reports "U_DQ [at upper
+  bound]" when the slow end lies outside the measurement. And Cole-Davidson /
+  Havriliak-Negami are *not* a simpler substitute: they truncate only the slow
+  end and stay power-law at high frequency, so they cannot produce the
+  capacitive plateau these spectra have.
+
+  `--analyze-oxide` reads C_eff off a `DQ` directly, with no Hsu-Mansfeld or
+  Brug conversion, and ranks it with `C` and `K` rather than with `Q`: the
+  exponent condition (n >= 0.8) exists because the CPE conversion degrades,
+  and there is no conversion here. What does qualify the capacitance - whether
+  the plateau starts inside the measured window - is checked separately and
+  warned about.
+
+  Concept from LEVM (Macdonald), where the truncation appears as the DWC
+  models with limits U1, U2.
+
+---
+
 ## Version 0.34.0 (2026-09-09)
 
 ### Added

@@ -45,7 +45,7 @@ Circuit strings are parsed by `parse_circuit_expression()` in
 def parse_circuit_expression(expr: str):
     safe_namespace = {
         'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
-        'Wo': Wo, 'K': K, 'G': G, 'CC': CC
+        'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -378,6 +378,70 @@ CC(1e-8, 1e-7, 1e-3, 0.0)         # Debye limit
 CC("1e-8", 1e-7, 1e-3, 0.2)       # C_inf fixed, rest free
 R(10) - CC(1e-8, 1e-7, 1e-3, 0.2) # with series electrolyte resistance
 ```
+
+
+### DQ - Truncated CPE (bounded power-law distribution)
+
+```python
+gamma(tau) = A*tau^n  for tau_min <= tau <= tau_max,  0 outside
+Z_DQ(w)    = Int gamma(tau)/(1 + j*w*tau) d ln(tau)
+```
+
+An ideal CPE is the same power law with no bounds, which is what makes it
+unphysical: gamma(tau) = A*tau^n is not normalisable, so a fit containing a
+CPE has no DRT to recover and no DC limit, forcing a separate conductance
+into the model. Truncating the distribution fixes both and gives three
+regimes in one element:
+
+| Frequency range | Behaviour |
+|-----------------|-----------|
+| below 1/tau_max | finite polarisation resistance R_pol |
+| 1/tau_max ... 1/tau_min | CPE, slope -n |
+| above 1/tau_min | capacitive, C_eff |
+
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| A | Ohm*s^-n | 1e-3 | Amplitude of the distribution |
+| n | - | 0.6 | Power-law exponent, the CPE's n |
+| tau_min | s | 1e-6 | Fast end of the distribution |
+| U | - | 10.0 | Log-width, U = ln(tau_max/tau_min) |
+
+Derived (properties, not fitted): `tau_max`, `R_pol`, `C_eff`.
+
+    R_pol = A*(tau_max^n - tau_min^n)/n
+    C_eff = (1-n)/(A*(tau_min^(n-1) - tau_max^(n-1)))
+
+So one DQ does the work of `G | Q | C` - but with R_pol and C_eff derived
+from the distribution rather than independent, which is what removes the
+degeneracy that makes a fitted C drift with the frequency window.
+
+The width is parametrised as U rather than tau_max so the bounds cannot
+cross: box bounds cannot express tau_max > tau_min, and a fitter handed the
+pair directly will swap them. U is capped at 30 (13 decades) by the
+quadrature - see `DQ_QUAD_NODES` in `circuit_elements/distributed.py`.
+
+Relation to the ideal CPE (the wide-bounds limit):
+
+    A = sin(pi*n)/(pi*Q)
+
+A bound outside the measured window is still identifiable, but only through
+the power law: U correlates with n at -0.85, so read n beside the bound
+status of U, never alone. `U_DQ [at upper bound]` is the informative result
+that the slow end of the distribution lies past the measurement.
+
+`--analyze-oxide` recognises a DQ and reads C_eff off it directly - no
+Hsu-Mansfeld or Brug conversion, unlike a Q - and warns when the capacitive
+plateau starts above the highest measured frequency, where C_eff is an
+extrapolation.
+
+```python
+DQ(1.2e6, 0.57, 5e-2, 8)        # oxide film, distribution inside the window
+DQ(1.2e6, "0.57", 5e-2, 8)      # exponent fixed, rest free
+R(20) - DQ(1.2e6, 0.57, 5e-2, 8)
+```
+
+Concept from LEVM (Macdonald), where the truncation appears as the DWC
+models with limits U1, U2; see [LEVM_CIRCUITS.md](LEVM_CIRCUITS.md).
 
 
 ## Fixed Parameters

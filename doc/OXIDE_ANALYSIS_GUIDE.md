@@ -132,7 +132,7 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm^2]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', 'CC', or 'estimate'
+    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', or 'estimate'
     element_R: Optional[float]  # Associated resistance [Ohm]
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict        # All element parameters
@@ -186,7 +186,7 @@ metadata, including `--area 1.0`. Without either, 1.0 cm^2 is assumed.
 ### 1. Element Detection
 
 The function traverses the circuit tree and collects **every** capacitive
-element - `C`, `Q`, `K` and `CC` - wherever it sits, in a parallel
+element - `C`, `Q`, `K`, `CC` and `DQ` - wherever it sits, in a parallel
 combination or not. A parallel resistance is recorded when one is present
 (it is what the Hsu-Mansfeld/Brug conversion, `tau = R*C` and the largest-R
 heuristic need), but it is not required for the element to be found.
@@ -364,10 +364,23 @@ highest-frequency point is used (pre-0.16.16 behavior).
 | `Q(Q, n)` | only when n >= 0.8 | Hsu-Mansfeld: (R*Q)^(1/n)/R, needs a parallel R |
 | `K(R, tau)` | yes, n = 1 (Voigt reparametrised) | tau/R |
 | `CC(C_inf, dC, tau, alpha)` | yes, n = 1 in both limits | C_inf + dC, or C_inf when the relaxation is below the measured window (both exact limits) |
+| `DQ(A, n, tau_min, U)` | yes, n = 1 above 1/tau_min | C_eff = (1-n)/(A*(tau_min^(n-1) - tau_max^(n-1))), an exact limit of the distribution |
 
 A parallel resistance is **not** required for an element to be found; it is
 only needed to convert a `Q`, to form `tau = R*C`, and to rank candidates by
 the largest-R heuristic.
+
+**A `DQ` is a dielectric whatever its exponent.** The `n >= 0.8` condition
+exists because the Hsu-Mansfeld conversion of a CPE degrades with the
+exponent. A truncated power law needs no conversion: above `1/tau_min` the
+element *is* a capacitor and `C_eff` is a limit of the model, so a typical
+oxide exponent of 0.57 disqualifies nothing. What does qualify `C_eff` is
+whether that plateau lies inside the measured window - if it starts above
+the highest measured frequency, the analysis says the capacitance (and any
+thickness from it) is an extrapolation. `DQ` also brings its own `R_pol`
+rather than borrowing an enclosing parallel R, and reports `tau_max` as its
+time constant with the full `tau_min..tau_max` range beside it, because one
+number cannot stand for a distribution.
 
 **Note:** Series R elements are ignored (they don't form RC time constants).
 
