@@ -418,7 +418,7 @@ def _compare_circuits(
         logger.error("All candidate circuits failed to fit")
         return None, None
 
-    return scores[0].result, figures[scores[0].index - 1]
+    return scores[0].result, figures[scores[0].candidate - 1]
 
 
 def _log_mu_optimization(mu_opt: MuOptimization,

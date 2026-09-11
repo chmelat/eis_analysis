@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 class ModelScore(NamedTuple):
     """One candidate circuit and its information criteria."""
 
-    index: int                    # position on the command line, 1-based
+    # Named for what it identifies, not for the position: a NamedTuple field
+    # called `index` shadows tuple.index.
+    candidate: int                # position on the command line, 1-based
     expression: str
     result: Optional[FitResult]   # None when the fit failed or scored non-finite
     aic: float
@@ -58,7 +60,7 @@ def score_candidates(
     -------
     scores : list of ModelScore
         Sorted by BIC ascending. Failed candidates carry inf and sort last;
-        `index` keeps the original command-line position.
+        `candidate` keeps the original command-line position.
     """
     scores = []
     for index, (expression, result) in enumerate(candidates, start=1):
@@ -126,14 +128,14 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
             expression = expression[:width - 3] + '...'
 
         if score.result is None:
-            logger.info(f"  {'':>4}  {score.index:>2}  {expression:<{width}}  "
+            logger.info(f"  {'':>4}  {score.candidate:>2}  {expression:<{width}}  "
                         f"{'-':>2}  {'-':>6}  {'-':>7}  {'-':>7}  {'-':>8}  failed")
             continue
 
         rank += 1
         flag = '' if score.result.is_well_conditioned else '  !'
         logger.info(
-            f"  {rank:>4}  {score.index:>2}  {expression:<{width}}  "
+            f"  {rank:>4}  {score.candidate:>2}  {expression:<{width}}  "
             f"{score.result.n_free_params:>2}  "
             f"{score.result.fit_error_rel:>6.2f}  "
             f"{score.aic - best_aic:>7.1f}  {score.bic - best_bic:>7.1f}  "
@@ -149,5 +151,5 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
                     "overparametrized")
     logger.info("")
     logger.info(f"Selected by BIC: {scores[0].expression}  "
-                f"(candidate {scores[0].index})")
+                f"(candidate {scores[0].candidate})")
     log_separator()

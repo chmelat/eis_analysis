@@ -252,8 +252,8 @@ def test_score_keeps_the_command_line_position():
     )
 
     assert scores[0].expression == 'better'
-    assert scores[0].index == 2      # second on the command line
-    assert scores[1].index == 1
+    assert scores[0].candidate == 2  # second on the command line
+    assert scores[1].candidate == 1
 
 
 def test_all_candidates_failed_produces_no_table():
