@@ -287,7 +287,14 @@ def _find_capacitive_elements(
                 'type': 'DQ',
                 'R': node.R_pol,    # its own DC limit, not the enclosing R
                 'C': node.C_eff,
-                'n': node.n,
+                # 1.0, like CC and for the same reason: above 1/tau_min the
+                # element *is* a capacitor, so C_eff is a limit of the model
+                # and not a Hsu-Mansfeld conversion whose reliability decays
+                # with the exponent. The power law is reported as n_power;
+                # what qualifies the capacitance here is whether the plateau
+                # is inside the measured window, which is checked above.
+                'n': 1.0,
+                'n_power': node.n,
                 # One number cannot stand for a distribution: tau_max is
                 # reported because the slow end sets the low-frequency arc,
                 # and the full range travels beside it.

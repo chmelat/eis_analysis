@@ -323,3 +323,23 @@ def test_dq_drt_reconstructs_its_own_spectrum(dq_params):
     assert err_cpe > 2 * err_dq, (
         f"CPE reconstructed as well as DQ ({err_cpe}% vs {err_dq}%) - the "
         "premise of the element does not hold on this window")
+
+
+def test_dq_counts_as_a_dielectric_whatever_the_exponent(freq):
+    """n = 0.4 must not demote DQ to "CPE, no dielectric element in circuit".
+
+    The exponent disqualifies a CPE because Hsu-Mansfeld becomes unreliable.
+    DQ has no such conversion: above 1/tau_min the element is a capacitor and
+    C_eff is a limit of the model, so the exponent qualifies nothing. What
+    does qualify it - whether the plateau is inside the window - is a
+    separate check.
+    """
+    circuit = R(20) - DQ(1.2e6, 0.4, 5e-2, 8.0)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_type == 'DQ'
+    assert not any('No dielectric element' in w for w in oxide.warnings)
+    assert oxide.candidates[0]['n_power'] == pytest.approx(0.4)
