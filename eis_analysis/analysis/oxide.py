@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from ..fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
 from ..fitting.circuit import FitResult
-from ..fitting.circuit_elements import R, C, G, Q, K, CC
+from ..fitting.circuit_elements import R, C, G, Q, K, CC, DQ
 from ..fitting.circuit_builder import Series, Parallel
 from .config import (
     EPSILON_0,
@@ -44,7 +44,7 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', 'CC', or 'estimate' (HF fallback)
+    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', or 'estimate' (HF fallback)
     element_R: Optional[float]  # Associated resistance [Ω] (None for CC)
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters
@@ -271,6 +271,32 @@ def _find_capacitive_elements(
                 'tau': tau_val,
             })
 
+        elif isinstance(node, DQ):
+            # A truncated CPE brings its own DC path and its own capacitive
+            # plateau: R_pol and C_eff are limits of the fitted distribution,
+            # exact within the model, so no Hsu-Mansfeld / Brug estimate is
+            # needed on top - the reason DQ ranks with C and K, not with Q.
+            f_cap = 1.0 / (2.0 * np.pi * node.tau_min)
+            if frequencies.size and f_cap > float(np.max(frequencies)):
+                warnings.append(
+                    f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, above "
+                    f"the highest measured frequency "
+                    f"{float(np.max(frequencies)):.3g} Hz - C_eff is an "
+                    "extrapolation, and so is any thickness derived from it")
+            results.append({
+                'type': 'DQ',
+                'R': node.R_pol,    # its own DC limit, not the enclosing R
+                'C': node.C_eff,
+                'n': node.n,
+                # One number cannot stand for a distribution: tau_max is
+                # reported because the slow end sets the low-frequency arc,
+                # and the full range travels beside it.
+                'tau': node.tau_max,
+                'tau_min': node.tau_min,
+                'tau_max': node.tau_max,
+                'U': node.U,
+            })
+
         elif isinstance(node, CC):
             C_inf_val, dC_val = node.params[0], node.params[1]
             tau_val, alpha_val = node.params[2], node.params[3]
@@ -350,7 +376,7 @@ def _select_dielectric_element(
                           "relaxation explicitly; a plain C is its degenerate "
                           "case (ΔC = 0), so the general model wins")
 
-    exact = [e for e in candidates if e['type'] in ('C', 'K')]
+    exact = [e for e in candidates if e['type'] in ('C', 'K', 'DQ')]
     tier = exact if exact else candidates
     with_R = [e for e in tier if e['R'] is not None and e['R'] > 0]
 
@@ -549,7 +575,7 @@ def _extract_capacitance(
 
                 # Get capacitance
                 C_eff_brug = None
-                if dominant['type'] in ('C', 'K', 'CC'):
+                if dominant['type'] in ('C', 'K', 'CC', 'DQ'):
                     # For CC this is exact, not an effective capacitance: both
                     # C_s = C_inf + dC (the omega -> 0 limit of C*(omega), for
                     # any alpha) and C_inf (the omega -> inf limit) are model
@@ -711,10 +737,10 @@ def analyze_oxide_layer(
     """
     Estimate oxide layer thickness from dominant capacitive element.
 
-    Collects every capacitive element in the circuit (C, Q, K, CC), keeps
+    Collects every capacitive element in the circuit (C, Q, K, CC, DQ), keeps
     those that behave as a dielectric (admittance ~ omega^n with n near 1),
     and reports the dominant one: the general dielectric model first (CC),
-    then the exactly fitted capacitances (C, K), then a near-ideal CPE (Q),
+    then the exactly fitted capacitances (C, K, DQ), then a near-ideal CPE (Q),
     and within a tier the largest parallel resistance - the compact barrier.
     A parallel resistance is required only to convert a Q. The thickness
     follows from the selected element's capacitance.

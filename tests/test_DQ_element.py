@@ -9,6 +9,8 @@ from eis_analysis.fitting import K, Q, R, DQ, fit_equivalent_circuit
 from eis_analysis.fitting.jacobian import element_jacobian
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
 from eis_analysis.cli.utils import parse_circuit_expression
+from eis_analysis.analysis.oxide import analyze_oxide_layer
+from eis_analysis.fitting.circuit import FitResult
 
 
 @pytest.fixture
@@ -210,3 +212,49 @@ def test_dq_parses_from_circuit_string():
 
     assert circuit.get_param_labels()[-4:] == ['A_DQ', 'n_DQ', 'τ_DQ', 'U_DQ']
     assert circuit.get_all_params()[-4:] == [1.2e6, 0.57, 5e-2, 8.0]
+
+
+def _fit_result(circuit):
+    """Minimal FitResult carrying a circuit, as the oxide analysis wants it."""
+    params = np.array(circuit.get_all_params())
+    return FitResult(circuit=circuit, params_opt=params,
+                     params_stderr=np.zeros_like(params), fit_error_rel=0.1)
+
+
+def test_dq_feeds_the_oxide_analysis(freq, dq_params):
+    """The oxide layer must read C_eff off DQ directly, with no CPE model.
+
+    A Q in the same place goes through Hsu-Mansfeld (and Brug) to guess an
+    effective capacitance; DQ already has one as a limit of the fitted
+    distribution, which is the point of using it on an oxide film.
+    """
+    A, n, tau_min, U = dq_params
+    circuit = R(20) - DQ(A, n, tau_min, U)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_type == 'DQ'
+    dq = DQ(A, n, tau_min, U)
+    assert oxide.element_params['C'] == pytest.approx(dq.C_eff, rel=1e-12)
+    assert oxide.element_R == pytest.approx(dq.R_pol, rel=1e-12)
+    assert oxide.element_params['tau_max'] == pytest.approx(dq.tau_max, rel=1e-12)
+
+    # Thickness from the plate-capacitor formula on that exact capacitance
+    expected_d = 8.854e-14 * 22.0 * 1.0 / dq.C_eff  # cm
+    assert oxide.thickness_nm == pytest.approx(expected_d * 1e7, rel=1e-3)
+
+
+def test_dq_warns_when_the_plateau_is_out_of_window(dq_params):
+    """C_eff above the highest measured frequency is an extrapolation."""
+    A, n, _, U = dq_params
+    tau_min = 1e-9  # plateau starts at ~1.6e8 Hz, far above the window
+    freq = np.logspace(5, -3, 40)
+    circuit = R(20) - DQ(A, n, tau_min, U)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert any('extrapolation' in w for w in oxide.warnings), oxide.warnings

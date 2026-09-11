@@ -109,6 +109,11 @@ def _print_candidates(oxide: OxideAnalysisResult) -> None:
                         f"ΔC = {e['dC']:.3e} F "
                         f"(C_s = {e['C_static']:.3e} F), "
                         f"tau = {e['tau']:.2e} s, alpha = {e['alpha']:.3f}")
+        elif e['type'] == 'DQ':
+            logger.info(f"  [{i}] DQ: R_pol = {e['R']:.3e} Ω, "
+                        f"C_eff = {e['C']:.3e} F, n = {e['n']:.3f}, "
+                        f"tau = {e['tau_min']:.2e}..{e['tau_max']:.2e} s "
+                        f"(U = {e['U']:.2f})")
         else:
             tau_str = (f", tau = {e['tau']:.2e} s" if e['tau'] is not None
                        else "")
