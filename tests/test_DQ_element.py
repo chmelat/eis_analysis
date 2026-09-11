@@ -11,6 +11,7 @@ from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mas
 from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.analysis.oxide import analyze_oxide_layer
 from eis_analysis.fitting.circuit import FitResult
+from eis_analysis.drt import calculate_drt
 
 
 @pytest.fixture
@@ -258,3 +259,67 @@ def test_dq_warns_when_the_plateau_is_out_of_window(dq_params):
                                 fit_result=_fit_result(circuit))
 
     assert any('extrapolation' in w for w in oxide.warnings), oxide.warnings
+
+
+@pytest.mark.parametrize("tau_max_position,U_true", [("inside", 6.0), ("outside", 14.0)])
+def test_dq_round_trip_with_noise(dq_params, tau_max_position, U_true):
+    """Fit DQ back out of its own noisy spectrum, both positions of tau_max.
+
+    With U = 6 the slow end sits inside the window; with U = 14 it lies four
+    decades past the lowest measured frequency, which is the realistic case
+    for an oxide film - and the one where the fit has to lean on the power
+    law to place the bound. A wrong tau_max there is not a failure, but a
+    silent one would be.
+    """
+    A, n, tau_min, _ = dq_params
+    rng = np.random.default_rng(20260911)
+    freq = np.logspace(6, -3, 87)
+
+    truth = R(20) - DQ(A, n, tau_min, U_true)
+    Z = truth.impedance(freq, truth.get_all_params())
+    Z = Z * (1 + 0.0015 * rng.standard_normal(Z.shape))  # 0.15 %, as measured
+
+    guess = R(10) - DQ(A / 3, 0.45, tau_min * 5, U_true * 0.6)
+    result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
+
+    _, A_fit, n_fit, tau_fit, U_fit = result.params_opt
+    assert result.fit_error_rel < 0.5
+    assert n_fit == pytest.approx(n, abs=0.02)
+    assert tau_fit == pytest.approx(tau_min, rel=0.25)
+
+    if tau_max_position == "inside":
+        assert U_fit == pytest.approx(U_true, abs=0.3)
+    else:
+        # Identifiable even out of window, but only through the power law -
+        # hence the looser tolerance and the n check above, which is what
+        # would give the bias away (n and U correlate at -0.85).
+        assert U_fit == pytest.approx(U_true, abs=1.5)
+
+
+def test_dq_drt_reconstructs_its_own_spectrum(dq_params):
+    """DRT of a DQ spectrum must reconstruct it; of a CPE it cannot.
+
+    This is the reason the element exists. An ideal CPE has a
+    non-normalisable gamma(tau) = A*tau^n, so no DRT represents it and the
+    reconstruction error stays large however the regularisation is tuned.
+    Truncating the power law makes the same spectrum a legitimate DRT.
+    """
+    A, n, tau_min, U = 1.2e6, 0.57, 5e-2, 6.0
+    freq = np.logspace(5, -3, 70)
+
+    dq = R(20) - DQ(A, n, tau_min, U)
+    Z_dq = dq.impedance(freq, dq.get_all_params())
+
+    Q_cpe = np.sin(np.pi * n) / (np.pi * A)
+    cpe = R(20) - Q(Q_cpe, n)
+    Z_cpe = cpe.impedance(freq, cpe.get_all_params())
+
+    # Measured on this spectrum: 0.05 % for DQ against 18.0 % for the CPE.
+    # The thresholds are loose so the test pins the premise, not the solver.
+    err_dq = calculate_drt(freq, Z_dq, auto_lambda=True).reconstruction_error
+    err_cpe = calculate_drt(freq, Z_cpe, auto_lambda=True).reconstruction_error
+
+    assert err_dq < 5.0, f"DRT cannot reconstruct a bounded distribution: {err_dq}%"
+    assert err_cpe > 2 * err_dq, (
+        f"CPE reconstructed as well as DQ ({err_cpe}% vs {err_dq}%) - the "
+        "premise of the element does not hold on this window")
