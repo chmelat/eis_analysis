@@ -34,6 +34,12 @@ CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
      dZ/dC_inf = P;  dZ/ddC = P/D
      dZ/dtau   = P*(-dC/D^2)*b*(jwt)^b/tau
      dZ/dalpha = P*(-dC/D^2)*(-(jwt)^b*ln(jwt))
+DQ:  Z = A*Int[s_min..s_max] f(s) ds,  f(s) = e^(n*s)/(1+jw*e^s), s = ln(tau)
+     Leibniz, and note s_min shifts BOTH limits (s_max = s_min + U):
+     dZ/dA     = Z/A
+     dZ/dn     = A*Int s*f(s) ds        (same quadrature nodes, one more sum)
+     dZ/dU     = A*f(s_max)
+     dZ/dtau_min = A*[f(s_max) - f(s_min)] / tau_min
 
 Circuit Composition
 -------------------
@@ -47,7 +53,8 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, CircuitElement
+from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, DQ, CircuitElement
+from .circuit_elements.distributed import dq_quadrature, _GL_W
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -220,6 +227,29 @@ def element_jacobian(
         dZ_dalpha = dZ_dCstar * dCstar_dD * (-jwt_b * ln_jwt)
 
         dZ = np.column_stack([dZ_dC_inf, dZ_ddC, dZ_dtau, dZ_dalpha])
+        return Z, dZ
+
+    # Bounded power-law DRT: Z = A * Int[s_min..s_max] e^(n*s)/(1 + jw*e^s) ds
+    if isinstance(element, DQ):
+        A_val, n_val = params[0], params[1]
+        tau_min_val, U_val = params[2], params[3]
+        s, integrand = dq_quadrature(omega, n_val, tau_min_val, U_val)
+        half = 0.5 * U_val  # maps [-1, 1] onto [s_min, s_max]
+        Z = A_val * half * (integrand @ _GL_W)
+
+        dZ_dA = Z / A_val
+        # d/dn of e^(n*s) brings down one factor of s - same nodes, one sum
+        dZ_dn = A_val * half * ((integrand * s) @ _GL_W)
+
+        # Derivatives by the limits are the integrand evaluated there.
+        # s_min moves both limits, since s_max = s_min + U.
+        s_min, s_max = np.log(tau_min_val), np.log(tau_min_val) + U_val
+        f_min = np.exp(n_val * s_min) / (1 + 1j * omega * np.exp(s_min))
+        f_max = np.exp(n_val * s_max) / (1 + 1j * omega * np.exp(s_max))
+        dZ_dU = A_val * f_max
+        dZ_dtau_min = A_val * (f_max - f_min) / tau_min_val
+
+        dZ = np.column_stack([dZ_dA, dZ_dn, dZ_dtau_min, dZ_dU])
         return Z, dZ
 
     raise NotImplementedError(

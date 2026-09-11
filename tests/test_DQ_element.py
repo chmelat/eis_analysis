@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 from scipy.integrate import quad
 
-from eis_analysis.fitting import K, Q, DQ
+from eis_analysis.fitting import K, Q, R, DQ, fit_equivalent_circuit
+from eis_analysis.fitting.jacobian import element_jacobian
 
 
 @pytest.fixture
@@ -16,8 +17,12 @@ def freq():
 
 @pytest.fixture
 def dq_params():
-    """Oxide-like parameters: n = 0.57, distribution inside the window."""
-    return 1e-3, 0.57, 5e-2, 8.0
+    """Oxide-like parameters: n = 0.57, distribution inside the window.
+
+    A is Ohm*s^-n, not a capacitance: A = (1-n)*tau_min^(1-n)/C_eff puts
+    C_eff at ~1e-7 F and R_pol at ~4e7 Ohm, the scale of a ZrO2 film.
+    """
+    return 1.2e6, 0.57, 5e-2, 8.0
 
 
 def test_dq_matches_adaptive_quadrature(dq_params):
@@ -129,3 +134,53 @@ def test_dq_fixed_params_and_repr(dq_params):
     assert dq.fixed_params == [False, True, False, False]
     assert dq.n == pytest.approx(n)
     assert 'DQ(' in repr(dq)
+
+
+def test_dq_jacobian_matches_central_differences(freq, dq_params):
+    """Analytic Jacobian against central differences, all four columns.
+
+    The (tau_min, U) parametrisation is the subtle one: tau_min shifts both
+    limits of the integral, so its derivative carries the integrand at *both*
+    ends. A formula written for independent limits passes every other test in
+    this file and fails only here.
+    """
+    dq = DQ(*dq_params)
+    params = list(dq_params)
+
+    Z_anal, dZ_anal = element_jacobian(dq, freq, params)
+    assert np.max(np.abs(Z_anal - dq.impedance(freq, params))) < 1e-15
+
+    for j in range(4):
+        p_fwd, p_bwd = params.copy(), params.copy()
+        h = 1e-7 * abs(params[j])
+        p_fwd[j] += h
+        p_bwd[j] -= h
+        dZ_num = (dq.impedance(freq, p_fwd) - dq.impedance(freq, p_bwd)) / (2 * h)
+
+        scale = np.max(np.abs(dZ_num))
+        rel_err = np.max(np.abs(dZ_anal[:, j] - dZ_num)) / scale
+        assert rel_err < 1e-6, f"column {j} off by {rel_err}"
+
+
+def test_dq_fit_runs_without_numeric_fallback(freq, dq_params):
+    """A circuit containing DQ must fit: there is no numeric-Jacobian path.
+
+    make_jacobian_function() only returns a closure, so a missing analytic
+    branch surfaces as a RuntimeError out of least_squares rather than a
+    fallback. This is the test that catches that.
+    """
+    A, n, tau_min, U = dq_params
+    truth = R(20) - DQ(A, n, tau_min, U)
+    Z = truth.impedance(freq, truth.get_all_params())
+
+    guess = R(10) - DQ(5e5, 0.5, 1e-1, 6.0)
+    result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
+
+    assert result.fit_error_rel < 0.1
+    R_fit, A_fit, n_fit, tau_fit, U_fit = result.params_opt
+    assert n_fit == pytest.approx(n, rel=1e-3)
+    assert tau_fit == pytest.approx(tau_min, rel=1e-2)
+    assert U_fit == pytest.approx(U, rel=1e-2)
+
+    # Significance is None when any element lacks an analytic derivative
+    assert result.params_significance is not None
