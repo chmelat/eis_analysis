@@ -386,7 +386,16 @@ class DQ(CircuitElement):
 
     @property
     def R_pol(self) -> float:
-        """DC limit Z(0) = A·(τ_max^n - τ_min^n)/n [Ω]"""
+        """DC limit Z(0) = A·(τ_max^n - τ_min^n)/n [Ω], A·U at n = 0
+
+        n = 0 is outside PARAMETER_BOUNDS, but bounds only constrain what is
+        fitted: a parameter fixed as a string enters the fit as given (see
+        validate_fixed_params), and DQ(..., n="0", ...) is a legitimate flat
+        distribution. Without this branch R_pol is 0/0 = nan, which then
+        fails the "has a parallel resistance" test silently.
+        """
+        if self.n == 0:
+            return self.A * self.U
         return self.A * (self.tau_max ** self.n - self.tau_min ** self.n) / self.n
 
     @property

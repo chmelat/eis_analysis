@@ -339,3 +339,33 @@ def test_dq_counts_as_a_dielectric_whatever_the_exponent(freq):
     assert oxide.element_type == 'DQ'
     assert not any('No dielectric element' in w for w in oxide.warnings)
     assert oxide.candidates[0]['n_power'] == pytest.approx(0.4)
+
+
+def test_dq_defaults_lie_inside_their_bounds():
+    """A default outside PARAMETER_BOUNDS is clipped before the fit starts.
+
+    A_DQ is the one that can drift: it is Ohm*s^-n, so neither the
+    capacitance range nor Q's transfers to it directly.
+    """
+    dq = DQ()
+    lower, upper = generate_simple_bounds(dq.get_param_labels())
+
+    for label, value, lo, hi in zip(dq.get_param_labels(), dq.params, lower, upper):
+        assert lo <= value <= hi, f"default {label} = {value:g} outside ({lo:g}, {hi:g})"
+
+
+def test_dq_flat_distribution_has_a_finite_R_pol():
+    """n = 0 is reachable by fixing it, and bounds do not apply to fixed values.
+
+    A flat gamma(tau) = A integrates to A*U, not to 0/0. The nan this guards
+    against is worse than a wrong number: it fails the "has a parallel
+    resistance" test in the oxide analysis without saying anything.
+    """
+    dq = DQ(1.2e6, "0", 5e-2, 8.0)
+
+    assert dq.fixed_params[1] is True
+    assert dq.R_pol == pytest.approx(1.2e6 * 8.0, rel=1e-12)
+
+    # and it agrees with the integral it is the omega -> 0 limit of
+    Z_dc = dq.impedance(np.array([1e-9]), dq.params)[0]
+    assert Z_dc.real == pytest.approx(dq.R_pol, rel=1e-4)

@@ -66,6 +66,22 @@ Complete change history for all project versions.
   Concept from LEVM (Macdonald), where the truncation appears as the DWC
   models with limits U1, U2.
 
+### Fixed
+
+- **`DQ`'s own default was outside its own bounds.** `A_DQ` is Ohm*s^-n, so
+  neither the capacitance range nor Q's transfers to it: the lower bound was
+  derived from A = sin(pi*n)/(pi*Q) alone and came out above the element's
+  default of 1e-3, which the fitter then clipped before the first iteration.
+  The same bound also excluded a legitimate large, fast capacitance
+  (C_eff = 0.1 F at n = 0.6, tau_min = 1 ns needs A ~ 1e-3). Lower bound
+  1e-4. A test now checks every DQ default against its own bounds.
+- **`R_pol` returned nan for a flat distribution.** n = 0 lies outside
+  PARAMETER_BOUNDS, but bounds constrain only what is fitted - a parameter
+  fixed as a string enters the fit as given - so `DQ(..., n="0", ...)` fits
+  happily and then divided 0 by 0. It is A*U. The nan was the bad kind:
+  it failed the "has a parallel resistance" test in the oxide analysis
+  silently, re-ranking the element with no message to the user.
+
 ---
 
 ## Version 0.34.0 (2026-09-09)

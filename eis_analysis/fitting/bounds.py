@@ -69,9 +69,14 @@ PARAMETER_BOUNDS = {
     'α_CC': (0.0, 0.9),
 
     # DQ - amplitude of gamma(tau) = A*tau^n, in Ohm*s^-n (NOT a capacitance).
-    # The range is the image of Q's under A = sin(pi*n)/(pi*Q): with Q in
-    # (1e-12, 1e-1) and n in (0.3, 1.0), A runs from ~3 to ~1e11.
-    'A_DQ': (1e-2, 1e12),
+    # The upper end is the image of Q's lower bound under A = sin(pi*n)/(pi*Q).
+    # The lower end is not: that mapping bottoms out near A ~ 1, but A also
+    # sets the capacitive plateau, C_eff = (1-n)*tau_min^(1-n)/A, and a large
+    # fast capacitance needs less of it - C_eff = 0.1 F at n = 0.6,
+    # tau_min = 1 ns wants A ~ 1e-3. 1e-4 keeps that reachable and keeps the
+    # element's own default (1e-3) inside its bounds, which the fitter would
+    # otherwise clip before the first iteration.
+    'A_DQ': (1e-4, 1e12),
 
     # DQ - power-law exponent, the same quantity the CPE reports as n
     'n_DQ': (0.3, 1.0),
