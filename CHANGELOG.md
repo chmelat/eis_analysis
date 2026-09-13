@@ -4,6 +4,72 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.36.0 (2026-09-13)
+
+### Added
+
+- **The DRT now says when a peak sits on the edge of the measured window.**
+  The tau grid spans exactly the measured window (`tau = 1/(2*pi*f)`), so a
+  peak near either end has one flank that no measurement constrains, and the
+  basin integral behind its `R_estimate` is truncated by the end of the array.
+  Every peak now carries `boundary_sensitive` and `edge_distance_decades`
+  (both detection paths: the scipy dicts keyed `tau`, the GMM dicts keyed
+  `tau_center`), the count reaches the CLI as `DRTDiagnostics.n_boundary_peaks`,
+  and the peak listing marks each one. Threshold: `DRT_PEAK_EDGE_DECADES = 0.7`,
+  a documented automation heuristic, not a physical constant.
+
+- **Pile-up at the end of the tau grid is reported, and charged to the peak
+  that absorbed it.** Non-negative NNLS cannot represent response whose time
+  constant lies outside the measured window - a series inductance, an
+  unresolved tail, a process slower than the lowest measured frequency - so it
+  heaps gamma up against the boundary instead.
+  `DRTDiagnostics.edge_pile_up_fraction` is the share of `R_pol` in that lobe
+  and `edge_pile_up_end` says which side carries it; above
+  `DRT_EDGE_BIN_RPOL_FRACTION = 0.05` the CLI warns.
+
+  This catches a case nothing else did. On a synthetic spectrum measured to
+  10 mHz with an RC process at tau = 50 s, `find_peaks` reports one clean peak
+  and cannot report the edge at all (a boundary index has no neighbour on one
+  side), so the out-of-window process silently inflates the surviving peak
+  from **989 to 2558 Ohm**.
+
+  The distance flag above cannot catch that peak - it sits 2.8 decades from
+  the edge - because the basin partition runs to the end of the array, so the
+  outermost peak absorbs the lobe however far away it is. Peaks that swallow
+  it are therefore marked `edge_contaminated` and the CLI says their
+  `R_estimate` is inflated: the scipy path marks the outermost peak on the
+  loaded side, the GMM path marks every component, since it divides `R_pol`
+  by weight.
+
+  Measured as the mass of the falling run leaving the boundary, not of the
+  outermost bin, so the number does not depend on `--n-tau`: a per-bin measure
+  read 0.068 at `-n 100` but 0.038 at `-n 400` on identical data, losing the
+  warning as the grid was refined.
+
+### Changed
+
+- **`--lambda-probe` reports the lambda span it actually covered.** Probe
+  lambdas are clipped to `[1e-6, 1]`, so a `lambda*` near a bound yields a
+  narrower sweep than the requested two decades - at `lambda* = 0.5` both
+  upward probes collapse onto 1.0 and stability is judged over 1.30 decades.
+  That clipping was silent, and a `stable` verdict quietly meant less than the
+  `--lambda-probe` help promised. `StabilityDiagnostics` gains `span_decades`
+  and `n_clipped`, the CLI prints the span, and a clipped sweep warns that the
+  verdicts are boundary-limited.
+
+  Clipping can also collapse *every* probe onto one value - at `lambda* = 10`
+  all four land on the upper bound - and `persistence == n_probes` then awarded
+  **STABLE** off a single re-solve. `stable` now requires at least
+  `MIN_PROBES_FOR_STABLE = 2` surviving probes; below that a peak is reported
+  `marginal`, neither certified nor called an artifact.
+
+The diagnostics are additive: gamma, lambda selection, peak positions and
+`R_estimate` values are bit-identical to 0.35.0. The one behavioural change is
+the stability verdict on a fully clipped probe, which can no longer read
+`stable`. Prompted by `doc/EIS_DRT_SKILL_COMPARISON.md`.
+
+---
+
 ## Version 0.35.0 (2026-09-11)
 
 ### Added
