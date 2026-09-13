@@ -5,9 +5,9 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.35.0'
-__version_info__ = (0, 35, 0)
-__release_date__ = '2026-09-11'
+__version__ = '0.36.0'
+__version_info__ = (0, 36, 0)
+__release_date__ = '2026-09-13'
 
 # Breaking changes in this version
 __breaking_changes__: list[str] = []

@@ -42,6 +42,53 @@ fitting noise rather than physics. Widen it only when the selected count lands
 on the upper bound (the CLI warns when it does).
 """
 
+DRT_PEAK_EDGE_DECADES = 0.7
+"""
+Distance from the edge of the tau grid below which a peak is flagged as
+boundary-sensitive [decades of tau].
+
+The tau grid spans exactly the measured window (tau = 1/(2*pi*f) for f_max and
+f_min), so a peak near either end is only half-supported by data: the kernel
+1/(1+j*omega*tau) has no measurement on one flank, the regularization is free
+to shape that flank, and the basin integral that yields R_estimate is
+truncated by the end of the array. The peak position and area are then far
+less certain than the numbers alone suggest.
+
+Value 0.7: a Gaussian-like DRT peak of typical width carries most of its area
+within roughly +-0.7 decade of its maximum, so a peak closer than that to the
+edge has a materially truncated basin. It is a conservative automation
+heuristic motivated by sampling and localization limits (Macdonald 2000,
+DOI 10.1088/0266-5611/16/5/324), not a physical constant - a peak flagged here
+is a peak to interpret carefully, not a peak to discard.
+"""
+
+DRT_EDGE_BIN_RPOL_FRACTION = 0.05
+"""
+Share of R_pol heaped against an end of the tau grid above which pile-up is
+reported.
+
+Non-negative NNLS cannot represent response whose time constant lies outside
+the measured window (series inductance, an unresolved diffusion tail, a
+process slower than the lowest measured frequency). It disposes of that
+response by heaping gamma up against the first or last bin, which inflates the
+R_estimate of the peak that absorbs it.
+
+Measured as the mass of the falling run leaving the boundary, not of the
+outermost bin: a relaxation inside the window makes gamma rise from the edge
+towards its maximum, so a descending run at the edge means the maximum lies
+outside it. That makes the number independent of `n_tau` - the lobe has a
+width in decades, and a finer grid only spreads the same mass over more bins.
+A per-bin measure does not: on a spectrum with a 50 s process measured to
+10 mHz it read 0.068 at n_tau = 100 but 0.038 at n_tau = 400, so `-n 400`
+silently lost a warning that `-n 100` emitted on identical data.
+
+Value 0.05: a clean spectrum scores exactly 0, because gamma rises from both
+edges towards its peaks, so the threshold only has to separate a small
+boundary lobe from a real one. 5% of R_pol is small enough to catch pile-up
+early and large enough not to fire on the shoulder of a legitimate peak that
+happens to sit at the edge.
+"""
+
 DRT_MIN_EFFECTIVE_BINS = 7.0
 """
 Minimum effective number of gamma bins for meaningful peak-shape analysis.
@@ -199,6 +246,8 @@ Grid should be visible but unobtrusive.
 __all__ = [
     # DRT Peak Detection
     'DRT_PEAK_HEIGHT_THRESHOLD',
+    'DRT_PEAK_EDGE_DECADES',
+    'DRT_EDGE_BIN_RPOL_FRACTION',
     'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
     'GMM_PEAK_HEIGHT_FACTOR',

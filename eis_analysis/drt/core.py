@@ -30,8 +30,10 @@ from .results import (
 from .estimation import (
     _rpol_from_gamma,
     _estimate_peak_resistance,
+    _edge_pile_up,
     _effective_bins,
     _estimate_r_inf,
+    _flag_boundary_peaks,
 )
 from .linear_system import (
     _validate_frequencies,
@@ -43,6 +45,7 @@ from .plotting import _create_visualization
 from .peaks import gmm_peak_detection
 from .stability import probe_lambda_stability
 from ..fitting.config import (DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS,
+                             DRT_EDGE_BIN_RPOL_FRACTION, DRT_PEAK_EDGE_DECADES,
                              GMM_N_COMPONENTS_RANGE)
 
 logger = logging.getLogger(__name__)
@@ -97,6 +100,8 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
             'R_estimate': float(R_peak)
         })
 
+    _flag_boundary_peaks(tau, scipy_peaks, 'tau')
+
     if use_gmm:
         peaks_result, gmm_model, bic_scores = gmm_peak_detection(
             tau, gamma, n_components_range=GMM_N_COMPONENTS_RANGE,
@@ -106,6 +111,8 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
         if len(peaks_result) == 0 or gmm_model is None:
             # GMM failed, scipy_peaks available as fallback
             return None, None, scipy_peaks
+
+        _flag_boundary_peaks(tau, peaks_result, 'tau_center')
 
         return peaks_result, bic_scores, scipy_peaks
 
@@ -251,7 +258,10 @@ def calculate_drt(
         n_data=len(frequencies)
     )
 
-    n_peaks = len(peaks_result) if peaks_result else len(scipy_peaks) if scipy_peaks else 0
+    # The peaks the run reports: GMM components when GMM ran and succeeded,
+    # otherwise the scipy maxima. Everything downstream counts this set.
+    reported_peaks = peaks_result or scipy_peaks or []
+    n_peaks = len(reported_peaks)
 
     # === Step 8: Reconstruction & Error ===
     Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma_physical
@@ -267,7 +277,47 @@ def calculate_drt(
             f"Elevated reconstruction error ({rel_error:.1f}%)"
         )
 
-    # === Step 8b: Shape-quality diagnostics (F3) ===
+    # === Step 8b: Window-edge diagnostics ===
+    # Pile-up at an end of the tau grid: NNLS has nowhere to put response
+    # whose time constant lies outside the measured window, so it heaps gamma
+    # up against the boundary instead.
+    edge_pile_up_fraction, edge_pile_up_end = _edge_pile_up(
+        gamma_physical, matrices.d_ln_tau, R_pol_from_gamma
+    )
+    if edge_pile_up_fraction > DRT_EDGE_BIN_RPOL_FRACTION:
+        nnls_result.warnings.append(
+            f"{edge_pile_up_fraction*100:.0f}% of R_pol is heaped against the "
+            f"{'fast' if edge_pile_up_end == 'low' else 'slow'} end of the tau "
+            f"window - likely response from outside it (series inductance, "
+            f"unresolved tail, a process slower than the lowest frequency)"
+        )
+        # That mass is not left unattributed: the scipy basin partition runs to
+        # the end of the array, so the outermost peak on the loaded side
+        # absorbs it, while the GMM path divides R_pol by component weight, so
+        # every component carries a share. Mark whichever applies - a distance
+        # test cannot catch this, the contaminated peak can sit decades away.
+        if reported_peaks:
+            contaminated = (reported_peaks if peaks_result else
+                            [reported_peaks[0] if edge_pile_up_end == 'low'
+                             else reported_peaks[-1]])
+            for peak in contaminated:
+                peak['edge_contaminated'] = True
+            nnls_result.warnings.append(
+                f"R_estimate of {len(contaminated)} of {len(reported_peaks)} "
+                f"peaks includes that out-of-window mass and is inflated"
+            )
+
+    # Peaks too close to the window edge to be localized or integrated fully.
+    n_boundary_peaks = sum(1 for p in reported_peaks
+                           if p.get('boundary_sensitive'))
+    if n_boundary_peaks:
+        nnls_result.warnings.append(
+            f"{n_boundary_peaks} of {len(reported_peaks)} peaks lie within "
+            f"{DRT_PEAK_EDGE_DECADES} decade of the measured tau window edge - "
+            f"position and R_estimate are only partly supported by data"
+        )
+
+    # === Step 8c: Shape-quality diagnostics (F3) ===
     # Warn if the DRT is too sparse/spiky for peak-shape analysis, or if
     # auto-lambda hit the search-range edge (regularization too low). Advisory
     # only - gamma and detected peaks are unchanged.
@@ -285,7 +335,7 @@ def calculate_drt(
             f"for reliable DRT shape"
         )
 
-    # === Step 8c: Lambda-probe peak stability (opt-in) ===
+    # === Step 8d: Lambda-probe peak stability (opt-in) ===
     # Track the reported peaks across lambdas around the selected one; peaks
     # that vanish or drift under a modest lambda change are likely
     # regularization artifacts. Reference peaks and probe run on the physical
@@ -342,6 +392,9 @@ def calculate_drt(
         n_peaks=n_peaks,
         scipy_peaks=scipy_peaks,
         n_effective_bins=n_eff,
+        edge_pile_up_fraction=edge_pile_up_fraction,
+        edge_pile_up_end=edge_pile_up_end,
+        n_boundary_peaks=n_boundary_peaks,
         stability=stability
     )
 

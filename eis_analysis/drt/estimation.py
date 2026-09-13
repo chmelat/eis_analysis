@@ -8,10 +8,11 @@ resistances, and the effective-bins shape metric.
 
 import numpy as np
 import logging
-from typing import Optional, List
+from typing import Any, Dict, Optional, List, Tuple
 from numpy.typing import NDArray
 
 from .results import RinfEstimate
+from ..fitting.config import DRT_PEAK_EDGE_DECADES
 from ..rinf_estimation import estimate_rinf_with_inductance
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,65 @@ def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
         resistances.append(R_peak)
 
     return resistances
+
+
+def _flag_boundary_peaks(tau: NDArray, peaks: List[Dict[str, Any]],
+                        tau_key: str) -> None:
+    """
+    Annotate each peak with its distance to the nearer end of the tau grid.
+
+    The grid spans exactly the measured window, so a peak close to either end
+    has one flank that no measurement constrains: its position is poorly
+    localized and the basin integral behind ``R_estimate`` is truncated by the
+    end of the array. Sets ``edge_distance_decades`` and the
+    ``boundary_sensitive`` flag on every peak in place, on both the scipy
+    dicts (keyed ``tau``) and the GMM dicts (keyed ``tau_center``).
+    """
+    log_lo, log_hi = np.log10(tau[0]), np.log10(tau[-1])
+
+    for peak in peaks:
+        log_tau = float(np.log10(peak[tau_key]))
+        distance = float(min(log_tau - log_lo, log_hi - log_tau))
+        peak['edge_distance_decades'] = distance
+        peak['boundary_sensitive'] = bool(distance < DRT_PEAK_EDGE_DECADES)
+
+
+def _edge_pile_up(gamma: NDArray, d_ln_tau: float,
+                  R_pol: float) -> Tuple[float, Optional[str]]:
+    """
+    Share of R_pol sitting in a falling run at an end of the tau grid.
+
+    Non-negative NNLS has nowhere to put response whose time constant lies
+    outside the measured window, so it piles gamma up against the first or
+    last bin instead. The signature is a gamma that is already falling as it
+    leaves the boundary: a relaxation inside the window makes gamma *rise*
+    from the edge towards its maximum, so a descending run at the edge means
+    the maximum lies outside it.
+
+    Measuring the whole run rather than the outermost bin keeps the number
+    independent of ``n_tau``: the pile-up lobe has a width in decades, and a
+    finer grid merely spreads the same mass over more bins.
+
+    Returns ``(fraction, end)`` with ``end`` the loaded side ('low' for the
+    fast end, 'high' for the slow end), or ``(0.0, None)`` when neither end
+    is loaded or R_pol is too small for the ratio to mean anything.
+    """
+    if R_pol <= 1e-10:
+        return 0.0, None
+
+    def falling_run_mass(g: NDArray) -> float:
+        """Mass of the descending run starting at g[0]; 0.0 if g rises."""
+        i = 0
+        while i + 1 < len(g) and g[i + 1] < g[i]:
+            i += 1
+        return float(np.sum(g[:i + 1])) if i > 0 else 0.0
+
+    low = falling_run_mass(gamma) * d_ln_tau / R_pol
+    high = falling_run_mass(gamma[::-1]) * d_ln_tau / R_pol
+
+    if max(low, high) <= 0.0:
+        return 0.0, None
+    return (low, 'low') if low >= high else (high, 'high')
 
 
 def _effective_bins(gamma: NDArray) -> float:

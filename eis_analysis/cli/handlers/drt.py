@@ -91,6 +91,16 @@ def _log_lambda_value(lambda_sel) -> None:
                        f"geometric mean used")
 
 
+def _edge_marker(peak: dict) -> str:
+    """Mark a peak the measured window leaves unsupported, or inflates."""
+    marks = []
+    if peak.get('boundary_sensitive'):
+        marks.append(f"edge: {peak['edge_distance_decades']:.2f} dec from window")
+    if peak.get('edge_contaminated'):
+        marks.append("R inflated by out-of-window pile-up")
+    return f"  [{'; '.join(marks)}]" if marks else ""
+
+
 def _log_gmm_selection(bic_scores: List[float], n_components: int) -> None:
     """
     Report which GMM model BIC settled on, and why it may not be the obvious one.
@@ -206,11 +216,13 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
             logger.info(f"  Peak {i+1}: tau = {peak['tau_center']:.2e} s "
                         f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm, "
                         f"width = {peak['log_tau_std']:.2f} dec, "
-                        f"weight = {peak['weight']:.3f}")
+                        f"weight = {peak['weight']:.3f}"
+                        f"{_edge_marker(peak)}")
     elif diag.scipy_peaks:
         for i, peak in enumerate(diag.scipy_peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
-                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm")
+                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm"
+                        f"{_edge_marker(peak)}")
 
     # Lambda-probe peak stability
     if diag.stability is not None:
@@ -219,6 +231,9 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         logger.info("Peak stability (lambda probe)")
         log_separator()
         logger.info(f"Reference lambda* = {stability.lambda_star:.2e}")
+        logger.info(f"Probed span: {stability.span_decades:.2f} decades of lambda"
+                    + (f" ({stability.n_clipped} probes clipped at the bounds)"
+                       if stability.n_clipped else ""))
 
         for point in stability.probe_points:
             if point.success:

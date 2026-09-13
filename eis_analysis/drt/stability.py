@@ -51,6 +51,13 @@ MATCH_TOLERANCE_CAP = 0.5
 STABLE_MAX_DRIFT_DECADES = 0.2
 STABLE_MAX_R_VARIATION = 0.25
 
+# Minimum successful probes before 'stable' can be awarded. Clipping at the
+# probe bounds can collapse all four requested lambdas onto one value - at
+# lambda* = 10 every probe lands on PROBE_LAMBDA_MAX - and surviving a single
+# re-solve says nothing about stability. Such a peak is reported 'marginal':
+# not judged an artifact, not certified either.
+MIN_PROBES_FOR_STABLE = 2
+
 
 def _match_tolerances(ref_log_taus: NDArray) -> NDArray:
     """
@@ -154,7 +161,8 @@ def _assess_peaks(reference_peaks: List[Tuple[float, float]],
     for i, (tau_ref, R_ref) in enumerate(reference_peaks):
         if persistence[i] <= n_probes // 2:
             verdict = 'artifact'
-        elif (persistence[i] == n_probes
+        elif (n_probes >= MIN_PROBES_FOR_STABLE
+              and persistence[i] == n_probes
               and max_drift[i] < STABLE_MAX_DRIFT_DECADES
               and max_r_variation[i] < STABLE_MAX_R_VARIATION):
             verdict = 'stable'
@@ -200,8 +208,9 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
     StabilityDiagnostics
         Probe solutions, per-peak stability, and summary warnings.
     """
-    probe_lambdas = np.clip(lambda_star * 10.0 ** np.array(PROBE_EXPONENTS),
-                            PROBE_LAMBDA_MIN, PROBE_LAMBDA_MAX)
+    requested_lambdas = lambda_star * 10.0 ** np.array(PROBE_EXPONENTS)
+    probe_lambdas = np.clip(requested_lambdas, PROBE_LAMBDA_MIN, PROBE_LAMBDA_MAX)
+    n_clipped = int(np.sum(probe_lambdas != requested_lambdas))
     # Deduplicate after clipping and drop values ~equal to lambda* (the main
     # solution already covers lambda*).
     unique_lambdas: List[float] = []
@@ -236,7 +245,26 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
 
     peak_stability = _assess_peaks(reference_peaks, probe_points)
 
+    # Extent actually covered, so a verdict is read against the sweep that
+    # produced it rather than the one PROBE_EXPONENTS asks for.
+    covered = [lambda_star] + [p.lambda_value for p in probe_points if p.success]
+    span_decades = float(np.log10(max(covered) / min(covered)))
+
     warnings = []
+    if n_clipped:
+        warnings.append(
+            f"{n_clipped} of {len(PROBE_EXPONENTS)} lambda probes hit the probe "
+            f"bounds [{PROBE_LAMBDA_MIN:.0e}, {PROBE_LAMBDA_MAX:.0e}] and were "
+            f"clipped; stability was assessed over {span_decades:.2f} decades "
+            f"instead of {max(PROBE_EXPONENTS) - min(PROBE_EXPONENTS):.1f} - "
+            f"verdicts are boundary-limited"
+        )
+    n_successful = sum(1 for p in probe_points if p.success)
+    if 0 < n_successful < MIN_PROBES_FOR_STABLE:
+        warnings.append(
+            f"only {n_successful} probe solution survived - no peak can be "
+            f"called stable on that; verdicts are capped at 'marginal'"
+        )
     n_failed = sum(1 for p in probe_points if not p.success)
     if n_failed:
         warnings.append(f"{n_failed} of {len(probe_points)} lambda probe "
@@ -252,5 +280,7 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
         lambda_star=lambda_star,
         probe_points=probe_points,
         peak_stability=peak_stability,
-        warnings=warnings
+        warnings=warnings,
+        span_decades=span_decades,
+        n_clipped=n_clipped
     )

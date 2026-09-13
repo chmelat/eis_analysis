@@ -91,6 +91,14 @@ class StabilityDiagnostics:
     peak_stability: List[PeakStability] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
+    # Extent actually probed. Requested probes are clipped to the absolute
+    # lambda bounds, so a lambda* near a bound yields a narrower sweep than
+    # PROBE_EXPONENTS asks for; a 'stable' verdict then covers less ground
+    # than the default two decades. span_decades is log10(max/min) over
+    # lambda* and the surviving probes.
+    span_decades: float = 0.0
+    n_clipped: int = 0
+
 
 @dataclass
 class DRTDiagnostics:
@@ -130,6 +138,16 @@ class DRTDiagnostics:
 
     # Shape diagnostics (F3): effective number of gamma bins (participation ratio)
     n_effective_bins: Optional[float] = None
+
+    # Window-edge diagnostics: share of R_pol heaped against an end of the tau
+    # grid (response from outside the measured window), which end carries it,
+    # and how many reported peaks sit close enough to an edge to be only
+    # partly supported by data. Individual peaks carry 'boundary_sensitive'
+    # and 'edge_distance_decades', plus 'edge_contaminated' when the pile-up
+    # is folded into their R_estimate.
+    edge_pile_up_fraction: float = 0.0
+    edge_pile_up_end: Optional[str] = None   # 'low' (fast) | 'high' (slow)
+    n_boundary_peaks: int = 0
 
     # Lambda-probe peak stability (only when requested via lambda_probe=True)
     stability: Optional[StabilityDiagnostics] = None
