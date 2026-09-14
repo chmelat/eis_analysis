@@ -6,6 +6,7 @@ import pytest
 
 from eis_analysis.fitting import C, R, YG
 from eis_analysis.fitting.circuit_elements.composite import YG_P_MIN
+from eis_analysis.fitting.jacobian import element_jacobian
 
 
 @pytest.fixture
@@ -167,3 +168,46 @@ def test_yg_composes_with_the_operators(freq, yg_params):
     Z_yg = YG(*yg_params).impedance(freq, list(yg_params))
 
     assert np.allclose(Z - Z_yg, 20.0)
+
+
+# --- 4. Analytic Jacobian ---
+
+@pytest.mark.parametrize("p_val", [0.01, 0.05, 0.1, 0.5])
+def test_yg_jacobian_matches_central_differences(freq, p_val):
+    """All three columns must match finite differences across the p range.
+
+    The metric is max|analytic - numeric| / max|numeric| over the whole
+    sweep, not a per-point ratio: where a derivative passes through zero the
+    central difference is pure cancellation and a per-point ratio reports
+    1e-2 for a derivative that is in fact exact to 1e-10.
+    """
+    C_val, tau_val = 1e-5, 0.1
+    params = [C_val, p_val, tau_val]
+    yg = YG(*params)
+
+    Z, dZ = element_jacobian(yg, freq, params)
+    assert np.max(np.abs(Z - yg.impedance(freq, params))) < 1e-15
+
+    for col in range(3):
+        step = 1e-5 * params[col]
+        up, down = list(params), list(params)
+        up[col] += step
+        down[col] -= step
+        numeric = (yg.impedance(freq, up) - yg.impedance(freq, down)) / (2 * step)
+        error = np.max(np.abs(dZ[:, col] - numeric)) / np.max(np.abs(numeric))
+        assert error < 1e-6, f"column {col} (p = {p_val}): {error:.2e}"
+
+
+def test_yg_jacobian_is_finite_at_the_degenerate_p(freq):
+    """Below YG_P_MIN the element is a capacitor: dZ/dp and dZ/dtau are zero.
+
+    Not nan. least_squares treats a nan column as a failure of the whole
+    fit, so the guard has to produce the limit here too, exactly as
+    `impedance` does.
+    """
+    params = [1e-5, YG_P_MIN / 2, 0.1]
+    Z, dZ = element_jacobian(YG(*params), freq, params)
+
+    assert np.all(np.isfinite(dZ))
+    assert np.allclose(dZ[:, 0], -Z / 1e-5)
+    assert np.all(dZ[:, 1] == 0) and np.all(dZ[:, 2] == 0)

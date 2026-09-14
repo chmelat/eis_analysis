@@ -40,6 +40,11 @@ DQ:  Z = A*Int[s_min..s_max] f(s) ds,  f(s) = e^(n*s)/(1+jw*e^s), s = ln(tau)
      dZ/dn     = A*Int s*f(s) ds        (same quadrature nodes, one more sum)
      dZ/dU     = A*f(s_max)
      dZ/dtau_min = A*[f(s_max) - f(s_min)] / tau_min
+YG:  Z = p/(jwC) * L,  L = ln(1 + jwt*e^(1/p)) - ln(1 + jwt),  a = jwt
+     fE = a*e^(1/p)/(1 + a*e^(1/p)) = 1/(1 + e^(-1/p)/a), the stable form
+     dZ/dC   = -p*L/(jw*C^2)
+     dZ/dp   = L/(jwC) - fE/(jw*C*p)
+     dZ/dtau = p/(jwC) * [fE/tau - jw/(1 + a)]
 
 Circuit Composition
 -------------------
@@ -53,8 +58,9 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, DQ, CircuitElement
+from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG, CircuitElement
 from .circuit_elements.distributed import dq_quadrature, _GL_W
+from .circuit_elements.composite import _yg_log_terms, YG_P_MIN
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -250,6 +256,39 @@ def element_jacobian(
         dZ_dtau_min = A_val * (f_max - f_min) / tau_min_val
 
         dZ = np.column_stack([dZ_dA, dZ_dn, dZ_dtau_min, dZ_dU])
+        return Z, dZ
+
+    # Young-Gohr: Z = p/(jw*C) * [ln(1 + jw*tau*e^(1/p)) - ln(1 + jw*tau)]
+    if isinstance(element, YG):
+        C_val, p_val, tau_val = params[0], params[1], params[2]
+
+        if p_val <= YG_P_MIN:
+            # The p -> 0 limit is an ideal capacitor, so the element no longer
+            # depends on p or tau. Matching YG.impedance's own guard; without
+            # it e^(1/p) overflows and every column comes back nan.
+            Z = 1 / (1j * omega * C_val)
+            zeros = np.zeros_like(Z)
+            return Z, np.column_stack([-Z / C_val, zeros, zeros])
+
+        # Same logarithms the impedance uses, so the two cannot drift apart.
+        t1, t2 = _yg_log_terms(omega, p_val, tau_val)
+        L_log = t1 - t2
+        a = 1j * omega * tau_val
+        Z = p_val / (1j * omega * C_val) * L_log
+
+        # a*E/(1 + a*E) written as 1/(1 + e^(-1/p)/a): e^(-1/p) underflows to
+        # zero harmlessly, while e^(+1/p) would overflow.
+        fE = 1.0 / (1.0 + np.exp(-1.0 / p_val) / a)
+
+        # Written out rather than as -Z/C: C = 0 is 0/0 there, the same trap
+        # W, Wo and K avoid.
+        dZ_dC = -p_val * L_log / (1j * omega * C_val ** 2)
+        # dL/dp = -a*E/(p^2*(1 + a*E)), and Z contributes its own factor of p
+        dZ_dp = L_log / (1j * omega * C_val) - fE / (1j * omega * C_val * p_val)
+        # dL/dtau = fE/tau - jw/(1 + a)
+        dZ_dtau = p_val / (1j * omega * C_val) * (fE / tau_val - 1j * omega / (1.0 + a))
+
+        dZ = np.column_stack([dZ_dC, dZ_dp, dZ_dtau])
         return Z, dZ
 
     raise NotImplementedError(
