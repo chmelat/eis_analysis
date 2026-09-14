@@ -4,7 +4,10 @@
 import numpy as np
 import pytest
 
-from eis_analysis.fitting import C, R, YG
+from eis_analysis.fitting import C, R, YG, fit_equivalent_circuit
+from eis_analysis.fitting.bounds import (
+    classify_bound_status, generate_simple_bounds, log_scale_ci_mask)
+from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.fitting.circuit_elements.composite import YG_P_MIN
 from eis_analysis.fitting.jacobian import element_jacobian
 
@@ -211,3 +214,84 @@ def test_yg_jacobian_is_finite_at_the_degenerate_p(freq):
     assert np.all(np.isfinite(dZ))
     assert np.allclose(dZ[:, 0], -Z / 1e-5)
     assert np.all(dZ[:, 1] == 0) and np.all(dZ[:, 2] == 0)
+
+
+# --- 5. Bounds and CLI parsing ---
+
+def test_yg_bounds_are_registered(yg_params):
+    """Every label needs its own entry; a missing one falls back silently.
+
+    generate_simple_bounds looks bounds up by the bare label string and
+    returns DEFAULT_BOUNDS = (1e-15, 1e15) for anything it does not know -
+    30 decades, no error. The upper-bound assertions below are what catches
+    that.
+    """
+    lower, upper = generate_simple_bounds(YG(*yg_params).get_param_labels())
+
+    assert upper[0] < 1e15 and upper[1] < 1e15 and upper[2] < 1e15
+    # C and tau are scale parameters, p is a bounded ratio like n and alpha_CC
+    assert log_scale_ci_mask(lower, upper) == [True, False, True]
+
+
+def test_yg_defaults_lie_inside_their_bounds():
+    """A default outside its own bounds gets clipped before the fit starts."""
+    yg = YG()
+    lower, upper = generate_simple_bounds(yg.get_param_labels())
+
+    for value, lo, hi, label in zip(yg.get_all_params(), lower, upper,
+                                    yg.get_param_labels()):
+        assert lo <= value <= hi, f"{label} = {value:g} outside ({lo:g}, {hi:g})"
+
+
+def test_yg_p_bounds_do_not_flag_a_well_determined_p():
+    """p = 0.01 is Zahner's own example and must not read as "at its bound".
+
+    classify_bound_status uses 1% of the range on a linear parameter, so the
+    upper bound of 0.5 is what keeps that threshold below 0.01. Raising it to
+    1.0 would make every strong conductivity gradient look constrained.
+    """
+    lower, upper = generate_simple_bounds(['p_YG'])
+
+    assert classify_bound_status(0.01, lower[0], upper[0]) == ''
+    assert classify_bound_status(0.05, lower[0], upper[0]) == ''
+    # the genuinely degenerate ends still report
+    assert classify_bound_status(1.5e-3, lower[0], upper[0]) == 'lower'
+    assert classify_bound_status(0.499, lower[0], upper[0]) == 'upper'
+
+
+def test_yg_parses_from_circuit_string():
+    """The CLI reaches elements only through parse_circuit_expression."""
+    circuit = parse_circuit_expression("L(1e-6) - R(20) - YG(1e-5, 0.05, 0.1)")
+
+    assert circuit.get_param_labels()[-3:] == ['C_YG', 'p_YG', 'τ_YG']
+    assert circuit.get_all_params()[-3:] == [1e-5, 0.05, 0.1]
+
+
+# --- 6. Round-trip fit ---
+
+def test_yg_round_trip_fit_recovers_the_layer(freq, yg_params):
+    """A noisy synthetic oxide spectrum must return C and p from a bad guess.
+
+    Also the end-to-end proof that the analytic Jacobian is wired: a missing
+    branch raises RuntimeError out of least_squares rather than falling back,
+    and params_significance would come back None.
+    """
+    C_val, p_val, tau_val = yg_params
+    truth = R(20) - YG(*yg_params)
+    Z_true = truth.impedance(freq, [20.0, *yg_params])
+
+    rng = np.random.default_rng(42)
+    Z = Z_true * (1 + 0.01 * rng.standard_normal(len(freq)))
+
+    guess = R(50) - YG(3e-5, 0.15, 0.03)      # deliberately off
+    result, _, _ = fit_equivalent_circuit(freq, Z, guess, weighting='modulus',
+                                         plot=False)
+
+    assert result.fit_error_rel < 2.0
+    # None when any element in the circuit lacks an analytic derivative
+    assert result.params_significance is not None
+
+    _, C_fit, p_fit, tau_fit = result.params_opt
+    assert C_fit == pytest.approx(C_val, rel=0.05)
+    assert p_fit == pytest.approx(p_val, rel=0.10)
+    assert tau_fit == pytest.approx(tau_val, rel=0.20)

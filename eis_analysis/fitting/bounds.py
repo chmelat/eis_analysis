@@ -91,6 +91,27 @@ PARAMETER_BOUNDS = {
     # distribution lies outside the measured window, must be readable as a
     # decimal width and not as decades.
     'U_DQ': (0.1, 30.0),
+
+    # YG - total capacity of the layer, the high-frequency limit. Mirrors C:
+    # it is the same physical quantity, just read off a model instead of an
+    # ideal element.
+    'C_YG': (1e-15, 1e-1),
+
+    # YG - relative penetration depth p = delta/d of the conductivity.
+    # Lower: below 1e-3 the element is indistinguishable from a plain C (the
+    # p -> 0 limit), so p stops being identifiable rather than merely small.
+    # Upper: 0.5 means the conductivity reaches halfway through the film, at
+    # which point the profile is nearly uniform and the exponential model has
+    # nothing left to say. The 500:1 span stays under LOG_SCALE_BOUND_RATIO,
+    # so p is LINEAR - it is a bounded ratio like n and alpha_CC, not a scale.
+    # The upper bound is also what keeps classify_bound_status honest: its
+    # 1%-of-range threshold then flags p < 0.006, clear of Zahner's own
+    # p = 0.01 example, which is a perfectly well determined value.
+    'p_YG': (1e-3, 0.5),
+
+    # YG - time constant at the site of highest conductivity, tau = eps*rho.
+    # Sets the capacitive corner 1/(2*pi*tau); same range as the other taus.
+    'τ_YG': (1e-9, 1e4),
 }
 
 DEFAULT_BOUNDS = (1e-15, 1e15)
