@@ -266,6 +266,26 @@ C_eff = C  (direct)
 C_eff = tau / R  (for K element)
 ```
 
+**For YG elements:**
+```
+C_eff = C  (direct, the fitted omega -> inf limit)
+delta = p * d  (penetration depth of the conductivity, once d is known)
+```
+
+A Young-Göhr element is the **independent check** on the CPE route below.
+Both describe the same dispersion, but YG fits the capacitance as a
+parameter, so the thickness needs no conversion model at all - where the two
+paths disagree on the same spectrum, the disagreement is the CPE conversion,
+not the data. It also yields `delta`, how far the conductivity reaches into
+the film, which the CPE route cannot produce.
+
+The reported resistance for a `YG` is its **parallel** resistance, not its DC
+limit. `R_dc = p*tau*(e^(1/p) - 1)/C` is reached only below
+`e^(-1/p)/(2*pi*tau)`, which for a realistic `p` lies dozens of decades under
+any sweep - it is a value of the model, and ranking elements by it would let
+it beat every real resistance in the circuit. It is printed with the
+frequency at which it would be reached, so it can be read for what it is.
+
 **For Q elements (Hsu-Mansfeld formula):**
 ```
 C_eff = (R * Q)^(1/n) / R
@@ -365,6 +385,7 @@ highest-frequency point is used (pre-0.16.16 behavior).
 | `K(R, tau)` | yes, n = 1 (Voigt reparametrised) | tau/R |
 | `CC(C_inf, dC, tau, alpha)` | yes, n = 1 in both limits | C_inf + dC, or C_inf when the relaxation is below the measured window (both exact limits) |
 | `DQ(A, n, tau_min, U)` | yes, n = 1 above 1/tau_min | C_eff = (1-n)/(A*(tau_min^(n-1) - tau_max^(n-1))), an exact limit of the distribution |
+| `YG(C, p, tau)` | yes, n = 1 above 1/(2*pi*tau) | C directly - it is the fitted high-frequency limit of the model |
 
 A parallel resistance is **not** required for an element to be found; it is
 only needed to convert a `Q`, to form `tau = R*C`, and to rank candidates by

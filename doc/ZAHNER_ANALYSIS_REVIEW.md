@@ -20,7 +20,7 @@ Z-HIT máme také. Tafel, Butler-Volmer, CV a solární články jsou mimo záb�
 | # | Návrh | Přínos | Práce | Dotčené moduly |
 |---|-------|--------|-------|----------------|
 | 1 | Significance - **HOTOVO v 0.33.0** (plot zatím ne) | vysoký | malá | `fitting/diagnostics.py`, `circuit.py`, `diffevo.py` |
-| 2 | Young-Göhr element | vysoký | střední | `circuit_elements/composite.py`, `analysis/oxide.py` |
+| 2 | Young-Göhr element - **HOTOVO v 0.37.0** | vysoký | střední | `circuit_elements/composite.py`, `analysis/oxide.py` |
 | 3 | Blokující difuze (coth) | střední | malá | `circuit_elements/distributed.py` |
 | 4 | Log-polární residuum (clog) | střední | střední | `fitting/diagnostics.py`, `circuit.py` |
 | 5 | Series Fit (série spekter) | vysoký | velká | CLI, handlery, vizualizace |
@@ -137,6 +137,22 @@ odklon od zdroje, ne jeho reprodukce, a je uvedený v docstringu
 nic podobného v projektu není.
 
 ## 2. Young-Göhr element - trefa do oxidové domény
+
+> **Stav: implementováno ve verzi 0.37.0.** Element `YG(C, p, tau)`
+> v `eis_analysis/fitting/circuit_elements/composite.py`, analytický jakobián
+> v `jacobian.py`, napojení na oxidovou analýzu v `analysis/oxide.py`.
+> Uživatelský popis je v `doc/CIRCUIT_PARSER.md` (sekce YG) a
+> v `doc/OXIDE_ANALYSIS_GUIDE.md`. Dvě věci nad rámec zdroje:
+>
+> - `e^(1/p)` přeteče float64 už pro `p < 1/709`, tedy **uvnitř** rozumného
+>   rozsahu `p`. Implementace proto vzorec nikdy nepočítá jak je vytištěný -
+>   `1/p` se přičítá až v log prostoru (`_yg_log_terms`).
+> - `R_dc = p·τ·(e^(1/p) − 1)/C` je sice korektní limita ω→0, ale leží
+>   `e^(1/p)` pod kapacitním rohem, tedy desítky dekád mimo jakékoli okno.
+>   Do heuristiky „největší R = bariéra" **nevstupuje**; reportuje se zvlášť
+>   spolu s frekvencí, pod kterou by ho bylo vidět.
+>
+> Navíc oproti CPE cestě: `δ = p·d`, hloubka průniku vodivosti v nm.
 
 ```
 Z_Y = p/(jωC) * ln[ (1 + jωτ*e^(1/p)) / (1 + jωτ) ]
@@ -374,7 +390,7 @@ do normalizovaných os (Ω*cm²). U nás `--area` teče jen do oxidové analýzy
 
 1. ~~**Significance**~~ - HOTOVO v 0.33.0 (zbývá jen plot S_i(f))
 2. **Blokující difuze (coth)** - triviální doplnění mřížky, kterou máme skoro celou
-3. **Young-Göhr** - nejtrefnější do oxidové domény
+3. ~~**Young-Göhr**~~ - HOTOVO v 0.37.0
 4. ~~**Fit na Z-HIT rekonstrukci**~~ - HOTOVO v 0.34.0
 5. **Rovina komplexní kapacity** - vizualizace pro `CC`, které chybí
 6. **Log-polární residuum** - navazuje na existující srovnání váhování

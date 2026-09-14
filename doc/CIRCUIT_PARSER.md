@@ -45,7 +45,7 @@ Circuit strings are parsed by `parse_circuit_expression()` in
 def parse_circuit_expression(expr: str):
     safe_namespace = {
         'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
-        'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ
+        'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -442,6 +442,58 @@ R(20) - DQ(1.2e6, 0.57, 5e-2, 8)
 
 Concept from LEVM (Macdonald), where the truncation appears as the DWC
 models with limits U1, U2; see [LEVM_CIRCUITS.md](LEVM_CIRCUITS.md).
+
+### YG - Young-Göhr passive layer
+
+```python
+Z_YG(w) = p/(j*w*C) * ln[(1 + j*w*tau*e^(1/p)) / (1 + j*w*tau)]
+```
+
+A dielectric film whose conductivity penetrates from one side and decays
+exponentially with depth. Where a CPE reports only an exponent, YG reports
+the two quantities the film actually has, so it is the substitute to reach
+for once the origin of the dispersion is known - oxide layers on Fe, Al, Ti
+and Ta, and organic coatings under soaking.
+
+| Parameter | Unit | Default | Description |
+|-----------|------|---------|-------------|
+| `C` | F | 1e-5 | total capacity of the layer, C = eps_0*eps_r*A/d; the high-frequency limit |
+| `p` | - | 0.05 | relative penetration depth delta/d of the conductivity; p << 1 is a strong gradient |
+| `tau` | s | 0.1 | time constant at the site of highest conductivity, tau = eps_0*eps_r*rho(0) |
+
+Three regimes, as with DQ:
+
+| Frequency range | Behaviour |
+|-----------------|-----------|
+| below e^(-1/p)/(2*pi*tau) | real resistance R_dc = p*tau*(e^(1/p) - 1)/C |
+| e^(-1/p)/(2*pi*tau) ... 1/(2*pi*tau) | CPE-like, phase nearly constant |
+| above 1/(2*pi*tau) | capacitive, C |
+
+The middle band is the one the element exists to explain, and Zahner gives a
+closed approximation for its phase, useful as a sanity check:
+
+```python
+phi = -90 deg * (1 - q),    q = 1 / (ln(w*tau) + 1/p)
+```
+
+The two corners are e^(1/p) apart, so for any realistic p the resistive one
+lies decades below any sweep: **R_dc is a model extrapolation, not a measured
+resistance**, and the oxide analysis reports it as such rather than ranking
+elements by it.
+
+p -> 0 degenerates to a plain capacitor, which is why p at its lower bound
+(1e-3) means the parameter is unidentifiable rather than merely small. The
+implementation never forms e^(1/p) as a number - it overflows float64 below
+p = 1/709, inside the bounds - so the impedance stays finite throughout.
+
+```python
+YG(1e-5, 0.05, 0.1)             # Zahner's simulated example
+YG("1e-5", 0.05, 0.1)           # capacitance fixed, rest free
+L(1e-6) - R(20) - YG(1e-5, 0.05, 0.1)
+```
+
+From H. Göhr; see Zahner Analysis manual 11/2023 section 2.3.9 and
+[ZAHNER_ANALYSIS_REVIEW.md](ZAHNER_ANALYSIS_REVIEW.md) section 2.
 
 
 ## Fixed Parameters

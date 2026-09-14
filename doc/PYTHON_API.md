@@ -51,7 +51,7 @@ from eis_analysis import (
     # Oxide analysis
     analyze_oxide_layer,
     # Circuit elements for manual building
-    R, C, Q, L, W, Wo, K, CC,
+    R, C, Q, L, W, Wo, K, CC, DQ, YG,
 )
 
 # 1. Load data
@@ -368,7 +368,7 @@ result = calculate_drt(
 ```python
 from eis_analysis.fitting import (
     # Circuit elements
-    R, C, Q, L, W, Wo, K, CC,
+    R, C, Q, L, W, Wo, K, CC, DQ, YG,
     # Main functions
     fit_equivalent_circuit,
     fit_circuit_multistart,
@@ -655,7 +655,7 @@ All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, defau
 
 ```python
 # Supported elements for analytic Jacobian:
-# R, C, L, G, Q, W, Wo, K, GE, CC
+# R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG
 
 # For unsupported elements, the system automatically switches to numerical:
 result, Z_fit, fig = fit_equivalent_circuit(
@@ -688,6 +688,8 @@ result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
 | GE(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
 | CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |
+| DQ(A, n, tau_min, U) | A [Ohm*s^-n], n, tau_min [s], U | truncated CPE: power-law DRT bounded to tau_min..tau_min*e^U |
+| YG(C, p, tau) | C [F], p, tau [s] | Z = p/(j*omega*C)*ln[(1+j*omega*tau*e^(1/p))/(1+j*omega*tau)] (Young-Göhr) |
 
 **Voigt element analysis from DRT:**
 
