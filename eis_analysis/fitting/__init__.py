@@ -25,6 +25,7 @@ Circuit Elements:
 - GE: Gerischer element for reaction-diffusion (sigma, tau)
 - CC: Cole-Cole dielectric relaxation (C_inf, dC, tau, alpha)
 - DQ: Bounded power-law DRT / truncated CPE (A, n, tau_min, U)
+- YG: Young-Göhr passive layer with an exponential conductivity profile (C, p, tau)
 
 Main Functions:
 - fit_equivalent_circuit: Fit circuit to impedance data
@@ -66,7 +67,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, DQ, CircuitElement
+from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, DQ, YG, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -127,6 +128,7 @@ __all__ = [
     'GE',
     'CC',
     'DQ',
+    'YG',
     'CircuitElement',
 
     # Circuit builders
