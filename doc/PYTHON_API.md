@@ -653,16 +653,31 @@ circuit, params = chain.circuit, chain.initial_params
 
 All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, default), which is faster and more accurate than numerical approximation.
 
-```python
-# Supported elements for analytic Jacobian:
-# R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG
+Every built-in element supplies one: R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG.
 
-# For unsupported elements, the system automatically switches to numerical:
+A custom element that does not is **not** silently downgraded - the fit raises:
+
+```
+RuntimeError: Circuit fitting failed: Analytic Jacobian not implemented for ZZ.
+Use numeric Jacobian (use_analytic_jacobian=False).
+```
+
+`fit_equivalent_circuit` does guard `make_jacobian_function` with a
+`NotImplementedError` fallback, but that call only builds a closure; the
+missing derivative is not reached until `least_squares` evaluates it, well
+past the guard. So the switch has to be made by hand:
+
+```python
 result, Z_fit, fig = fit_equivalent_circuit(
     frequencies, Z, circuit,
-    use_analytic_jacobian=False  # Force numerical Jacobian
+    use_analytic_jacobian=False  # required for an element without a branch
 )
 ```
+
+Note that `compute_significance` has no such switch: it returns `None` when
+any element in the circuit lacks an analytic derivative, so the `S=` column
+disappears from the fit output. Adding a branch in `jacobian.py` is the only
+way to get it back.
 
 **Fixed parameters:**
 
