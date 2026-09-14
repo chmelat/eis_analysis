@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from ..fitting.bounds import PARAMETER_BOUNDS, classify_bound_status
 from ..fitting.circuit import FitResult
-from ..fitting.circuit_elements import R, C, G, Q, K, CC, DQ
+from ..fitting.circuit_elements import R, C, G, Q, K, CC, DQ, YG
 from ..fitting.circuit_builder import Series, Parallel
 from .config import (
     EPSILON_0,
@@ -44,7 +44,7 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', or 'estimate' (HF fallback)
+    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', 'YG', or 'estimate' (HF fallback)
     element_R: Optional[float]  # Associated resistance [Ω] (None for CC)
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters
@@ -137,6 +137,57 @@ def _dq_plateau_notes(
     return []
 
 
+def _yg_window_notes(
+    yg: Dict[str, Any],
+    frequencies: NDArray[np.float64]
+) -> List[str]:
+    """Say which of Young-Göhr's two plateaus the measured window reached.
+
+    The element runs from a capacitive plateau above f_C = 1/(2*pi*tau) to a
+    resistive one below f_R = f_C*e^(-1/p), with the CPE-like band between
+    them. C is the fitted high-frequency limit, so it is measured only if the
+    window reaches above f_C - the same test, and the same edge margin, as the
+    Cole-Cole and DQ notes.
+
+    R_dc is different in kind. f_R lies e^(1/p) below f_C, which for any
+    p <~ 0.1 is dozens of decades under any real sweep, so the note about it
+    is a statement of what the number is - an extrapolation of the model -
+    and not a warning that something went wrong. Phrased that way on purpose.
+
+    Attached to the dominant element only: a YG that lost the selection
+    contributed nothing to the reported thickness.
+    """
+    if frequencies.size == 0:
+        return []
+
+    notes = []
+    f_C, f_R = yg['f_C'], yg['f_R']
+    f_max, f_min = float(np.max(frequencies)), float(np.min(frequencies))
+
+    if f_C > f_max:
+        notes.append(
+            f"YG: the capacitive plateau starts at {f_C:.3g} Hz, above the "
+            f"highest measured frequency {f_max:.3g} Hz - C is an "
+            "extrapolation, and so is any thickness derived from it. Extend "
+            "the sweep upwards to measure it.")
+    elif np.log10(f_max / f_C) < CC_WINDOW_EDGE_MARGIN_DECADES:
+        notes.append(
+            f"YG: the capacitive plateau starts at {f_C:.3g} Hz, less than "
+            f"{CC_WINDOW_EDGE_MARGIN_DECADES:.0f} decade below the highest "
+            f"measured frequency {f_max:.3g} Hz - only its edge is measured, "
+            "so C leans on the fitted p. Check the confidence interval on p_YG.")
+
+    if f_R > 0 and f_R < f_min:
+        notes.append(
+            f"YG: R_dc = {yg['R_dc']:.3g} Ohm is the omega -> 0 limit of the "
+            f"model, reached below {f_R:.3g} Hz - "
+            f"{np.log10(f_min / f_R):.0f} decades under the lowest measured "
+            f"frequency {f_min:.3g} Hz. Expected for an exponential "
+            "conductivity profile, and the reason it is not used to rank "
+            "elements; read it as a model value, not a measured resistance.")
+    return notes
+
+
 def _cc_capacitance_notes(
     cc: Dict[str, Any],
     frequencies: NDArray[np.float64]
@@ -216,7 +267,7 @@ def _find_capacitive_elements(
     warnings: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Find every capacitive element in the circuit: C, Q, K, CC and DQ.
+    Find every capacitive element in the circuit: C, Q, K, CC, DQ and YG.
 
     A capacitive element is a candidate on its own account, whether or not it
     shares a parallel combination with a resistance. Requiring a parallel R -
@@ -342,6 +393,35 @@ def _find_capacitive_elements(
                 'U': node.U,
             })
 
+        elif isinstance(node, YG):
+            # The film capacitance is a fitted parameter and the exact
+            # omega -> inf limit of the element, so it needs no Hsu-Mansfeld /
+            # Brug conversion - the reason YG ranks with C, K and DQ, not
+            # with Q. Whether that limit is inside the window is checked
+            # later, on the winner alone (_yg_window_notes).
+            results.append({
+                'type': 'YG',
+                # NOT node.R_dc. The DC resistance of an exponential
+                # conductivity profile is e^(1/p) times below the capacitive
+                # corner - 2.7e45 Ohm for Zahner's own p = 0.01 example - so
+                # it is an extrapolation of the model, not a fitted arc, and
+                # it would win the largest-R barrier heuristic every time.
+                # It travels as R_dc instead, for reporting only. This is a
+                # deliberate departure from DQ, whose R_pol is a measurable
+                # arc and serves that heuristic correctly.
+                'R': R_parallel,
+                'C': node.C,
+                # 1.0, like CC and DQ: above 1/(2*pi*tau) the element *is* a
+                # capacitor, so C is a limit of the model rather than a
+                # conversion whose reliability decays with an exponent.
+                'n': 1.0,
+                'tau': node.tau,
+                'p': node.p,
+                'R_dc': node.R_dc,
+                'f_C': node.characteristic_freq,
+                'f_R': node.dc_corner_freq,
+            })
+
         elif isinstance(node, CC):
             C_inf_val, dC_val = node.params[0], node.params[1]
             tau_val, alpha_val = node.params[2], node.params[3]
@@ -397,9 +477,9 @@ def _select_dielectric_element(
        degenerate case (dC = 0), so if both somehow appear the general model
        wins; preferring the simpler element over the more general one would be
        backwards.
-    2. `C`, `K` and `DQ` - the capacitance is a fitted parameter (`DQ`'s
-       C_eff is an exact limit of the fitted distribution), no CPE
-       conversion in between.
+    2. `C`, `K`, `DQ` and `YG` - the capacitance is a fitted parameter
+       (`DQ`'s C_eff and `YG`'s C are exact limits of the fitted model), no
+       CPE conversion in between.
     3. `Q` - a near-ideal CPE, whose capacitance still needs the
        Hsu-Mansfeld/Brug model on top of the fit.
 
@@ -423,7 +503,7 @@ def _select_dielectric_element(
                           "relaxation explicitly; a plain C is its degenerate "
                           "case (ΔC = 0), so the general model wins")
 
-    exact = [e for e in candidates if e['type'] in ('C', 'K', 'DQ')]
+    exact = [e for e in candidates if e['type'] in ('C', 'K', 'DQ', 'YG')]
     tier = exact if exact else candidates
     with_R = [e for e in tier if e['R'] is not None and e['R'] > 0]
 
@@ -564,11 +644,11 @@ def _extract_capacitance(
     if fit_result is not None:
         circuit = fit_result.circuit
 
-        # Every C, Q, K, CC and DQ in the circuit, parallel resistance or not
+        # Every C, Q, K, CC, DQ and YG in the circuit, parallel R or not
         elements = _find_capacitive_elements(circuit, frequencies, warnings)
 
         if not elements:
-            warnings.append("No capacitive element (C, Q, K, CC, DQ) found in "
+            warnings.append("No capacitive element (C, Q, K, CC, DQ, YG) found in "
                             "circuit - falling back to high-frequency estimate")
             fit_result = None
         else:
@@ -622,7 +702,7 @@ def _extract_capacitance(
 
                 # Get capacitance
                 C_eff_brug = None
-                if dominant['type'] in ('C', 'K', 'CC', 'DQ'):
+                if dominant['type'] in ('C', 'K', 'CC', 'DQ', 'YG'):
                     # For CC this is exact, not an effective capacitance: both
                     # C_s = C_inf + dC (the omega -> 0 limit of C*(omega), for
                     # any alpha) and C_inf (the omega -> inf limit) are model
@@ -675,6 +755,8 @@ def _extract_capacitance(
                     warnings.extend(_cc_capacitance_notes(dominant, frequencies))
                 if dominant['type'] == 'DQ':
                     warnings.extend(_dq_plateau_notes(dominant, frequencies))
+                if dominant['type'] == 'YG':
+                    warnings.extend(_yg_window_notes(dominant, frequencies))
                 if C_eff_brug is not None:
                     # Ratio is exactly (1 + R_ct/R_s)^((1-n)/n) and is always
                     # >= 1 for n <= 1; a large value means the pair no longer
@@ -776,6 +858,24 @@ def _extract_capacitance(
     }
 
 
+def _add_penetration_depth(
+    element_params: Dict[str, Any],
+    thickness_nm: float
+) -> None:
+    """Turn Young-Göhr's p into the penetration depth it stands for, in nm.
+
+    p = delta/d is the ratio the fit returns; the depth itself needs the
+    thickness, which only exists once the capacitance has been through the
+    parallel-plate model. Mutates in place, on both the thickness and the
+    permittivity paths - they compute d differently but need the same number.
+
+    This is the quantity the element exists to deliver: how far the
+    conductivity reaches into the film. The CPE route has no equivalent.
+    """
+    if 'p' in element_params and np.isfinite(thickness_nm):
+        element_params['delta_nm'] = element_params['p'] * thickness_nm
+
+
 def analyze_oxide_layer(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
@@ -849,6 +949,8 @@ def analyze_oxide_layer(
     d_brug_nm = None
     if C_specific_brug is not None:
         d_brug_nm = EPSILON_0 * epsilon_r / C_specific_brug * 1e7
+
+    _add_penetration_depth(extracted['element_params'], d_nm)
 
     return OxideAnalysisResult(
         capacitance=extracted['C_eff'],
@@ -944,6 +1046,8 @@ def estimate_permittivity(
     eps_r_brug = None
     if C_specific_brug is not None:
         eps_r_brug = d_cm * C_specific_brug / EPSILON_0
+
+    _add_penetration_depth(extracted['element_params'], thickness_nm)
 
     return OxideAnalysisResult(
         capacitance=extracted['C_eff'],

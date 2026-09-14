@@ -114,6 +114,10 @@ def _print_candidates(oxide: OxideAnalysisResult) -> None:
                         f"C_eff = {e['C']:.3e} F, n = {e['n_power']:.3f}, "
                         f"tau = {e['tau_min']:.2e}..{e['tau']:.2e} s "
                         f"(U = {e['U']:.2f})")
+        elif e['type'] == 'YG':
+            logger.info(f"  [{i}] YG: {R_str}, "
+                        f"C = {e['C']:.3e} F, p = {e['p']:.4f}, "
+                        f"tau = {e['tau']:.2e} s")
         else:
             tau_str = (f", tau = {e['tau']:.2e} s" if e['tau'] is not None
                        else "")
@@ -168,6 +172,17 @@ def _print_oxide_section(oxide: Optional[OxideAnalysisResult],
             cc_suffix = ("  (C_inf, high-frequency limit)"
                          if params['C_regime'] == 'high_frequency'
                          else "  (static, C_inf + ΔC)")
+        elif oxide.element_type == 'YG':
+            logger.info(f"  Penetration p:      {params['p']:.4f}  (δ/d)")
+            if 'delta_nm' in params:
+                logger.info(f"  Penetration δ:      "
+                            f"{params['delta_nm']:.2f} nm")
+            # Not printed as a resistance among resistances: R_dc is the
+            # omega -> 0 limit of the model, decades below any real sweep,
+            # and saying so beside the number is the whole point.
+            logger.info(f"  R_dc (model):       {params['R_dc']:.3e} Ω  "
+                        f"(reached below {params['f_R']:.2e} Hz)")
+            cc_suffix = "  (high-frequency limit)"
         logger.info(f"  Capacitance:        {oxide.capacitance:.3e} F{cc_suffix}")
         if oxide.capacitance_brug is not None:
             logger.info(f"  C (Brug, 2D):       {oxide.capacitance_brug:.3e} F "

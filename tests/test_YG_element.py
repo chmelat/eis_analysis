@@ -8,6 +8,8 @@ from eis_analysis.fitting import C, R, YG, fit_equivalent_circuit
 from eis_analysis.fitting.bounds import (
     classify_bound_status, generate_simple_bounds, log_scale_ci_mask)
 from eis_analysis.cli.utils import parse_circuit_expression
+from eis_analysis.analysis.oxide import analyze_oxide_layer
+from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.circuit_elements.composite import YG_P_MIN
 from eis_analysis.fitting.jacobian import element_jacobian
 
@@ -295,3 +297,106 @@ def test_yg_round_trip_fit_recovers_the_layer(freq, yg_params):
     assert C_fit == pytest.approx(C_val, rel=0.05)
     assert p_fit == pytest.approx(p_val, rel=0.10)
     assert tau_fit == pytest.approx(tau_val, rel=0.20)
+
+
+# --- 7. Oxide analysis ---
+
+def _fit_result(circuit):
+    """Minimal FitResult carrying a circuit, as the oxide analysis wants it."""
+    params = np.array(circuit.get_all_params())
+    return FitResult(circuit=circuit, params_opt=params,
+                     params_stderr=np.zeros_like(params), fit_error_rel=0.1)
+
+
+def test_yg_feeds_the_oxide_analysis(freq, yg_params):
+    """The thickness must come off YG's C directly, with no CPE conversion.
+
+    This is the reason the element was added. A Q in the same place goes
+    through Hsu-Mansfeld and Brug - two competing formulas whose divergence
+    the analysis then has to police - while YG's C is the fitted
+    high-frequency limit of the model.
+    """
+    C_val, p_val, tau_val = yg_params
+    circuit = R(20) - YG(*yg_params)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_type == 'YG'
+    assert oxide.element_params['C'] == pytest.approx(C_val, rel=1e-12)
+    assert oxide.element_params['p'] == pytest.approx(p_val, rel=1e-12)
+    assert oxide.capacitance == pytest.approx(C_val, rel=1e-12)
+
+    # No CPE conversion happened, so there is no Brug value to compare against
+    assert oxide.capacitance_brug is None
+
+    expected_d = 8.854e-14 * 22.0 * 1.0 / C_val          # cm
+    assert oxide.thickness_nm == pytest.approx(expected_d * 1e7, rel=1e-3)
+
+
+def test_yg_reports_the_penetration_depth(freq, yg_params):
+    """delta = p * d, the quantity the CPE route cannot produce at all."""
+    circuit = R(20) - YG(*yg_params)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_params['delta_nm'] == pytest.approx(
+        yg_params[1] * oxide.thickness_nm, rel=1e-12)
+
+
+def test_yg_R_dc_does_not_win_the_barrier_heuristic(freq, yg_params):
+    """R_dc must stay out of the element ranking, however large it is.
+
+    For Zahner's p = 0.01 the DC limit is ~1e45 Ohm. Fed to the
+    largest-R-is-the-barrier heuristic it would beat every real resistance
+    in any circuit, so the reported 'R' is the parallel resistance - here
+    none - and R_dc travels separately.
+    """
+    C_val, _, tau_val = yg_params
+    circuit = R(20) - YG(C_val, 0.01, tau_val)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert oxide.element_R is None
+    assert oxide.element_params['R_dc'] > 1e40
+    assert oxide.element_type == 'YG'
+
+
+def test_yg_warns_when_the_capacitive_plateau_is_outside_the_window():
+    """C is only measured above 1/(2*pi*tau); say so when the sweep is not.
+
+    The corner is 1/(2*pi*tau), so a fast relaxation puts it above a slow
+    sweep: tau = 0.1 ms sits at 1.6 kHz while the window stops at 1 Hz, and
+    C - with the thickness that follows from it - is an extrapolation.
+    """
+    freq_low = np.logspace(0, -3, 30)
+    circuit = R(20) - YG(1e-5, 0.05, 1e-4)
+    Z = circuit.impedance(freq_low, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq_low, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert any('capacitive plateau' in w and 'extrapolation' in w
+               for w in oxide.warnings), oxide.warnings
+
+
+def test_yg_states_that_R_dc_is_a_model_extrapolation(freq, yg_params):
+    """The R_dc note is a statement of what the number is, not an alarm.
+
+    For any realistic p the resistive corner lies dozens of decades under
+    the sweep, so this note fires essentially always and must read as
+    expected behaviour.
+    """
+    circuit = R(20) - YG(*yg_params)
+    Z = circuit.impedance(freq, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(circuit))
+
+    assert any('R_dc' in w and 'model value' in w for w in oxide.warnings), \
+        oxide.warnings
