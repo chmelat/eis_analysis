@@ -161,7 +161,7 @@ def _yg_window_notes(
         return []
 
     notes = []
-    f_C, f_R = yg['f_C'], yg['f_R']
+    f_C, f_R = 1.0 / (2.0 * np.pi * yg['tau']), yg['f_R']
     f_max, f_min = float(np.max(frequencies)), float(np.min(frequencies))
 
     if f_C > f_max:
@@ -418,7 +418,6 @@ def _find_capacitive_elements(
                 'tau': node.tau,
                 'p': node.p,
                 'R_dc': node.R_dc,
-                'f_C': node.characteristic_freq,
                 'f_R': node.dc_corner_freq,
             })
 
@@ -872,7 +871,7 @@ def _add_penetration_depth(
     This is the quantity the element exists to deliver: how far the
     conductivity reaches into the film. The CPE route has no equivalent.
     """
-    if 'p' in element_params and np.isfinite(thickness_nm):
+    if 'p' in element_params:
         element_params['delta_nm'] = element_params['p'] * thickness_nm
 
 

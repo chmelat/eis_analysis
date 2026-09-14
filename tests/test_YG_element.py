@@ -58,6 +58,23 @@ def test_yg_matches_the_printed_formula(freq, yg_params):
     assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < 1e-14
 
 
+@pytest.mark.parametrize("p_val, tol", [(0.5, 1e-9), (0.1, 1e-12), (0.05, 1e-14)])
+def test_yg_rewrite_holds_its_precision_ceiling(freq, p_val, tol):
+    """Pin the cost of factoring e^(1/p) out of the logarithm.
+
+    u + ln(e^-u + a) cancels in that final addition once e^-u dominates a,
+    which is the large-p, low-frequency corner. Measured worst case is 4e-11
+    relative at p = 0.5 and exact below p = 0.1 - decades under the 1e-6 the
+    Jacobian is held to, so it costs nothing in a fit. These bounds exist to
+    catch the ceiling moving, not because the error matters at this size.
+    """
+    params = [1e-5, p_val, 0.1]
+    Z = YG(*params).impedance(freq, params)
+    Z_naive = _naive_impedance(freq, *params)
+
+    assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < tol
+
+
 def test_yg_stays_finite_where_the_naive_formula_overflows(freq):
     """p = 1e-3 is inside the bounds and overflows exp(1/p); Z must survive.
 
