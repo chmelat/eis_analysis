@@ -4,6 +4,57 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.37.0 (2026-09-14)
+
+### Added
+
+- **Young-Göhr element `YG(C, p, tau)`, a passive layer with an exponentially
+  decaying conductivity.** `Z = p/(jwC)*ln[(1 + jwt*e^(1/p))/(1 + jwt)]`. The
+  physically consistent substitute for a CPE once the origin of the dispersion
+  is known: oxide layers on Fe, Al, Ti and Ta, and organic coatings under
+  soaking. Where a CPE reports an exponent, `YG` reports the capacitance `C` -
+  its high-frequency limit - and the relative penetration depth `p = delta/d`.
+  Full element: analytic Jacobian, registered bounds, `--circuit` parsing and
+  significance. From H. Göhr; Zahner Analysis manual 11/2023 section 2.3.9,
+  reviewed in `doc/ZAHNER_ANALYSIS_REVIEW.md` section 2.
+
+- **The oxide analysis reads the film capacitance straight off a `YG`.** `C` is
+  a fitted parameter and an exact limit of the model, so the thickness comes
+  out of the plate-capacitor formula with no Hsu-Mansfeld/Brug conversion in
+  between - and no divergence between two competing formulas to police. That
+  makes `YG` an independent check on the CPE route rather than a repeat of it:
+  where the two disagree on the same spectrum, the disagreement is the
+  conversion, not the data. It also yields `delta = p*d`, how far the
+  conductivity reaches into the film, which the CPE route cannot produce.
+
+### Notes
+
+- `e^(1/p)` overflows float64 below `p = 1/709`, which is *inside* the
+  parameter's own bounds, so the impedance is never computed as printed:
+  `1/p` is only ever added to a logarithm. A naive implementation returns
+  `inf`/`nan` there, and `least_squares` stops on the resulting residuals.
+  That threshold bounds only the closed forms that do build the exponential,
+  `R_dc` and `dc_corner_freq`, which saturate to `inf` and `0` below it. The
+  degeneracy short circuit sits far lower, at `p = 1e-300`, where `1/p` stops
+  being representable - so no band inside the fitting box is flattened to an
+  ideal capacitor with a zero Jacobian.
+
+- `R_dc = p*tau*(e^(1/p) - 1)/C` is the correct `omega -> 0` limit but sits
+  `e^(1/p)` below the capacitive corner - 2.7e45 Ohm for Zahner's own
+  `p = 0.01`, dozens of decades outside any sweep. It is therefore **not** used
+  to rank elements in the largest-R barrier heuristic, which it would win in
+  any circuit; it is reported separately, beside the frequency at which it
+  would be reached. This is a deliberate departure from `DQ`, whose `R_pol` is
+  a measurable arc and serves that heuristic correctly.
+
+- `p` is bounded to `(1e-3, 0.5)` and treated as linear, like `n` and
+  `alpha_CC`. Below 1e-3 the element degenerates to a plain capacitor and `p`
+  stops being identifiable; the upper bound of 0.5 also keeps
+  `classify_bound_status`'s 1%-of-range threshold at 0.006, clear of Zahner's
+  well determined `p = 0.01`.
+
+---
+
 ## Version 0.36.0 (2026-09-13)
 
 ### Added
