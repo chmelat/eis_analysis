@@ -6,11 +6,13 @@ import pytest
 
 from eis_analysis.fitting import C, R, YG, fit_equivalent_circuit
 from eis_analysis.fitting.bounds import (
-    classify_bound_status, generate_simple_bounds, log_scale_ci_mask)
+    PARAMETER_BOUNDS, classify_bound_status, generate_simple_bounds,
+    log_scale_ci_mask)
 from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.analysis.oxide import analyze_oxide_layer
 from eis_analysis.fitting.circuit import FitResult
-from eis_analysis.fitting.circuit_elements.composite import YG_P_MIN
+from eis_analysis.fitting.circuit_elements.composite import (
+    YG_P_DEGENERATE, YG_P_MIN)
 from eis_analysis.fitting.jacobian import element_jacobian
 
 
@@ -75,19 +77,22 @@ def test_yg_rewrite_holds_its_precision_ceiling(freq, p_val, tol):
     assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < tol
 
 
-def test_yg_stays_finite_where_the_naive_formula_overflows(freq):
-    """p = 1e-3 is inside the bounds and overflows exp(1/p); Z must survive.
+@pytest.mark.parametrize("p_val", [1.4e-3, 1.2e-3, 1e-3, 1e-8, 1e-200])
+def test_yg_stays_finite_where_the_naive_formula_overflows(freq, p_val):
+    """Z must survive every p where exp(1/p) overflows, not just some.
 
-    This is the whole reason `_yg_log_terms` exists. The naive form returns
-    inf/nan here, so a regression would be silent in a fit: least_squares
-    sees nan residuals and stops.
+    This is the whole reason `_yg_log_terms` exists, so the values tested
+    must actually reach it: they are all above YG_P_DEGENERATE, where the
+    ideal-capacitor short circuit would answer instead and the assertion
+    would pass even with the overflow-free rewrite deleted.
     """
-    yg = YG(1e-5, 1e-3, 0.1)
-    Z = yg.impedance(freq, [1e-5, 1e-3, 0.1])
-    assert np.all(np.isfinite(Z))
+    assert p_val > YG_P_DEGENERATE, "would hit the guard, not the rewrite"
+    params = [1e-5, p_val, 0.1]
+
+    assert np.all(np.isfinite(YG(*params).impedance(freq, params)))
 
     with np.errstate(over='ignore', invalid='ignore'):
-        Z_naive = _naive_impedance(freq, 1e-5, 1e-3, 0.1)
+        Z_naive = _naive_impedance(freq, *params)
     assert not np.all(np.isfinite(Z_naive)), "oracle no longer overflows"
 
 
@@ -118,18 +123,43 @@ def test_yg_low_frequency_limit_is_R_dc(yg_params):
 def test_yg_degenerates_to_an_ideal_capacitor_as_p_vanishes(freq, yg_params):
     """p -> 0 is a plain C: zero penetration depth, no conductivity at all.
 
-    Checked on both sides of YG_P_MIN so the explicit guard and the general
-    branch agree - the guard must be the limit, not a different element.
+    Checked on both sides of YG_P_DEGENERATE so the explicit guard and the
+    general branch agree - the guard must be the limit the computed branch
+    converges to, not a different element.
     """
     C_val = yg_params[0]
     Z_ideal = C(C_val).impedance(freq, [C_val])
 
-    Z_above = YG(C_val, 1e-3, 0.1).impedance(freq, [C_val, 1e-3, 0.1])
-    assert np.max(np.abs(Z_above - Z_ideal) / np.abs(Z_ideal)) < 0.02
+    # computed by _yg_log_terms, far above the guard
+    Z_above = YG(C_val, 1e-100, 0.1).impedance(freq, [C_val, 1e-100, 0.1])
+    assert np.max(np.abs(Z_above - Z_ideal) / np.abs(Z_ideal)) < 1e-14
 
-    p_below = YG_P_MIN / 2
+    p_below = YG_P_DEGENERATE / 2
     Z_below = YG(C_val, p_below, 0.1).impedance(freq, [C_val, p_below, 0.1])
     assert np.allclose(Z_below, Z_ideal, rtol=1e-15)
+
+
+def test_yg_has_no_flat_band_inside_its_own_bounds(freq):
+    """Every legal p must move the impedance, or the fit silently freezes.
+
+    The degeneracy guard was set at YG_P_MIN = 1/709 = 1.41e-3, which sits
+    *above* p_YG's lower bound of 1e-3, so the whole band [1e-3, 1.41e-3]
+    returned an ideal capacitor with zero dZ/dp and dZ/dtau: least_squares
+    reported convergence with p and tau still at their initial guess and
+    infinite stderr. Walk the bottom of the box and require real dependence.
+    """
+    lower = PARAMETER_BOUNDS['p_YG'][0]
+    Z_ideal = C(1e-5).impedance(freq, [1e-5])
+
+    for p_val in np.linspace(lower, 5e-3, 15):
+        params = [1e-5, float(p_val), 0.1]
+        Z = YG(*params).impedance(freq, params)
+        assert np.max(np.abs(Z - Z_ideal) / np.abs(Z_ideal)) > 1e-3, \
+            f"p = {p_val:g} is inside the bounds but returns a plain capacitor"
+
+        _, dZ = element_jacobian(YG(*params), freq, params)
+        assert np.any(dZ[:, 1] != 0), f"dZ/dp identically zero at p = {p_val:g}"
+        assert np.any(dZ[:, 2] != 0), f"dZ/dtau identically zero at p = {p_val:g}"
 
 
 def test_yg_phase_follows_zahners_cpe_approximation(yg_params):
@@ -164,13 +194,32 @@ def test_yg_corner_frequencies_bracket_the_cpe_band(yg_params):
 
 
 def test_yg_R_dc_is_infinite_at_the_degenerate_p(yg_params):
-    """p below YG_P_MIN is an ideal capacitor: no DC path, R = inf, not nan.
+    """Below YG_P_MIN there is no DC path: R = inf, not nan.
 
-    Reachable despite the bounds - YG(1e-5, "5e-4", 0.1) fixes p by string
-    and skips them.
+    R_dc and dc_corner_freq saturate over the same range and must agree:
+    infinite resistance reached at zero frequency means never reached.
     """
-    assert YG(1e-5, YG_P_MIN / 2, 0.1).R_dc == float('inf')
+    yg = YG(1e-5, YG_P_MIN / 2, 0.1)
+    assert yg.R_dc == float('inf')
+    assert yg.dc_corner_freq == 0.0
     assert np.isfinite(YG(*yg_params).R_dc)
+
+
+@pytest.mark.parametrize("p_str", ["0", "-0.01"])
+def test_yg_corner_frequencies_survive_a_string_fixed_p(p_str):
+    """A string-fixed p skips the bounds; nothing may raise on it.
+
+    dc_corner_freq divided by p unguarded, so YG(1e-5, "0", 0.1) raised
+    ZeroDivisionError out of the oxide analysis' element walk - the whole
+    section died on a value the impedance itself handles. A negative p was
+    quieter and worse: exp(+1/|p|) put the resistive corner *above* the
+    capacitive one.
+    """
+    yg = YG(1e-5, p_str, 0.1)
+    assert yg.dc_corner_freq == 0.0
+    assert yg.dc_corner_freq < yg.characteristic_freq
+    assert np.all(np.isfinite(yg.impedance(np.array([1.0, 1e3]),
+                                           yg.get_all_params())))
 
 
 # --- 3. Construction, repr, fixed parameters ---
@@ -221,13 +270,13 @@ def test_yg_jacobian_matches_central_differences(freq, p_val):
 
 
 def test_yg_jacobian_is_finite_at_the_degenerate_p(freq):
-    """Below YG_P_MIN the element is a capacitor: dZ/dp and dZ/dtau are zero.
+    """Below YG_P_DEGENERATE the element is a capacitor: dZ/dp, dZ/dtau are 0.
 
     Not nan. least_squares treats a nan column as a failure of the whole
     fit, so the guard has to produce the limit here too, exactly as
     `impedance` does.
     """
-    params = [1e-5, YG_P_MIN / 2, 0.1]
+    params = [1e-5, YG_P_DEGENERATE / 2, 0.1]
     Z, dZ = element_jacobian(YG(*params), freq, params)
 
     assert np.all(np.isfinite(dZ))

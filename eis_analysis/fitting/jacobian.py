@@ -60,7 +60,7 @@ from numpy.typing import NDArray
 
 from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG, CircuitElement
 from .circuit_elements.distributed import dq_quadrature, _GL_W
-from .circuit_elements.composite import _yg_log_terms, YG_P_MIN
+from .circuit_elements.composite import _yg_log_terms, YG_P_DEGENERATE
 from .circuit_builder import Series, Parallel, CompositeCircuit
 
 
@@ -262,10 +262,11 @@ def element_jacobian(
     if isinstance(element, YG):
         C_val, p_val, tau_val = params[0], params[1], params[2]
 
-        if p_val <= YG_P_MIN:
+        if p_val <= YG_P_DEGENERATE:
             # The p -> 0 limit is an ideal capacitor, so the element no longer
-            # depends on p or tau. Matching YG.impedance's own guard; without
-            # it e^(1/p) overflows and every column comes back nan.
+            # depends on p or tau. Matching YG.impedance's own guard exactly:
+            # a threshold above it would zero these columns for values the
+            # impedance still varies over, and the fit would stall there.
             Z = 1 / (1j * omega * C_val)
             zeros = np.zeros_like(Z)
             return Z, np.column_stack([-Z / C_val, zeros, zeros])

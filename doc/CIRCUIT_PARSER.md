@@ -483,8 +483,11 @@ elements by it.
 
 p -> 0 degenerates to a plain capacitor, which is why p at its lower bound
 (1e-3) means the parameter is unidentifiable rather than merely small. The
-implementation never forms e^(1/p) as a number - it overflows float64 below
-p = 1/709, inside the bounds - so the impedance stays finite throughout.
+approach to that limit is continuous: the implementation never forms e^(1/p)
+as a number - it overflows float64 below p = 1/709, which is *inside* the
+bounds - so every legal p is evaluated on its merits, and the ideal-capacitor
+short circuit only takes over below p = 1e-300, where 1/p stops being
+representable at all.
 
 ```python
 YG(1e-5, 0.05, 0.1)             # Zahner's simulated example

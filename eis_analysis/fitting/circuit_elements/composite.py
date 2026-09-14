@@ -204,9 +204,23 @@ class GE(CircuitElement):
 
 # Above 1/p = 709 the factor exp(1/p) overflows float64 (exp(709) ~ 8e307,
 # exp(710) = inf). `_yg_log_terms` never forms that factor, so the impedance
-# itself stays finite below this p; the constant marks where YG's remaining
-# closed forms (R_dc) and the p -> 0 degeneracy take over instead.
+# is unaffected; this bounds only the closed forms that do build it, R_dc
+# and dc_corner_freq, which saturate to inf and 0 below this p.
+#
+# It is NOT the degeneracy threshold. 1/709 = 1.41e-3 sits *above* p_YG's
+# lower bound of 1e-3, so treating it as one made a legal band of the
+# fitting box return an ideal capacitor with zero dZ/dp and dZ/dtau,
+# freezing p and tau at their initial guess with infinite stderr.
 YG_P_MIN = 1.0 / 709.0
+
+# Below this the element genuinely is an ideal capacitor, because 1/p stops
+# being representable: p = 0 raises, and a subnormal p gives 1/p = inf and
+# hence 0 * inf = nan. 1/1e-300 = 1e300 is still finite, and `_yg_log_terms`
+# is accurate to 2e-16 against the ideal-capacitor limit there, so nothing
+# above this needs a short circuit. Reachable despite the bounds: a
+# string-fixed parameter, YG(1e-5, "0", 0.1), skips them entirely.
+# Non-positive p lands here too, which is what `<=` is for.
+YG_P_DEGENERATE = 1e-300
 
 
 def _yg_log_terms(
@@ -290,7 +304,9 @@ class YG(CircuitElement):
       band the element exists to explain.
     - p -> 0:       Z -> 1/(jωC). The model degenerates to a plain capacitor
       and p and τ stop being identifiable, which is why p sitting at its
-      lower bound is worth reporting.
+      lower bound is worth reporting. The approach is continuous: the
+      impedance is evaluated normally down to p = 1e-300 and only then
+      short-circuits, so no band inside the bounds is flattened.
 
     Zahner gives a closed approximation for the phase in that middle band,
     useful as a sanity check rather than as a definition:
@@ -330,11 +346,9 @@ class YG(CircuitElement):
                   params: List[float]) -> NDArray[np.complex128]:
         C_val, p_val, tau_val = params[0], params[1], params[2]
         omega = 2 * np.pi * freq
-        if p_val <= YG_P_MIN:
-            # The p -> 0 limit, an ideal capacitor. Reachable despite the
-            # bounds: a string-fixed parameter, YG(1e-5, "5e-4", 0.1), skips
-            # them entirely. Without this the element would return nan there
-            # (0 · inf) instead of its own limit.
+        if p_val <= YG_P_DEGENERATE:
+            # The p -> 0 limit, an ideal capacitor. Without this the element
+            # would raise on p = 0 and return nan (0 · inf) just below it.
             return 1 / (1j * omega * C_val)
         t1, t2 = _yg_log_terms(omega, p_val, tau_val)
         return p_val / (1j * omega * C_val) * (t1 - t2)
@@ -352,9 +366,11 @@ class YG(CircuitElement):
     def R_dc(self) -> float:
         """DC resistance of the layer, R = p·τ·(e^(1/p) - 1)/C [Ω].
 
-        The omega -> 0 limit of the impedance. Returns inf for p at or below
-        YG_P_MIN, where e^(1/p) overflows float64 and the element is a pure
-        capacitor with no DC path - the same value the limit approaches.
+        The omega -> 0 limit of the impedance. Saturates to inf at or below
+        YG_P_MIN, where e^(1/p) overflows float64 - the honest answer, since
+        the DC plateau is then unreachable at any finite frequency
+        (`dc_corner_freq` returns 0.0 over exactly the same range). Unlike
+        the impedance, this closed form genuinely cannot be evaluated there.
 
         Almost always an extrapolation: it is only measured below
         `dc_corner_freq`, which sits e^(1/p) times under the capacitive
@@ -374,7 +390,12 @@ class YG(CircuitElement):
     def dc_corner_freq(self) -> float:
         """Resistive corner f = e^(-1/p)/(2πτ) [Hz]; below it the element is R_dc.
 
-        Underflows to 0.0 for very small p, which is the correct statement:
-        no finite frequency reaches the DC plateau.
+        Returns 0.0 at or below YG_P_MIN - no finite frequency reaches the
+        DC plateau - which is where e^(-1/p) underflows anyway, and pairs
+        with R_dc = inf over the same range. The guard also covers p = 0,
+        which would otherwise raise, and negative p, which would otherwise
+        put the resistive corner *above* the capacitive one.
         """
+        if self.p <= YG_P_MIN:
+            return 0.0
         return float(self.characteristic_freq * np.exp(-1.0 / self.p))
