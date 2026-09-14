@@ -99,93 +99,83 @@ def _cc_capacitance_regime(tau: float, frequencies: NDArray[np.float64]) -> str:
     return 'high_frequency' if f_char < float(np.min(frequencies)) else 'static'
 
 
-def _dq_plateau_notes(
-    dq: Dict[str, Any],
-    frequencies: NDArray[np.float64]
+def _plateau_notes(
+    label: str,
+    tau_cap: float,
+    frequencies: NDArray[np.float64],
+    capacitance: str,
+    leans_on: str
 ) -> List[str]:
-    """Say whether DQ's capacitive plateau was measured or extrapolated.
+    """Say whether an element's capacitive plateau was measured or extrapolated.
 
-    C_eff is the omega -> inf limit of the element, reached above
-    f_cap = 1/(2*pi*tau_min). If that lies above the measured window the
-    capacitance - and every thickness or permittivity from it - is an
-    extrapolation; if it sits within the last decade of the window, only a
-    sliver of the plateau was measured. Same two tests, and the same edge
-    margin, as the Cole-Cole notes.
+    Every element whose capacitance is the omega -> inf limit of a fitted
+    model - DQ above 1/tau_min, YG above 1/(2*pi*tau) - is exact only where
+    the window reaches that plateau. If f_cap lies above the window the
+    capacitance, and every thickness or permittivity from it, is an
+    extrapolation; if it sits within the last decade, only a sliver was
+    measured and the value leans on whichever parameter shapes the approach.
+    Same two tests, and the same edge margin, as the Cole-Cole notes.
 
-    Attached to the dominant element only: a DQ that lost the selection
+    Attached to the dominant element only: one that lost the selection
     contributed nothing to the reported thickness, and warning about its
     capacitance would point the reader at the wrong element.
+
+    Parameters
+    ----------
+    label : str
+        Element symbol, opening each message.
+    tau_cap : float
+        Time constant of the plateau's corner [s]; the element is capacitive
+        above 1/(2*pi*tau_cap). Taken rather than the frequency so that a
+        non-positive tau is rejected before the division, not after it.
+    frequencies : ndarray
+        The measured window.
+    capacitance : str
+        How the element names its capacitance, e.g. 'C_eff' or 'C'.
+    leans_on : str
+        What the edge case leaves the value resting on, as a sentence tail.
     """
-    tau_min = dq['tau_min']
-    if tau_min <= 0 or frequencies.size == 0:
+    if tau_cap <= 0 or frequencies.size == 0:
         return []
 
-    f_cap = 1.0 / (2.0 * np.pi * tau_min)
+    f_cap = 1.0 / (2.0 * np.pi * tau_cap)
     f_max = float(np.max(frequencies))
 
     if f_cap > f_max:
-        return [f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, above the "
-                f"highest measured frequency {f_max:.3g} Hz - C_eff is an "
-                "extrapolation, and so is any thickness derived from it. Extend "
-                "the sweep upwards to measure it."]
+        return [f"{label}: the capacitive plateau starts at {f_cap:.3g} Hz, above "
+                f"the highest measured frequency {f_max:.3g} Hz - {capacitance} "
+                "is an extrapolation, and so is any thickness derived from it. "
+                "Extend the sweep upwards to measure it."]
     if np.log10(f_max / f_cap) < CC_WINDOW_EDGE_MARGIN_DECADES:
-        return [f"DQ: the capacitive plateau starts at {f_cap:.3g} Hz, less than "
-                f"{CC_WINDOW_EDGE_MARGIN_DECADES:.0f} decade below the highest "
-                f"measured frequency {f_max:.3g} Hz - only its edge is measured, "
-                "so C_eff leans on the fitted power law. Check the confidence "
-                "interval on tau_DQ."]
+        return [f"{label}: the capacitive plateau starts at {f_cap:.3g} Hz, less "
+                f"than {CC_WINDOW_EDGE_MARGIN_DECADES:.0f} decade below the "
+                f"highest measured frequency {f_max:.3g} Hz - only its edge is "
+                f"measured, so {capacitance} {leans_on}"]
     return []
 
 
-def _yg_window_notes(
+def _yg_R_dc_note(
     yg: Dict[str, Any],
     frequencies: NDArray[np.float64]
 ) -> List[str]:
-    """Say which of Young-Göhr's two plateaus the measured window reached.
+    """State what YG's R_dc is, for a window that does not reach it.
 
-    The element runs from a capacitive plateau above f_C = 1/(2*pi*tau) to a
-    resistive one below f_R = f_C*e^(-1/p), with the CPE-like band between
-    them. C is the fitted high-frequency limit, so it is measured only if the
-    window reaches above f_C - the same test, and the same edge margin, as the
-    Cole-Cole and DQ notes.
-
-    R_dc is different in kind. f_R lies e^(1/p) below f_C, which for any
-    p <~ 0.1 is dozens of decades under any real sweep, so the note about it
-    is a statement of what the number is - an extrapolation of the model -
-    and not a warning that something went wrong. Phrased that way on purpose.
-
-    Attached to the dominant element only: a YG that lost the selection
-    contributed nothing to the reported thickness.
+    Unlike the plateau notes this is not a warning. f_R lies e^(1/p) below
+    the capacitive corner, which for any p <~ 0.1 is dozens of decades under
+    any real sweep, so the note describes what the number is - a value of the
+    model - and is phrased that way on purpose.
     """
-    if frequencies.size == 0:
+    f_R = yg['f_R']
+    if frequencies.size == 0 or not (0 < f_R < float(np.min(frequencies))):
         return []
 
-    notes = []
-    f_C, f_R = 1.0 / (2.0 * np.pi * yg['tau']), yg['f_R']
-    f_max, f_min = float(np.max(frequencies)), float(np.min(frequencies))
-
-    if f_C > f_max:
-        notes.append(
-            f"YG: the capacitive plateau starts at {f_C:.3g} Hz, above the "
-            f"highest measured frequency {f_max:.3g} Hz - C is an "
-            "extrapolation, and so is any thickness derived from it. Extend "
-            "the sweep upwards to measure it.")
-    elif np.log10(f_max / f_C) < CC_WINDOW_EDGE_MARGIN_DECADES:
-        notes.append(
-            f"YG: the capacitive plateau starts at {f_C:.3g} Hz, less than "
-            f"{CC_WINDOW_EDGE_MARGIN_DECADES:.0f} decade below the highest "
-            f"measured frequency {f_max:.3g} Hz - only its edge is measured, "
-            "so C leans on the fitted p. Check the confidence interval on p_YG.")
-
-    if f_R > 0 and f_R < f_min:
-        notes.append(
-            f"YG: R_dc = {yg['R_dc']:.3g} Ohm is the omega -> 0 limit of the "
+    f_min = float(np.min(frequencies))
+    return [f"YG: R_dc = {yg['R_dc']:.3g} Ohm is the omega -> 0 limit of the "
             f"model, reached below {f_R:.3g} Hz - "
             f"{np.log10(f_min / f_R):.0f} decades under the lowest measured "
             f"frequency {f_min:.3g} Hz. Expected for an exponential "
             "conductivity profile, and the reason it is not used to rank "
-            "elements; read it as a model value, not a measured resistance.")
-    return notes
+            "elements; read it as a model value, not a measured resistance."]
 
 
 def _cc_capacitance_notes(
@@ -366,7 +356,7 @@ def _find_capacitive_elements(
             # exact within the model, so no Hsu-Mansfeld / Brug estimate is
             # needed on top - the reason DQ ranks with C and K, not with Q.
             # Whether C_eff is measured or extrapolated is decided later, on
-            # the winner alone (_dq_plateau_notes).
+            # the winner alone (_plateau_notes).
             R_dc = node.R_pol
             if R_parallel is not None and R_parallel > 0:
                 # In R | DQ both paths reach DC. The reported resistance and
@@ -398,7 +388,7 @@ def _find_capacitive_elements(
             # omega -> inf limit of the element, so it needs no Hsu-Mansfeld /
             # Brug conversion - the reason YG ranks with C, K and DQ, not
             # with Q. Whether that limit is inside the window is checked
-            # later, on the winner alone (_yg_window_notes).
+            # later, on the winner alone (_plateau_notes).
             results.append({
                 'type': 'YG',
                 # NOT node.R_dc. The DC resistance of an exponential
@@ -753,9 +743,16 @@ def _extract_capacitance(
                 if dominant['type'] == 'CC':
                     warnings.extend(_cc_capacitance_notes(dominant, frequencies))
                 if dominant['type'] == 'DQ':
-                    warnings.extend(_dq_plateau_notes(dominant, frequencies))
+                    warnings.extend(_plateau_notes(
+                        'DQ', dominant['tau_min'], frequencies, 'C_eff',
+                        'leans on the fitted power law. Check the confidence '
+                        'interval on tau_DQ.'))
                 if dominant['type'] == 'YG':
-                    warnings.extend(_yg_window_notes(dominant, frequencies))
+                    warnings.extend(_plateau_notes(
+                        'YG', dominant['tau'], frequencies, 'C',
+                        'leans on the fitted p. Check the confidence '
+                        'interval on p_YG.'))
+                    warnings.extend(_yg_R_dc_note(dominant, frequencies))
                 if C_eff_brug is not None:
                     # Ratio is exactly (1 + R_ct/R_s)^((1-n)/n) and is always
                     # >= 1 for n <= 1; a large value means the pair no longer
