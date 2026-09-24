@@ -4,6 +4,41 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.38.0 (2026-09-24)
+
+### Changed
+
+- **The DRT weights its data term, by default with `1/sqrt|Z|`.** Until now the
+  least-squares residual was taken in absolute Ohm, so the low-frequency points
+  with the largest |Z| dominated it and a small arc next to a large one was
+  smoothed into its neighbour. Each frequency's real and imaginary rows of `A`
+  and `b` are now scaled by a weight from `compute_weights`. New parameter
+  `calculate_drt(weighting=...)` and CLI option `--drt-weighting`, independent
+  of the circuit-fit `--weighting`: `sqrt` (default), `modulus`,
+  `proportional`, `uniform`. DRT results differ from 0.37; `weighting='uniform'`
+  reproduces them exactly. The weighting in use is reported in the DRT section
+  and in `DRTDiagnostics.weighting`.
+
+  Why `sqrt` and not `modulus`: measured on five synthetic spectra, 20 noise
+  realizations each. `modulus` is best when the noise is proportional to |Z|,
+  but under constant noise it amplifies the high-frequency points, auto-lambda
+  runs to 2-4 (the edge of its range) and R_pol is off by 2.5-6.5 %. `sqrt`
+  resolves all three arcs of a 50/200/2000 Ohm spectrum that `uniform` merges
+  into two, and keeps R_pol within 1 % under both noise models.
+
+- **Weights are rescaled so that `||w*Z|| = ||Z||`.** The weighted data keep the
+  norm of the unweighted data, so the residual stays commensurate with the
+  regularization term and a given lambda (the 0.1 default, the auto-lambda
+  range, the lambda-probe bounds) means about the same under every weighting.
+  `compute_weights`' own mean-1 scaling lets the large high-frequency weights
+  set the mean; at lambda = 0.1 that under-weighted the dominant low-frequency
+  arcs and left R_pol 3.5 % low with modulus weights, against ~1 % now.
+
+- An unknown `weighting` name raises `ValueError` instead of falling back to
+  uniform while diagnostics reported the misspelled name.
+
+---
+
 ## Version 0.37.0 (2026-09-14)
 
 ### Added
