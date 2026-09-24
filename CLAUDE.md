@@ -112,8 +112,8 @@ Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-speci
 ### Running Tests
 
 ```bash
-python3 -m pytest tests/                 # Default run (~45 s)
-python3 -m pytest tests/ -m ""           # Everything, benchmark included (~60 s)
+python3 -m pytest tests/                 # Default run (skips the slow benchmark)
+python3 -m pytest tests/ -m ""           # Everything, benchmark included
 python3 -m pytest tests/ -m slow         # Only the ZScope benchmark
 python3 -m pytest tests/ -v              # Verbose output
 python3 -m pytest tests/test_K_element.py  # Specific file
@@ -121,22 +121,8 @@ python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
 ```
 
 `tests/test_zscope_benchmark.py` is marked `slow` and excluded by default: it
-fits four reference circuits at three noise levels with DE (~14 s). Run it
-before a release.
-
-### Writing Tests
-
-- Place tests in `tests/` directory
-- Name files `test_*.py`
-- Use synthetic data for reproducibility
-- Test edge cases (empty, NaN, single point)
-- Quantify correctness: `assert error < 0.05` (not "looks correct")
-
-### Test Categories
-
-- **Unit tests** - Individual functions
-- **Integration tests** - Full workflow (`test_cli_integration.py`)
-- **Regression tests** - Bug fixes (prevent recurrence)
+fits four reference circuits at three noise levels with DE, which is slow.
+Run it before a release.
 
 ---
 
@@ -217,17 +203,12 @@ Details: See `VERSION_MANAGEMENT.md`
    - Add docstrings (NumPy style)
    - Add type hints
 
-3. **Test**
-   - Synthetic data (reproducible)
-   - Real data (if available)
-   - Edge cases
-
-4. **Document**
+3. **Document**
    - Docstring (always)
    - README.md (if user-facing)
    - Specialized doc/*.md (if complex algorithm)
 
-5. **Integrate**
+4. **Integrate**
    - Update CLI if user-facing
    - Update `__init__.py` exports
    - Update CHANGELOG.md
@@ -236,11 +217,10 @@ Details: See `VERSION_MANAGEMENT.md`
 ### Bug Fix
 
 1. Identify root cause
-2. Write regression test (reproduces the bug)
-3. Fix in appropriate module
-4. Verify all tests pass
-5. Update CHANGELOG.md
-6. Commit: `fix(module): brief description`
+2. Fix in appropriate module
+3. Verify all tests pass
+4. Update CHANGELOG.md
+5. Commit: `fix(module): brief description`
 
 ### Git Workflow
 
@@ -268,14 +248,12 @@ Details: See `VERSION_MANAGEMENT.md`
 
 2. **Propose solution:**
    - Where to change code
-   - What tests to add
    - What docs to update
 
 3. **Implement:**
    - Core logic first
    - Integration second
    - Documentation third
-   - Tests throughout
 
 4. **Verify:**
    - Run tests: `python3 -m pytest tests/`
@@ -295,15 +273,11 @@ Details: See `VERSION_MANAGEMENT.md`
 **Code:**
 - Features "just in case" -> only what's requested
 - Premature optimization -> correct first
-- Ignoring edge cases -> test min/max/empty/NaN
+- Ignoring edge cases -> handle min/max/empty/NaN
 
 **Documentation:**
 - Duplicating information -> single source of truth
 - Documentation without purpose -> every section must be useful
-
-**Testing:**
-- "Looks correct" -> quantify (error < X%)
-- Happy path only -> test edge cases
 
 ---
 
