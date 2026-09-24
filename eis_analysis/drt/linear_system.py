@@ -14,6 +14,7 @@ from scipy.optimize import nnls
 
 from .results import DRTMatrices, LambdaSelection, NNLSSolution
 from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid
+from ..fitting.diagnostics import compute_weights
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,15 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
 
 
 def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
-                        R_inf: float, n_tau: int = 100) -> DRTMatrices:
+                        R_inf: float, n_tau: int = 100,
+                        weighting: str = 'uniform') -> DRTMatrices:
     """
     Build DRT system matrices A, b, and regularization matrix L.
+
+    ``weighting`` scales each frequency's rows of A and b by a weight from
+    ``compute_weights``, rescaled so that ||w*Z|| = ||Z||: the residual stays
+    commensurate with ||L gamma||, so lambda means the same under every
+    weighting. A_re and A_im stay unweighted: they map gamma back to impedance.
     """
     f_max = frequencies.max()
     f_min = frequencies.min()
@@ -72,10 +79,14 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     A_re = d_ln_tau / denom
     A_im = -omega_mesh * tau_mesh * d_ln_tau / denom
 
-    A = np.vstack([A_re, A_im])
+    weights = compute_weights(Z, weighting)
+    weighted_norm = float(np.linalg.norm(weights * Z))
+    if weighted_norm > 0:
+        weights = weights * (float(np.linalg.norm(Z)) / weighted_norm)
+    A = np.vstack([weights[:, None] * A_re, weights[:, None] * A_im])
     cond_A = float(np.linalg.cond(A))
 
-    b = np.concatenate([Z.real - R_inf, Z.imag])
+    b = np.concatenate([weights * (Z.real - R_inf), weights * Z.imag])
 
     # Regularization matrix (2nd derivative) - tridiagonal [1, -2, 1]
     # Shape: (n_tau - 2, n_tau) for second derivative operator
@@ -86,7 +97,8 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
 
     return DRTMatrices(
         A=A, A_re=A_re, A_im=A_im, b=b, L=L,
-        tau=tau, d_ln_tau=d_ln_tau, condition_number=cond_A
+        tau=tau, d_ln_tau=d_ln_tau, condition_number=cond_A,
+        weights=weights
     )
 
 

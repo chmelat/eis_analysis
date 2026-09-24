@@ -13,6 +13,7 @@ Provides structured argument parsing with logical grouping:
 
 import argparse
 from ..version import get_version_string
+from ..drt.core import DRT_WEIGHTINGS
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -79,6 +80,12 @@ Examples:
                            default=None,
                            help='Manual regularization parameter for DRT. '
                                 'Without this, automatic selection (GCV + L-curve) is used.')
+    drt_group.add_argument('--drt-weighting', type=str, default='sqrt',
+                           choices=DRT_WEIGHTINGS,
+                           help='Weighting of the DRT least-squares term (default: sqrt, '
+                                'w = 1/sqrt|Z|). modulus (1/|Z|) suits noise proportional '
+                                'to |Z|; uniform is the unweighted pre-0.38 behaviour. '
+                                'Independent of --weighting for circuit fitting.')
     drt_group.add_argument('--normalize-rpol', action='store_true',
                            help='Normalize gamma(tau) by R_pol so that integral gamma(tau) d(ln tau) = 1.')
     drt_group.add_argument('--n-tau', '-n', type=int, default=100,

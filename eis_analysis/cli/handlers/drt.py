@@ -163,6 +163,7 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         diff_pct = (rinf.R_inf - rinf.R_inf_median) / rinf.R_inf_median * 100
         note = f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, {diff_pct:+.1f}%)"
     logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{note}")
+    logger.info(f"Weighting: {diag.weighting}")
 
     # Lambda selection
     lambda_sel = diag.lambda_sel
@@ -280,7 +281,8 @@ def run_drt_analysis(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol, ri_fit,
-                       gmm_bic_threshold, lambda_probe, save, format)
+                       gmm_bic_threshold, lambda_probe, drt_weighting, save,
+                       format)
     R_inf_computed : float or None
         Pre-computed R_inf from --ri-fit
     peak_method : str
@@ -306,7 +308,8 @@ def run_drt_analysis(
         use_rl_fit=args.ri_fit,
         r_inf_preset=R_inf_computed,
         gmm_bic_threshold=args.gmm_bic_threshold,
-        lambda_probe=args.lambda_probe
+        lambda_probe=args.lambda_probe,
+        weighting=args.drt_weighting
     )
 
     # Log diagnostics

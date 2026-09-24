@@ -67,6 +67,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'peak_method': 'scipy',
         'gmm_bic_threshold': 10.0,
         'lambda_probe': False,
+        'drt_weighting': 'sqrt',
         'ri_fit': False,
 
         # Kramers-Kronig

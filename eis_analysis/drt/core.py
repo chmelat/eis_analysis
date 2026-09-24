@@ -50,6 +50,9 @@ from ..fitting.config import (DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS,
 
 logger = logging.getLogger(__name__)
 
+# Data weightings understood by fitting.diagnostics.compute_weights.
+DRT_WEIGHTINGS = ('uniform', 'sqrt', 'modulus', 'proportional')
+
 # Public API re-exported from the pipeline submodules so it stays importable
 # from ``drt.core`` (and via ``drt/__init__.py``) after the split.
 __all__ = [
@@ -134,7 +137,8 @@ def calculate_drt(
     peak_method: str = 'scipy',
     r_inf_preset: Optional[float] = None,
     gmm_bic_threshold: float = 10.0,
-    lambda_probe: bool = False
+    lambda_probe: bool = False,
+    weighting: str = 'sqrt'
 ) -> DRTResult:
     """
     Calculate DRT (Distribution of Relaxation Times) using Tikhonov regularization.
@@ -164,18 +168,33 @@ def calculate_drt(
     lambda_probe : bool
         Re-solve the DRT at lambdas around the selected one and report
         per-peak stability (see drt.stability)
+    weighting : str
+        Weighting of the data term from the measured |Z|: 'sqrt' (1/sqrt|Z|,
+        default), 'uniform' (unweighted, before v0.38), 'modulus' (1/|Z|) or
+        'proportional' (1/|Z|^2). Choice rationale: README, DRT analysis.
 
     Returns
     -------
     DRTResult
         Complete analysis result with all diagnostics
     """
+    if weighting not in DRT_WEIGHTINGS:
+        # compute_weights would fall back to uniform with only a log line,
+        # while diagnostics reported the misspelled name as if it applied.
+        raise ValueError(f"Unknown DRT weighting '{weighting}', "
+                         f"expected one of {DRT_WEIGHTINGS}")
+
     f_min, f_max = float(frequencies.min()), float(frequencies.max())
     freq_range_ratio = f_max / f_min
 
-    # === Step 1: Validate frequencies ===
+    # === Step 1: Validate input ===
     try:
         _validate_frequencies(frequencies)
+        # A single NaN would turn every data weight into NaN (compute_weights
+        # divides by their mean) and crash the SVD in _build_drt_matrices.
+        if not np.all(np.isfinite(Z)):
+            raise ValueError("Impedance contains NaN or Inf values - "
+                             "remove invalid points before DRT analysis")
     except ValueError as e:
         logger.error(str(e))
         return DRTResult()
@@ -189,7 +208,7 @@ def calculate_drt(
     R_inf = rinf_est.R_inf
 
     # === Step 3: Build Matrices ===
-    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau)
+    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting)
 
     # === Step 4: Select Lambda ===
     lambda_sel = _select_lambda(
@@ -222,7 +241,8 @@ def calculate_drt(
                 normalized=False,
                 reconstruction_error_rel=0.0,
                 peak_method=peak_method,
-                n_peaks=0
+                n_peaks=0,
+                weighting=weighting
             )
         )
 
@@ -395,7 +415,8 @@ def calculate_drt(
         edge_pile_up_fraction=edge_pile_up_fraction,
         edge_pile_up_end=edge_pile_up_end,
         n_boundary_peaks=n_boundary_peaks,
-        stability=stability
+        stability=stability,
+        weighting=weighting
     )
 
     return DRTResult(

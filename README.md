@@ -264,7 +264,21 @@ eis data.DTA --peak-method gmm
 
 # R_inf from the highest frequency decade instead of the HF median
 eis data.DTA --ri-fit
+
+# Weighting of the DRT data term (default: sqrt)
+eis data.DTA --drt-weighting modulus
 ```
+
+The least-squares term is weighted per frequency by `1/sqrt|Z|` by default.
+Unweighted, the low-frequency points with the largest |Z| dominate the residual
+and a small arc next to a large one is smoothed away; `sqrt` recovers such arcs
+while staying robust when the measurement noise does not scale with |Z|.
+`modulus` (1/|Z|) is the better choice when the noise is proportional to |Z|,
+but under constant noise it amplifies the high-frequency points and drives
+auto-lambda to the edge of its range. `uniform` gives the unweighted DRT of
+versions before 0.38. The weights are rescaled so that the weighted data keep
+the norm of the unweighted data, so a given `--lambda` means about the same
+regularization under every weighting.
 
 By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
@@ -545,6 +559,7 @@ the fit reports `Global search contributed nothing` - see
 ### DRT analysis
 
 - `--lambda`, `-l` (default: auto GCV) - Regularization parameter for DRT. Without this parameter, automatic selection using GCV (Generalized Cross-Validation) and L-curve method is used. Higher values = smoother DRT, lower = more detail but also noise. Note: on low-noise data auto-lambda may drive lambda toward 0, giving a sparse/spiky DRT that is unreliable for peak-shape analysis; the tool reports the effective bin count (N_eff) and warns when the DRT is too sparse or lambda lands at the search-range edge — set `--lambda` manually (e.g. 0.1) in that case.
+- `--drt-weighting` (default: sqrt) - Weighting of the DRT least-squares term: `sqrt` (1/sqrt|Z|), `modulus` (1/|Z|, best when noise is proportional to |Z|), `proportional` (1/|Z|^2) or `uniform` (unweighted, the behaviour before 0.38). Independent of `--weighting`, which applies to circuit fitting only.
 - `--n-tau`, `-n` (default: 100) - Number of points on the tau time constant axis. Higher values give finer DRT resolution but increase computational cost.
 - `--normalize-rpol` - Normalize gamma(tau) by polarization resistance so that integral = 1. Useful for comparing samples with different R_pol.
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).

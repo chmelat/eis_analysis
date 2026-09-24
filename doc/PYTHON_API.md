@@ -288,7 +288,10 @@ result = calculate_drt(
     use_rl_fit=False,      # R-L-K fit for R_inf instead of the HF median
     peak_method='scipy',   # Peak detection: 'scipy' or 'gmm'
     r_inf_preset=None,     # Preset R_inf value (optional)
-    gmm_bic_threshold=10.0 # BIC threshold for GMM (default: 10.0)
+    gmm_bic_threshold=10.0, # BIC threshold for GMM (default: 10.0)
+    lambda_probe=False,     # Peak stability across lambda (optional)
+    weighting='sqrt'        # Data weighting: 'sqrt' (default), 'uniform',
+                            # 'modulus' or 'proportional'
 )
 
 # result: DRTResult dataclass

@@ -152,6 +152,9 @@ class DRTDiagnostics:
     # Lambda-probe peak stability (only when requested via lambda_probe=True)
     stability: Optional[StabilityDiagnostics] = None
 
+    # Data weighting of the least-squares term ('uniform', 'modulus', ...)
+    weighting: str = 'uniform'
+
 
 @dataclass
 class DRTMatrices:
@@ -164,6 +167,7 @@ class DRTMatrices:
     tau: NDArray[np.float64]
     d_ln_tau: float
     condition_number: float
+    weights: Optional[NDArray[np.float64]] = None  # per-frequency row weights, ||w*Z|| = ||Z||
 
 
 @dataclass
