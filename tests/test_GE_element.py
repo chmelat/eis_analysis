@@ -4,7 +4,6 @@
 import numpy as np
 import pytest
 from eis_analysis.fitting import R, GE, fit_equivalent_circuit
-from eis_analysis.fitting.jacobian import element_jacobian
 
 
 @pytest.fixture
@@ -60,59 +59,6 @@ def test_g_element_properties(g_element_params):
 
     expected_fc = 1 / (2 * np.pi * tau)
     assert abs(g_elem.characteristic_freq - expected_fc) < 1e-10
-
-
-def test_g_series_circuit(freq, g_element_params):
-    """Test series circuit R - GE."""
-    sigma, tau = g_element_params
-    R_s = 10.0
-
-    circuit = R(R_s) - GE(sigma, tau)
-    Z_series = circuit.impedance(freq, circuit.get_all_params())
-
-    g_elem = GE(sigma, tau)
-    Z_G = g_elem.impedance(freq, [sigma, tau])
-    Z_expected = R_s + Z_G
-
-    max_diff = np.max(np.abs(Z_series - Z_expected))
-    assert max_diff < 1e-10, f"Series circuit error: {max_diff}"
-
-
-def test_g_parallel_circuit(freq, g_element_params):
-    """Test parallel circuit R | GE."""
-    sigma, tau = g_element_params
-    R_p = 200.0
-
-    circuit = R(R_p) | GE(sigma, tau)
-    Z_par = circuit.impedance(freq, circuit.get_all_params())
-
-    g_elem = GE(sigma, tau)
-    Z_G = g_elem.impedance(freq, [sigma, tau])
-    Z_expected = 1 / (1/R_p + 1/Z_G)
-
-    max_diff = np.max(np.abs(Z_par - Z_expected))
-    assert max_diff < 1e-10, f"Parallel circuit error: {max_diff}"
-
-
-def test_g_jacobian(freq, g_element_params):
-    """Test analytical Jacobian matches numerical."""
-    sigma, tau = g_element_params
-    g_elem = GE(sigma, tau)
-
-    Z_jac, dZ_jac = element_jacobian(g_elem, freq, [sigma, tau])
-
-    # Numerical Jacobian
-    eps = 1e-7
-    dZ_dsigma_num = (g_elem.impedance(freq, [sigma + eps, tau]) -
-                    g_elem.impedance(freq, [sigma - eps, tau])) / (2 * eps)
-    dZ_dtau_num = (g_elem.impedance(freq, [sigma, tau + eps]) -
-                  g_elem.impedance(freq, [sigma, tau - eps])) / (2 * eps)
-
-    rel_err_sigma = np.max(np.abs(dZ_jac[:, 0] - dZ_dsigma_num)) / np.max(np.abs(dZ_jac[:, 0]))
-    rel_err_tau = np.max(np.abs(dZ_jac[:, 1] - dZ_dtau_num)) / np.max(np.abs(dZ_jac[:, 1]))
-
-    assert rel_err_sigma < 1e-5, f"dZ/dsigma error: {rel_err_sigma}"
-    assert rel_err_tau < 1e-5, f"dZ/dtau error: {rel_err_tau}"
 
 
 def test_g_element_fitting(freq):

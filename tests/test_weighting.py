@@ -25,20 +25,6 @@ def synthetic_voigt_data():
 
 
 @pytest.mark.parametrize("weighting", ['uniform', 'sqrt', 'proportional', 'modulus'])
-def test_weighting_produces_valid_fit(synthetic_voigt_data, weighting):
-    """Test that each weighting type produces a valid fit."""
-    freq, Z, true_params = synthetic_voigt_data
-    circuit = R(100) - (R(5000) | C(1e-6))
-
-    result, Z_fit, fig = fit_equivalent_circuit(
-        freq, Z, circuit, weighting=weighting, plot=False
-    )
-
-    assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
-    assert len(result.params_opt) == 3, "Should have 3 parameters"
-
-
-@pytest.mark.parametrize("weighting", ['uniform', 'sqrt', 'proportional', 'modulus'])
 def test_weighting_recovers_parameters(synthetic_voigt_data, weighting):
     """Test that fitted parameters are close to true values."""
     freq, Z, true_params = synthetic_voigt_data
@@ -49,6 +35,7 @@ def test_weighting_recovers_parameters(synthetic_voigt_data, weighting):
         freq, Z, circuit, weighting=weighting, plot=False
     )
 
+    assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
     R_s_fit, R1_fit, C1_fit = result.params_opt
 
     # Allow 15% tolerance due to noise

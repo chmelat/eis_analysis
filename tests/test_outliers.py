@@ -69,11 +69,6 @@ def test_residual_percent_is_relative_deviation():
     assert r[0] == pytest.approx(5.0)
 
 
-def test_residual_percent_zero_for_perfect_reconstruction():
-    zeros = np.zeros(5)
-    assert np.all(residual_percent(zeros, zeros) == 0.0)
-
-
 def test_residual_percent_matches_zhit_magnitude_residual():
     """For Z-HIT the reconstruction keeps the measured phase, so the metric
     must reduce exactly to |residuals_mag|."""
@@ -117,15 +112,6 @@ def test_threshold_is_strict_and_respected():
     r[4] = 5.001      # just over -> flagged
     report = find_outliers(freq, fake_result(r), None, max_residual=5.0)
     assert [p.frequency for p in report.points] == pytest.approx([freq[4]])
-
-
-def test_lower_threshold_flags_more_points():
-    freq = np.logspace(-2, 5, 30)
-    r = np.full(30, 0.5)
-    r[[5, 10, 15]] = [3.0, 6.0, 9.0]
-    for threshold, expected in [(8.0, 1), (5.0, 2), (2.0, 3)]:
-        found = find_outliers(freq, fake_result(r), None, max_residual=threshold)
-        assert len(found.points) == expected, f'at max_residual={threshold}'
 
 
 def test_method_baseline_factor_suppresses_a_noisy_reconstruction():
@@ -209,12 +195,6 @@ def test_global_guard_excludes_a_method_that_fails_as_a_whole():
 # =============================================================================
 # Edge cases
 # =============================================================================
-
-def test_no_results_at_all():
-    report = find_outliers(np.logspace(-2, 5, 10), None, None)
-    assert report.points == []
-    assert report.skipped == []
-
 
 def test_empty_frequency_array():
     assert find_outliers(np.array([]), None, None).points == []

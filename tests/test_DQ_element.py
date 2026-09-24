@@ -262,8 +262,7 @@ def test_dq_warns_when_the_plateau_is_out_of_window(dq_params):
     assert any('extrapolation' in w for w in oxide.warnings), oxide.warnings
 
 
-@pytest.mark.parametrize("tau_max_position,U_true", [("inside", 6.0), ("outside", 14.0)])
-def test_dq_round_trip_with_noise(dq_params, tau_max_position, U_true):
+def test_dq_round_trip_with_noise(dq_params):
     """Fit DQ back out of its own noisy spectrum, both positions of tau_max.
 
     With U = 6 the slow end sits inside the window; with U = 14 it lies four
@@ -272,29 +271,30 @@ def test_dq_round_trip_with_noise(dq_params, tau_max_position, U_true):
     law to place the bound. A wrong tau_max there is not a failure, but a
     silent one would be.
     """
-    A, n, tau_min, _ = dq_params
-    rng = np.random.default_rng(20260911)
-    freq = np.logspace(6, -3, 87)
+    for tau_max_position, U_true in [("inside", 6.0), ("outside", 14.0)]:
+        A, n, tau_min, _ = dq_params
+        rng = np.random.default_rng(20260911)
+        freq = np.logspace(6, -3, 87)
 
-    truth = R(20) - DQ(A, n, tau_min, U_true)
-    Z = truth.impedance(freq, truth.get_all_params())
-    Z = Z * (1 + 0.0015 * rng.standard_normal(Z.shape))  # 0.15 %, as measured
+        truth = R(20) - DQ(A, n, tau_min, U_true)
+        Z = truth.impedance(freq, truth.get_all_params())
+        Z = Z * (1 + 0.0015 * rng.standard_normal(Z.shape))  # 0.15 %, as measured
 
-    guess = R(10) - DQ(A / 3, 0.45, tau_min * 5, U_true * 0.6)
-    result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
+        guess = R(10) - DQ(A / 3, 0.45, tau_min * 5, U_true * 0.6)
+        result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
 
-    _, A_fit, n_fit, tau_fit, U_fit = result.params_opt
-    assert result.fit_error_rel < 0.5
-    assert n_fit == pytest.approx(n, abs=0.02)
-    assert tau_fit == pytest.approx(tau_min, rel=0.25)
+        _, A_fit, n_fit, tau_fit, U_fit = result.params_opt
+        assert result.fit_error_rel < 0.5
+        assert n_fit == pytest.approx(n, abs=0.02), tau_max_position
+        assert tau_fit == pytest.approx(tau_min, rel=0.25)
 
-    if tau_max_position == "inside":
-        assert U_fit == pytest.approx(U_true, abs=0.3)
-    else:
-        # Identifiable even out of window, but only through the power law -
-        # hence the looser tolerance and the n check above, which is what
-        # would give the bias away (n and U correlate at -0.85).
-        assert U_fit == pytest.approx(U_true, abs=1.5)
+        if tau_max_position == "inside":
+            assert U_fit == pytest.approx(U_true, abs=0.3)
+        else:
+            # Identifiable even out of window, but only through the power law -
+            # hence the looser tolerance and the n check above, which is what
+            # would give the bias away (n and U correlate at -0.85).
+            assert U_fit == pytest.approx(U_true, abs=1.5)
 
 
 def test_dq_drt_reconstructs_its_own_spectrum(dq_params):

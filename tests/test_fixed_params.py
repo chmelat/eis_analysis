@@ -12,7 +12,10 @@ every optimizer.
   fixing bypasses the bounds, so it now warns.
 """
 
+import itertools
+
 import numpy as np
+
 import pytest
 
 from eis_analysis.fitting import (
@@ -43,49 +46,48 @@ def _fit(optimizer, circuit, freq, Z):
 OPTIMIZERS = ['single', 'de', 'multistart']
 
 
-@pytest.mark.parametrize('optimizer', OPTIMIZERS)
-def test_all_params_fixed_reports_nothing_to_fit(optimizer):
+def test_all_params_fixed_reports_nothing_to_fit():
     """An all-fixed circuit must fail with an explanation, not a scipy message."""
-    freq, Z = _data()
-    circuit = R("15") - (R("5e4") | Q("1e-6", "0.88"))
+    for optimizer in OPTIMIZERS:
+        freq, Z = _data()
+        circuit = R("15") - (R("5e4") | Q("1e-6", "0.88"))
 
-    with pytest.raises((ValueError, RuntimeError), match="nothing to fit"):
-        _fit(optimizer, circuit, freq, Z)
+        with pytest.raises((ValueError, RuntimeError), match="nothing to fit"):
+            _fit(optimizer, circuit, freq, Z)
 
 
-@pytest.mark.parametrize('optimizer', OPTIMIZERS)
-@pytest.mark.parametrize('fixed_value', [1e-9, 1e12])  # below / above R bounds
-def test_fixed_value_outside_bounds_is_kept(optimizer, fixed_value):
+def test_fixed_value_outside_bounds_is_kept():
     """A fixed value must reach the fit unchanged, bounds notwithstanding."""
-    freq, Z = _data()
-    circuit = R(str(fixed_value)) - (R(1e4) | Q(1e-6, 0.9))
+    for optimizer, fixed_value in itertools.product(OPTIMIZERS, [1e-9, 1e12]):  # below / above R bounds
+        freq, Z = _data()
+        circuit = R(str(fixed_value)) - (R(1e4) | Q(1e-6, 0.9))
 
-    result = _fit(optimizer, circuit, freq, Z)
+        result = _fit(optimizer, circuit, freq, Z)
 
-    assert result.params_opt[0] == fixed_value
-    assert result.bound_status[0] == 'fixed'
+        assert result.params_opt[0] == fixed_value, (optimizer, fixed_value)
+        assert result.bound_status[0] == 'fixed'
 
 
-@pytest.mark.parametrize('optimizer', OPTIMIZERS)
-def test_fixed_value_outside_bounds_warns(optimizer):
+def test_fixed_value_outside_bounds_warns():
     """R = -5 Ohm is nonphysical; fixing bypasses the bounds, so warn."""
-    freq, Z = _data()
-    circuit = R("-5") - (R(1e4) | Q(1e-6, 0.9))
+    for optimizer in OPTIMIZERS:
+        freq, Z = _data()
+        circuit = R("-5") - (R(1e4) | Q(1e-6, 0.9))
 
-    result = _fit(optimizer, circuit, freq, Z)
+        result = _fit(optimizer, circuit, freq, Z)
 
-    assert any('Fixed parameter R0' in w and 'outside the range' in w
-               for w in result.all_warnings)
+        assert any('Fixed parameter R0' in w and 'outside the range' in w
+                   for w in result.all_warnings), optimizer
 
 
-@pytest.mark.parametrize('optimizer', OPTIMIZERS)
-def test_fixed_value_inside_bounds_is_silent(optimizer):
+def test_fixed_value_inside_bounds_is_silent():
     """A sane fixed value must not produce a warning - and must be honored."""
-    freq, Z = _data()
-    circuit = R("15") - (R(1e4) | Q(1e-6, 0.9))
+    for optimizer in OPTIMIZERS:
+        freq, Z = _data()
+        circuit = R("15") - (R(1e4) | Q(1e-6, 0.9))
 
-    result = _fit(optimizer, circuit, freq, Z)
+        result = _fit(optimizer, circuit, freq, Z)
 
-    assert result.params_opt[0] == 15.0
-    assert not any('Fixed parameter' in w for w in result.all_warnings)
-    assert result.params_stderr[0] == 0.0  # fixed -> known exactly
+        assert result.params_opt[0] == 15.0, optimizer
+        assert not any('Fixed parameter' in w for w in result.all_warnings)
+        assert result.params_stderr[0] == 0.0  # fixed -> known exactly

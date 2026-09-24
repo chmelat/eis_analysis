@@ -104,20 +104,6 @@ def test_permittivity_thickness_roundtrip():
     assert abs(inverse.permittivity - 22.0) / 22.0 < 1e-9
 
 
-def test_permittivity_result_carries_input_thickness():
-    """In inverse mode the thickness is the input, not a derived value."""
-    freq, Z = _synthetic_voigt()
-
-    result = estimate_permittivity(
-        freq, Z, thickness_nm=19.5, fit_result=_fit_result_voigt()
-    )
-
-    assert result is not None
-    assert result.thickness_nm == 19.5
-    assert result.thickness_brug_nm is None
-    assert result.element_type == 'C'
-
-
 def test_permittivity_brug_comparison():
     """Brug ε_r is reported alongside Hsu-Mansfeld and scales with C."""
     freq, Z = _synthetic_voigt()

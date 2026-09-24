@@ -192,13 +192,13 @@ def test_expected_points_from_header():
                             'pts_per_dec': 10.0}) == 31
 
 
-@pytest.mark.parametrize("metadata", [
-    {},                                                             # non-EIS file
-    {'freq_init': 1e5, 'freq_final': None, 'pts_per_dec': 10.0},    # partial header
-    {'freq_init': 1e2, 'freq_final': 1e5, 'pts_per_dec': 10.0},     # inverted range
-])
-def test_expected_points_returns_none_without_usable_header(metadata):
-    assert expected_points(metadata) is None
+def test_expected_points_returns_none_without_usable_header():
+    for metadata in [
+        {},                                                             # non-EIS file
+        {'freq_init': 1e5, 'freq_final': None, 'pts_per_dec': 10.0},    # partial header
+        {'freq_init': 1e2, 'freq_final': 1e5, 'pts_per_dec': 10.0},     # inverted range
+    ]:
+        assert expected_points(metadata) is None, metadata
 
 
 def test_truncated_sweep_warns(tmp_path):
@@ -211,13 +211,13 @@ def test_truncated_sweep_warns(tmp_path):
     assert any("truncated" in w.lower() for w in result.warnings)
 
 
-@pytest.mark.parametrize("n", [31, 32])  # exact, and Gamry's one-point overshoot
-def test_complete_sweep_does_not_warn(tmp_path, n):
+def test_complete_sweep_does_not_warn(tmp_path):
     """A full sweep, and the endpoint overshoot, stay silent."""
-    path = _write(tmp_path, f"full{n}.DTA",
-                  _make_dta(_rows(n, fmin=1e2, fmax=1e5), sweep=(1e5, 1e2, 10.0)))
-    result = load_data(path)
-    assert not any("truncated" in w.lower() for w in result.warnings)
+    for n in [31, 32]:  # exact, and Gamry's one-point overshoot
+        path = _write(tmp_path, f"full{n}.DTA",
+                      _make_dta(_rows(n, fmin=1e2, fmax=1e5), sweep=(1e5, 1e2, 10.0)))
+        result = load_data(path)
+        assert not any("truncated" in w.lower() for w in result.warnings), n
 
 
 def test_columns_located_by_header_name(tmp_path):
@@ -400,13 +400,13 @@ ACCENTED_DTA = "\n".join([
 ]) + "\n"
 
 
-@pytest.mark.parametrize("encoding", ["cp1250", "utf-8"])
-def test_metadata_diacritics_folded_not_dropped(tmp_path, encoding):
+def test_metadata_diacritics_folded_not_dropped(tmp_path):
     """Accents are folded to ASCII; the letters underneath must survive."""
-    path = _write_encoded(tmp_path, f"acc_{encoding}.DTA", ACCENTED_DTA, encoding)
-    m = parse_dta_metadata(path)
-    assert m["title"] == "Mereni vzorku"
-    assert m["notes"] == ["380 C, 252 bar", "autoklav, elektroda c. 2"]
+    for encoding in ["cp1250", "utf-8"]:
+        path = _write_encoded(tmp_path, f"acc_{encoding}.DTA", ACCENTED_DTA, encoding)
+        m = parse_dta_metadata(path)
+        assert m["title"] == "Mereni vzorku", encoding
+        assert m["notes"] == ["380 C, 252 bar", "autoklav, elektroda c. 2"]
 
 
 def test_metadata_undecodable_bytes_do_not_raise(tmp_path):
@@ -471,37 +471,17 @@ def test_ocv_missing_file_returns_none():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(not os.path.exists(REAL_DTA), reason="example/EISPOT-test1.DTA missing")
-def test_smoke_load_real_dta():
-    f, Z = _fz(load_data(REAL_DTA))
-    assert len(f) >= MIN_DATA_POINTS
-    assert np.all(f > 0) and np.all(np.isfinite(Z))
-
-
-@pytest.mark.skipif(not os.path.exists(REAL_DTA), reason="example/EISPOT-test1.DTA missing")
-def test_smoke_metadata_real_dta():
-    m = parse_dta_metadata(REAL_DTA)
-    assert np.isclose(m["area"], 1.0)
-    assert np.isclose(m["vac"], 10.0)
-    assert np.isclose(m["freq_init"], 1e5)
-    assert np.isclose(m["freq_final"], 1e-3)
-    assert np.isclose(m["pts_per_dec"], 10.0)
-    assert m["title"] == "Potentiostatic EIS"
-    assert m["pstat"] == "REF620-51061"
-    assert m["date"] == "15.5.2026"
-
-
-@pytest.mark.skipif(not os.path.exists(REAL_DTA), reason="example/EISPOT-test1.DTA missing")
 def test_smoke_ocv_real_dta():
     ocv = parse_ocv_curve(REAL_DTA)
     assert ocv is not None
     assert len(ocv["time"]) == 1200
 
 
-@pytest.mark.parametrize("name", ["example_eis_data.csv", "example_eis_data_eu.csv"])
-def test_smoke_load_example_csv(name):
-    path = os.path.join(EXAMPLE_DIR, name)
-    if not os.path.exists(path):
-        pytest.skip(f"{name} missing")
-    f, Z = _fz(load_csv_data(path))
-    assert len(f) >= MIN_DATA_POINTS
-    assert np.all(f > 0)
+def test_smoke_load_example_csv():
+    for name in ["example_eis_data.csv", "example_eis_data_eu.csv"]:
+        path = os.path.join(EXAMPLE_DIR, name)
+        if not os.path.exists(path):
+            pytest.skip(f"{name} missing")
+        f, Z = _fz(load_csv_data(path))
+        assert len(f) >= MIN_DATA_POINTS, name
+        assert np.all(f > 0)

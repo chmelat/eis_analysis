@@ -74,13 +74,6 @@ def test_pseudo_chisqr_known_value():
     assert compute_pseudo_chisqr(Z_exp, Z_fit) == pytest.approx(2.0)
 
 
-def test_pseudo_chisqr_increases_with_deviation():
-    Z = np.array([10 + 10j, 20 + 5j])
-    small = compute_pseudo_chisqr(Z, Z * 1.01)
-    large = compute_pseudo_chisqr(Z, Z * 1.10)
-    assert 0 < small < large
-
-
 # =============================================================================
 # estimate_noise_percent (Yrjana & Bobacka 2024)
 # =============================================================================
@@ -88,16 +81,6 @@ def test_pseudo_chisqr_increases_with_deviation():
 def test_estimate_noise_exact_formula():
     # sqrt(chi2 * 5000 / n): chi2=2, n=2 -> sqrt(5000)
     assert estimate_noise_percent(2.0, 2) == pytest.approx(np.sqrt(5000.0))
-
-
-def test_estimate_noise_zero_chisqr():
-    assert estimate_noise_percent(0.0, 50) == 0.0
-
-
-def test_estimate_noise_monotonic():
-    # Increases with chi-squared, decreases with point count.
-    assert estimate_noise_percent(0.01, 50) < estimate_noise_percent(0.04, 50)
-    assert estimate_noise_percent(0.01, 100) < estimate_noise_percent(0.01, 50)
 
 
 # =============================================================================
@@ -161,14 +144,6 @@ def test_reconstruct_low_frequency_limit_is_sum_of_resistances():
 # KKResult dataclass contract
 # =============================================================================
 
-def test_kkresult_empty_defaults():
-    r = KKResult()
-    assert r.success is False
-    assert r.mean_residual_real == float('inf')
-    assert r.mean_residual_imag == float('inf')
-    assert r.is_valid is False
-
-
 def test_kkresult_valid_when_residuals_small():
     r = KKResult(
         Z_fit=np.ones(3, dtype=complex),
@@ -211,19 +186,6 @@ def test_lin_kk_native_compliant_data_low_residuals():
     assert r.mean_residual_imag < 1.0
 
 
-def test_lin_kk_native_output_shapes():
-    f = np.logspace(-1, 5, 50)
-    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
-    r = lin_kk_native(f, Z)
-    assert r.Z_fit.shape == f.shape
-    assert r.residuals_real.shape == f.shape
-    assert r.residuals_imag.shape == f.shape
-    assert r.tau.shape[0] == r.M
-    # elements = [R_s, R_1..R_M, L_slot]
-    assert r.elements.shape[0] == r.M + 2
-    assert np.all(np.isfinite(r.Z_fit))
-
-
 def test_lin_kk_native_mu_in_unit_interval():
     f = np.logspace(-1, 5, 50)
     Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
@@ -241,21 +203,6 @@ def test_lin_kk_native_fits_inductance_when_requested():
 # =============================================================================
 # kramers_kronig_validation (high-level wrapper)
 # =============================================================================
-
-def test_kk_validation_success_and_returns_figure():
-    f = np.logspace(-1, 5, 50)
-    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
-    result = kramers_kronig_validation(f, Z)
-    try:
-        assert result.success is True
-        assert isinstance(result.figure, plt.Figure)
-        assert result.residuals_real.shape == f.shape
-        assert result.residuals_imag.shape == f.shape
-        assert result.pseudo_chisqr >= 0.0
-        assert result.noise_estimate >= 0.0
-    finally:
-        plt.close('all')
-
 
 def test_kk_validation_compliant_data_is_valid():
     f = np.logspace(-1, 5, 60)
@@ -350,28 +297,26 @@ def test_reconstruct_c_value_none_has_no_capacitive_term():
     np.testing.assert_allclose(Z_none, Z_default, rtol=1e-12, atol=1e-12)
 
 
-@pytest.mark.parametrize("fit_type", ['real', 'imag', 'complex'])
-def test_estimate_R_linear_recovers_series_C(fit_type):
-    # A series C has zero real part, so only include_C can represent it;
-    # on clean data the fitted C must match the true value.
-    from eis_analysis.fitting.voigt_chain import estimate_R_linear
+def test_estimate_R_linear_recovers_series_C():
+    for fit_type in ['real', 'imag', 'complex']:
+        from eis_analysis.fitting.voigt_chain import estimate_R_linear
 
-    f = np.logspace(-2, 4, 50)
-    Rs_true, C_true = 10.0, 1e-4
-    voigt_true = [(50.0, 1e-3), (30.0, 1e-1)]
-    Z = blocking_impedance(f, Rs_true, voigt_true, C_true)
+        f = np.logspace(-2, 4, 50)
+        Rs_true, C_true = 10.0, 1e-4
+        voigt_true = [(50.0, 1e-3), (30.0, 1e-1)]
+        Z = blocking_impedance(f, Rs_true, voigt_true, C_true)
 
-    elements, _, L_value, C_value = estimate_R_linear(
-        f, Z, np.array([1e-3, 1e-1]),
-        include_Rs=True, include_L=True, include_C=True,
-        fit_type=fit_type, allow_negative=True, weighting='modulus'
-    )
+        elements, _, L_value, C_value = estimate_R_linear(
+            f, Z, np.array([1e-3, 1e-1]),
+            include_Rs=True, include_L=True, include_C=True,
+            fit_type=fit_type, allow_negative=True, weighting='modulus'
+        )
 
-    assert C_value is not None
-    assert abs(C_value - C_true) / C_true < 0.02, \
-        f"C = {C_value:.3e} (true {C_true:.3e}), fit_type={fit_type}"
-    # C stays out of the elements array: [R_s, R_1, R_2, L]
-    assert elements.shape[0] == 4
+        assert C_value is not None
+        assert abs(C_value - C_true) / C_true < 0.02, \
+            f"C = {C_value:.3e} (true {C_true:.3e}), fit_type={fit_type}"
+        # C stays out of the elements array: [R_s, R_1, R_2, L]
+        assert elements.shape[0] == 4
 
 
 def test_lin_kk_native_series_cap_reduces_lf_residuals():

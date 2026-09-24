@@ -60,8 +60,7 @@ def test_yg_matches_the_printed_formula(freq, yg_params):
     assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < 1e-14
 
 
-@pytest.mark.parametrize("p_val, tol", [(0.5, 1e-9), (0.1, 1e-12), (0.05, 1e-14)])
-def test_yg_rewrite_holds_its_precision_ceiling(freq, p_val, tol):
+def test_yg_rewrite_holds_its_precision_ceiling(freq):
     """Pin the cost of factoring e^(1/p) out of the logarithm.
 
     u + ln(e^-u + a) cancels in that final addition once e^-u dominates a,
@@ -70,15 +69,15 @@ def test_yg_rewrite_holds_its_precision_ceiling(freq, p_val, tol):
     Jacobian is held to, so it costs nothing in a fit. These bounds exist to
     catch the ceiling moving, not because the error matters at this size.
     """
-    params = [1e-5, p_val, 0.1]
-    Z = YG(*params).impedance(freq, params)
-    Z_naive = _naive_impedance(freq, *params)
+    for p_val, tol in [(0.5, 1e-9), (0.1, 1e-12), (0.05, 1e-14)]:
+        params = [1e-5, p_val, 0.1]
+        Z = YG(*params).impedance(freq, params)
+        Z_naive = _naive_impedance(freq, *params)
 
-    assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < tol
+        assert np.max(np.abs(Z - Z_naive) / np.abs(Z_naive)) < tol, f"p = {p_val}"
 
 
-@pytest.mark.parametrize("p_val", [1.4e-3, 1.2e-3, 1e-3, 1e-8, 1e-200])
-def test_yg_stays_finite_where_the_naive_formula_overflows(freq, p_val):
+def test_yg_stays_finite_where_the_naive_formula_overflows(freq):
     """Z must survive every p where exp(1/p) overflows, not just some.
 
     This is the whole reason `_yg_log_terms` exists, so the values tested
@@ -86,14 +85,15 @@ def test_yg_stays_finite_where_the_naive_formula_overflows(freq, p_val):
     ideal-capacitor short circuit would answer instead and the assertion
     would pass even with the overflow-free rewrite deleted.
     """
-    assert p_val > YG_P_DEGENERATE, "would hit the guard, not the rewrite"
-    params = [1e-5, p_val, 0.1]
+    for p_val in [1.4e-3, 1.2e-3, 1e-3, 1e-8, 1e-200]:
+        assert p_val > YG_P_DEGENERATE, "would hit the guard, not the rewrite"
+        params = [1e-5, p_val, 0.1]
 
-    assert np.all(np.isfinite(YG(*params).impedance(freq, params)))
+        assert np.all(np.isfinite(YG(*params).impedance(freq, params))), f"p = {p_val}"
 
-    with np.errstate(over='ignore', invalid='ignore'):
-        Z_naive = _naive_impedance(freq, *params)
-    assert not np.all(np.isfinite(Z_naive)), "oracle no longer overflows"
+        with np.errstate(over='ignore', invalid='ignore'):
+            Z_naive = _naive_impedance(freq, *params)
+        assert not np.all(np.isfinite(Z_naive)), "oracle no longer overflows"
 
 
 def test_yg_high_frequency_limit_is_the_capacitance(yg_params):
@@ -205,8 +205,7 @@ def test_yg_R_dc_is_infinite_at_the_degenerate_p(yg_params):
     assert np.isfinite(YG(*yg_params).R_dc)
 
 
-@pytest.mark.parametrize("p_str", ["0", "-0.01"])
-def test_yg_corner_frequencies_survive_a_string_fixed_p(p_str):
+def test_yg_corner_frequencies_survive_a_string_fixed_p():
     """A string-fixed p skips the bounds; nothing may raise on it.
 
     dc_corner_freq divided by p unguarded, so YG(1e-5, "0", 0.1) raised
@@ -215,11 +214,12 @@ def test_yg_corner_frequencies_survive_a_string_fixed_p(p_str):
     quieter and worse: exp(+1/|p|) put the resistive corner *above* the
     capacitive one.
     """
-    yg = YG(1e-5, p_str, 0.1)
-    assert yg.dc_corner_freq == 0.0
-    assert yg.dc_corner_freq < yg.characteristic_freq
-    assert np.all(np.isfinite(yg.impedance(np.array([1.0, 1e3]),
-                                           yg.get_all_params())))
+    for p_str in ["0", "-0.01"]:
+        yg = YG(1e-5, p_str, 0.1)
+        assert yg.dc_corner_freq == 0.0, f"p = {p_str}"
+        assert yg.dc_corner_freq < yg.characteristic_freq
+        assert np.all(np.isfinite(yg.impedance(np.array([1.0, 1e3]),
+                                               yg.get_all_params())))
 
 
 # --- 3. Construction, repr, fixed parameters ---
@@ -243,8 +243,7 @@ def test_yg_composes_with_the_operators(freq, yg_params):
 
 # --- 4. Analytic Jacobian ---
 
-@pytest.mark.parametrize("p_val", [0.01, 0.05, 0.1, 0.5])
-def test_yg_jacobian_matches_central_differences(freq, p_val):
+def test_yg_jacobian_matches_central_differences(freq):
     """All three columns must match finite differences across the p range.
 
     The metric is max|analytic - numeric| / max|numeric| over the whole
@@ -252,21 +251,22 @@ def test_yg_jacobian_matches_central_differences(freq, p_val):
     central difference is pure cancellation and a per-point ratio reports
     1e-2 for a derivative that is in fact exact to 1e-10.
     """
-    C_val, tau_val = 1e-5, 0.1
-    params = [C_val, p_val, tau_val]
-    yg = YG(*params)
+    for p_val in [0.01, 0.05, 0.1, 0.5]:
+        C_val, tau_val = 1e-5, 0.1
+        params = [C_val, p_val, tau_val]
+        yg = YG(*params)
 
-    Z, dZ = element_jacobian(yg, freq, params)
-    assert np.max(np.abs(Z - yg.impedance(freq, params))) < 1e-15
+        Z, dZ = element_jacobian(yg, freq, params)
+        assert np.max(np.abs(Z - yg.impedance(freq, params))) < 1e-15
 
-    for col in range(3):
-        step = 1e-5 * params[col]
-        up, down = list(params), list(params)
-        up[col] += step
-        down[col] -= step
-        numeric = (yg.impedance(freq, up) - yg.impedance(freq, down)) / (2 * step)
-        error = np.max(np.abs(dZ[:, col] - numeric)) / np.max(np.abs(numeric))
-        assert error < 1e-6, f"column {col} (p = {p_val}): {error:.2e}"
+        for col in range(3):
+            step = 1e-5 * params[col]
+            up, down = list(params), list(params)
+            up[col] += step
+            down[col] -= step
+            numeric = (yg.impedance(freq, up) - yg.impedance(freq, down)) / (2 * step)
+            error = np.max(np.abs(dZ[:, col] - numeric)) / np.max(np.abs(numeric))
+            assert error < 1e-6, f"column {col} (p = {p_val}): {error:.2e}"
 
 
 def test_yg_jacobian_is_finite_at_the_degenerate_p(freq):

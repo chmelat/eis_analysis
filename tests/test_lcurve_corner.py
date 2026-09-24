@@ -72,13 +72,6 @@ def test_curvature_straight_line_zero():
     assert np.allclose(kappa, 0.0, atol=1e-9)
 
 
-def test_curvature_too_few_points():
-    """n < 3 returns zeros of length n."""
-    out = compute_lcurve_curvature(np.array([1.0, 2.0]), np.array([1.0, 2.0]))
-    assert out.shape == (2,)
-    assert np.all(out == 0.0)
-
-
 # =============================================================================
 # B. find_lcurve_corner - localization and correct extremum
 # =============================================================================

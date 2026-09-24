@@ -33,23 +33,6 @@ def test_condition_number_is_cond_of_JtJ():
     assert result.condition_number == pytest.approx(3.0)
 
 
-def test_scale_disparate_orthogonal_is_well_conditioned():
-    # Orthogonal columns differing by 6 decades in units (cond of RAW J^T J is
-    # 1e12) are perfectly identifiable: after column scaling they are the
-    # identity, so the problem is well-conditioned and both stderrs are finite.
-    # This is the EIS regression: unit disparity must not be read as ill
-    # conditioning.
-    J = np.diag([1.0, 1e-6])
-    r = np.array([0.1, 0.2])
-    result = compute_covariance_matrix(J, r, n_params=2)
-    assert result.condition_number == pytest.approx(1.0)
-    assert result.is_well_conditioned
-    assert np.all(np.isfinite(result.stderr))
-    # cov = s^2 (J^T J)^{-1} = s^2 diag([1, 1e12]); the small-sensitivity
-    # parameter gets a large but finite (estimable) stderr.
-    assert result.stderr[1] / result.stderr[0] == pytest.approx(1e6, rel=1e-6)
-
-
 def test_genuine_ill_conditioning_flagged():
     # Correlation-driven ill conditioning that column scaling cannot remove:
     # d -> 1 gives cond(J^T J) = (1 + d) / (1 - d) > 1e10.

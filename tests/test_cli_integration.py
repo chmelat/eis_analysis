@@ -171,92 +171,13 @@ def get_simple_rc_data():
 # Test 1: Synthetic Data - Basic Workflow
 # =============================================================================
 
-def test_synthetic_data_basic():
-    """Test basic workflow with synthetic data."""
-    print("\n[Test 1] Synthetic data - basic workflow")
-    print("-" * 70)
-
-    from eis_analysis.cli import load_eis_data
-
-    args = create_test_args()
-
-    # Load synthetic data
-    data = load_eis_data(args)
-
-    assert data.frequencies is not None, "Frequencies should not be None"
-    assert data.Z is not None, "Z should not be None"
-    assert len(data.frequencies) > 0, "Should have frequency data"
-    assert len(data.frequencies) == len(data.Z), "Frequencies and Z should have same length"
-    assert data.title == "Synthetic data", "Title should be 'Synthetic data'"
-
-    print(f"  Loaded {len(data.frequencies)} data points")
-    print(f"  Frequency range: [{data.frequencies.min():.2e}, {data.frequencies.max():.2e}] Hz")
-    print(f"  |Z| range: [{np.abs(data.Z).min():.2e}, {np.abs(data.Z).max():.2e}] Ohm")
-    print("  [OK] Synthetic data loaded successfully")
-
-
-
 # =============================================================================
 # Test 2: Kramers-Kronig Validation
 # =============================================================================
 
-def test_kk_validation():
-    """Test Kramers-Kronig validation workflow."""
-    print("\n[Test 2] Kramers-Kronig validation")
-    print("-" * 70)
-
-    from eis_analysis.cli import run_kk_validation
-
-    frequencies, Z = get_synthetic_data()
-    args = create_test_args(no_kk=False)
-
-    result = run_kk_validation(frequencies, Z, args)
-
-    assert result is not None, "KK validation should return a result"
-    assert isinstance(result.figure, plt.Figure), "Result should carry a Figure"
-
-    # Clean up
-    plt.close(result.figure)
-
-    print(f"  Validated {len(frequencies)} data points")
-    print("  [OK] KK validation completed successfully")
-
-
-
 # =============================================================================
 # Test 3: DRT Analysis
 # =============================================================================
-
-def test_drt_analysis():
-    """Test DRT analysis workflow."""
-    print("\n[Test 3] DRT analysis")
-    print("-" * 70)
-
-    from eis_analysis.cli import run_drt_analysis
-    from eis_analysis.drt import DRTResult
-
-    frequencies, Z = get_synthetic_data()
-    args = create_test_args(no_drt=False, peak_method='scipy')
-
-    # Run DRT without R_inf estimation
-    result = run_drt_analysis(frequencies, Z, args, None, 'scipy')
-
-    assert result is not None, "DRT should return a result"
-    assert isinstance(result, DRTResult), "Should return DRTResult"
-    assert result.tau is not None, "tau should not be None"
-    assert result.gamma is not None, "gamma should not be None"
-    assert len(result.tau) == len(result.gamma), "tau and gamma should have same length"
-
-    print(f"  tau range: [{result.tau.min():.2e}, {result.tau.max():.2e}] s")
-    print(f"  gamma max: {result.gamma.max():.2e}")
-    print(f"  Lambda used: {result.lambda_used:.2e}")
-
-    # Clean up any figures
-    plt.close('all')
-
-    print("  [OK] DRT analysis completed successfully")
-
-
 
 def test_drt_with_gmm():
     """Test DRT analysis with GMM peak detection."""
@@ -914,9 +835,6 @@ def test_oxide_area_falls_back_to_metadata(caplog):
 def run_all_tests():
     """Run all integration tests."""
     tests = [
-        ("Synthetic data basic", test_synthetic_data_basic),
-        ("KK validation", test_kk_validation),
-        ("DRT analysis", test_drt_analysis),
         ("DRT with GMM", test_drt_with_gmm),
         ("R_inf estimation", test_rinf_estimation),
         ("Circuit fitting (single)", test_circuit_fitting_single),

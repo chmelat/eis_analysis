@@ -33,19 +33,19 @@ DOCUMENTED_ELEMENTS = [
 NAMES = ["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"]
 
 
-@pytest.mark.parametrize("expr", DOCUMENTED_ELEMENTS, ids=NAMES)
-def test_all_documented_elements_parse(expr):
+def test_all_documented_elements_parse():
     """Every element the README documents is reachable from --circuit."""
-    circuit = parse_circuit_expression(expr)
-    assert circuit is not None
-    assert len(circuit.get_all_params()) > 0
+    for expr in DOCUMENTED_ELEMENTS:
+        circuit = parse_circuit_expression(expr)
+        assert circuit is not None, expr
+        assert len(circuit.get_all_params()) > 0, expr
 
 
-@pytest.mark.parametrize("name", NAMES)
-def test_all_documented_elements_are_exported_top_level(name):
+def test_all_documented_elements_are_exported_top_level():
     """`from eis_analysis import <element>` works for each of them."""
-    assert hasattr(eis_analysis, name), f"eis_analysis.{name} missing"
-    assert name in eis_analysis.__all__, f"{name} missing from __all__"
+    for name in NAMES:
+        assert hasattr(eis_analysis, name), f"eis_analysis.{name} missing"
+        assert name in eis_analysis.__all__, f"{name} missing from __all__"
 
 
 def test_gerischer_in_series_circuit():

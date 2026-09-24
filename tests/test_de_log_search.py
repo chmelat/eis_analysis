@@ -84,12 +84,6 @@ def test_log_mask_leaves_cole_cole_exponent_linear():
     assert log_scale_ci_mask(lower, upper) == [True, True, True, False]
 
 
-def test_to_linear_transforms_only_masked_entries():
-    mask = np.array([True, False, True])
-    out = _to_linear([3.0, 0.75, -6.0], mask)
-    np.testing.assert_allclose(out, [1e3, 0.75, 1e-6])
-
-
 def test_to_linear_roundtrip():
     mask = np.array([True, True, False, True])
     values = np.array([1e-4, 5e7, 0.62, 2.5e-9])

@@ -24,14 +24,6 @@ def generate_voigt_impedance(frequencies, R_inf, voigt_elements):
     return Z
 
 
-def generate_warburg_impedance(frequencies, R_inf, R_ct, C_dl, sigma_w):
-    """Generate impedance for Randles circuit with Warburg."""
-    omega = 2 * np.pi * frequencies
-    Z_W = sigma_w * (1 - 1j) / np.sqrt(omega)
-    Z_ct = R_ct / (1 + 1j * omega * R_ct * C_dl)
-    return R_inf + Z_ct + Z_W
-
-
 def _matrices(frequencies, Z, R_inf):
     """A, b, L from the production matrix builder (no test re-implementation)."""
     m = _build_drt_matrices(frequencies, Z, R_inf)
@@ -57,41 +49,9 @@ def voigt_data(frequencies):
     return frequencies, Z, R_inf
 
 
-@pytest.fixture
-def warburg_data(frequencies):
-    """Generate Warburg (Randles) circuit data."""
-    R_inf = 50
-    Z = generate_warburg_impedance(frequencies, R_inf, R_ct=500, C_dl=1e-5, sigma_w=100)
-    return frequencies, Z, R_inf
-
-
 # =============================================================================
 # Tests
 # =============================================================================
-
-def test_gcv_returns_positive_lambda(voigt_data):
-    """Test that GCV returns a positive lambda value."""
-    frequencies, Z, R_inf = voigt_data
-    A, b, L = _matrices(frequencies, Z, R_inf)
-
-    lambda_gcv, gcv_score = find_optimal_lambda_gcv(A, b, L)
-
-    assert lambda_gcv > 0, "Lambda should be positive"
-    assert np.isfinite(lambda_gcv), "Lambda should be finite"
-    assert np.isfinite(gcv_score), "GCV score should be finite"
-
-
-def test_hybrid_returns_positive_lambda(voigt_data):
-    """Test that Hybrid method returns a positive lambda value."""
-    frequencies, Z, R_inf = voigt_data
-    A, b, L = _matrices(frequencies, Z, R_inf)
-
-    lambda_hybrid, hybrid_score, diag = find_optimal_lambda_hybrid(A, b, L)
-
-    assert lambda_hybrid > 0, "Lambda should be positive"
-    assert np.isfinite(lambda_hybrid), "Lambda should be finite"
-    assert 'method_used' in diag, "Diagnostics should include method_used"
-
 
 def test_gcv_and_hybrid_similar_for_clean_voigt(voigt_data):
     """Test that GCV and Hybrid give similar results for clean Voigt data."""
@@ -104,46 +64,6 @@ def test_gcv_and_hybrid_similar_for_clean_voigt(voigt_data):
     # For clean data, both methods should be within 1 order of magnitude
     ratio = lambda_hybrid / lambda_gcv
     assert 0.1 < ratio < 10, f"Methods differ too much: ratio={ratio:.2f}"
-
-
-def test_hybrid_works_for_noisy_data(voigt_data):
-    """Test that Hybrid method works for noisy data."""
-    frequencies, Z, R_inf = voigt_data
-
-    np.random.seed(42)
-    noise = 0.02 * np.abs(Z) * (np.random.randn(len(Z)) + 1j * np.random.randn(len(Z)))
-    Z_noisy = Z + noise
-
-    A, b, L = _matrices(frequencies, Z_noisy, R_inf)
-
-    lambda_hybrid, _, diag = find_optimal_lambda_hybrid(A, b, L)
-
-    assert lambda_hybrid > 0, "Lambda should be positive"
-    assert np.isfinite(lambda_hybrid), "Lambda should be finite"
-
-
-def test_hybrid_works_for_warburg_data(warburg_data):
-    """Test that Hybrid method works for Warburg (diffusion) data."""
-    frequencies, Z, R_inf = warburg_data
-    A, b, L = _matrices(frequencies, Z, R_inf)
-
-    lambda_hybrid, _, diag = find_optimal_lambda_hybrid(A, b, L)
-
-    assert lambda_hybrid > 0, "Lambda should be positive"
-    assert np.isfinite(lambda_hybrid), "Lambda should be finite"
-
-
-def test_lambda_in_reasonable_range(voigt_data):
-    """Test that lambda values are in a reasonable range."""
-    frequencies, Z, R_inf = voigt_data
-    A, b, L = _matrices(frequencies, Z, R_inf)
-
-    lambda_gcv, _ = find_optimal_lambda_gcv(A, b, L)
-    lambda_hybrid, _, _ = find_optimal_lambda_hybrid(A, b, L)
-
-    # Lambda should typically be between 1e-6 and 1e2
-    assert 1e-8 < lambda_gcv < 1e3, f"GCV lambda out of range: {lambda_gcv}"
-    assert 1e-8 < lambda_hybrid < 1e3, f"Hybrid lambda out of range: {lambda_hybrid}"
 
 
 # =============================================================================

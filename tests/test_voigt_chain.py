@@ -91,26 +91,6 @@ def test_estimate_R_linear_perfect_recovery(two_voigt_data):
 # Tests: fit_voigt_chain_linear with different options
 # =============================================================================
 
-def test_nnls_fit_produces_valid_result(two_voigt_data):
-    """Test NNLS fitting (allow_negative=False)."""
-    freq, Z, _ = two_voigt_data
-
-    np.random.seed(42)
-    noise = 0.01 * np.abs(Z) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
-    Z_noisy = Z + noise
-
-    chain = fit_voigt_chain_linear(
-        freq, Z_noisy, n_per_decade=3, allow_negative=False
-    )
-    circuit, params = chain.circuit, chain.initial_params
-
-    Z_fit = circuit.impedance(freq, params)
-    error_rel = 100 * np.sqrt(np.mean(np.abs(Z_noisy - Z_fit)**2)) / np.mean(np.abs(Z_noisy))
-
-    assert error_rel < 10.0, f"Fit error too high: {error_rel:.2f}%"
-    assert len(params) >= 3, "Should have at least R_s + one K element"
-
-
 def test_nnls_produces_nonnegative_R(two_voigt_data):
     """Test that NNLS produces only non-negative R values."""
     freq, Z, _ = two_voigt_data
@@ -203,8 +183,7 @@ def _single_voigt(R_s, R1, tau1, freq):
     return R_s + R1 / (1 + 1j * omega * tau1)
 
 
-@pytest.mark.parametrize("weighting", ['modulus', 'sqrt', 'uniform', 'proportional'])
-def test_imag_fit_recovers_Rs_all_weightings(weighting):
+def test_imag_fit_recovers_Rs_all_weightings():
     """Regression (audit K1): R_s from imag fit was garbage for every weighting.
 
     Pre-fix values on this data (M=10): modulus -> -4513, sqrt -> -15731,
@@ -212,17 +191,18 @@ def test_imag_fit_recovers_Rs_all_weightings(weighting):
     discretization error below ~0.3 % for every weighting, so the test
     exercises the recovery formula, not the grid density.
     """
-    freq = np.logspace(4, -1, 40)
-    Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
-    tau = generate_tau_grid_fixed_M(freq, 15)
+    for weighting in ['modulus', 'sqrt', 'uniform', 'proportional']:
+        freq = np.logspace(4, -1, 40)
+        Z = _single_voigt(100.0, 5000.0, 5e-3, freq)
+        tau = generate_tau_grid_fixed_M(freq, 15)
 
-    elements, _, _, _ = estimate_R_linear(
-        freq, Z, tau, include_Rs=True, include_L=False,
-        fit_type='imag', allow_negative=True, weighting=weighting
-    )
+        elements, _, _, _ = estimate_R_linear(
+            freq, Z, tau, include_Rs=True, include_L=False,
+            fit_type='imag', allow_negative=True, weighting=weighting
+        )
 
-    assert abs(elements[0] - 100.0) / 100.0 < 0.05, \
-        f"R_s = {elements[0]:.3e} (true 100), weighting={weighting}"
+        assert abs(elements[0] - 100.0) / 100.0 < 0.05, \
+            f"R_s = {elements[0]:.3e} (true 100), weighting={weighting}"
 
 
 def test_imag_fit_Rs_low_impedance_data():

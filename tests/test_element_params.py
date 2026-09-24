@@ -18,47 +18,47 @@ from eis_analysis.fitting import R, C, L, Q, W, Wo, K, GE, CC
 
 # factory, attribute names in parameter order, fitted values to push in.
 # Factories, not instances: update_params() mutates, and a shared instance
-# would leak state from one parametrized test into the next.
-ELEMENTS = [
-    (lambda: R(100), ["R"], [333.0]),
-    (lambda: C(1e-6), ["C"], [4.2e-6]),
-    (lambda: L(1e-6), ["L"], [7.5e-6]),
-    (lambda: Q(1e-4, 0.8), ["Q", "n"], [3e-4, 0.65]),
-    (lambda: W(50), ["sigma"], [125.0]),
-    (lambda: Wo(100, 1.0), ["R_W", "tau_W"], [250.0, 2.5]),
-    (lambda: K(1000, 1e-4), ["R", "tau"], [2000.0, 5e-4]),
-    (lambda: GE(100, 1e-3), ["sigma", "tau"], [200.0, 5e-3]),
-    (lambda: CC(1e-8, 1e-7, 1e-3, 0.2), ["C_inf", "dC", "tau", "alpha"],
-     [2e-8, 2e-7, 5e-3, 0.3]),
-]
-IDS = ["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"]
+# would leak state from one element's check into the next.
+ELEMENTS = {
+    "R": (lambda: R(100), ["R"], [333.0]),
+    "C": (lambda: C(1e-6), ["C"], [4.2e-6]),
+    "L": (lambda: L(1e-6), ["L"], [7.5e-6]),
+    "Q": (lambda: Q(1e-4, 0.8), ["Q", "n"], [3e-4, 0.65]),
+    "W": (lambda: W(50), ["sigma"], [125.0]),
+    "Wo": (lambda: Wo(100, 1.0), ["R_W", "tau_W"], [250.0, 2.5]),
+    "K": (lambda: K(1000, 1e-4), ["R", "tau"], [2000.0, 5e-4]),
+    "GE": (lambda: GE(100, 1e-3), ["sigma", "tau"], [200.0, 5e-3]),
+    "CC": (lambda: CC(1e-8, 1e-7, 1e-3, 0.2), ["C_inf", "dC", "tau", "alpha"],
+           [2e-8, 2e-7, 5e-3, 0.3]),
+}
 
 
-@pytest.mark.parametrize("make, names, fitted", ELEMENTS, ids=IDS)
-def test_named_attributes_track_update_params(make, names, fitted):
+def test_named_attributes_track_update_params():
     """After update_params(), every named attribute reports the new value."""
-    element = make()
-    element.update_params(fitted)
+    for label, (make, names, fitted) in ELEMENTS.items():
+        element = make()
+        element.update_params(fitted)
 
-    for name, expected in zip(names, fitted):
-        assert getattr(element, name) == pytest.approx(expected), name
-    assert element.get_all_params() == pytest.approx(fitted)
+        for name, expected in zip(names, fitted):
+            assert getattr(element, name) == pytest.approx(expected), f"{label}.{name}"
+        assert element.get_all_params() == pytest.approx(fitted), label
 
 
-@pytest.mark.parametrize("make, names, fitted", ELEMENTS, ids=IDS)
-def test_named_attributes_are_read_only(make, names, fitted):
+def test_named_attributes_are_read_only():
     """params is the single source of truth; the names cannot be assigned."""
-    with pytest.raises(AttributeError):
-        setattr(make(), names[0], fitted[0])
+    for label, (make, names, fitted) in ELEMENTS.items():
+        with pytest.raises(AttributeError):
+            setattr(make(), names[0], fitted[0])
+            pytest.fail(f"{label}.{names[0]} is assignable")
 
 
-@pytest.mark.parametrize("make, names, fitted", ELEMENTS, ids=IDS)
-def test_repr_reflects_updated_params(make, names, fitted):
+def test_repr_reflects_updated_params():
     """__repr__ reads the attributes, so it must show fitted values too."""
-    element = make()
-    before = repr(element)
-    element.update_params(fitted)
-    assert repr(element) != before
+    for label, (make, names, fitted) in ELEMENTS.items():
+        element = make()
+        before = repr(element)
+        element.update_params(fitted)
+        assert repr(element) != before, label
 
 
 def test_derived_properties_track_update_params():

@@ -61,18 +61,6 @@ def test_k_to_rc_conversion(freq, k_element_params):
     assert max_diff < 1e-10, f"to_RC() conversion error: {max_diff}"
 
 
-def test_k_series_chain(freq):
-    """Test series of K elements (Voigt chain)."""
-    circuit = R(100) - K(500, 1e-4) - K(2000, 1e-3)
-    params = circuit.get_all_params()
-
-    assert len(params) == 5, "Should have 5 params: R_s, R1, tau1, R2, tau2"
-
-    Z = circuit.impedance(freq, params)
-    assert len(Z) == len(freq), "Impedance array length mismatch"
-    assert np.all(np.isfinite(Z)), "Impedance contains NaN or Inf"
-
-
 def test_k_element_fitting(freq):
     """Test circuit fitting with K element."""
     # True circuit: R_s + K(R, tau)

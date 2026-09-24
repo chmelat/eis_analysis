@@ -47,18 +47,18 @@ def numerical_significance(circuit, freq, params, eps=1e-6):
 # 1. Correctness
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("circuit", [
-    R(10) - (R(1000) | C(1e-6)),
-    R(10) - (R(1000) | Q(1e-6, 0.8)) - W(50),
-    (R(10) | C(1e-9)) - (R(500) | Q(2e-5, 0.7)) - (R(2000) | C(1e-4)),
-])
-def test_matches_central_differences(circuit, freq):
+def test_matches_central_differences(freq):
     """The closed form is the log-log derivative it claims to be."""
-    params = circuit.get_all_params()
-    S = compute_significance(circuit, freq, params)
+    for circuit in [
+        R(10) - (R(1000) | C(1e-6)),
+        R(10) - (R(1000) | Q(1e-6, 0.8)) - W(50),
+        (R(10) | C(1e-9)) - (R(500) | Q(2e-5, 0.7)) - (R(2000) | C(1e-4)),
+    ]:
+        params = circuit.get_all_params()
+        S = compute_significance(circuit, freq, params)
 
-    assert S is not None
-    assert np.allclose(S, numerical_significance(circuit, freq, params), rtol=1e-4)
+        assert S is not None, circuit
+        assert np.allclose(S, numerical_significance(circuit, freq, params), rtol=1e-4)
 
 
 def test_one_value_per_parameter(freq):
@@ -136,13 +136,7 @@ def test_scale_invariant(freq):
     assert np.allclose(S, S_scaled, rtol=1e-9)
 
 
-@pytest.mark.parametrize("circuit, n_zero", [
-    (R(10) - (R(1000) | C(1e-6)) - R(0.0), 1),        # dZ/dR is a constant
-    (R(10) - K(0.0, 1e-3) - K(500, 1e-2), 2),         # both K columns divide by R
-    (R(10) - (R(1000) | C(1e-6)) - W(0.0), 1),
-    (R(10) - (R(1000) | C(1e-6)) - Wo(0.0, 1.0), 2),
-])
-def test_zero_prefactor_scores_zero(circuit, n_zero, freq):
+def test_zero_prefactor_scores_zero(freq):
     """An element switched off by a zero prefactor scores 0, not NaN.
 
     R = 0 in a Voigt element is a short, not a degenerate circuit, and it is
@@ -154,10 +148,16 @@ def test_zero_prefactor_scores_zero(circuit, n_zero, freq):
     Note the zeros are not always where the zero parameter is: a K element with
     R = 0 has a finite dZ/dtau of zero as well, so both its columns go to zero.
     """
-    S = compute_significance(circuit, freq, circuit.get_all_params())
+    for circuit, n_zero in [
+        (R(10) - (R(1000) | C(1e-6)) - R(0.0), 1),        # dZ/dR is a constant
+        (R(10) - K(0.0, 1e-3) - K(500, 1e-2), 2),         # both K columns divide by R
+        (R(10) - (R(1000) | C(1e-6)) - W(0.0), 1),
+        (R(10) - (R(1000) | C(1e-6)) - Wo(0.0, 1.0), 2),
+    ]:
+        S = compute_significance(circuit, freq, circuit.get_all_params())
 
-    assert np.all(np.isfinite(S)), f"non-finite significance: {S}"
-    assert np.count_nonzero(S == 0.0) == n_zero
+        assert np.all(np.isfinite(S)), f"non-finite significance: {S}"
+        assert np.count_nonzero(S == 0.0) == n_zero, circuit
 
 
 def test_degenerate_circuit_is_not_silently_zeroed(freq):

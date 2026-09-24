@@ -155,38 +155,38 @@ def test_bic_buys_a_cpe_when_the_data_has_one():
 # n_free_params - the k that goes into the penalty
 # =============================================================================
 
-@pytest.mark.parametrize('optimizer', ['single', 'de', 'multistart'])
-def test_n_free_params_counts_free_parameters(optimizer):
+def test_n_free_params_counts_free_parameters():
     """Every optimizer must report k, not leave it at the default 0."""
-    Z = _synthesize('R(10)-(R(200)|Q(2e-5,0.85))', noise=0.0)
-    circuit = R(10) - (R(200) | Q(2e-5, 0.85))
+    for optimizer in ['single', 'de', 'multistart']:
+        Z = _synthesize('R(10)-(R(200)|Q(2e-5,0.85))', noise=0.0)
+        circuit = R(10) - (R(200) | Q(2e-5, 0.85))
 
-    if optimizer == 'single':
-        result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
-    elif optimizer == 'de':
-        result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
-    else:
-        result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
-    plt.close('all')
+        if optimizer == 'single':
+            result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
+        elif optimizer == 'de':
+            result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
+        else:
+            result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
+        plt.close('all')
 
-    assert result.n_free_params == 4
+        assert result.n_free_params == 4, optimizer
 
 
-@pytest.mark.parametrize('optimizer', ['single', 'de', 'multistart'])
-def test_n_free_params_excludes_fixed_parameters(optimizer):
+def test_n_free_params_excludes_fixed_parameters():
     """A fixed parameter costs no degrees of freedom and must not be charged."""
-    Z = _synthesize('R(10)-(R(200)|Q(2e-5,0.85))', noise=0.0)
-    circuit = R("10") - (R(200) | Q(2e-5, 0.85))  # string value = fixed
+    for optimizer in ['single', 'de', 'multistart']:
+        Z = _synthesize('R(10)-(R(200)|Q(2e-5,0.85))', noise=0.0)
+        circuit = R("10") - (R(200) | Q(2e-5, 0.85))  # string value = fixed
 
-    if optimizer == 'single':
-        result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
-    elif optimizer == 'de':
-        result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
-    else:
-        result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
-    plt.close('all')
+        if optimizer == 'single':
+            result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
+        elif optimizer == 'de':
+            result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
+        else:
+            result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
+        plt.close('all')
 
-    assert result.n_free_params == 3
+        assert result.n_free_params == 3, optimizer
 
 
 # =============================================================================

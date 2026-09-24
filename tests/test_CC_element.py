@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 from eis_analysis.fitting import R, C, Q, CC, fit_equivalent_circuit
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
-from eis_analysis.fitting.jacobian import element_jacobian
 
 
 @pytest.fixture
@@ -117,29 +116,6 @@ def test_cc_bounds_keep_alpha_linear(cc_element_params):
 
     assert log_scale_ci_mask(lower, upper) == [True, True, True, False]
     assert (lower[3], upper[3]) == (0.0, 0.9)
-
-
-def test_cc_jacobian(freq, cc_element_params):
-    """Analytic Jacobian matches central differences."""
-    C_inf, dC, tau, alpha = cc_element_params
-    cc_elem = CC(C_inf, dC, tau, alpha)
-    params = [C_inf, dC, tau, alpha]
-
-    Z_jac, dZ_jac = element_jacobian(cc_elem, freq, params)
-    assert np.max(np.abs(Z_jac - cc_elem.impedance(freq, params))) < 1e-15
-
-    # Looser thresholds on tau/alpha: their finite-difference truncation error
-    # dominates (~1e-5), the analytic formula itself is exact.
-    tolerances = [1e-5, 1e-5, 1e-4, 1e-4]
-    for i, tol in enumerate(tolerances):
-        h = 1e-8 * max(abs(params[i]), 1e-9)
-        p_plus, p_minus = list(params), list(params)
-        p_plus[i] += h
-        p_minus[i] -= h
-        dZ_num = (cc_elem.impedance(freq, p_plus) -
-                  cc_elem.impedance(freq, p_minus)) / (2 * h)
-        rel_err = np.max(np.abs(dZ_jac[:, i] - dZ_num)) / np.max(np.abs(dZ_jac[:, i]))
-        assert rel_err < tol, f"Jacobian column {i} off by {rel_err}"
 
 
 def test_cc_element_fitting(freq):

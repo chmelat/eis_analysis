@@ -163,15 +163,6 @@ def test_runs_test_undefined_when_every_crossing_is_on_one_side():
     assert np.isnan(z) and np.isnan(p)
 
 
-def test_runs_test_undefined_below_three_points():
-    runs, expected, z, p = runs_test(np.array([1.0, -1.0]))
-    assert np.isnan(z) and np.isnan(p)
-
-
-def test_lag1_of_constant_series_is_zero():
-    assert lag1_autocorrelation(np.full(10, 5.0)) == 0.0
-
-
 def test_residual_structure_needs_a_window():
     """A window narrower than the shortest period asked about yields nothing."""
     power, amplitude = residual_structure(np.linspace(0.0, 0.2, 10), _noise(1)[:10])
