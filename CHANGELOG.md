@@ -4,6 +4,39 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.39.0 (2026-09-24)
+
+### Added
+
+- **Optional tau-grid extension past the slow end of the measured window.**
+  `calculate_drt(tau_extend_decades=...)`, CLI `--tau-extend DECADES|auto`,
+  off by default. A process slower than the lowest frequency no longer has to
+  pile up in the last bin: the grid continues at the same spacing (`n_tau`
+  still spans the window). `'auto'` extends only when the unextended DRT piles
+  up at the slow end, takes the smallest of 0.5 / 1.0 / 1.5 decades that clears
+  the pile-up and otherwise keeps the plain grid; it does not extend a
+  capacitive low-frequency end (`DRT_LF_RC_RATIO_MIN`). Choosing by fit quality
+  was rejected: every extra decade lowers the residual, even for a blocking
+  electrode where it turns the capacitor into a 100x R_pol peak.
+
+  Why not on by default: on synthetic spectra with all peaks in the window, a
+  fixed 1-decade extension let 1 % noise leak into it (R_pol up to +2.4 %),
+  and on real spectra with a low-frequency arc open over more than a decade it
+  kept the pile-up while inflating R_pol 1.7-3x. `'auto'` leaves both alone and
+  recovers an RC 0.5 decade past the window (auto-lambda; at the fixed
+  lambda = 0.1 no step resolves it).
+
+- **Diagnostics for the extension.** Peaks now carry `outside_window` and a
+  signed `edge_distance_decades` measured to the window, not the grid; the CLI
+  marks them `past window: X dec, extrapolated`. New
+  `DRTDiagnostics.R_pol_extrapolated_fraction` with a warning above
+  `DRT_EXTRAPOLATED_RPOL_FRACTION` (5 %), `tau_extend_decades` (applied) and
+  `tau_extend_note` (why 'auto' chose it). The DRT plot shades the region past
+  the window. `DRTDiagnostics.n_tau` is the total number of grid points. The
+  pile-up warning now speaks of the end of the tau *grid*.
+
+---
+
 ## Version 0.38.0 (2026-09-24)
 
 ### Changed
