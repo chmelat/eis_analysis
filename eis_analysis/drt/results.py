@@ -8,7 +8,7 @@ returned as structured data, the CLI layer is responsible for user output.
 import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from numpy.typing import NDArray
 
 
@@ -155,6 +155,13 @@ class DRTDiagnostics:
     # Data weighting of the least-squares term ('uniform', 'modulus', ...)
     weighting: str = 'uniform'
 
+    # Tau-grid extension past the slow end of the measured window, in decades,
+    # as applied; with tau_extend_decades='auto' the note says why this much.
+    tau_extend_decades: float = 0.0
+    tau_extend_note: Optional[str] = None
+    # Share of R_pol at tau past the measured window (extrapolated)
+    R_pol_extrapolated_fraction: float = 0.0
+
 
 @dataclass
 class DRTMatrices:
@@ -167,6 +174,8 @@ class DRTMatrices:
     tau: NDArray[np.float64]
     d_ln_tau: float
     condition_number: float
+    # Measured window [1/(2 pi f_max), 1/(2 pi f_min)]; the grid may extend past its slow end
+    tau_window: Tuple[float, float]
     weights: Optional[NDArray[np.float64]] = None  # per-frequency row weights, ||w*Z|| = ||Z||
 
 

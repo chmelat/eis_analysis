@@ -94,7 +94,9 @@ def _log_lambda_value(lambda_sel) -> None:
 def _edge_marker(peak: dict) -> str:
     """Mark a peak the measured window leaves unsupported, or inflates."""
     marks = []
-    if peak.get('boundary_sensitive'):
+    if peak.get('outside_window'):
+        marks.append(f"past window: {-peak['edge_distance_decades']:.2f} dec, extrapolated")
+    elif peak.get('boundary_sensitive'):
         marks.append(f"edge: {peak['edge_distance_decades']:.2f} dec from window")
     if peak.get('edge_contaminated'):
         marks.append("R inflated by out-of-window pile-up")
@@ -164,6 +166,10 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         note = f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, {diff_pct:+.1f}%)"
     logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{note}")
     logger.info(f"Weighting: {diag.weighting}")
+    if diag.tau_extend_decades > 0 or diag.tau_extend_note:
+        note = f" (auto: {diag.tau_extend_note})" if diag.tau_extend_note else ""
+        logger.info(f"Tau grid extension: {diag.tau_extend_decades:.1f} decade past "
+                    f"the measured window{note}")
 
     # Lambda selection
     lambda_sel = diag.lambda_sel
@@ -188,6 +194,9 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     # R_pol
     logger.info(f"R_pol (from data) = {diag.R_pol_from_data:.2f} Ohm")
     logger.info(f"R_pol (from DRT integral) = {diag.R_pol_from_gamma:.2f} Ohm")
+    if diag.R_pol_extrapolated_fraction > 0:
+        logger.info(f"  of which past the measured window: "
+                    f"{diag.R_pol_extrapolated_fraction*100:.1f}%")
     if diag.normalized:
         logger.info("gamma(tau) normalized by R_pol")
 
@@ -281,8 +290,8 @@ def run_drt_analysis(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol, ri_fit,
-                       gmm_bic_threshold, lambda_probe, drt_weighting, save,
-                       format)
+                       gmm_bic_threshold, lambda_probe, drt_weighting,
+                       tau_extend, save, format)
     R_inf_computed : float or None
         Pre-computed R_inf from --ri-fit
     peak_method : str
@@ -309,7 +318,8 @@ def run_drt_analysis(
         r_inf_preset=R_inf_computed,
         gmm_bic_threshold=args.gmm_bic_threshold,
         lambda_probe=args.lambda_probe,
-        weighting=args.drt_weighting
+        weighting=args.drt_weighting,
+        tau_extend_decades=args.tau_extend
     )
 
     # Log diagnostics

@@ -69,25 +69,44 @@ def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
     return resistances
 
 
-def _flag_boundary_peaks(tau: NDArray, peaks: List[Dict[str, Any]],
-                        tau_key: str) -> None:
+def _flag_boundary_peaks(tau_window: Tuple[float, float],
+                         peaks: List[Dict[str, Any]], tau_key: str) -> None:
     """
-    Annotate each peak with its distance to the nearer end of the tau grid.
+    Annotate each peak with its distance to the nearer end of the measured window.
 
-    The grid spans exactly the measured window, so a peak close to either end
-    has one flank that no measurement constrains: its position is poorly
-    localized and the basin integral behind ``R_estimate`` is truncated by the
-    end of the array. Sets ``edge_distance_decades`` and the
-    ``boundary_sensitive`` flag on every peak in place, on both the scipy
-    dicts (keyed ``tau``) and the GMM dicts (keyed ``tau_center``).
+    A peak close to either end has one flank that no measurement constrains:
+    its position is poorly localized and its ``R_estimate`` uncertain. The
+    distance is signed - negative for a peak past the window, which only an
+    extended grid allows - and such a peak also gets ``outside_window``. Sets
+    ``edge_distance_decades``, ``boundary_sensitive`` and ``outside_window``
+    on every peak in place, on both the scipy dicts (keyed ``tau``) and the
+    GMM dicts (keyed ``tau_center``).
     """
-    log_lo, log_hi = np.log10(tau[0]), np.log10(tau[-1])
+    log_lo, log_hi = np.log10(tau_window[0]), np.log10(tau_window[1])
 
     for peak in peaks:
         log_tau = float(np.log10(peak[tau_key]))
         distance = float(min(log_tau - log_lo, log_hi - log_tau))
         peak['edge_distance_decades'] = distance
         peak['boundary_sensitive'] = bool(distance < DRT_PEAK_EDGE_DECADES)
+        peak['outside_window'] = bool(distance < 0)
+
+
+def _edge_pile_up_fractions(gamma: NDArray, d_ln_tau: float,
+                            R_pol: float) -> Tuple[float, float]:
+    """Share of R_pol in the falling run at the (fast, slow) end, see _edge_pile_up."""
+    if R_pol <= 1e-10:
+        return 0.0, 0.0
+
+    def falling_run_mass(g: NDArray) -> float:
+        """Mass of the descending run starting at g[0]; 0.0 if g rises."""
+        i = 0
+        while i + 1 < len(g) and g[i + 1] < g[i]:
+            i += 1
+        return float(np.sum(g[:i + 1])) if i > 0 else 0.0
+
+    return (falling_run_mass(gamma) * d_ln_tau / R_pol,
+            falling_run_mass(gamma[::-1]) * d_ln_tau / R_pol)
 
 
 def _edge_pile_up(gamma: NDArray, d_ln_tau: float,
@@ -110,22 +129,38 @@ def _edge_pile_up(gamma: NDArray, d_ln_tau: float,
     fast end, 'high' for the slow end), or ``(0.0, None)`` when neither end
     is loaded or R_pol is too small for the ratio to mean anything.
     """
-    if R_pol <= 1e-10:
-        return 0.0, None
-
-    def falling_run_mass(g: NDArray) -> float:
-        """Mass of the descending run starting at g[0]; 0.0 if g rises."""
-        i = 0
-        while i + 1 < len(g) and g[i + 1] < g[i]:
-            i += 1
-        return float(np.sum(g[:i + 1])) if i > 0 else 0.0
-
-    low = falling_run_mass(gamma) * d_ln_tau / R_pol
-    high = falling_run_mass(gamma[::-1]) * d_ln_tau / R_pol
-
+    low, high = _edge_pile_up_fractions(gamma, d_ln_tau, R_pol)
     if max(low, high) <= 0.0:
         return 0.0, None
     return (low, 'low') if low >= high else (high, 'high')
+
+
+def _extrapolated_fraction(tau: NDArray, gamma: NDArray, d_ln_tau: float,
+                           R_pol: float, tau_max: float) -> float:
+    """Share of R_pol placed past the slow end of the measured window (tau > tau_max)."""
+    if R_pol <= 1e-10:
+        return 0.0
+    # Tolerance: the window's own last grid point equals tau_max up to rounding.
+    beyond = tau > tau_max * (1 + 1e-9)
+    return float(np.sum(gamma[beyond]) * d_ln_tau / R_pol)
+
+
+def _lf_rc_ratio(frequencies: NDArray, Z: NDArray) -> float:
+    """
+    r = (-dZ'/d ln omega) / (-Z'') over the four lowest frequencies.
+
+    Separates a relaxation just past the window (r ~ 0.2-1) from a capacitive
+    end (r -> 0), see DRT_LF_RC_RATIO_MIN. Four points: enough for a slope fit
+    to average single-point noise, few enough to stay at the low-frequency
+    end. Returns inf when -Z'' is not positive there - no capacitive response,
+    so nothing for the guard to reject.
+    """
+    idx = np.argsort(frequencies)[:4]
+    minus_z_imag = -float(np.mean(Z.imag[idx]))
+    if len(idx) < 2 or minus_z_imag <= 0:
+        return float('inf')
+    slope = np.polyfit(np.log(2 * np.pi * frequencies[idx]), Z.real[idx], 1)[0]
+    return float(-slope / minus_z_imag)
 
 
 def _effective_bins(gamma: NDArray) -> float:

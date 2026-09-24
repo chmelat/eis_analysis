@@ -290,8 +290,9 @@ result = calculate_drt(
     r_inf_preset=None,     # Preset R_inf value (optional)
     gmm_bic_threshold=10.0, # BIC threshold for GMM (default: 10.0)
     lambda_probe=False,     # Peak stability across lambda (optional)
-    weighting='sqrt'        # Data weighting: 'sqrt' (default), 'uniform',
+    weighting='sqrt',       # Data weighting: 'sqrt' (default), 'uniform',
                             # 'modulus' or 'proportional'
+    tau_extend_decades=0.0  # Grid past the slow window end: decades or 'auto'
 )
 
 # result: DRTResult dataclass

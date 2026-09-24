@@ -12,7 +12,7 @@ symbols are re-exported below so they remain importable from ``drt.core``.
 
 import numpy as np
 import logging
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional, List, Dict, Union
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
@@ -31,9 +31,12 @@ from .estimation import (
     _rpol_from_gamma,
     _estimate_peak_resistance,
     _edge_pile_up,
+    _edge_pile_up_fractions,
     _effective_bins,
     _estimate_r_inf,
     _flag_boundary_peaks,
+    _extrapolated_fraction,
+    _lf_rc_ratio,
 )
 from .linear_system import (
     _validate_frequencies,
@@ -46,7 +49,8 @@ from .peaks import gmm_peak_detection
 from .stability import probe_lambda_stability
 from ..fitting.config import (DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS,
                              DRT_EDGE_BIN_RPOL_FRACTION, DRT_PEAK_EDGE_DECADES,
-                             GMM_N_COMPONENTS_RANGE)
+                             DRT_EXTRAPOLATED_RPOL_FRACTION, DRT_TAU_EXTEND_STEPS,
+                             DRT_LF_RC_RATIO_MIN, GMM_N_COMPONENTS_RANGE)
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +81,14 @@ __all__ = [
 def _detect_peaks(tau: NDArray, gamma: NDArray,
                   peak_method: str,
                   gmm_bic_threshold: float = 10.0,
-                  n_data: Optional[int] = None
+                  n_data: Optional[int] = None,
+                  *, tau_window: Tuple[float, float]
                   ) -> Tuple[Optional[List[Dict]], Optional[List[float]], Optional[List[Dict]]]:
     """
     Detect peaks in DRT spectrum.
 
     n_data: počet skutečných měření (frekvencí) pro penalizaci BIC v GMM.
+    tau_window: měřené okno pro okrajové příznaky píků.
 
     Returns:
         (gmm_peaks, bic_scores, scipy_peaks)
@@ -103,7 +109,7 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
             'R_estimate': float(R_peak)
         })
 
-    _flag_boundary_peaks(tau, scipy_peaks, 'tau')
+    _flag_boundary_peaks(tau_window, scipy_peaks, 'tau')
 
     if use_gmm:
         peaks_result, gmm_model, bic_scores = gmm_peak_detection(
@@ -115,11 +121,81 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
             # GMM failed, scipy_peaks available as fallback
             return None, None, scipy_peaks
 
-        _flag_boundary_peaks(tau, peaks_result, 'tau_center')
+        _flag_boundary_peaks(tau_window, peaks_result, 'tau_center')
 
         return peaks_result, bic_scores, scipy_peaks
 
     return None, None, scipy_peaks
+
+
+# =============================================================================
+# Tau-grid extension
+# =============================================================================
+
+def _solve_on_grid(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
+                   weighting: str, tau_extend: float,
+                   lambda_reg: Optional[float], auto_lambda: bool
+                   ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution]:
+    """Build the system on a grid extended by ``tau_extend`` decades, pick lambda, solve."""
+    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting, tau_extend)
+    lambda_sel = _select_lambda(matrices.A, matrices.b, matrices.L, lambda_reg, auto_lambda)
+    nnls_result = _solve_nnls(matrices.A, matrices.b, matrices.L,
+                              lambda_sel.lambda_value, len(matrices.tau), Z)
+    return matrices, lambda_sel, nnls_result
+
+
+def _slow_end_piled_up(nnls_result: NNLSSolution, d_ln_tau: float) -> bool:
+    """True when the solution heaps more than the pile-up threshold at the slow grid end.
+
+    Measured on the slow end alone: _edge_pile_up reports only the heavier
+    end, so a worse fast-end heap (inductance, HF tail) would hide this one.
+    """
+    if not nnls_result.success or nnls_result.gamma is None:
+        return False
+    gamma = nnls_result.gamma
+    _, slow = _edge_pile_up_fractions(gamma, d_ln_tau, _rpol_from_gamma(gamma, d_ln_tau))
+    return slow > DRT_EDGE_BIN_RPOL_FRACTION
+
+
+def _solve_with_extension(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
+                          weighting: str, tau_extend_decades: Union[float, str],
+                          lambda_reg: Optional[float], auto_lambda: bool
+                          ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution,
+                                     float, Optional[str]]:
+    """
+    Solve on a fixed extension, or let 'auto' choose one.
+
+    'auto' extends only when the unextended solution piles up at the slow end
+    and the low-frequency end is not capacitive (DRT_LF_RC_RATIO_MIN), then
+    takes the smallest of DRT_TAU_EXTEND_STEPS that clears the pile-up. If
+    none does, the unextended solution stands: a wider grid that still piles
+    up only moves the heap further out.
+
+    Returns (matrices, lambda_sel, nnls_result, extension applied, note).
+    """
+    if tau_extend_decades != 'auto':
+        return (*_solve_on_grid(frequencies, Z, R_inf, n_tau, weighting,
+                                float(tau_extend_decades), lambda_reg, auto_lambda),
+                float(tau_extend_decades), None)
+
+    base = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, 0.0,
+                          lambda_reg, auto_lambda)
+    if not _slow_end_piled_up(base[2], base[0].d_ln_tau):
+        return (*base, 0.0, "not needed, no slow-end pile-up")
+
+    ratio = _lf_rc_ratio(frequencies, Z)
+    if ratio < DRT_LF_RC_RATIO_MIN:
+        return (*base, 0.0, f"not extended, capacitive low-frequency end "
+                            f"(r = {ratio:.2f} < {DRT_LF_RC_RATIO_MIN})")
+
+    for step in DRT_TAU_EXTEND_STEPS:
+        trial = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, step,
+                               lambda_reg, auto_lambda)
+        if trial[2].success and not _slow_end_piled_up(trial[2], trial[0].d_ln_tau):
+            return (*trial, step, "resolved the slow-end pile-up")
+    return (*base, 0.0, f"not extended, no extension up to "
+                        f"{DRT_TAU_EXTEND_STEPS[-1]} decades resolves the "
+                        f"slow-end pile-up")
 
 
 # =============================================================================
@@ -138,7 +214,8 @@ def calculate_drt(
     r_inf_preset: Optional[float] = None,
     gmm_bic_threshold: float = 10.0,
     lambda_probe: bool = False,
-    weighting: str = 'sqrt'
+    weighting: str = 'sqrt',
+    tau_extend_decades: Union[float, str] = 0.0
 ) -> DRTResult:
     """
     Calculate DRT (Distribution of Relaxation Times) using Tikhonov regularization.
@@ -172,6 +249,14 @@ def calculate_drt(
         Weighting of the data term from the measured |Z|: 'sqrt' (1/sqrt|Z|,
         default), 'uniform' (unweighted, before v0.38), 'modulus' (1/|Z|) or
         'proportional' (1/|Z|^2). Choice rationale: README, DRT analysis.
+    tau_extend_decades : float or 'auto'
+        Extend the tau grid this many decades past the slow end of the
+        measured window, at the same log spacing (``n_tau`` points stay on
+        the window). 0 (default) keeps the grid on the window. 'auto' extends
+        only when that resolves a slow-end pile-up, see
+        DRT_TAU_EXTEND_STEPS and DRT_LF_RC_RATIO_MIN; the choice is reported
+        in ``diagnostics.tau_extend_note``. Mass past the window is an
+        extrapolation, reported as ``R_pol_extrapolated_fraction``.
 
     Returns
     -------
@@ -183,6 +268,11 @@ def calculate_drt(
         # while diagnostics reported the misspelled name as if it applied.
         raise ValueError(f"Unknown DRT weighting '{weighting}', "
                          f"expected one of {DRT_WEIGHTINGS}")
+    if tau_extend_decades != 'auto' and not (
+            isinstance(tau_extend_decades, (int, float))
+            and np.isfinite(tau_extend_decades) and tau_extend_decades >= 0):
+        raise ValueError(f"tau_extend_decades must be a finite number >= 0 or 'auto', "
+                         f"got {tau_extend_decades!r}")
 
     f_min, f_max = float(frequencies.min()), float(frequencies.max())
     freq_range_ratio = f_max / f_min
@@ -207,20 +297,12 @@ def calculate_drt(
     )
     R_inf = rinf_est.R_inf
 
-    # === Step 3: Build Matrices ===
-    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting)
-
-    # === Step 4: Select Lambda ===
-    lambda_sel = _select_lambda(
-        matrices.A, matrices.b, matrices.L,
-        lambda_reg, auto_lambda
-    )
-
-    # === Step 5: Solve NNLS ===
-    nnls_result = _solve_nnls(
-        matrices.A, matrices.b, matrices.L,
-        lambda_sel.lambda_value, n_tau, Z
-    )
+    # === Steps 3-5: Build matrices, select lambda, solve NNLS ===
+    matrices, lambda_sel, nnls_result, tau_extend, tau_extend_note = \
+        _solve_with_extension(frequencies, Z, R_inf, n_tau, weighting,
+                              tau_extend_decades, lambda_reg, auto_lambda)
+    n_grid = len(matrices.tau)
+    tau_window = matrices.tau_window
 
     if not nnls_result.success:
         return DRTResult(
@@ -230,7 +312,7 @@ def calculate_drt(
                 freq_min=f_min, freq_max=f_max,
                 freq_range_ratio=freq_range_ratio,
                 n_points=len(frequencies),
-                n_tau=n_tau,
+                n_tau=n_grid,
                 condition_number=matrices.condition_number,
                 d_ln_tau=matrices.d_ln_tau,
                 rinf=rinf_est,
@@ -242,7 +324,9 @@ def calculate_drt(
                 reconstruction_error_rel=0.0,
                 peak_method=peak_method,
                 n_peaks=0,
-                weighting=weighting
+                weighting=weighting,
+                tau_extend_decades=tau_extend,
+                tau_extend_note=tau_extend_note
             )
         )
 
@@ -275,7 +359,7 @@ def calculate_drt(
     # === Step 7: Peak Detection ===
     peaks_result, bic_scores, scipy_peaks = _detect_peaks(
         matrices.tau, gamma_physical, peak_method, gmm_bic_threshold,
-        n_data=len(frequencies)
+        n_data=len(frequencies), tau_window=tau_window
     )
 
     # The peaks the run reports: GMM components when GMM ran and succeeded,
@@ -299,8 +383,8 @@ def calculate_drt(
 
     # === Step 8b: Window-edge diagnostics ===
     # Pile-up at an end of the tau grid: NNLS has nowhere to put response
-    # whose time constant lies outside the measured window, so it heaps gamma
-    # up against the boundary instead.
+    # whose time constant lies outside the grid, so it heaps gamma up against
+    # the boundary instead.
     edge_pile_up_fraction, edge_pile_up_end = _edge_pile_up(
         gamma_physical, matrices.d_ln_tau, R_pol_from_gamma
     )
@@ -308,7 +392,7 @@ def calculate_drt(
         nnls_result.warnings.append(
             f"{edge_pile_up_fraction*100:.0f}% of R_pol is heaped against the "
             f"{'fast' if edge_pile_up_end == 'low' else 'slow'} end of the tau "
-            f"window - likely response from outside it (series inductance, "
+            f"grid - likely response from beyond it (series inductance, "
             f"unresolved tail, a process slower than the lowest frequency)"
         )
         # That mass is not left unattributed: the scipy basin partition runs to
@@ -333,8 +417,21 @@ def calculate_drt(
     if n_boundary_peaks:
         nnls_result.warnings.append(
             f"{n_boundary_peaks} of {len(reported_peaks)} peaks lie within "
-            f"{DRT_PEAK_EDGE_DECADES} decade of the measured tau window edge - "
-            f"position and R_estimate are only partly supported by data"
+            f"{DRT_PEAK_EDGE_DECADES} decade of the measured tau window edge "
+            f"or past it - position and R_estimate are only partly supported "
+            f"by data"
+        )
+
+    # Mass the extended grid placed past the window is extrapolated, not measured.
+    R_pol_extrapolated_fraction = _extrapolated_fraction(
+        matrices.tau, gamma_physical, matrices.d_ln_tau, R_pol_from_gamma,
+        tau_window[1]
+    )
+    if R_pol_extrapolated_fraction > DRT_EXTRAPOLATED_RPOL_FRACTION:
+        nnls_result.warnings.append(
+            f"{R_pol_extrapolated_fraction*100:.0f}% of R_pol lies past the "
+            f"measured window (tau > {tau_window[1]:.3g} s) - extrapolated "
+            f"from its high-frequency flank, not measured"
         )
 
     # === Step 8c: Shape-quality diagnostics (F3) ===
@@ -371,7 +468,7 @@ def calculate_drt(
                                for p in (scipy_peaks or [])]
         stability = probe_lambda_stability(
             matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf,
-            n_tau
+            n_grid
         )
         # Overlay curves for the DRT figure; match the normalization of the
         # displayed gamma.
@@ -389,7 +486,8 @@ def calculate_drt(
         lambda_sel.lambda_value,
         normalized, peak_method,
         peaks_result, bic_scores,
-        probe_curves=probe_curves
+        probe_curves=probe_curves,
+        tau_window=tau_window
     )
 
     # === Build diagnostics ===
@@ -398,7 +496,7 @@ def calculate_drt(
         freq_max=f_max,
         freq_range_ratio=freq_range_ratio,
         n_points=len(frequencies),
-        n_tau=n_tau,
+        n_tau=n_grid,
         condition_number=nnls_result.condition_number,
         d_ln_tau=matrices.d_ln_tau,
         rinf=rinf_est,
@@ -416,7 +514,10 @@ def calculate_drt(
         edge_pile_up_end=edge_pile_up_end,
         n_boundary_peaks=n_boundary_peaks,
         stability=stability,
-        weighting=weighting
+        weighting=weighting,
+        tau_extend_decades=tau_extend,
+        tau_extend_note=tau_extend_note,
+        R_pol_extrapolated_fraction=R_pol_extrapolated_fraction
     )
 
     return DRTResult(

@@ -44,15 +44,16 @@ on the upper bound (the CLI warns when it does).
 
 DRT_PEAK_EDGE_DECADES = 0.7
 """
-Distance from the edge of the tau grid below which a peak is flagged as
-boundary-sensitive [decades of tau].
+Distance from the edge of the measured window below which a peak is flagged
+as boundary-sensitive [decades of tau].
 
-The tau grid spans exactly the measured window (tau = 1/(2*pi*f) for f_max and
-f_min), so a peak near either end is only half-supported by data: the kernel
-1/(1+j*omega*tau) has no measurement on one flank, the regularization is free
-to shape that flank, and the basin integral that yields R_estimate is
-truncated by the end of the array. The peak position and area are then far
-less certain than the numbers alone suggest.
+The measured window is tau = 1/(2*pi*f) for f_max and f_min. A peak near either
+end is only half-supported by data: the kernel 1/(1+j*omega*tau) has no
+measurement on one flank, the regularization is free to shape that flank, and
+without a grid extension the basin integral that yields R_estimate is
+truncated by the end of the array. A peak past the slow end (possible with
+`tau_extend_decades`) has a negative distance and is flagged as well. The peak
+position and area are then far less certain than the numbers alone suggest.
 
 Value 0.7: a Gaussian-like DRT peak of typical width carries most of its area
 within roughly +-0.7 decade of its maximum, so a peak closer than that to the
@@ -68,10 +69,11 @@ Share of R_pol heaped against an end of the tau grid above which pile-up is
 reported.
 
 Non-negative NNLS cannot represent response whose time constant lies outside
-the measured window (series inductance, an unresolved diffusion tail, a
-process slower than the lowest measured frequency). It disposes of that
-response by heaping gamma up against the first or last bin, which inflates the
-R_estimate of the peak that absorbs it.
+the tau grid (series inductance, an unresolved diffusion tail, a process slower
+than the lowest measured frequency - or, with `tau_extend_decades`, slower
+than the extended grid). It disposes of that response by heaping gamma up
+against the first or last bin, which inflates the R_estimate of the peak that
+absorbs it.
 
 Measured as the mass of the falling run leaving the boundary, not of the
 outermost bin: a relaxation inside the window makes gamma rise from the edge
@@ -87,6 +89,49 @@ edges towards its peaks, so the threshold only has to separate a small
 boundary lobe from a real one. 5% of R_pol is small enough to catch pile-up
 early and large enough not to fire on the shoulder of a legitimate peak that
 happens to sit at the edge.
+"""
+
+DRT_EXTRAPOLATED_RPOL_FRACTION = 0.05
+"""
+Share of R_pol placed beyond the slow end of the measured window above which
+the DRT warns that part of it is extrapolated.
+
+Only possible with `tau_extend_decades > 0`. Mass past tau_max is constrained
+by the high-frequency flank of its response alone, so its position and size
+are extrapolations. Value 0.05, measured (sqrt weighting, 1 % proportional
+noise): spectra whose peaks all sit inside the window leak at most 2.1 % of
+R_pol past it at a 1-decade extension; a genuine peak 0.3 decade inside the
+slow edge puts 7 % there, and warning about that is right.
+"""
+
+DRT_TAU_EXTEND_STEPS = (0.5, 1.0, 1.5)
+"""
+Extensions tried by `tau_extend_decades='auto'` [decades beyond tau_max].
+
+'auto' extends only when the unextended DRT piles up at the slow end, and then
+takes the smallest step that clears the pile-up; if none does, it keeps the
+unextended grid. Picking by fit quality instead would always pick the largest
+step: every extra decade adds freedom and lowers the residual even where it is
+wrong (a blocking electrode). Capped at 1.5: in benchmarks an RC 0.5 decade
+past the window closes at 1.0, one a full decade past closes at none of
+these, and a wider grid only lets low-frequency noise leak further.
+"""
+
+DRT_LF_RC_RATIO_MIN = 0.2
+"""
+Low-frequency ratio r = (-dZ'/d ln omega) / (-Z'') below which
+`tau_extend_decades='auto'` does not extend: the end is capacitive.
+
+For a single RC, r = 2x/(1+x^2) with x = omega*tau. r is fitted over the four
+lowest frequencies, so x is taken at their geometric centre; at 10 points per
+decade that is 0.15 decade above f_min, and an RC 0.5 decade past the window
+reads r = 0.44, one a full decade past r = 0.15. A series capacitor gives
+r = 0 and a CPE r = n*cot(n*pi/2) (0.14 at n = 0.9). Extending the grid for
+those turns the capacitor into a huge extrapolated peak and, in benchmarks,
+pushed the real peak below the detection threshold. Value 0.2: below it the
+process lies about a decade or more past the window, which no step of
+DRT_TAU_EXTEND_STEPS closes anyway. It cannot separate a CPE with n < ~0.75
+from an RC just past the window - both look alike at the lowest frequencies.
 """
 
 DRT_MIN_EFFECTIVE_BINS = 7.0
@@ -248,6 +293,9 @@ __all__ = [
     'DRT_PEAK_HEIGHT_THRESHOLD',
     'DRT_PEAK_EDGE_DECADES',
     'DRT_EDGE_BIN_RPOL_FRACTION',
+    'DRT_EXTRAPOLATED_RPOL_FRACTION',
+    'DRT_TAU_EXTEND_STEPS',
+    'DRT_LF_RC_RATIO_MIN',
     'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
     'GMM_PEAK_HEIGHT_FACTOR',

@@ -267,6 +267,9 @@ eis data.DTA --ri-fit
 
 # Weighting of the DRT data term (default: sqrt)
 eis data.DTA --drt-weighting modulus
+
+# Extend the tau grid past the slow end of the window (off by default)
+eis data.DTA --tau-extend auto
 ```
 
 The least-squares term is weighted per frequency by `1/sqrt|Z|` by default.
@@ -279,6 +282,21 @@ auto-lambda to the edge of its range. `uniform` gives the unweighted DRT of
 versions before 0.38. The weights are rescaled so that the weighted data keep
 the norm of the unweighted data, so a given `--lambda` means about the same
 regularization under every weighting.
+
+The tau grid spans the measured window, `1/(2 pi f_max)` to `1/(2 pi f_min)`.
+A process slower than the lowest frequency then has nowhere to go and NNLS
+heaps it into the last bin (reported as pile-up). `--tau-extend DECADES`
+continues the grid past the slow end at the same spacing; `--tau-extend auto`
+does so only when it helps: when the unextended DRT piles up at the slow end,
+it tries 0.5, 1.0 and 1.5 decades and keeps the smallest that clears the
+pile-up, else none. It does not extend a capacitive low-frequency end (a
+blocking electrode, a CPE with n close to 1), where the extension would turn
+the capacitance into a huge fictitious peak. Anything placed past the window
+is an extrapolation from the high-frequency flank of its response: such peaks
+are marked `past window`, and the share of R_pol there is reported. The
+extension is off by default because on spectra whose low-frequency arc stays
+open over more than a decade it only moves the heap further out and inflates
+R_pol.
 
 By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
@@ -560,7 +578,8 @@ the fit reports `Global search contributed nothing` - see
 
 - `--lambda`, `-l` (default: auto GCV) - Regularization parameter for DRT. Without this parameter, automatic selection using GCV (Generalized Cross-Validation) and L-curve method is used. Higher values = smoother DRT, lower = more detail but also noise. Note: on low-noise data auto-lambda may drive lambda toward 0, giving a sparse/spiky DRT that is unreliable for peak-shape analysis; the tool reports the effective bin count (N_eff) and warns when the DRT is too sparse or lambda lands at the search-range edge — set `--lambda` manually (e.g. 0.1) in that case.
 - `--drt-weighting` (default: sqrt) - Weighting of the DRT least-squares term: `sqrt` (1/sqrt|Z|), `modulus` (1/|Z|, best when noise is proportional to |Z|), `proportional` (1/|Z|^2) or `uniform` (unweighted, the behaviour before 0.38). Independent of `--weighting`, which applies to circuit fitting only.
-- `--n-tau`, `-n` (default: 100) - Number of points on the tau time constant axis. Higher values give finer DRT resolution but increase computational cost.
+- `--tau-extend` (default: 0) - Extend the tau grid this many decades past the slow end of the measured window, or `auto` to extend only when that resolves a slow-end pile-up and the low-frequency end is not capacitive. Peaks past the window are marked as extrapolated and the share of R_pol past the window is reported.
+- `--n-tau`, `-n` (default: 100) - Number of points on the tau time constant axis across the measured window (an extension adds points at the same spacing). Higher values give finer DRT resolution but increase computational cost.
 - `--normalize-rpol` - Normalize gamma(tau) by polarization resistance so that integral = 1. Useful for comparing samples with different R_pol.
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.

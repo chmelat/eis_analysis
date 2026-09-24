@@ -52,7 +52,8 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
 
 def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
                         R_inf: float, n_tau: int = 100,
-                        weighting: str = 'uniform') -> DRTMatrices:
+                        weighting: str = 'uniform',
+                        tau_extend_decades: float = 0.0) -> DRTMatrices:
     """
     Build DRT system matrices A, b, and regularization matrix L.
 
@@ -60,6 +61,12 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     ``compute_weights``, rescaled so that ||w*Z|| = ||Z||: the residual stays
     commensurate with ||L gamma||, so lambda means the same under every
     weighting. A_re and A_im stay unweighted: they map gamma back to impedance.
+
+    ``n_tau`` points span the measured window; ``tau_extend_decades`` appends
+    points at the same log spacing beyond its slow end, so a process slower
+    than the lowest frequency gets a place on the grid instead of piling up
+    in the last bin. The fast end is not extended: R_inf is subtracted
+    beforehand and an RC with tau << 1/omega_max is indistinguishable from it.
     """
     f_max = frequencies.max()
     f_min = frequencies.min()
@@ -72,6 +79,11 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
 
     d_ln_tau_array = np.diff(np.log(tau))
     d_ln_tau = float(np.mean(d_ln_tau_array))
+
+    n_ext = int(np.ceil(tau_extend_decades * np.log(10) / d_ln_tau))
+    if n_ext > 0:
+        tau = np.concatenate([tau, tau_max * np.exp(d_ln_tau * np.arange(1, n_ext + 1))])
+    n_grid = len(tau)
 
     # Vectorized matrix construction
     omega_mesh, tau_mesh = np.meshgrid(omega, tau, indexing='ij')
@@ -89,8 +101,8 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     b = np.concatenate([weights * (Z.real - R_inf), weights * Z.imag])
 
     # Regularization matrix (2nd derivative) - tridiagonal [1, -2, 1]
-    # Shape: (n_tau - 2, n_tau) for second derivative operator
-    L = np.zeros((n_tau - 2, n_tau))
+    # Shape: (n_grid - 2, n_grid) for second derivative operator
+    L = np.zeros((n_grid - 2, n_grid))
     np.fill_diagonal(L, 1)           # Main diagonal at offset 0
     np.fill_diagonal(L[:, 1:], -2)   # Diagonal at offset 1
     np.fill_diagonal(L[:, 2:], 1)    # Diagonal at offset 2
@@ -98,7 +110,7 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     return DRTMatrices(
         A=A, A_re=A_re, A_im=A_im, b=b, L=L,
         tau=tau, d_ln_tau=d_ln_tau, condition_number=cond_A,
-        weights=weights
+        weights=weights, tau_window=(float(tau_min), float(tau_max))
     )
 
 

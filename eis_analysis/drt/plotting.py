@@ -22,13 +22,15 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
                           peak_method: str,
                           peaks_result: Optional[List[Dict]],
                           bic_scores: Optional[List[float]],
-                          probe_curves: Optional[List[Tuple[float, NDArray]]] = None
+                          probe_curves: Optional[List[Tuple[float, NDArray]]] = None,
+                          tau_window: Optional[Tuple[float, float]] = None
                           ) -> plt.Figure:
     """
     Create DRT visualization figure.
 
     probe_curves: optional (lambda, gamma) pairs from the lambda-probe
     stability diagnostics, drawn as thin overlays on the DRT spectrum.
+    tau_window: measured window; grid past its slow end is shaded as extrapolated.
     """
     use_gmm = (peak_method == 'gmm' and
                peaks_result is not None and len(peaks_result) > 0)
@@ -48,6 +50,9 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
                          label=f'lambda = {probe_lambda:.1e}')
     ax1.semilogx(tau, gamma, 'b-', linewidth=2, label='DRT gamma(tau)')
     ax1.fill_between(tau, 0, gamma, alpha=0.3)
+    if tau_window is not None and tau[-1] > tau_window[1] * (1 + 1e-9):
+        ax1.axvspan(tau_window[1], tau[-1], color='gray', alpha=0.15,
+                    label='past measured window (extrapolated)')
     ax1.set_xlabel("tau [s]")
 
     if normalize_rpol:

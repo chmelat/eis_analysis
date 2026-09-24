@@ -12,9 +12,23 @@ Provides structured argument parsing with logical grouping:
 """
 
 import argparse
+import math
 from ..version import get_version_string
 from ..drt.core import DRT_WEIGHTINGS
 
+
+
+def _tau_extend(value: str):
+    """argparse type for --tau-extend: 'auto' or a number of decades >= 0."""
+    if value == 'auto':
+        return value
+    try:
+        decades = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a number of decades or 'auto', got {value!r}")
+    if not (math.isfinite(decades) and decades >= 0):
+        raise argparse.ArgumentTypeError(f"must be a finite number >= 0, got {decades}")
+    return decades
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -86,6 +100,12 @@ Examples:
                                 'w = 1/sqrt|Z|). modulus (1/|Z|) suits noise proportional '
                                 'to |Z|; uniform is the unweighted pre-0.38 behaviour. '
                                 'Independent of --weighting for circuit fitting.')
+    drt_group.add_argument('--tau-extend', type=_tau_extend, default=0.0,
+                           metavar='DECADES|auto',
+                           help='Extend the DRT tau grid this many decades past the slow end '
+                                'of the measured window (default: 0). auto extends only when '
+                                'that resolves a pile-up at the slow end and the low-frequency '
+                                'end is not capacitive. Peaks past the window are extrapolated.')
     drt_group.add_argument('--normalize-rpol', action='store_true',
                            help='Normalize gamma(tau) by R_pol so that integral gamma(tau) d(ln tau) = 1.')
     drt_group.add_argument('--n-tau', '-n', type=int, default=100,
