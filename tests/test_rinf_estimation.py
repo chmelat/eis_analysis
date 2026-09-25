@@ -28,16 +28,16 @@ def _f_arc(f_peak):
     return 1 / (2 * np.pi * f_peak)
 
 
-# (name, Rs, spectrum). Rs = 10 Ohm, R = 100 Ohm unless stated.
-CASES = [
-    ('flat', 10, _spectrum(10, 0, 100, _f_arc(16))),
-    ('A2 separate arc', 10, _spectrum(10, 1e-6, 100, _f_arc(1.6e3))),
-    ('A3 L + arc 160 kHz', 10, _spectrum(10, 1e-5, 100, _f_arc(160e3))),
-    ('C L + RC 16 kHz', 10, _spectrum(10, 1e-5, 100, 1e-5)),
-    ('C2 L + ZARC 0.7', 10, _spectrum(10, 1e-5, 100, 1e-5, 0.7)),
-    ('B n=0.7 capacitive', 10, _spectrum(10, 0, 100, 1e-4, 0.7, f_max=1e5)),
-    ('D Rs=0.05, n=0.6', 0.05, _spectrum(0.05, 0, 100, 1e-3, 0.6, f_max=1e5)),
-]
+# name -> (Rs, spectrum). Rs = 10 Ohm, R = 100 Ohm unless stated.
+CASES = {
+    'flat': (10, _spectrum(10, 0, 100, _f_arc(16))),
+    'A2 separate arc': (10, _spectrum(10, 1e-6, 100, _f_arc(1.6e3))),
+    'A3 L + arc 160 kHz': (10, _spectrum(10, 1e-5, 100, _f_arc(160e3))),
+    'C L + RC 16 kHz': (10, _spectrum(10, 1e-5, 100, 1e-5)),
+    'C2 L + ZARC 0.7': (10, _spectrum(10, 1e-5, 100, 1e-5, 0.7)),
+    'B n=0.7 capacitive': (10, _spectrum(10, 0, 100, 1e-4, 0.7, f_max=1e5)),
+    'D Rs=0.05, n=0.6': (0.05, _spectrum(0.05, 0, 100, 1e-3, 0.6, f_max=1e5)),
+}
 
 
 def _noisy(Z, seed, level=0.01):
@@ -46,50 +46,66 @@ def _noisy(Z, seed, level=0.01):
                              + 1j * rng.standard_normal(len(Z))))
 
 
-def test_noiseless_cases_recover_rs():
-    for name, Rs, (f, Z) in CASES:
-        res = estimate_rinf(f, Z)
-        assert res.method == 'rlq_fit', (name, res.warnings)
-        assert res.R_inf == pytest.approx(Rs, rel=0.02), name
-        assert res.warnings == [], name
+@pytest.mark.parametrize('name', CASES)
+def test_noiseless_case_recovers_rs(name):
+    Rs, (f, Z) = CASES[name]
+    res = estimate_rinf(f, Z)
+    assert res.method == 'rlq_fit', res.warnings
+    assert res.R_inf == pytest.approx(Rs, rel=0.02)
+    assert res.warnings == []
 
 
-def test_noisy_determinable_cases_use_fit():
+@pytest.mark.parametrize('name', ['C L + RC 16 kHz', 'B n=0.7 capacitive'])
+def test_noisy_determinable_case_uses_fit(name):
     # 1 % noise: the audit's C and B cases stay within a few percent.
-    for name, Rs, (f, Z) in (CASES[3], CASES[5]):
-        res = estimate_rinf(f, _noisy(Z, seed=1))
-        assert res.method == 'rlq_fit', (name, res.warnings)
-        assert res.R_inf == pytest.approx(Rs, rel=0.05), name
+    Rs, (f, Z) = CASES[name]
+    res = estimate_rinf(f, _noisy(Z, seed=1))
+    assert res.method == 'rlq_fit', res.warnings
+    assert res.R_inf == pytest.approx(Rs, rel=0.05)
 
 
-def test_undeterminable_falls_back_to_upper_bound_with_warning():
-    # Arc entirely above f_max (A1), strongly open CPE arc with noise (D),
-    # and two overlapping CPEs the model does not describe (example CSV).
-    f_a1, Z_a1 = _spectrum(10, 1e-7, 100, _f_arc(16e6))
+def _undeterminable(name):
+    """Arc entirely above f_max (A1), strongly open CPE arc with noise (D),
+    two overlapping CPEs the model does not describe (example CSV)."""
+    if name == 'A1':
+        f, Z = _spectrum(10, 1e-7, 100, _f_arc(16e6))
+        return 10, f, _noisy(Z, seed=0)
+    if name == 'D':
+        Rs, (f, Z) = CASES['D Rs=0.05, n=0.6']
+        return Rs, f, _noisy(Z, seed=0)
     csv = load_csv_data('example/example_eis_data.csv')
-    Rs_of = {'A1': 10, 'D': 0.05, 'CSV': 10}
-    for name, f, Z in (('A1', f_a1, _noisy(Z_a1, seed=0)),
-                       ('D', CASES[6][2][0], _noisy(CASES[6][2][1], seed=0)),
-                       ('CSV', csv.frequencies, csv.Z)):
-        res = estimate_rinf(f, Z)
-        assert res.method == 'hf_bound', name
-        # Re(Z) at f_max: an upper bound, tighter than the 5-point HF median
-        # on an open arc (D: +2483 % instead of +3295 %).
-        assert res.R_inf == Z.real[np.argmax(f)] >= Rs_of[name], name
-        assert res.fit is not None and 'not determined' in res.warnings[-1], name
+    return 10, csv.frequencies, csv.Z
 
 
-def test_input_handling():
-    f, Z = CASES[0][2]
-    # Plain lists are accepted; non-finite points are dropped and reported.
+@pytest.mark.parametrize('name', ['A1', 'D', 'CSV'])
+def test_undeterminable_falls_back_to_upper_bound_with_warning(name):
+    Rs, f, Z = _undeterminable(name)
+    res = estimate_rinf(f, Z)
+    assert res.method == 'hf_bound'
+    # Re(Z) at f_max: an upper bound, tighter than the 5-point HF median
+    # on an open arc (D: +2483 % instead of +3295 %).
+    assert res.R_inf == Z.real[np.argmax(f)] >= Rs
+    assert res.fit is not None and 'not determined' in res.warnings[-1]
+
+
+def test_accepts_lists_and_drops_non_finite_points():
+    _, (f, Z) = CASES['flat']
     Z_bad = Z.copy()
     Z_bad[5] = np.nan
     res = estimate_rinf(list(f), list(Z_bad))
     assert res.R_inf == pytest.approx(10, rel=0.02)
     assert 'non-finite' in res.warnings[0]
+
+
+def test_rejects_shape_mismatch():
+    _, (f, Z) = CASES['flat']
     with pytest.raises(ValueError):
         estimate_rinf(f, Z[:-1])
-    # Too few points in the window: fallback, not an underdetermined fit.
-    res = estimate_rinf(f[::10], Z[::10])  # 3 points in the window
+
+
+def test_too_few_window_points_fall_back_without_fit():
+    # Not an underdetermined fit: 3 points in the window, 5 parameters.
+    _, (f, Z) = CASES['flat']
+    res = estimate_rinf(f[::10], Z[::10])
     assert res.method == 'hf_bound' and res.fit is None
     assert 'need >=' in res.warnings[0]
