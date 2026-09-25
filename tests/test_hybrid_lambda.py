@@ -8,7 +8,7 @@ from eis_analysis.drt.gcv import (
     find_optimal_lambda_gcv,
     find_optimal_lambda_hybrid,
 )
-from eis_analysis.drt.core import _build_drt_matrices
+from eis_analysis.drt.linear_system import _build_drt_matrices
 
 
 # =============================================================================

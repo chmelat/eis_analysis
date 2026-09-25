@@ -6,7 +6,8 @@ CLI layer is responsible for user output.
 
 This module is the orchestrator: it keeps the public ``calculate_drt`` entry
 point and ties together the pipeline stages, which live in sibling modules
-(``results``, ``estimation``, ``linear_system``, ``plotting``, ``peaks``). Those
+(``results``, ``estimation``, ``linear_system``, ``extension``, ``plotting``,
+``peaks``). Those
 symbols are re-exported below so they remain importable from ``drt.core``.
 """
 
@@ -31,26 +32,21 @@ from .estimation import (
     _rpol_from_gamma,
     _estimate_peak_resistance,
     _edge_pile_up,
-    _edge_pile_up_fractions,
     _effective_bins,
     _estimate_r_inf,
     _flag_boundary_peaks,
     _extrapolated_fraction,
-    _lf_rc_ratio,
 )
 from .linear_system import (
     _validate_frequencies,
-    _build_drt_matrices,
-    _select_lambda,
-    _solve_nnls,
 )
 from .plotting import _create_visualization
 from .peaks import gmm_peak_detection
 from .stability import probe_lambda_stability
+from .extension import _solve_with_extension
 from ..fitting.config import (DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS,
                              DRT_EDGE_BIN_RPOL_FRACTION, DRT_PEAK_EDGE_DECADES,
-                             DRT_EXTRAPOLATED_RPOL_FRACTION, DRT_TAU_EXTEND_STEPS,
-                             DRT_LF_RC_RATIO_MIN, GMM_N_COMPONENTS_RANGE)
+                             DRT_EXTRAPOLATED_RPOL_FRACTION, GMM_N_COMPONENTS_RANGE)
 
 logger = logging.getLogger(__name__)
 
@@ -126,76 +122,6 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
         return peaks_result, bic_scores, scipy_peaks
 
     return None, None, scipy_peaks
-
-
-# =============================================================================
-# Tau-grid extension
-# =============================================================================
-
-def _solve_on_grid(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
-                   weighting: str, tau_extend: float,
-                   lambda_reg: Optional[float], auto_lambda: bool
-                   ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution]:
-    """Build the system on a grid extended by ``tau_extend`` decades, pick lambda, solve."""
-    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting, tau_extend)
-    lambda_sel = _select_lambda(matrices.A, matrices.b, matrices.L, lambda_reg, auto_lambda)
-    nnls_result = _solve_nnls(matrices.A, matrices.b, matrices.L,
-                              lambda_sel.lambda_value, len(matrices.tau), Z)
-    return matrices, lambda_sel, nnls_result
-
-
-def _slow_end_piled_up(nnls_result: NNLSSolution, d_ln_tau: float) -> bool:
-    """True when the solution heaps more than the pile-up threshold at the slow grid end.
-
-    Measured on the slow end alone: _edge_pile_up reports only the heavier
-    end, so a worse fast-end heap (inductance, HF tail) would hide this one.
-    """
-    if not nnls_result.success or nnls_result.gamma is None:
-        return False
-    gamma = nnls_result.gamma
-    _, slow = _edge_pile_up_fractions(gamma, d_ln_tau, _rpol_from_gamma(gamma, d_ln_tau))
-    return slow > DRT_EDGE_BIN_RPOL_FRACTION
-
-
-def _solve_with_extension(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
-                          weighting: str, tau_extend_decades: Union[float, str],
-                          lambda_reg: Optional[float], auto_lambda: bool
-                          ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution,
-                                     float, Optional[str]]:
-    """
-    Solve on a fixed extension, or let 'auto' choose one.
-
-    'auto' extends only when the unextended solution piles up at the slow end
-    and the low-frequency end is not capacitive (DRT_LF_RC_RATIO_MIN), then
-    takes the smallest of DRT_TAU_EXTEND_STEPS that clears the pile-up. If
-    none does, the unextended solution stands: a wider grid that still piles
-    up only moves the heap further out.
-
-    Returns (matrices, lambda_sel, nnls_result, extension applied, note).
-    """
-    if tau_extend_decades != 'auto':
-        return (*_solve_on_grid(frequencies, Z, R_inf, n_tau, weighting,
-                                float(tau_extend_decades), lambda_reg, auto_lambda),
-                float(tau_extend_decades), None)
-
-    base = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, 0.0,
-                          lambda_reg, auto_lambda)
-    if not _slow_end_piled_up(base[2], base[0].d_ln_tau):
-        return (*base, 0.0, "not needed, no slow-end pile-up")
-
-    ratio = _lf_rc_ratio(frequencies, Z)
-    if ratio < DRT_LF_RC_RATIO_MIN:
-        return (*base, 0.0, f"not extended, capacitive low-frequency end "
-                            f"(r = {ratio:.2f} < {DRT_LF_RC_RATIO_MIN})")
-
-    for step in DRT_TAU_EXTEND_STEPS:
-        trial = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, step,
-                               lambda_reg, auto_lambda)
-        if trial[2].success and not _slow_end_piled_up(trial[2], trial[0].d_ln_tau):
-            return (*trial, step, "resolved the slow-end pile-up")
-    return (*base, 0.0, f"not extended, no extension up to "
-                        f"{DRT_TAU_EXTEND_STEPS[-1]} decades resolves the "
-                        f"slow-end pile-up")
 
 
 # =============================================================================
