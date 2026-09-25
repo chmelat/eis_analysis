@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from scipy.optimize import nnls
 
 from .results import DRTMatrices, LambdaSelection, NNLSSolution
-from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid
+from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid, DRT_NNLS_MAXITER_FACTOR
 from ..fitting.diagnostics import compute_weights
 
 logger = logging.getLogger(__name__)
@@ -229,7 +229,7 @@ def _solve_nnls(matrices: DRTMatrices, lambda_reg: float,
 
     # Solve NNLS
     try:
-        x, _ = nnls(A_reg, b_reg)
+        x, _ = nnls(A_reg, b_reg, maxiter=DRT_NNLS_MAXITER_FACTOR * A_reg.shape[1])
     except Exception as e:
         return NNLSSolution(
             gamma=None, success=False,

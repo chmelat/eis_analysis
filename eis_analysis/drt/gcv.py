@@ -15,6 +15,11 @@ from scipy.optimize import nnls
 
 logger = logging.getLogger(__name__)
 
+# NNLS iteration budget per unknown. scipy's default 3*n gives up on weighted
+# DRT systems with |Z| over many decades at small lambda (needed ~5*n on a
+# 7-decade oxide spectrum); Lawson-Hanson only runs longer when it needs to.
+DRT_NNLS_MAXITER_FACTOR = 50
+
 
 def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
                       b: NDArray[np.float64], L: NDArray[np.float64]) -> float:
@@ -49,7 +54,7 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
 
     # Řeš NNLS
     try:
-        x, residual_nnls = nnls(A_reg, b_reg)
+        x, residual_nnls = nnls(A_reg, b_reg, maxiter=DRT_NNLS_MAXITER_FACTOR * A_reg.shape[1])
     except (RuntimeError, ValueError) as e:
         logger.debug(f"NNLS selhalo pro λ={lambda_val:.2e}: {e}")
         return np.inf
@@ -116,7 +121,7 @@ def compute_lcurve_point(lambda_val: float, A: NDArray[np.float64],
     b_reg = np.concatenate([b, np.zeros(L.shape[0])])
 
     try:
-        x, _ = nnls(A_reg, b_reg)
+        x, _ = nnls(A_reg, b_reg, maxiter=DRT_NNLS_MAXITER_FACTOR * A_reg.shape[1])
     except (RuntimeError, ValueError) as e:
         logger.debug(f"NNLS selhalo pro λ={lambda_val:.2e}: {e}")
         return np.inf, np.inf, None

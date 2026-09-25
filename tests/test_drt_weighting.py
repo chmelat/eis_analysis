@@ -138,6 +138,23 @@ def test_weighted_drt_is_scale_invariant():
     assert np.allclose(r2.gamma, 1000 * r1.gamma, rtol=1e-6, atol=1e-9 * np.max(r2.gamma))
 
 
+def test_sqrt_solves_high_dynamic_range_spectrum():
+    """|Z| over ~7 decades (oxide film): the weighted NNLS must converge.
+
+    Regression: sqrt weights spanning ~3.5 decades made Lawson-Hanson exceed
+    scipy's default 3*n iterations at small lambda, and the DRT came back empty.
+    """
+    f = np.logspace(6, np.log10(1.58e-3), 89)
+    omega = 2 * np.pi * f
+    R = 4e7  # (R | CPE | C) film behind a 1.1 Ohm electrolyte
+    Z = 1.1 + 1 / (1 / R + 2e-7 * (1j * omega)**0.58 + 1j * omega * 6e-8)
+    result = calculate_drt(f, Z, auto_lambda=True, r_inf_preset=1.1)
+
+    assert result.success
+    # f_min does not reach DC, so the window sees most of R, not all of it
+    assert 0.5 * R < result.R_pol < R
+
+
 def test_non_finite_impedance_fails_gracefully():
     """One bad point must yield an empty result, not an exception.
 
