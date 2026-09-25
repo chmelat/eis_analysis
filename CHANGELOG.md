@@ -4,6 +4,47 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.40.0 (2026-09-25)
+
+### Changed - BREAKING
+
+- **`--ri-fit` is one R-L-(R|Q) fit over the top two decades instead of three
+  branches.** The old estimator interpolated a zero crossing of Im(Z), fitted a
+  polynomial Re(Im) to capacitive data or solved R-L-K with tau fixed at the
+  |Im| maximum. On inductive spectra, for which `--ri-fit` was recommended, it
+  was worse than the plain HF median (+10 % / +89 % / +102 % against
+  +0.6 % / +38 % / +60 %), returned R_inf = 0 at R^2 = 0.994, clamped to a
+  magic 1 Ohm, and never warned (`doc/AUDIT_ri_fit_2026-09-25.md`). Now
+  `R_s - L - (R|Q)` is fitted with `fit_equivalent_circuit` to
+  `f >= f_max/100`; on the audit's synthetic set it recovers R_s exactly
+  without noise and within a few percent at 1 % noise, CPE arcs included.
+
+- **R_inf that the data do not determine falls back to the HF median, with a
+  warning.** The fitted R_s is used only if `stderr/R_s <= 5 %`
+  (`RINF_REL_STDERR_MAX`); an arc above f_max, a strongly open CPE arc or a
+  model mismatch is flagged instead of returned as a number. Every fallback
+  (too few points, failed fit, undetermined R_s) now uses the HF median, not
+  the median of the whole spectrum, and says why. The CLI prints the fit
+  (with stderr and L) and the median, and hands the chosen value to the DRT.
+
+- **New API: `estimate_rinf(frequencies, Z) -> RinfResult`**, replacing
+  `estimate_rinf_with_inductance()`, `fit_rlk_model()`, `RLKFitResult`,
+  `select_highest_decade()` and `DataSelectionResult`. `RinfResult` carries
+  `R_inf`, `method` (`'rlq_fit'` | `'hf_median'`), `R_inf_fit`,
+  `R_inf_stderr`, `R_inf_median`, the `FitResult` and `warnings`. It accepts
+  lists, drops non-finite points and raises `ValueError` on a shape mismatch
+  (previously an `AttributeError`, or a silent fallback). `hf_median()` is the
+  one HF median shared with the DRT. The plot moved to
+  `visualization.plot_rinf_fit()`.
+
+- **`calculate_drt(use_rl_fit=...)` and `DRTResult.figure_rinf` are removed.**
+  Pass `r_inf_preset=estimate_rinf(f, Z).R_inf` instead; the CLI already did.
+  `RinfEstimate` keeps `R_inf`, `method` (`'preset'` | `'median'`),
+  `R_inf_median` and `n_points_used`. The two unjustified high-inductance
+  thresholds (1000 nH, 500 nH) are gone; the CLI reports L itself.
+
+---
+
 ## Version 0.39.0 (2026-09-24)
 
 ### Added
