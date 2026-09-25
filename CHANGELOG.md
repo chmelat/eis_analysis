@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.41.1 (2026-09-25)
+
+### Fixed
+
+- **DRT came back empty on weighted high-dynamic-range spectra.** With the
+  default `sqrt` weighting (v0.38.0) and |Z| over ~7 decades (oxide film,
+  2.5 Ohm .. 3e7 Ohm) the weights span ~3.5 decades and the Lawson-Hanson
+  NNLS needs up to ~5*n iterations at small lambda. scipy's default 3*n
+  raised "too many iterations": the lambda search got inf scores (NaN
+  warnings from the L-curve) and the final solve failed, reported as
+  R_pol = 0 Ohm and no peaks. All DRT NNLS solves now get
+  `DRT_NNLS_MAXITER_FACTOR * n` (50 * n) iterations; systems that converged
+  before are unchanged.
+
+---
+
 ## Version 0.41.0 (2026-09-25)
 
 ### Added
