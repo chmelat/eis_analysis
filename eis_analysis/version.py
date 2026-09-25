@@ -5,14 +5,13 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.40.0'
-__version_info__ = (0, 40, 0)
+__version__ = '0.41.0'
+__version_info__ = (0, 41, 0)
 __release_date__ = '2026-09-25'
 
 # Breaking changes in this version
 __breaking_changes__: list[str] = [
-    'rinf_estimation: estimate_rinf() -> RinfResult replaces estimate_rinf_with_inductance()',
-    'calculate_drt: use_rl_fit removed, DRTResult.figure_rinf removed',
+    "rinf_estimation: RinfResult fallback is Re(Z) at f_max ('hf_bound', R_inf_hf)",
 ]
 
 # Human-readable version string

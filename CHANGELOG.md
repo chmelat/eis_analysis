@@ -4,6 +4,42 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.41.0 (2026-09-25)
+
+### Added
+
+- **Series inductance L in the DRT model.** `calculate_drt(inductance=...)`,
+  CLI `--drt-inductance {auto,on,off}`. The DRT kernel alone yields only
+  Im(Z) < 0, so an inductive high-frequency end deformed gamma: with the exact
+  R_inf the reconstruction error of Rs + jwL + RC was 5.8 / 17.3 / 14.9 %
+  (L = 1 / 10 / 10 uH, RC / RC / ZARC 0.7). An unregularized `j*omega*L`
+  column is now solved with gamma, lambda selected on the system that includes
+  it; the error drops to 1.3 / 1.3 / 1.2 % and L comes out within 1-2 %.
+  `'auto'` (default) adds it only when the top decade has a point with
+  Im(Z) > 0 (`DRT_INDUCTANCE_DECADES`); data without an inductive end give
+  bit-identical results. A forced L on such data came out at 0-600 nH but moved
+  R_pol by < 0.1 %; `inductance=True` warns when it finds one. New
+  `DRTResult.L_series`, `DRTDiagnostics.inductance_used` / `inductance_note`;
+  the CLI prints L in the DRT section.
+
+### Changed - BREAKING
+
+- **`--ri-fit` falls back to Re(Z) at f_max instead of the HF median** when
+  the fit does not determine R_inf. Every passive element adds Re >= 0 to R_s,
+  so Re(Z) at f_max is the tightest upper bound; the 5-point median reaches
+  back into an open arc (`real_gamry_example.DTA`: 1402 -> 826 Ohm, open CPE
+  arc +3295 -> +2483 %). Flat ends where the fit is flagged pay -0.7 %
+  instead of ~0 %. `RinfResult.method` `'hf_median'` -> `'hf_bound'`,
+  `R_inf_median` / `n_median_points` -> `R_inf_hf`. The DRT's own default
+  (HF median) is unchanged.
+
+- **Internal DRT API:** `_solve_nnls(matrices, lambda_reg, Z)` takes the
+  `DRTMatrices`, `probe_lambda_stability()` drops its unused `n_tau`
+  argument, `DRTMatrices` carries `omega` and `L_series_scale`. The
+  tau-grid extension helpers moved to `drt/extension.py`.
+
+---
+
 ## Version 0.40.0 (2026-09-25)
 
 ### Changed - BREAKING
