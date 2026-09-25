@@ -6,7 +6,8 @@ Model: Z(omega) = R_s + j*omega*L + R_k / (1 + R_k*Q*(j*omega)^n)
 One nonlinear fit covers inductive, capacitive and mixed high-frequency ends
 alike; R_inf = R_s. The standard error of R_s decides whether the window
 determines R_inf at all. When it does not, or when the fit cannot run, the
-result falls back to the HF median and says why in `warnings`.
+result falls back to Re(Z) at f_max, the tightest upper bound the data give
+(every passive term adds Re >= 0 to R_s), and says why in `warnings`.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
 """
@@ -51,16 +52,15 @@ _L_GUESS_CAPACITIVE = 1e-9  # [H]
 
 @dataclass
 class RinfResult:
-    """R_inf estimate with the fit and the HF median it was chosen from.
+    """R_inf estimate with the fit and the fallback it was chosen from.
 
     `R_inf` is the value to use: the fitted R_s when the window determines
-    it (`method == 'rlq_fit'`), otherwise the HF median
-    (`method == 'hf_median'`) with the reason in `warnings`.
+    it (`method == 'rlq_fit'`), otherwise Re(Z) at f_max
+    (`method == 'hf_bound'`) with the reason in `warnings`.
     """
     R_inf: float  # [Ohm]
-    method: str  # 'rlq_fit' | 'hf_median'
-    R_inf_median: float  # [Ohm]
-    n_median_points: int
+    method: str  # 'rlq_fit' | 'hf_bound'
+    R_inf_hf: float  # Re(Z) at f_max, an upper bound of R_inf [Ohm]
     f_window: NDArray[np.float64]  # frequencies of the fit window [Hz]
     Z_window: NDArray[np.complex128]  # impedance of the fit window [Ohm]
     fit: Optional[FitResult] = None  # None if the fit did not run
@@ -127,7 +127,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     -------
     RinfResult
         `R_inf` is the fitted R_s if its relative stderr is at most
-        RINF_REL_STDERR_MAX, otherwise the HF median (reason in `warnings`).
+        RINF_REL_STDERR_MAX, otherwise Re(Z) at f_max (reason in `warnings`).
 
     Raises
     ------
@@ -137,7 +137,11 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     Notes
     -----
     No data-only method can tell an arc lying entirely above f_max from a
-    flat high-frequency end; such spectra end with the HF median.
+    flat high-frequency end; such spectra end with the upper bound Re(Z) at
+    f_max. Measured against the 5-point HF median it replaces (audit cases,
+    1 % noise): open CPE arc +2483 % instead of +3295 %,
+    real_gamry_example.DTA 826 instead of 1402 Ohm; flat ends where the fit
+    is flagged -0.7 % instead of ~0 %.
     """
     frequencies = np.asarray(frequencies, dtype=float)
     Z = np.asarray(Z, dtype=complex)
@@ -152,22 +156,22 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     window = frequencies >= frequencies.max() / 10**RINF_FIT_DECADES
     f_win, Z_win = frequencies[window], Z[window]
 
-    R_median, n_median = hf_median(frequencies, Z)
-    result = RinfResult(R_inf=R_median, method='hf_median', R_inf_median=R_median,
-                        n_median_points=n_median, f_window=f_win, Z_window=Z_win)
+    R_hf = float(Z.real[np.argmax(frequencies)])
+    result = RinfResult(R_inf=R_hf, method='hf_bound', R_inf_hf=R_hf,
+                        f_window=f_win, Z_window=Z_win)
     if not finite.all():
         result.warnings.append(f"Ignored {int((~finite).sum())} non-finite point(s)")
     if len(f_win) < RINF_FIT_MIN_POINTS:
         result.warnings.append(
             f"Only {len(f_win)} point(s) in the top {RINF_FIT_DECADES} decades "
-            f"(need >= {RINF_FIT_MIN_POINTS}); using HF median")
+            f"(need >= {RINF_FIT_MIN_POINTS}); using Re(Z) at f_max")
         return result
 
     try:
         fit, _, _ = fit_equivalent_circuit(f_win, Z_win, _initial_circuit(f_win, Z_win),
                                            plot=False)
     except RuntimeError as e:
-        result.warnings.append(f"R-L-(R|Q) fit failed ({e}); using HF median")
+        result.warnings.append(f"R-L-(R|Q) fit failed ({e}); using Re(Z) at f_max")
         return result
     result.fit = fit
 
@@ -178,7 +182,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
         result.warnings.append(
             f"R_inf is not determined by the top {RINF_FIT_DECADES} decades: "
             f"fit gives {R_fit:.4g} +- {stderr:.2g} Ohm "
-            f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %); using HF median")
+            f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %); "
+            f"using Re(Z) at f_max = {R_hf:.4g} Ohm, an upper bound")
         return result
 
     result.R_inf, result.method = R_fit, 'rlq_fit'

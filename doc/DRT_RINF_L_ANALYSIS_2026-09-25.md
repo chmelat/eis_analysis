@@ -287,7 +287,12 @@ dokument, aby nesliboval "minimální změnu kódu" a "teoreticky přesnější"
 výhrad. Jeho "současný stav" (odhad R_inf z jednoho bodu) neplatí ani pro
 HF medián.
 
-**D6 - Fallback pro neurčitelné R_inf (nové, 0.40.0).** HF medián z pěti
+**D6 - Fallback pro neurčitelné R_inf [HOTOVO v 0.41.0: Re(Z) na f_max].**
+Změřeno (šum 1 %, 20 seedů, jen seedy s příznakem): D +3295 -> +2483 %,
+A1 beze změny (+997 %), `real_gamry` 1402 -> 826 Ohm. Na plochém, čistě R-L
+a Warburgově konci, kde fit příznak dostane jen občas, je cena -0.6 až -0.7 %
+místo ~0 %. Varianta min(medián, Re(f_max)) vyšla stejně, zvolena jednodušší.
+Výchozí medián DRT (F8) se nemění. Původní text: HF medián z pěti
 bodů je u otevřeného oblouku zkreslený nahoru (`real_gamry_example.DTA`:
 1402 Ohm proti 826 Ohm na f_max). Rozhodnout, zda fallback nahradit, například
 hodnotou Re(Z) na f_max, která je u kapacitního konce horní mezí R_inf.

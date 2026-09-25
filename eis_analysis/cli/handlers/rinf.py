@@ -67,9 +67,8 @@ def run_rinf_estimation(
                     f"({100 * stderr / R_fit:.2g} %)")
         logger.info(f"  L = {fit.params_opt[1] * 1e9:.3g} nH, "
                     f"fit error {fit.fit_error_rel:.2g} %")
-    logger.info(f"HF median ({est.n_median_points} points): "
-                f"R_inf = {est.R_inf_median:.4g} Ohm")
-    used = 'fit' if est.method == 'rlq_fit' else 'HF median'
+    logger.info(f"Re(Z) at f_max (upper bound): {est.R_inf_hf:.4g} Ohm")
+    used = 'fit' if est.method == 'rlq_fit' else 'upper bound'
     logger.info(f"Using R_inf = {est.R_inf:.4g} Ohm ({used})")
 
     for warning in est.warnings:

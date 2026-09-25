@@ -62,17 +62,20 @@ def test_noisy_determinable_cases_use_fit():
         assert res.R_inf == pytest.approx(Rs, rel=0.05), name
 
 
-def test_undeterminable_falls_back_to_median_with_warning():
+def test_undeterminable_falls_back_to_upper_bound_with_warning():
     # Arc entirely above f_max (A1), strongly open CPE arc with noise (D),
     # and two overlapping CPEs the model does not describe (example CSV).
     f_a1, Z_a1 = _spectrum(10, 1e-7, 100, _f_arc(16e6))
     csv = load_csv_data('example/example_eis_data.csv')
+    Rs_of = {'A1': 10, 'D': 0.05, 'CSV': 10}
     for name, f, Z in (('A1', f_a1, _noisy(Z_a1, seed=0)),
                        ('D', CASES[6][2][0], _noisy(CASES[6][2][1], seed=0)),
                        ('CSV', csv.frequencies, csv.Z)):
         res = estimate_rinf(f, Z)
-        assert res.method == 'hf_median', name
-        assert res.R_inf == res.R_inf_median, name
+        assert res.method == 'hf_bound', name
+        # Re(Z) at f_max: an upper bound, tighter than the 5-point HF median
+        # on an open arc (D: +2483 % instead of +3295 %).
+        assert res.R_inf == Z.real[np.argmax(f)] >= Rs_of[name], name
         assert res.fit is not None and 'not determined' in res.warnings[-1], name
 
 
@@ -86,7 +89,7 @@ def test_input_handling():
     assert 'non-finite' in res.warnings[0]
     with pytest.raises(ValueError):
         estimate_rinf(f, Z[:-1])
-    # Too few points in the window: median, not an underdetermined fit.
+    # Too few points in the window: fallback, not an underdetermined fit.
     res = estimate_rinf(f[::10], Z[::10])  # 3 points in the window
-    assert res.method == 'hf_median' and res.fit is None
+    assert res.method == 'hf_bound' and res.fit is None
     assert 'need >=' in res.warnings[0]

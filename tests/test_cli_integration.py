@@ -265,9 +265,8 @@ def test_rinf_estimation():
     R_inf, fig = run_rinf_estimation(frequencies, Z, args)
 
     # Two overlapping CPEs with Rs/R0 = 1e-4: the top decades do not
-    # determine R_inf, so the handler must hand on the HF median.
-    from eis_analysis.rinf_estimation import hf_median
-    assert R_inf == hf_median(frequencies, Z)[0]
+    # determine R_inf, so the handler must hand on Re(Z) at f_max.
+    assert R_inf == Z.real[np.argmax(frequencies)]
     assert fig is not None
 
     if fig is not None:

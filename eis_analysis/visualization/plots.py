@@ -216,7 +216,7 @@ def plot_rinf_fit(result) -> plt.Figure:
     -------
     fig : Figure
         Nyquist, Re(Z) and Im(Z) of the window with the R-L-(R|Q) fit (if it
-        ran), the fitted R_s and the HF median.
+        ran), the fitted R_s and the fallback Re(Z) at f_max.
     """
     f, Z = result.f_window, result.Z_window
     Z_fit = None
@@ -224,7 +224,7 @@ def plot_rinf_fit(result) -> plt.Figure:
         f_dense = np.logspace(np.log10(f.min()), np.log10(f.max()), 200)
         Z_fit = result.fit.circuit.impedance(f_dense, list(result.fit.params_opt))
 
-    lines = [(result.R_inf_median, 'gray', f'HF median = {result.R_inf_median:.4g} Ohm')]
+    lines = [(result.R_inf_hf, 'gray', f'Re(Z) at f_max = {result.R_inf_hf:.4g} Ohm')]
     if result.R_inf_fit is not None:
         lines.append((result.R_inf_fit, 'green',
                       f'fit R_s = {result.R_inf_fit:.4g} +- {result.R_inf_stderr:.2g} Ohm'))
@@ -255,7 +255,7 @@ def plot_rinf_fit(result) -> plt.Figure:
 
     for ax in axes:
         ax.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
-    used = 'fit' if result.method == 'rlq_fit' else 'HF median'
+    used = 'fit' if result.method == 'rlq_fit' else 'upper bound'
     fig.suptitle(f'R_inf = {result.R_inf:.4g} Ohm ({used})')
     plt.tight_layout()
     return fig
