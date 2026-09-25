@@ -282,7 +282,7 @@ kombinace "dobré externí R_inf + volné L" byla nejlepší ve všech určiteln
 případech, měřením podložené nebylo. Tabulka 1 počítá s *přesným* R_inf,
 ne s odhadem. Kombinaci "`--ri-fit` + volné L" je třeba změřit v rámci D1.
 
-**D5 - Aktualizovat `DRT_IMPROVEMENTS.md` bod 2 [OTEVŘENÉ]** odkazem na tento
+**D5 - Aktualizovat `DRT_IMPROVEMENTS.md` bod 2 [HOTOVO v 0.41.0]** odkazem na tento
 dokument, aby nesliboval "minimální změnu kódu" a "teoreticky přesnější" bez
 výhrad. Jeho "současný stav" (odhad R_inf z jednoho bodu) neplatí ani pro
 HF medián.

@@ -30,6 +30,22 @@ kde K(λ) = A @ inv(A^T·A + λ·M) @ A^T
 
 ## 2. Fit R_∞ jako Parametr ⭐⭐⭐⭐
 
+**Stav (0.41.0): přehodnoceno, jen jako diagnostika.** Numerická studie
+`DRT_RINF_L_ANALYSIS_2026-09-25.md` ukázala, že bod níže situaci podceňuje:
+- "Současný stav" už neplatí. R_inf je HF medián (až 5 bodů), nebo preset
+  z `--ri-fit` (fit R-L-(R|Q) s kontrolou identifikovatelnosti, 0.40.0).
+- Nejde o "minimální změnu". λ se musí vybírat na rozšířeném systému (jinak
+  je bias -20 %), mez R_inf = 0 je třeba ošetřit a nevážený fit nechá malé
+  R_inf zmizet.
+- "Teoreticky přesnější" platí jen proti mediánu. Proti `--ri-fit` z 0.40.0
+  prohrává ve všech určitelných případech (C -2.9 % proti -0.5 %) a na reálných
+  datech padá na mez 0.
+- Indukčnost, kterou studie označila za větší problém, je v modelu od 0.41.0
+  (`calculate_drt(inductance=...)`).
+
+Společný odhad má smysl nanejvýš jako diagnostika vedle externího R_inf
+(D2 ve studii). Původní návrh:
+
 **Užitečnost:** Vysoká - přesnější odhad R_inf
 **Složitost:** Nízká (~10 řádků)
 **Závislosti:** Žádné nové
