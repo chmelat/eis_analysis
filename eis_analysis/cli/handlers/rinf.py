@@ -39,9 +39,9 @@ def run_rinf_estimation(
     Returns
     -------
     R_inf : float or None
-        R_inf to hand to the DRT: the fitted R_s, or the HF median when the
-        fit does not determine it. None if --ri-fit is off or the data are
-        unusable.
+        R_inf to hand to the DRT: the fitted R_s, or Re(Z) at f_max (an
+        upper bound) when the fit does not determine it. None if --ri-fit is
+        off or the data are unusable.
     fig : Figure or None
         R_inf fit figure
     """
