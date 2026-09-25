@@ -8,11 +8,11 @@ resistances, and the effective-bins shape metric.
 
 import numpy as np
 import logging
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List, Tuple, Union
 from numpy.typing import NDArray
 
 from .results import RinfEstimate
-from ..fitting.config import DRT_PEAK_EDGE_DECADES
+from ..fitting.config import DRT_INDUCTANCE_DECADES, DRT_PEAK_EDGE_DECADES
 from ..rinf_estimation import hf_median
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,18 @@ def _extrapolated_fraction(tau: NDArray, gamma: NDArray, d_ln_tau: float,
     # Tolerance: the window's own last grid point equals tau_max up to rounding.
     beyond = tau > tau_max * (1 + 1e-9)
     return float(np.sum(gamma[beyond]) * d_ln_tau / R_pol)
+
+
+def _inductance_choice(frequencies: NDArray, Z: NDArray,
+                       inductance: Union[bool, str]) -> Tuple[bool, Optional[str]]:
+    """Whether to model a series L, and for 'auto' why (DRT_INDUCTANCE_DECADES)."""
+    if inductance != 'auto':
+        return bool(inductance), None
+    top = frequencies >= frequencies.max() / 10**DRT_INDUCTANCE_DECADES
+    n_inductive = int(np.sum(Z.imag[top] > 0))
+    if n_inductive:
+        return True, f"{n_inductive} point(s) with Im(Z) > 0 in the top decade"
+    return False, "no point with Im(Z) > 0 in the top decade"
 
 
 def _lf_rc_ratio(frequencies: NDArray, Z: NDArray) -> float:

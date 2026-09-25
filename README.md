@@ -262,8 +262,11 @@ eis data.DTA --lambda 1e-3
 # GMM peak detection (more robust)
 eis data.DTA --peak-method gmm
 
-# R_inf from the highest frequency decade instead of the HF median
+# R_inf from an R-L-(R|Q) fit of the top two decades instead of the HF median
 eis data.DTA --ri-fit
+
+# Series inductance in the DRT model (default: auto)
+eis data.DTA --drt-inductance on
 
 # Weighting of the DRT data term (default: sqrt)
 eis data.DTA --drt-weighting modulus
@@ -297,6 +300,16 @@ are marked `past window`, and the share of R_pol there is reported. The
 extension is off by default because on spectra whose low-frequency arc stays
 open over more than a decade it only moves the heap further out and inflates
 R_pol.
+
+The DRT kernel alone yields only Im(Z) < 0, so an inductive high-frequency end
+(cabling, typically above ~100 kHz) has nowhere to go and deforms gamma: with a
+10 uH series inductance the reconstruction error was 17 % even with the exact
+R_inf. The model therefore carries a series `j*omega*L` term, unregularized and
+solved together with gamma (lambda is selected with it in the system).
+`--drt-inductance auto` (default) adds it only when the top decade has a point
+with Im(Z) > 0; `on` forces it, with a warning if it then finds an L on a
+non-inductive end, and `off` gives the DRT of versions before 0.41. The fitted L
+is printed in the DRT section.
 
 By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
@@ -578,6 +591,7 @@ the fit reports `Global search contributed nothing` - see
 
 - `--lambda`, `-l` (default: auto GCV) - Regularization parameter for DRT. Without this parameter, automatic selection using GCV (Generalized Cross-Validation) and L-curve method is used. Higher values = smoother DRT, lower = more detail but also noise. Note: on low-noise data auto-lambda may drive lambda toward 0, giving a sparse/spiky DRT that is unreliable for peak-shape analysis; the tool reports the effective bin count (N_eff) and warns when the DRT is too sparse or lambda lands at the search-range edge — set `--lambda` manually (e.g. 0.1) in that case.
 - `--drt-weighting` (default: sqrt) - Weighting of the DRT least-squares term: `sqrt` (1/sqrt|Z|), `modulus` (1/|Z|, best when noise is proportional to |Z|), `proportional` (1/|Z|^2) or `uniform` (unweighted, the behaviour before 0.38). Independent of `--weighting`, which applies to circuit fitting only.
+- `--drt-inductance` (default: auto) - Series inductance `j*omega*L` in the DRT model: `auto` adds it when the top frequency decade has a point with Im(Z) > 0, `on` always, `off` never (the behaviour before 0.41). Without it an inductive high-frequency end deforms gamma.
 - `--tau-extend` (default: 0) - Extend the tau grid this many decades past the slow end of the measured window, or `auto` to extend only when that resolves a slow-end pile-up and the low-frequency end is not capacitive. Peaks past the window are marked as extrapolated and the share of R_pol past the window is reported.
 - `--n-tau`, `-n` (default: 100) - Number of points on the tau time constant axis across the measured window (an extension adds points at the same spacing). Higher values give finer DRT resolution but increase computational cost.
 - `--normalize-rpol` - Normalize gamma(tau) by polarization resistance so that integral = 1. Useful for comparing samples with different R_pol.

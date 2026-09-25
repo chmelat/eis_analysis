@@ -106,6 +106,10 @@ Examples:
                                 'of the measured window (default: 0). auto extends only when '
                                 'that resolves a pile-up at the slow end and the low-frequency '
                                 'end is not capacitive. Peaks past the window are extrapolated.')
+    drt_group.add_argument('--drt-inductance', choices=('auto', 'on', 'off'), default='auto',
+                           help='Series inductance L in the DRT model (default: auto = only '
+                                'when the top decade has a point with Im(Z) > 0). Without it '
+                                'the DRT cannot fit an inductive high-frequency end.')
     drt_group.add_argument('--normalize-rpol', action='store_true',
                            help='Normalize gamma(tau) by R_pol so that integral gamma(tau) d(ln tau) = 1.')
     drt_group.add_argument('--n-tau', '-n', type=int, default=100,

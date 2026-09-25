@@ -36,10 +36,9 @@ from .estimation import (
     _estimate_r_inf,
     _flag_boundary_peaks,
     _extrapolated_fraction,
+    _inductance_choice,
 )
-from .linear_system import (
-    _validate_frequencies,
-)
+from .linear_system import _reconstruct, _validate_frequencies
 from .plotting import _create_visualization
 from .peaks import gmm_peak_detection
 from .stability import probe_lambda_stability
@@ -140,7 +139,8 @@ def calculate_drt(
     gmm_bic_threshold: float = 10.0,
     lambda_probe: bool = False,
     weighting: str = 'sqrt',
-    tau_extend_decades: Union[float, str] = 0.0
+    tau_extend_decades: Union[float, str] = 0.0,
+    inductance: Union[bool, str] = 'auto'
 ) -> DRTResult:
     """
     Calculate DRT (Distribution of Relaxation Times) using Tikhonov regularization.
@@ -180,6 +180,13 @@ def calculate_drt(
         DRT_TAU_EXTEND_STEPS and DRT_LF_RC_RATIO_MIN; the choice is reported
         in ``diagnostics.tau_extend_note``. Mass past the window is an
         extrapolation, reported as ``R_pol_extrapolated_fraction``.
+    inductance : bool or 'auto'
+        Model a series inductance j*omega*L next to R_inf (unregularized,
+        L >= 0, returned as ``L_series``). Without it the DRT cannot produce
+        Im(Z) > 0 and an inductive high-frequency end deforms gamma. 'auto'
+        (default) adds it only when the top decade has a point with
+        Im(Z) > 0 (DRT_INDUCTANCE_DECADES); the choice is reported in
+        ``diagnostics.inductance_note``.
 
     Returns
     -------
@@ -196,6 +203,8 @@ def calculate_drt(
             and np.isfinite(tau_extend_decades) and tau_extend_decades >= 0):
         raise ValueError(f"tau_extend_decades must be a finite number >= 0 or 'auto', "
                          f"got {tau_extend_decades!r}")
+    if inductance not in (True, False, 'auto'):
+        raise ValueError(f"inductance must be True, False or 'auto', got {inductance!r}")
 
     f_min, f_max = float(frequencies.min()), float(frequencies.max())
     freq_range_ratio = f_max / f_min
@@ -215,11 +224,13 @@ def calculate_drt(
     # === Step 2: R_inf Estimation ===
     rinf_est = _estimate_r_inf(frequencies, Z, r_inf_preset=r_inf_preset)
     R_inf = rinf_est.R_inf
+    inductance_used, inductance_note = _inductance_choice(frequencies, Z, inductance)
 
     # === Steps 3-5: Build matrices, select lambda, solve NNLS ===
     matrices, lambda_sel, nnls_result, tau_extend, tau_extend_note = \
         _solve_with_extension(frequencies, Z, R_inf, n_tau, weighting,
-                              tau_extend_decades, lambda_reg, auto_lambda)
+                              tau_extend_decades, inductance_used,
+                              lambda_reg, auto_lambda)
     n_grid = len(matrices.tau)
     tau_window = matrices.tau_window
 
@@ -244,7 +255,9 @@ def calculate_drt(
                 n_peaks=0,
                 weighting=weighting,
                 tau_extend_decades=tau_extend,
-                tau_extend_note=tau_extend_note
+                tau_extend_note=tau_extend_note,
+                inductance_used=inductance_used,
+                inductance_note=inductance_note
             )
         )
 
@@ -286,7 +299,8 @@ def calculate_drt(
     n_peaks = len(reported_peaks)
 
     # === Step 8: Reconstruction & Error ===
-    Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma_physical
+    L_series = nnls_result.L_series
+    Z_reconstructed = _reconstruct(matrices, gamma_physical, L_series, R_inf)
     rel_error = float(np.mean(np.abs(Z - Z_reconstructed) / np.abs(Z)) * 100)
 
     # Add warning for high reconstruction error
@@ -297,6 +311,13 @@ def calculate_drt(
     elif rel_error > 5.0:
         nnls_result.warnings.append(
             f"Elevated reconstruction error ({rel_error:.1f}%)"
+        )
+    # Same criterion as 'auto': a forced L on a non-inductive top decade is
+    # fitted to noise or model error, not to a measured inductance.
+    if L_series > 0 and not _inductance_choice(frequencies, Z, 'auto')[0]:
+        nnls_result.warnings.append(
+            f"L = {L_series * 1e9:.3g} nH fitted to data without inductive points "
+            f"in the top decade - likely absorbs model error"
         )
 
     # === Step 8b: Window-edge diagnostics ===
@@ -385,8 +406,7 @@ def calculate_drt(
             reference_peaks = [(p['tau'], p['R_estimate'])
                                for p in (scipy_peaks or [])]
         stability = probe_lambda_stability(
-            matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf,
-            n_grid
+            matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf
         )
         # Overlay curves for the DRT figure; match the normalization of the
         # displayed gamma.
@@ -435,7 +455,9 @@ def calculate_drt(
         weighting=weighting,
         tau_extend_decades=tau_extend,
         tau_extend_note=tau_extend_note,
-        R_pol_extrapolated_fraction=R_pol_extrapolated_fraction
+        R_pol_extrapolated_fraction=R_pol_extrapolated_fraction,
+        inductance_used=inductance_used,
+        inductance_note=inductance_note
     )
 
     return DRTResult(
@@ -446,6 +468,7 @@ def calculate_drt(
         peaks=peaks_result,
         bic_scores=bic_scores,
         R_inf=R_inf,
+        L_series=L_series,
         R_pol=R_pol_from_gamma,
         lambda_used=lambda_sel.lambda_value,
         reconstruction_error=rel_error,

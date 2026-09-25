@@ -117,6 +117,20 @@ past the window closes at 1.0, one a full decade past closes at none of
 these, and a wider grid only lets low-frequency noise leak further.
 """
 
+DRT_INDUCTANCE_DECADES = 1.0
+"""
+Top frequency window [decades below f_max] that `inductance='auto'` inspects:
+the DRT gets a series-L column when any point there has Im(Z) > 0.
+
+A series inductance shows first and grows fastest at f_max, so a genuine one
+is visible in the top decade (all inductive audit cases: A2, C, C2). The
+criterion only has to catch those: measured (doc/DRT_RINF_L_ANALYSIS_2026-09-25.md,
+v0.41 revision), a free L on data without inductance comes out at
+40-600 nH but moves R_pol by < 0.1 % and no peak by more than 0.06 decade,
+so a false trigger by a noisy top point is harmless. Masked inductance
+(Im < 0 at f_max, EISPOT-test1.DTA) gets L = 0 even when forced.
+"""
+
 DRT_LF_RC_RATIO_MIN = 0.2
 """
 Low-frequency ratio r = (-dZ'/d ln omega) / (-Z'') below which
@@ -296,6 +310,7 @@ __all__ = [
     'DRT_EXTRAPOLATED_RPOL_FRACTION',
     'DRT_TAU_EXTEND_STEPS',
     'DRT_LF_RC_RATIO_MIN',
+    'DRT_INDUCTANCE_DECADES',
     'DRT_MIN_EFFECTIVE_BINS',
     'DRT_PEAK_PROMINENCE_THRESHOLD',
     'GMM_PEAK_HEIGHT_FACTOR',

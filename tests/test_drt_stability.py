@@ -79,13 +79,13 @@ def test_probe_survives_solver_failure(monkeypatch):
     real_solve = stability_mod._solve_nnls
     fail_lambda = {'value': None}
 
-    def failing_solve(A, b, L, lambda_reg, n_tau, Z_arg):
+    def failing_solve(matrices, lambda_reg, Z_arg):
         if fail_lambda['value'] is None:
             fail_lambda['value'] = lambda_reg  # fail the first probe only
         if lambda_reg == fail_lambda['value']:
             return NNLSSolution(gamma=None, success=False,
                                 warnings=['forced failure'])
-        return real_solve(A, b, L, lambda_reg, n_tau, Z_arg)
+        return real_solve(matrices, lambda_reg, Z_arg)
 
     monkeypatch.setattr(stability_mod, '_solve_nnls', failing_solve)
 

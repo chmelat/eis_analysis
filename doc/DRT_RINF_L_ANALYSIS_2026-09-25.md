@@ -11,6 +11,11 @@ a F9 (rozsah tau-mřížky) a na `AUDIT_ri_fit_2026-09-25.md` (externí odhad
 `--ri-fit`). Produkční kód se nemění, všechna čísla pocházejí z prototypu
 mimo repozitář (popis níže).
 
+**Stav k verzi 0.41.0:** D1 je hotové (`calculate_drt(inductance='auto')`,
+CLI `--drt-inductance`). Chyba rekonstrukce A2 / C / C2 s přesným R_inf klesla
+na 1.3 / 1.3 / 1.2 %, flat a B se nezměnily. Měření před implementací viz
+"Výsledky k D1 (0.41.0)" níže.
+
 **Stav k verzi 0.40.0 (revize 2026-09-25):**
 - **D1 platí beze změny.** Přeměřeno na 0.40.0 s přesným R_inf (5 seedů):
   chyba rekonstrukce A2 / C / C2 je 5.8 / 17.3 / 14.9 % při výchozím vážení
@@ -220,7 +225,26 @@ dolního konce (F9, pomalé procesy) tím dotčeno není.
 
 ## Návrhy
 
-**D1 - L do DRT (doporučeno).** Nepenalizovaný sloupec jw/w_max, L >= 0.
+### Výsledky k D1 (0.41.0)
+
+Měřeno před implementací, sloupec L přidaný k matici z `_build_drt_matrices`
+(vážení `sqrt`, auto-λ vybrané na rozšířeném systému), šum 1 %, 3 seedy:
+
+- **Fiktivní L neškodí.** Na datech bez indukčnosti (flat, B, D) vychází
+  L = 0-600 nH, ale R_pol se mění o méně než 0.1 %, píky se posunou nejvýš
+  o 0.06 dekády a chyba rekonstrukce se nezhorší. Na reálných souborech
+  (`EISPOT-test1.DTA`, `real_gamry_example.DTA`, `example_eis_data.csv`)
+  vychází L = 0.
+- **Kritérium pro `'auto'`:** všechny indukční případy (A2, C, C2) mají
+  Im(Z) > 0 v horní dekádě, neindukční žádný. `EISPOT-test1.DTA`, kde
+  `--ri-fit` najde L = 326 nH maskované obloukem (Im(f_max) < 0), dává
+  i s vynuceným L hodnotu L = 0. Zvoleno "aspoň jeden bod horní dekády
+  s Im > 0" (`DRT_INDUCTANCE_DECADES = 1`).
+- **Tvrzení D4 změřeno:** `--ri-fit` (0.40.0) + volné L dává na A2, C a C2
+  chybu rekonstrukce 1.1-1.4 % a R_pol do 0.8 %, tedy stejně dobře jako
+  s přesným R_inf.
+
+**D1 - L do DRT [HOTOVO v 0.41.0].** Nepenalizovaný sloupec jw/w_max, L >= 0.
 Stejný mechanismus už používá Lin-KK (`estimate_R_linear(include_L=True)`).
 Podle paměti autora mají DRTtools (Wan, Saccoccio, Chen, Ciucci 2015)
 a pyDRTtools u indukčnosti volby "bez L / s L / zahodit indukční body".

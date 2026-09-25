@@ -21,7 +21,7 @@ from scipy.signal import find_peaks
 
 from .results import DRTMatrices, LambdaProbePoint, PeakStability, StabilityDiagnostics
 from .estimation import _estimate_peak_resistance
-from .linear_system import _solve_nnls
+from .linear_system import _reconstruct, _solve_nnls
 from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
 
 logger = logging.getLogger(__name__)
@@ -183,8 +183,7 @@ def _assess_peaks(reference_peaks: List[Tuple[float, float]],
 
 def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
                            reference_peaks: List[Tuple[float, float]],
-                           Z: NDArray, R_inf: float,
-                           n_tau: int) -> StabilityDiagnostics:
+                           Z: NDArray, R_inf: float) -> StabilityDiagnostics:
     """
     Assess peak stability by re-solving the DRT at lambdas around lambda*.
 
@@ -200,8 +199,6 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
         Complex impedance [Ohm] (for reconstruction error).
     R_inf : float
         High-frequency resistance used in the main run [Ohm].
-    n_tau : int
-        Number of tau grid points.
 
     Returns
     -------
@@ -223,7 +220,7 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
 
     probe_points: List[LambdaProbePoint] = []
     for lam in unique_lambdas:
-        solution = _solve_nnls(matrices.A, matrices.b, matrices.L, lam, n_tau, Z)
+        solution = _solve_nnls(matrices, lam, Z)
         if not solution.success or solution.gamma is None:
             message = '; '.join(solution.warnings) or 'solver failed'
             probe_points.append(LambdaProbePoint(
@@ -232,7 +229,7 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
             continue
 
         gamma = solution.gamma
-        Z_reconstructed = R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma
+        Z_reconstructed = _reconstruct(matrices, gamma, solution.L_series, R_inf)
         rel_error = float(np.mean(np.abs(Z - Z_reconstructed) / np.abs(Z)) * 100)
         probe_points.append(LambdaProbePoint(
             lambda_value=lam,

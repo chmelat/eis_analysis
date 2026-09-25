@@ -53,7 +53,8 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
 def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
                         R_inf: float, n_tau: int = 100,
                         weighting: str = 'uniform',
-                        tau_extend_decades: float = 0.0) -> DRTMatrices:
+                        tau_extend_decades: float = 0.0,
+                        inductance: bool = False) -> DRTMatrices:
     """
     Build DRT system matrices A, b, and regularization matrix L.
 
@@ -67,6 +68,11 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     than the lowest frequency gets a place on the grid instead of piling up
     in the last bin. The fast end is not extended: R_inf is subtracted
     beforehand and an RC with tau << 1/omega_max is indistinguishable from it.
+
+    ``inductance`` appends an unregularized column for a series j*omega*L
+    (zero column in the regularization matrix), so lambda selection and NNLS
+    see it as one more non-negative unknown. Without it the model can only
+    produce Im(Z) < 0, and an inductive high-frequency end deforms gamma.
     """
     f_max = frequencies.max()
     f_min = frequencies.min()
@@ -96,7 +102,6 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     if weighted_norm > 0:
         weights = weights * (float(np.linalg.norm(Z)) / weighted_norm)
     A = np.vstack([weights[:, None] * A_re, weights[:, None] * A_im])
-    cond_A = float(np.linalg.cond(A))
 
     b = np.concatenate([weights * (Z.real - R_inf), weights * Z.imag])
 
@@ -107,11 +112,27 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     np.fill_diagonal(L[:, 1:], -2)   # Diagonal at offset 1
     np.fill_diagonal(L[:, 2:], 1)    # Diagonal at offset 2
 
+    L_series_scale = None
+    if inductance:
+        L_series_scale = 1.0 / float(omega.max())
+        column = np.concatenate([np.zeros_like(omega), weights * omega * L_series_scale])
+        A = np.hstack([A, column[:, None]])
+        L = np.hstack([L, np.zeros((L.shape[0], 1))])
+    cond_A = float(np.linalg.cond(A))
+
     return DRTMatrices(
         A=A, A_re=A_re, A_im=A_im, b=b, L=L,
         tau=tau, d_ln_tau=d_ln_tau, condition_number=cond_A,
-        weights=weights, tau_window=(float(tau_min), float(tau_max))
+        weights=weights, tau_window=(float(tau_min), float(tau_max)),
+        omega=omega, L_series_scale=L_series_scale
     )
+
+
+def _reconstruct(matrices: DRTMatrices, gamma: NDArray, L_series: float,
+                 R_inf: float) -> NDArray:
+    """Model impedance R_inf + j*omega*L + integral of gamma, unweighted [Ohm]."""
+    return (R_inf + (matrices.A_re + 1j * matrices.A_im) @ gamma
+            + 1j * matrices.omega * L_series)
 
 
 def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
@@ -176,11 +197,10 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
     return LambdaSelection(lambda_value=lambda_reg, method='user')
 
 
-def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
-                lambda_reg: float, n_tau: int,
+def _solve_nnls(matrices: DRTMatrices, lambda_reg: float,
                 Z: NDArray) -> NNLSSolution:
     """
-    Solve regularized NNLS problem.
+    Solve regularized NNLS problem; split off L_series if the model has it.
     """
     warnings = []
 
@@ -189,15 +209,17 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
     inductive_fraction = n_inductive / len(Z) if len(Z) > 0 else 0.0
     max_inductive = float(np.max(Z.imag)) if n_inductive > 0 else 0.0
 
-    if inductive_fraction > 0.1 or max_inductive > 50:
+    # With an L column the model represents Im(Z) > 0, so this is no longer
+    # a data/model mismatch worth a warning.
+    if matrices.L_series_scale is None and (inductive_fraction > 0.1 or max_inductive > 50):
         warnings.append(
             f"{n_inductive} points with inductive component ({inductive_fraction*100:.1f}%), "
             f"max Z'' = {max_inductive:.2f} Ohm"
         )
 
     # Build regularized system
-    A_reg = np.vstack([A, np.sqrt(lambda_reg) * L])
-    b_reg = np.concatenate([b, np.zeros(n_tau - 2)])
+    A_reg = np.vstack([matrices.A, np.sqrt(lambda_reg) * matrices.L])
+    b_reg = np.concatenate([matrices.b, np.zeros(matrices.L.shape[0])])
 
     # Condition number of the system actually solved. The bare kernel A is
     # intrinsically ill-conditioned for any DRT problem (that is why Tikhonov
@@ -207,7 +229,7 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
 
     # Solve NNLS
     try:
-        gamma, residual = nnls(A_reg, b_reg)
+        x, _ = nnls(A_reg, b_reg)
     except Exception as e:
         return NNLSSolution(
             gamma=None, success=False,
@@ -218,7 +240,7 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
         )
 
     # Validate solution
-    if np.any(~np.isfinite(gamma)):
+    if np.any(~np.isfinite(x)):
         return NNLSSolution(
             gamma=None, success=False,
             n_inductive_points=n_inductive,
@@ -226,6 +248,11 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
             max_inductive_imag=max_inductive,
             warnings=["NNLS returned NaN or Inf values"]
         )
+
+    n_grid = len(matrices.tau)
+    gamma = x[:n_grid]
+    L_series = (float(x[n_grid]) * matrices.L_series_scale
+                if matrices.L_series_scale is not None else 0.0)
 
     gamma_max = float(np.max(gamma))
     gamma_nonzero = gamma[gamma > 0]
@@ -240,6 +267,7 @@ def _solve_nnls(A: NDArray, b: NDArray, L: NDArray,
     return NNLSSolution(
         gamma=gamma,
         success=True,
+        L_series=L_series,
         n_inductive_points=n_inductive,
         inductive_fraction=inductive_fraction,
         max_inductive_imag=max_inductive,

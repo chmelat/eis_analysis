@@ -141,6 +141,9 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         note = f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, {diff_pct:+.1f}%)"
     logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{note}")
     logger.info(f"Weighting: {diag.weighting}")
+    if diag.inductance_used:
+        note = f" (auto: {diag.inductance_note})" if diag.inductance_note else ""
+        logger.info(f"Series inductance: L = {result.L_series * 1e9:.1f} nH{note}")
     if diag.tau_extend_decades > 0 or diag.tau_extend_note:
         note = f" (auto: {diag.tau_extend_note})" if diag.tau_extend_note else ""
         logger.info(f"Tau grid extension: {diag.tau_extend_decades:.1f} decade past "
@@ -265,7 +268,7 @@ def run_drt_analysis(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol,
-                       gmm_bic_threshold, lambda_probe, drt_weighting,
+                       gmm_bic_threshold, lambda_probe, drt_weighting, drt_inductance,
                        tau_extend, save, format)
     R_inf_computed : float or None
         Pre-computed R_inf from --ri-fit
@@ -293,7 +296,9 @@ def run_drt_analysis(
         gmm_bic_threshold=args.gmm_bic_threshold,
         lambda_probe=args.lambda_probe,
         weighting=args.drt_weighting,
-        tau_extend_decades=args.tau_extend
+        tau_extend_decades=args.tau_extend,
+        inductance=('auto' if args.drt_inductance == 'auto'
+                    else args.drt_inductance == 'on')
     )
 
     # Log diagnostics

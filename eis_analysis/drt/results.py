@@ -41,6 +41,7 @@ class NNLSSolution:
     """Result of NNLS solver."""
     gamma: Optional[NDArray[np.float64]]
     success: bool
+    L_series: float = 0.0  # fitted series inductance [H], 0 when not modeled
     n_inductive_points: int = 0
     inductive_fraction: float = 0.0
     max_inductive_imag: float = 0.0
@@ -154,6 +155,11 @@ class DRTDiagnostics:
     # Share of R_pol at tau past the measured window (extrapolated)
     R_pol_extrapolated_fraction: float = 0.0
 
+    # Series inductance column in the model, as applied; with
+    # inductance='auto' the note says why (DRT_INDUCTANCE_DECADES).
+    inductance_used: bool = False
+    inductance_note: Optional[str] = None
+
 
 @dataclass
 class DRTMatrices:
@@ -162,13 +168,18 @@ class DRTMatrices:
     A_re: NDArray[np.float64]
     A_im: NDArray[np.float64]
     b: NDArray[np.float64]
-    L: NDArray[np.float64]
+    L: NDArray[np.float64]  # regularization matrix (2nd difference), not inductance
     tau: NDArray[np.float64]
     d_ln_tau: float
     condition_number: float
     # Measured window [1/(2 pi f_max), 1/(2 pi f_min)]; the grid may extend past its slow end
     tau_window: Tuple[float, float]
+    omega: NDArray[np.float64]  # angular frequencies of the data rows [rad/s]
     weights: Optional[NDArray[np.float64]] = None  # per-frequency row weights, ||w*Z|| = ||Z||
+    # Last column of A is the series inductance, solved as L_series / scale;
+    # None when the model has no L. scale = 1/omega_max keeps the column
+    # O(1) like the gamma columns, for the conditioning of the solve.
+    L_series_scale: Optional[float] = None
 
 
 @dataclass
@@ -192,6 +203,7 @@ class DRTResult:
 
     # Key values for quick access
     R_inf: Optional[float] = None
+    L_series: float = 0.0  # series inductance [H], 0 when not modeled
     R_pol: Optional[float] = None
     lambda_used: Optional[float] = None
     reconstruction_error: Optional[float] = None

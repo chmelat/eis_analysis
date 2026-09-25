@@ -281,7 +281,9 @@ result = calculate_drt(
     lambda_probe=False,     # Peak stability across lambda (optional)
     weighting='sqrt',       # Data weighting: 'sqrt' (default), 'uniform',
                             # 'modulus' or 'proportional'
-    tau_extend_decades=0.0  # Grid past the slow window end: decades or 'auto'
+    tau_extend_decades=0.0, # Grid past the slow window end: decades or 'auto'
+    inductance='auto'       # Series L in the model: True, False or 'auto'
+                            # (only when the top decade has Im(Z) > 0)
 )
 
 # result: DRTResult dataclass
@@ -290,12 +292,15 @@ result.gamma               # Distribution function gamma(tau) [Ohm]
 result.peaks               # List of dicts with peak information
 result.figure              # matplotlib Figure with DRT spectrum
 result.R_inf               # High-frequency resistance [Ohm]
+result.L_series            # Series inductance [H], 0 when not modeled
 result.R_pol               # Polarization resistance [Ohm]
 result.lambda_reg          # Regularization parameter used
 result.diagnostics         # DRTDiagnostics with detailed info
 
 # DRTDiagnostics contains:
 result.diagnostics.freq_min           # Minimum frequency [Hz]
+result.diagnostics.inductance_used    # Series L column in the model
+result.diagnostics.inductance_note    # Why 'auto' decided as it did
 result.diagnostics.freq_max           # Maximum frequency [Hz]
 result.diagnostics.n_points           # Number of data points
 result.diagnostics.n_tau              # Number of tau points

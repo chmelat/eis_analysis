@@ -17,14 +17,19 @@ from ..fitting.config import (DRT_EDGE_BIN_RPOL_FRACTION, DRT_LF_RC_RATIO_MIN,
 
 
 def _solve_on_grid(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
-                   weighting: str, tau_extend: float,
+                   weighting: str, tau_extend: float, inductance: bool,
                    lambda_reg: Optional[float], auto_lambda: bool
                    ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution]:
-    """Build the system on a grid extended by ``tau_extend`` decades, pick lambda, solve."""
-    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting, tau_extend)
+    """Build the system on a grid extended by ``tau_extend`` decades, pick lambda, solve.
+
+    Lambda is selected on the system actually solved, L column included: with
+    lambda taken from a run without it, the unregularized unknowns absorb what
+    the penalty pushes out of gamma (doc/DRT_RINF_L_ANALYSIS_2026-09-25.md).
+    """
+    matrices = _build_drt_matrices(frequencies, Z, R_inf, n_tau, weighting, tau_extend,
+                                   inductance)
     lambda_sel = _select_lambda(matrices.A, matrices.b, matrices.L, lambda_reg, auto_lambda)
-    nnls_result = _solve_nnls(matrices.A, matrices.b, matrices.L,
-                              lambda_sel.lambda_value, len(matrices.tau), Z)
+    nnls_result = _solve_nnls(matrices, lambda_sel.lambda_value, Z)
     return matrices, lambda_sel, nnls_result
 
 
@@ -43,7 +48,7 @@ def _slow_end_piled_up(nnls_result: NNLSSolution, d_ln_tau: float) -> bool:
 
 def _solve_with_extension(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau: int,
                           weighting: str, tau_extend_decades: Union[float, str],
-                          lambda_reg: Optional[float], auto_lambda: bool
+                          inductance: bool, lambda_reg: Optional[float], auto_lambda: bool
                           ) -> Tuple[DRTMatrices, LambdaSelection, NNLSSolution,
                                      float, Optional[str]]:
     """
@@ -59,10 +64,10 @@ def _solve_with_extension(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau:
     """
     if tau_extend_decades != 'auto':
         return (*_solve_on_grid(frequencies, Z, R_inf, n_tau, weighting,
-                                float(tau_extend_decades), lambda_reg, auto_lambda),
+                                float(tau_extend_decades), inductance, lambda_reg, auto_lambda),
                 float(tau_extend_decades), None)
 
-    base = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, 0.0,
+    base = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, 0.0, inductance,
                           lambda_reg, auto_lambda)
     if not _slow_end_piled_up(base[2], base[0].d_ln_tau):
         return (*base, 0.0, "not needed, no slow-end pile-up")
@@ -73,7 +78,7 @@ def _solve_with_extension(frequencies: NDArray, Z: NDArray, R_inf: float, n_tau:
                             f"(r = {ratio:.2f} < {DRT_LF_RC_RATIO_MIN})")
 
     for step in DRT_TAU_EXTEND_STEPS:
-        trial = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, step,
+        trial = _solve_on_grid(frequencies, Z, R_inf, n_tau, weighting, step, inductance,
                                lambda_reg, auto_lambda)
         if trial[2].success and not _slow_end_piled_up(trial[2], trial[0].d_ln_tau):
             return (*trial, step, "resolved the slow-end pile-up")

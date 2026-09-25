@@ -246,7 +246,7 @@ def test_probe_reports_full_span_when_nothing_clips():
     matrices = _build_drt_matrices(FREQUENCIES, Z, 100.0, 100)
 
     stability = probe_lambda_stability(
-        matrices, 1e-3, [(1e-3, 1000.0)], Z, 100.0, 100
+        matrices, 1e-3, [(1e-3, 1000.0)], Z, 100.0
     )
 
     assert stability.n_clipped == 0
@@ -265,7 +265,7 @@ def test_probe_near_the_upper_bound_reports_the_narrowed_span():
     lambda_star = 0.5
 
     stability = probe_lambda_stability(
-        matrices, lambda_star, [(1e-3, 1000.0)], Z, 100.0, 100
+        matrices, lambda_star, [(1e-3, 1000.0)], Z, 100.0
     )
 
     assert stability.n_clipped == 2
@@ -285,7 +285,7 @@ def test_a_single_surviving_probe_cannot_certify_stability():
     matrices = _build_drt_matrices(FREQUENCIES, Z, 100.0, 100)
 
     stability = probe_lambda_stability(
-        matrices, 10.0, [(1e-3, 1000.0)], Z, 100.0, 100
+        matrices, 10.0, [(1e-3, 1000.0)], Z, 100.0
     )
 
     n_successful = sum(1 for p in stability.probe_points if p.success)
