@@ -8,13 +8,13 @@ import argparse
 import logging
 from typing import Optional, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
 from ..logging import log_separator
 from ..utils import save_figure
-from ...rinf_estimation import estimate_rinf_with_inductance
+from ...rinf_estimation import estimate_rinf
+from ...visualization import plot_rinf_fit
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,9 @@ def run_rinf_estimation(
     Returns
     -------
     R_inf : float or None
-        Estimated R_inf value
+        R_inf to hand to the DRT: the fitted R_s, or the HF median when the
+        fit does not determine it. None if --ri-fit is off or the data are
+        unusable.
     fig : Figure or None
         R_inf fit figure
     """
@@ -51,33 +53,29 @@ def run_rinf_estimation(
     log_separator()
 
     try:
-        fit, fig = estimate_rinf_with_inductance(frequencies, Z, plot=True)
-
-        # Print results
-        logger.info(f"R_inf = {fit.R_inf:.3f} Ohm ({fit.n_points_used} HF points)")
-
-        if fit.R_squared > 0:
-            logger.info(f"  Quality: R^2 = {fit.R_squared:.4f}")
-        if fit.L_nH > 0:
-            logger.info(f"  Inductance: L = {fit.L_nH:.2f} nH")
-
-        # Comparison with median
-        n_avg = min(5, max(1, len(frequencies) // 10))
-        high_freq_indices = np.argsort(frequencies)[-n_avg:]
-        R_inf_median = np.median(Z.real[high_freq_indices])
-        diff_abs = fit.R_inf - R_inf_median
-        diff_pct = (diff_abs / R_inf_median * 100) if R_inf_median != 0 else 0
-        logger.info(f"  For comparison: median = {R_inf_median:.3f} Ohm "
-                    f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
-
-        for warning in fit.warnings:
-            logger.warning(f"  {warning}")
-
-        save_figure(fig, args.save, 'ri_fit', args.format)
-
-        return fit.R_inf, fig
-
-    except Exception as e:
+        est = estimate_rinf(frequencies, Z)
+    except ValueError as e:
         logger.error(f"R_inf estimation failed: {e}")
-        logger.debug("Traceback:", exc_info=True)
         return None, None
+
+    fit = est.fit
+    if fit is not None:
+        f_win = est.f_window
+        R_fit, stderr = fit.params_opt[0], fit.params_stderr[0]
+        logger.info(f"R-L-(R|Q) fit, {f_win.min():.3g}-{f_win.max():.3g} Hz "
+                    f"({len(f_win)} points): R_inf = {R_fit:.4g} +- {stderr:.2g} Ohm "
+                    f"({100 * stderr / R_fit:.2g} %)")
+        logger.info(f"  L = {fit.params_opt[1] * 1e9:.3g} nH, "
+                    f"fit error {fit.fit_error_rel:.2g} %")
+    logger.info(f"HF median ({est.n_median_points} points): "
+                f"R_inf = {est.R_inf_median:.4g} Ohm")
+    used = 'fit' if est.method == 'rlq_fit' else 'HF median'
+    logger.info(f"Using R_inf = {est.R_inf:.4g} Ohm ({used})")
+
+    for warning in est.warnings:
+        logger.warning(f"  {warning}")
+
+    fig = plot_rinf_fit(est)
+    save_figure(fig, args.save, 'ri_fit', args.format)
+
+    return est.R_inf, fig

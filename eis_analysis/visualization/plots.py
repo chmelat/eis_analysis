@@ -201,3 +201,61 @@ def visualize_ocv(
 
     plt.tight_layout()
     return fig
+
+
+def plot_rinf_fit(result) -> plt.Figure:
+    """
+    Plot the R_inf estimate over its fit window.
+
+    Parameters
+    ----------
+    result : RinfResult
+        Output of `estimate_rinf`
+
+    Returns
+    -------
+    fig : Figure
+        Nyquist, Re(Z) and Im(Z) of the window with the R-L-(R|Q) fit (if it
+        ran), the fitted R_s and the HF median.
+    """
+    f, Z = result.f_window, result.Z_window
+    Z_fit = None
+    if result.fit is not None:
+        f_dense = np.logspace(np.log10(f.min()), np.log10(f.max()), 200)
+        Z_fit = result.fit.circuit.impedance(f_dense, list(result.fit.params_opt))
+
+    lines = [(result.R_inf_median, 'gray', f'HF median = {result.R_inf_median:.4g} Ohm')]
+    if result.R_inf_fit is not None:
+        lines.append((result.R_inf_fit, 'green',
+                      f'fit R_s = {result.R_inf_fit:.4g} +- {result.R_inf_stderr:.2g} Ohm'))
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    ax = axes[0]
+    ax.plot(Z.real, -Z.imag, 'o', label=f'data ({len(f)} pts)')
+    if Z_fit is not None:
+        ax.plot(Z_fit.real, -Z_fit.imag, 'r-', label='R-L-(R|Q) fit')
+    for value, color, label in lines:
+        ax.axvline(value, color=color, ls='--', label=label)
+    ax.axhline(0, color='gray', lw=0.5)
+    ax.set_xlabel("Z' [Ohm]")
+    ax.set_ylabel("-Z'' [Ohm]")
+    ax.legend(fontsize=8)
+
+    for ax, part, ylabel in ((axes[1], np.real, 'Re(Z) [Ohm]'),
+                             (axes[2], np.imag, 'Im(Z) [Ohm]')):
+        ax.semilogx(f, part(Z), 'o', label='data')
+        if Z_fit is not None:
+            ax.semilogx(f_dense, part(Z_fit), 'r-', label='fit')
+        ax.set_xlabel('Frequency [Hz]')
+        ax.set_ylabel(ylabel)
+        ax.legend(fontsize=8)
+    for value, color, _ in lines:
+        axes[1].axhline(value, color=color, ls='--')
+    axes[2].axhline(0, color='gray', lw=0.5)
+
+    for ax in axes:
+        ax.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
+    used = 'fit' if result.method == 'rlq_fit' else 'HF median'
+    fig.suptitle(f'R_inf = {result.R_inf:.4g} Ohm ({used})')
+    plt.tight_layout()
+    return fig

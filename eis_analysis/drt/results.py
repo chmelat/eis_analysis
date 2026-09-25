@@ -16,17 +16,9 @@ from numpy.typing import NDArray
 class RinfEstimate:
     """Result of R_inf estimation."""
     R_inf: float
-    method: str  # 'preset', 'median', 'rl_fit'
+    method: str  # 'preset', 'median'
     R_inf_median: Optional[float] = None  # For comparison
-    figure: Optional[plt.Figure] = None
-
-    # Fit diagnostics (if applicable)
-    behavior: Optional[str] = None  # 'capacitive', 'inductive', 'mixed'
     n_points_used: Optional[int] = None
-    R_squared: Optional[float] = None
-    L_nH: Optional[float] = None
-
-    warnings: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -193,7 +185,6 @@ class DRTResult:
 
     # Figures
     figure: Optional[plt.Figure] = None
-    figure_rinf: Optional[plt.Figure] = None
 
     # GMM peaks (if GMM method used)
     peaks: Optional[List[Dict]] = None
@@ -219,6 +210,5 @@ class DRTResult:
         if self.diagnostics is None:
             return []
         warnings = []
-        warnings.extend(self.diagnostics.rinf.warnings)
         warnings.extend(self.diagnostics.nnls.warnings)
         return warnings

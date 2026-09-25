@@ -8,7 +8,7 @@ with focus on Distribution of Relaxation Times (DRT).
 Modules:
 - io: Data loading and synthetic data generation
 - validation: Kramers-Kronig and Z-HIT validation
-- rinf_estimation: R_inf estimation with inductance compensation
+- rinf_estimation: R_inf estimation (R-L-(R|Q) fit over the top decades)
 - drt: Distribution of Relaxation Times analysis
 - fitting: Equivalent circuit fitting with operator overloading
 - analysis: Oxide layer analysis
@@ -38,7 +38,8 @@ from .validation import (
 
 # R_inf estimation (shared utility for DRT and circuit fitting)
 from .rinf_estimation import (
-    estimate_rinf_with_inductance,
+    estimate_rinf,
+    RinfResult,
 )
 
 # DRT Analysis
@@ -102,7 +103,8 @@ __all__ = [
     'calculate_drt',
     'compute_gcv_score',
     'find_optimal_lambda_gcv',
-    'estimate_rinf_with_inductance',
+    'estimate_rinf',
+    'RinfResult',
     'gmm_peak_detection',
     'DRTResult',
     'DRTDiagnostics',

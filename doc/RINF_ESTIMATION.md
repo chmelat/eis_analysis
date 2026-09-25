@@ -13,10 +13,11 @@ Module: `eis_analysis/rinf_estimation/`
 | Method | When | Data used |
 |--------|------|-----------|
 | **HF median** | default | up to 5 highest-frequency points |
-| **R-L-K estimate** | `--ri-fit` | the highest frequency decade |
+| **R-L-(R\|Q) fit** | `--ri-fit` | the top two frequency decades |
 
-Both report their result through `RinfEstimate` (`eis_analysis/drt/results.py`),
-whose `method` field is one of `'preset'`, `'median'`, `'rl_fit'`.
+The fit returns `RinfResult` (`eis_analysis/rinf_estimation/estimate.py`); the
+DRT records the value it used in `RinfEstimate` (`eis_analysis/drt/results.py`),
+whose `method` is `'preset'` or `'median'`.
 
 ### Why R_inf matters
 
@@ -39,7 +40,7 @@ positive, which the non-negative solver cannot represent at all.
 Used whenever `--ri-fit` is not given.
 
 ```
-n_avg = min(5, max(1, N // 10))
+n_avg = min(HF_MEDIAN_MAX_POINTS, max(1, N // 10))     # HF_MEDIAN_MAX_POINTS = 5
 R_inf = median(Re(Z) over the n_avg highest frequencies)
 ```
 
@@ -56,132 +57,129 @@ f_max — an inductive tail from the cabling, or a charge-transfer arc that is
 not yet closed — the median of Re(Z) is biased, because Re(Z) has not reached
 its limit. That is the case `--ri-fit` addresses.
 
-Implementation: `_estimate_r_inf()` in `eis_analysis/drt/estimation.py`.
+Implementation: `hf_median()` in `eis_analysis/rinf_estimation/estimate.py`,
+shared by the DRT and `--ri-fit`.
 
 ---
 
-## `--ri-fit`: R-L-K estimate over the highest decade
+## `--ri-fit`: R-L-(R|Q) fit over the top two decades
 
 Model:
 
 ```
-Z(omega) = R_s + j*omega*L + R_k / (1 + j*omega*tau)
+Z(omega) = R_s + j*omega*L + R_k / (1 + R_k*Q*(j*omega)^n)
 ```
 
-R_s is the estimate of R_inf, `j*omega*L` absorbs the cable/lead inductance
-and the K element absorbs the beginning of the first arc, so the extrapolation
-to omega -> infinity is not distorted by either.
+R_s is the estimate of R_inf. `j*omega*L` absorbs the cable/lead inductance and
+the (R|Q) element the high-frequency end of the first arc, including a
+depressed (CPE) one, so neither distorts the extrapolation to omega -> infinity.
+One nonlinear fit (`fit_equivalent_circuit`, modulus weighting, the standard
+parameter bounds, so L >= 1 pH and 0.3 <= n <= 1) covers inductive,
+capacitive and mixed high-frequency ends alike.
 
-### Data selection
+### Window
 
-`select_highest_decade()` (`data_selection.py`) takes all points with
-`f >= f_max/10`. If that window happens to be empty, it falls back to the whole
-dataset and records a warning. The selected points are classified by the sign
-of Im(Z) into inductive (`Im > 0`) and capacitive (`Im < 0`) counts, which
-decides the branch below.
+All points with `f >= f_max / 10**RINF_FIT_DECADES`, `RINF_FIT_DECADES = 2`.
+One decade resolves an arc just above f_max slightly better but scatters about
+ten times more under 1 % noise; see `AUDIT_ri_fit_2026-09-25.md`. The window
+must hold at least `RINF_FIT_MIN_POINTS = 5` points (5 free parameters,
+10 real residuals), otherwise the HF median is used.
 
-### Three branches
+### Start values
 
-The name "R-L-K fit" describes only the third branch. The estimator picks
-whichever of the three is best supported by the data.
+| Parameter | Start |
+|-----------|-------|
+| R_s | lowest Re(Z) in the window (every term of the model has Re >= 0) |
+| R_k | spread of Re(Z) in the window |
+| tau = (R_k*Q)^(1/n) | 1/omega at the -Im(Z) maximum, where an arc peaks |
+| n | 0.8 |
+| L | Im(Z)/omega at f_max if the top point is inductive, else 1 nH |
 
-**1. Zero crossing** — `method='zero_crossing_*'`
+A single fit from these start values is used. Multistart was measured worse:
+under noise it finds degenerate minima with a lower residual (R_s at its lower
+bound, the (R|Q) acting as a resistor) and takes 20x longer.
 
-Taken when the decade contains both inductive and capacitive points, i.e.
-Im(Z) changes sign inside the measured range. This is the strongest case: the
-real-axis intercept is *interpolated*, not extrapolated. The first sign change
-is bracketed and Re(Z) is linearly interpolated at the crossing frequency:
+### Identifiability
+
+The fitted R_s is used only when its standard error (from the fit's
+covariance) satisfies
 
 ```
-t     = -Im_1 / (Im_2 - Im_1)
-f_0   = f_1 + t * (f_2 - f_1)
-R_inf = Re_1 + t * (Re_2 - Re_1)
+stderr(R_s) / R_s <= RINF_REL_STDERR_MAX = 0.05
 ```
 
-`f_zero_crossing` is reported. No fit is performed, so `L` and `R_k` are 0.
+Otherwise `R_inf` is the HF median, and a warning gives the fitted value, its
+stderr and the reason. Measured on the audit's synthetic set with 1 % noise,
+determinable cases have 0.2-3.6 %, non-determinable ones 14 % and more; 5 %
+leaves a ~2x margin on both sides.
 
-**2. Capacitive extrapolation** — `method='capacitive_*'`
+The stderr is a **flag, not an error bar.** When the model does not describe
+the data (e.g. two overlapping CPE arcs) it understates the real error: on
+`example/example_eis_data.csv` it reports 23 % while the fitted R_s is off by
++153 %.
 
-Taken when every point in the decade is capacitive (`n_inductive == 0`), so
-there is no crossing to interpolate. A 2nd-degree polynomial is fitted in the
-Nyquist plane, `Re = a*Im^2 + b*Im + c`, and extrapolated to `Im = 0`; the
-constant term `c` is the estimate. Two guards apply:
+### What `--ri-fit` cannot do
 
-| Condition | Action | Suffix |
-|-----------|--------|--------|
-| `c <= 0` | non-physical, clamp to 1 Ohm | `near_zero_fallback` |
-| `c > Re(Z) at f_max` | extrapolation overshoots, use the top-frequency point | `hf_fallback` |
-| otherwise | accept `c` | `polynomial` |
-
-Both `R_inf_poly` (raw extrapolation) and `R_inf_hf` (Re(Z) at f_max) are
-reported, so the two can be compared.
-
-**3. R-L-K linear fit** — `method='rlk_linear_*'`
-
-The remaining case, in practice purely inductive data. tau is estimated from
-the data and clamped to the decade's own range, then R_s, R_k and L are solved
-by linear least squares (`estimate_R_linear` from the Voigt-chain solver,
-modulus weighting, non-negative R). This is the only branch that produces a
-non-zero `L`.
-
-### Warnings
-
-- `L_nH > max_L_nH` (default 1000 nH) — implausibly large inductance
-- `L < 0` — non-physical negative inductance
-- above 500 nH, `_estimate_r_inf()` adds its own note when the estimate feeds
-  the DRT
-
-An estimate carrying warnings is still returned; nothing is silently rejected.
+- **An arc lying entirely above f_max** looks, within the window, exactly like
+  a flat high-frequency end. No method can tell the two apart from the data;
+  the fit is flagged and the median used.
+- **A strongly open CPE arc** (phase of tens of degrees at f_max, low n) leaves
+  R_s undetermined under realistic noise; again flagged, median used, and the
+  median itself is then far off. Measure to higher frequencies.
+- On clean flat or purely inductive ends the fit is sometimes flagged too
+  (the (R|Q) term has nothing to fit); the median it falls back to is exact
+  there.
 
 ### Failure paths
 
-`estimate_rinf_with_inductance()` never raises. Fewer than 3 points, or an
-exception inside the fit, produce an `RLKFitResult` with `fit_success=False`,
-`method='fallback_insufficient_data'` or `'fallback_fit_error'`, and `R_inf`
-falling back to `median(Re(Z))` over all points. Callers distinguish the cases
-via `fit_success`, not by a different return shape.
+`estimate_rinf()` raises `ValueError` only for arrays of different shape or
+with no finite point. Non-finite points are dropped with a warning. A window
+with too few points, a fit that fails (`RuntimeError` from the fitter) or an
+undetermined R_s all give `method='hf_median'` with the reason in `warnings`;
+`fit` is `None` in the first two cases.
 
 ---
 
 ## Interaction with the DRT
 
-When `--ri-fit` runs, the CLI computes R_inf **first** and hands the number to
-`calculate_drt()` as `r_inf_preset`. The DRT stage therefore skips its own
-`R_inf estimation` section - the estimation never ran there - and states the
-value where it uses it, with a comparison against the HF median:
+When `--ri-fit` runs, the CLI computes R_inf **first**, prints the fitted value
+and the HF median, and hands the chosen one to `calculate_drt()` as
+`r_inf_preset`:
 
 ```
-Using R_inf = 1.216 Ohm (preset; HF median = 1.265 Ohm, -3.9%)
-``` The R-L-K diagnostic figure is saved separately as
-`<prefix>_ri_fit.png`. The `'rl_fit'` label appears only when `calculate_drt()`
-is called directly with `use_rl_fit=True` from the Python API.
+R-L-(R|Q) fit, 506-3.99e+04 Hz (20 points): R_inf = 1.082 +- 0.011 Ohm (1 %)
+  L = 326 nH, fit error 1.1 %
+HF median (5 points): R_inf = 1.446 Ohm
+Using R_inf = 1.082 Ohm (fit)
+```
+
+The DRT stage then skips its own `R_inf estimation` section and states the
+value where it uses it, with a comparison against the HF median. The diagnostic
+figure is saved as `<prefix>_ri_fit.png`.
 
 ---
 
 ## Python API
 
 ```python
-from eis_analysis.rinf_estimation import estimate_rinf_with_inductance
+from eis_analysis.rinf_estimation import estimate_rinf
+from eis_analysis.visualization import plot_rinf_fit
 
-fit, fig = estimate_rinf_with_inductance(frequencies, Z, plot=True)
+est = estimate_rinf(frequencies, Z)
 
-fit.R_inf          # estimate [Ohm]
-fit.method         # which branch ran
-fit.behavior       # 'purely_capacitive' | 'purely_inductive' | 'mixed_with_crossing'
-fit.R_squared      # quality over the fitted window
-fit.n_points_used  # points in the highest decade
-fit.L_nH           # inductance [nH], 0 outside the R-L-K branch
-fit.warnings
-fit.fit_success    # False -> R_inf came from the median fallback
-```
+est.R_inf          # value to use [Ohm]
+est.method         # 'rlq_fit' | 'hf_median'
+est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit)
+est.R_inf_stderr   # its standard error [Ohm]
+est.R_inf_median   # HF median [Ohm]
+est.fit            # FitResult of R-L-(R|Q): params_opt = [R_s, L, R_k, Q, n]
+est.f_window, est.Z_window  # data of the fit window
+est.warnings
 
-Via the DRT entry point:
+fig = plot_rinf_fit(est)
 
-```python
 from eis_analysis.drt import calculate_drt
-
-result = calculate_drt(frequencies, Z, use_rl_fit=True)   # R-L-K estimate
-result = calculate_drt(frequencies, Z, r_inf_preset=12.5) # supply it yourself
+result = calculate_drt(frequencies, Z, r_inf_preset=est.R_inf)
 ```
 
 Full reference: [PYTHON_API.md](PYTHON_API.md)
@@ -196,7 +194,7 @@ assumptions.
 
 Reach for `--ri-fit` when the high-frequency end is still curving: an
 inductive tail (Im(Z) > 0 at f_max, typical above ~100 kHz with ordinary
-cabling), or a capacitive arc that has not closed. Compare the two numbers —
-the CLI prints the median alongside the fitted value with their difference in
-percent. A large spread is itself the diagnostic: it says the top of the
-spectrum is not flat, and that the median would have been biased.
+cabling), or a capacitive arc that has not closed. The CLI prints both numbers.
+A large spread says the top of the spectrum is not flat and that the median
+would have been biased; a warning that R_inf is not determined says the data
+cannot settle it either way.

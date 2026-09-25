@@ -27,7 +27,8 @@ from eis_analysis import (
     kramers_kronig_validation,
     zhit_validation,
     # R_inf estimation
-    estimate_rinf_with_inductance,
+    estimate_rinf,
+    RinfResult,
     # DRT
     calculate_drt,
     DRTResult,               # Dataclass with DRT results
@@ -235,40 +236,28 @@ more detailed diagnostics (M, mu, inductance).
 
 ### eis_analysis.rinf_estimation
 
-**R_inf estimation with inductance compensation:**
+**R_inf estimation, R-L-(R|Q) fit over the top two decades:**
 
 ```python
-from eis_analysis.rinf_estimation import estimate_rinf_with_inductance
+from eis_analysis.rinf_estimation import estimate_rinf, hf_median
 
-fit, fig = estimate_rinf_with_inductance(
-    frequencies,
-    Z,
-    max_L_nH=1000.0,     # Maximum reasonable inductance [nH]
-    plot=True            # Create diagnostic plot
-)
+est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite point
 
-# fit: RLKFitResult dataclass
-# fig: matplotlib Figure with R-L-K fit diagnostics (None if plot=False)
+# est: RinfResult dataclass
+est.R_inf          # value to use [Ohm]: fitted R_s, or the HF median
+est.method         # 'rlq_fit' | 'hf_median'
+est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
+est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
+est.R_inf_median   # HF median [Ohm]
+est.n_median_points
+est.fit            # FitResult, params_opt = [R_s, L, R_k, Q, n]; None if no fit ran
+est.f_window, est.Z_window  # data of the fit window
+est.warnings       # why the median was used, dropped non-finite points
 
-fit.R_inf          # High-frequency resistance [Ohm]
-fit.L, fit.L_nH    # Inductance [H] / [nH]
-fit.R_k, fit.tau   # K element of the R-L-K model
-fit.R_squared      # Coefficient of determination
-fit.rel_error      # Relative fit error [%]
-fit.n_points_used  # Number of HF points used
-fit.freq_range     # (f_min, f_max) of the fitted window [Hz]
-fit.behavior       # 'purely_capacitive' | 'purely_inductive' | 'mixed_with_crossing'
-fit.method         # 'zero_crossing_*', 'capacitive_*', 'rlk_linear_*', 'fallback_*'
-fit.warnings       # List of warnings (high/negative inductance, ...)
+R_inf, n = hf_median(frequencies, Z)  # median of Re(Z) over the top points
 
-# A failed estimate is not an exception: fit_success is False and R_inf falls
-# back to the median of Re(Z), so the result is always usable.
-if not fit.fit_success:
-    print(fit.method, fit.warnings)
-
-# Branch-specific extras, None when not applicable:
-#   fit.R_inf_poly, fit.R_inf_hf, fit.poly_coeffs  (capacitive branch)
-#   fit.f_zero_crossing                            (zero-crossing branch)
+from eis_analysis.visualization import plot_rinf_fit
+fig = plot_rinf_fit(est)
 ```
 
 ### eis_analysis.drt
@@ -285,9 +274,9 @@ result = calculate_drt(
     lambda_reg=None,       # Regularization parameter (None = auto)
     auto_lambda=True,      # Automatic lambda selection via GCV
     normalize_rpol=False,  # Normalize gamma(tau) by R_pol
-    use_rl_fit=False,      # R-L-K fit for R_inf instead of the HF median
     peak_method='scipy',   # Peak detection: 'scipy' or 'gmm'
-    r_inf_preset=None,     # Preset R_inf value (optional)
+    r_inf_preset=None,     # Preset R_inf, e.g. estimate_rinf(...).R_inf;
+                           # None = HF median
     gmm_bic_threshold=10.0, # BIC threshold for GMM (default: 10.0)
     lambda_probe=False,     # Peak stability across lambda (optional)
     weighting='sqrt',       # Data weighting: 'sqrt' (default), 'uniform',
@@ -300,7 +289,6 @@ result.tau                 # Time constant axis [s]
 result.gamma               # Distribution function gamma(tau) [Ohm]
 result.peaks               # List of dicts with peak information
 result.figure              # matplotlib Figure with DRT spectrum
-result.figure_rinf         # matplotlib Figure with R_inf fit
 result.R_inf               # High-frequency resistance [Ohm]
 result.R_pol               # Polarization resistance [Ohm]
 result.lambda_reg          # Regularization parameter used
@@ -1054,7 +1042,7 @@ For detailed function documentation and parameters, see docstrings in code:
 import eis_analysis
 help(eis_analysis.calculate_drt)
 help(eis_analysis.fit_equivalent_circuit)
-help(eis_analysis.estimate_rinf_with_inductance)
+help(eis_analysis.estimate_rinf)
 ```
 
 Or use an IDE with docstring support (VS Code, PyCharm, etc.).

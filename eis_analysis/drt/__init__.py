@@ -21,7 +21,6 @@ from .gcv import (
     compute_lcurve_point,
     find_lcurve_corner,
 )
-from ..rinf_estimation import estimate_rinf_with_inductance
 from .peaks import gmm_peak_detection
 
 __all__ = [
@@ -43,8 +42,6 @@ __all__ = [
     'find_optimal_lambda_hybrid',
     'compute_lcurve_point',
     'find_lcurve_corner',
-    # R_inf estimation
-    'estimate_rinf_with_inductance',
     # Peak detection
     'gmm_peak_detection',
 ]

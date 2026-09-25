@@ -263,12 +263,11 @@ def test_rinf_estimation():
 
     R_inf, fig = run_rinf_estimation(frequencies, Z, args)
 
-    # R_inf estimation may return None if it fails, but should not raise
-    if R_inf is not None:
-        print(f"  Estimated R_inf: {R_inf:.2f} Ohm")
-        assert R_inf > 0, "R_inf should be positive"
-    else:
-        print("  R_inf estimation returned None (expected for some data)")
+    # Two overlapping CPEs with Rs/R0 = 1e-4: the top decades do not
+    # determine R_inf, so the handler must hand on the HF median.
+    from eis_analysis.rinf_estimation import hf_median
+    assert R_inf == hf_median(frequencies, Z)[0]
+    assert fig is not None
 
     if fig is not None:
         plt.close(fig)

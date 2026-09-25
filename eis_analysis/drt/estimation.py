@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from .results import RinfEstimate
 from ..fitting.config import DRT_PEAK_EDGE_DECADES
-from ..rinf_estimation import estimate_rinf_with_inductance
+from ..rinf_estimation import hf_median
 
 logger = logging.getLogger(__name__)
 
@@ -175,50 +175,11 @@ def _effective_bins(gamma: NDArray) -> float:
 
 
 def _estimate_r_inf(frequencies: NDArray, Z: NDArray,
-                    use_rl_fit: bool = False,
                     r_inf_preset: Optional[float] = None) -> RinfEstimate:
-    """
-    Estimate high-frequency resistance R_inf.
-
-    Returns structured RinfEstimate with all diagnostics.
-    """
-    n_avg = min(5, max(1, len(frequencies) // 10))
-    high_freq_indices = np.argsort(frequencies)[-n_avg:]
-    R_inf_median = float(np.median(Z.real[high_freq_indices]))
-
+    """R_inf from the caller (preset) or the HF median, with the median kept for comparison."""
+    R_inf_median, n_median = hf_median(frequencies, Z)
     if r_inf_preset is not None:
-        return RinfEstimate(
-            R_inf=r_inf_preset,
-            method='preset',
-            R_inf_median=R_inf_median
-        )
-
-    if use_rl_fit:
-        try:
-            fit, fig_rl = estimate_rinf_with_inductance(frequencies, Z, plot=True)
-
-            warnings = list(fit.warnings)
-            if fit.L_nH > 500:
-                warnings.append(f"High inductance L = {fit.L_nH:.1f} nH detected")
-
-            return RinfEstimate(
-                R_inf=fit.R_inf,
-                method='rl_fit',
-                R_inf_median=R_inf_median,
-                figure=fig_rl,
-                behavior=fit.behavior,
-                n_points_used=fit.n_points_used,
-                R_squared=fit.R_squared,
-                L_nH=fit.L_nH,
-                warnings=warnings
-            )
-        except Exception as e:
-            logger.debug(f"R_inf fit failed: {e}, using median fallback")
-
-    # Median method (default)
-    return RinfEstimate(
-        R_inf=R_inf_median,
-        method='median',
-        R_inf_median=R_inf_median,
-        n_points_used=n_avg
-    )
+        return RinfEstimate(R_inf=r_inf_preset, method='preset',
+                            R_inf_median=R_inf_median)
+    return RinfEstimate(R_inf=R_inf_median, method='median',
+                        R_inf_median=R_inf_median, n_points_used=n_median)

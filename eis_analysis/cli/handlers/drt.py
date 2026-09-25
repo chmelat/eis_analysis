@@ -31,33 +31,8 @@ def _log_rinf_estimation(rinf) -> None:
     logger.info("R_inf estimation (high-frequency resistance)")
     log_separator()
 
-    method_names = {
-        'median': 'Median of HF points',
-        'rl_fit': 'R-L fit (auto-detection)'
-    }
-    logger.info(f"Method: {method_names.get(rinf.method, rinf.method)}")
-
-    if rinf.behavior:
-        logger.info(f"  Detected: {rinf.behavior.capitalize()} behavior")
-
-    if rinf.n_points_used:
-        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
-    else:
-        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm")
-
-    if rinf.R_squared and rinf.R_squared > 0:
-        logger.info(f"  Quality: R^2 = {rinf.R_squared:.4f}")
-    if rinf.L_nH and rinf.L_nH > 0:
-        logger.info(f"  Inductance: L = {rinf.L_nH:.2f} nH")
-
-    if rinf.R_inf_median and rinf.method != 'median':
-        diff_abs = rinf.R_inf - rinf.R_inf_median
-        diff_pct = (diff_abs / rinf.R_inf_median * 100) if rinf.R_inf_median != 0 else 0
-        logger.info(f"  Comparison: median = {rinf.R_inf_median:.3f} Ohm "
-                    f"(diff: {diff_abs:+.3f} Ohm, {diff_pct:+.1f}%)")
-
-    for warning in rinf.warnings:
-        logger.warning(f"  {warning}")
+    logger.info("Method: Median of HF points (--ri-fit for an R-L-(R|Q) fit)")
+    logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
 
 
 def _log_lambda_value(lambda_sel) -> None:
@@ -289,7 +264,7 @@ def run_drt_analysis(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol, ri_fit,
+        CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol,
                        gmm_bic_threshold, lambda_probe, drt_weighting,
                        tau_extend, save, format)
     R_inf_computed : float or None
@@ -314,7 +289,6 @@ def run_drt_analysis(
         auto_lambda=use_auto_lambda,
         normalize_rpol=args.normalize_rpol,
         peak_method=peak_method,
-        use_rl_fit=args.ri_fit,
         r_inf_preset=R_inf_computed,
         gmm_bic_threshold=args.gmm_bic_threshold,
         lambda_probe=args.lambda_probe,
@@ -326,10 +300,6 @@ def run_drt_analysis(
     _log_drt_diagnostics(result)
 
     save_figure(result.figure, args.save, 'drt', args.format)
-
-    # Save R_inf figure from DRT only if not already saved via --ri-fit
-    if not args.ri_fit:
-        save_figure(result.figure_rinf, args.save, 'ri_fit', args.format)
 
     return result
 
