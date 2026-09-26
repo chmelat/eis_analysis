@@ -45,7 +45,7 @@ class OxideAnalysisResult:
     capacitance_specific: float # Specific capacitance [F/cm²]
     thickness_nm: float         # Oxide thickness [nm]
     element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', 'YG', or 'estimate' (HF fallback)
-    element_R: Optional[float]  # Associated resistance [Ω] (None for CC)
+    element_R: Optional[float]  # Parallel resistance [Ω] (None: no DC path beside it)
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, float]  # All element parameters
     # Brug (2D) comparison values - set only for a dominant Q element
@@ -268,8 +268,8 @@ def _find_capacitive_elements(
 
     A parallel resistance, where one exists, is still recorded: it is what the
     Hsu-Mansfeld/Brug conversion of a `Q` needs, what `tau = R*C` needs, and
-    what the largest-R barrier heuristic compares. `R` = None simply means the
-    element has no DC path beside it.
+    what the largest-R barrier heuristic compares. `R` = None means the
+    fitted model gives the element no DC path beside it.
 
     Returns list of dicts. Common keys: 'type', 'R' (may be None), 'tau' (may
     be None), and 'n' - the exponent of the element's admittance, Y ~ omega^n,
@@ -279,33 +279,18 @@ def _find_capacitive_elements(
     """
     results = []
 
-    def parallel_resistance(node) -> Optional[float]:
-        """Resistance of the R/G elements that are direct children of a Parallel.
-
-        G is a resistance parametrized as its own reciprocal, so it defines
-        the parallel resistance exactly as R does. G = 0 is an open branch:
-        R = 1/G is infinite, which is reported as None (no DC path), the
-        same convention the blocking-dielectric branches use.
-        """
-        r_elements = [e for e in node.elements if isinstance(e, (R, G))]
-        if not r_elements:
-            return None
-        if len(r_elements) > 1:
-            warnings.append("Multiple R/G elements in one parallel "
-                            "combination - using the last one")
-        last = r_elements[-1]
-        if isinstance(last, G):
-            return 1 / last.G if last.G > 0 else None
-        return last.params[0]
-
     def traverse(node, R_parallel: Optional[float]) -> None:
         if isinstance(node, Parallel):
-            # An inner Parallel with no R of its own stays under the enclosing
-            # one's resistance: R | (C | Q) is just R | C | Q rewritten.
-            own_R = parallel_resistance(node)
-            R_here = own_R if own_R is not None else R_parallel
-            for elem in node.elements:
-                traverse(elem, R_here)
+            for i, elem in enumerate(node.elements):
+                # The resistance beside an element: its sibling branches
+                # (_branch_resistance) and whatever encloses this Parallel,
+                # combined in parallel - R_ct in Q | (R_ct - W), R_ox in
+                # Q_ox | (R_ox - (Q_dl | R_ct)), R1 || R2 in R1 | (R2 | C).
+                siblings = node.elements[:i] + node.elements[i + 1:]
+                enclosing = [R_parallel] if R_parallel is not None else []
+                R_here = _parallel_combination(
+                    [_branch_resistance(s) for s in siblings] + enclosing)
+                traverse(elem, R_here if R_here < np.inf else None)
 
         elif isinstance(node, Series):
             # A series boundary ends the scope of any enclosing parallel R:
@@ -354,7 +339,7 @@ def _find_capacitive_elements(
             # A truncated CPE brings its own DC path and its own capacitive
             # plateau: R_pol and C_eff are limits of the fitted distribution,
             # exact within the model, so no Hsu-Mansfeld / Brug estimate is
-            # needed on top - the reason DQ ranks with C and K, not with Q.
+            # needed on top.
             # Whether C_eff is measured or extrapolated is decided later, on
             # the winner alone (_plateau_notes).
             R_dc = node.R_pol
@@ -386,8 +371,7 @@ def _find_capacitive_elements(
         elif isinstance(node, YG):
             # The film capacitance is a fitted parameter and the exact
             # omega -> inf limit of the element, so it needs no Hsu-Mansfeld /
-            # Brug conversion - the reason YG ranks with C, K and DQ, not
-            # with Q. Whether that limit is inside the window is checked
+            # Brug conversion. Whether that limit is inside the window is checked
             # later, on the winner alone (_plateau_notes).
             results.append({
                 'type': 'YG',
@@ -395,10 +379,13 @@ def _find_capacitive_elements(
                 # conductivity profile is e^(1/p) times below the capacitive
                 # corner - 2.7e45 Ohm for Zahner's own p = 0.01 example - so
                 # it is an extrapolation of the model, not a fitted arc, and
-                # it would win the largest-R barrier heuristic every time.
-                # It travels as R_dc instead, for reporting only. This is a
+                # must not be reported as the element's resistance. It
+                # travels as R_dc instead, for reporting only. This is a
                 # deliberate departure from DQ, whose R_pol is a measurable
-                # arc and serves that heuristic correctly.
+                # arc. The ranking is the same either way: a YG with no
+                # parallel R counts as blocking (infinite R) in the
+                # largest-R barrier heuristic, which is where R_dc would
+                # have put it too.
                 'R': R_parallel,
                 'C': node.C,
                 # 1.0, like CC and DQ: above 1/(2*pi*tau) the element *is* a
@@ -423,7 +410,10 @@ def _find_capacitive_elements(
             regime = _cc_capacitance_regime(tau_val, frequencies)
             results.append({
                 'type': 'CC',
-                'R': None,          # blocking dielectric - no DC path
+                # CC has no DC path of its own; a leakage branch beside it
+                # (R_leak | CC) is what the largest-R heuristic must compare,
+                # or a side relaxation would count as blocking and win
+                'R': R_parallel,
                 'C': C_inf_val if regime == 'high_frequency' else C_inf_val + dC_val,
                 'n': 1.0,           # Y = j*omega*C*(omega) in both limits
                 'tau': tau_val,
@@ -443,12 +433,20 @@ def _find_capacitive_elements(
 
 
 def _element_size(element: Dict[str, Any]) -> float:
-    """Capacitive magnitude used to rank elements the R heuristic cannot separate.
+    """Capacitance used to rank elements the R heuristic cannot separate.
 
-    The fitted capacitance for C, K and CC; the CPE coefficient for Q, which
-    is only ever compared against other Q elements (a tier holds one kind).
+    The fitted capacitance for C, K, CC, DQ and YG; the Hsu-Mansfeld C_eff for
+    Q, so that a Q and a C sharing one resistance compare in the same unit.
+    A Q always has its R here - one without it is not a candidate.
     """
-    return float(element['C'] if 'C' in element else element['Q'])
+    if 'C' in element:
+        return float(element['C'])
+    return _estimate_cpe_capacitance(element['Q'], element['n'], element['R'])
+
+
+def _barrier_resistance(element: Dict[str, Any]) -> float:
+    """Parallel resistance for the largest-R heuristic; no DC path is infinite."""
+    return element['R'] if element['R'] is not None else np.inf
 
 
 def _select_dielectric_element(
@@ -460,74 +458,43 @@ def _select_dielectric_element(
 
     Caller has already applied the physical criterion (admittance ~ omega^n
     with n near 1); this only resolves which of several qualifying elements to
-    report, in order of how directly each one's capacitance is determined:
+    report. The element with the largest parallel resistance is taken to be
+    the compact barrier - the long-standing heuristic, which distinguishes an
+    oxide barrier from a charge-transfer process. An element with no DC path
+    beside it is blocking, i.e. its resistance is infinite, so it wins.
 
-    1. `CC` - the general dielectric relaxation model. A plain `C` is its
-       degenerate case (dC = 0), so if both somehow appear the general model
-       wins; preferring the simpler element over the more general one would be
-       backwards.
-    2. `C`, `K`, `DQ` and `YG` - the capacitance is a fitted parameter
-       (`DQ`'s C_eff and `YG`'s C are exact limits of the fitted model), no
-       CPE conversion in between.
-    3. `Q` - a near-ideal CPE, whose capacitance still needs the
-       Hsu-Mansfeld/Brug model on top of the fit.
+    The element type plays no part here. It decides only how the capacitance
+    is read (exact for C, K, CC, DQ and YG; Hsu-Mansfeld/Brug for Q), not
+    which element is the barrier: ranking by type let a 50 Ohm | 1 nF side
+    arc beat a 10 MOhm | Q (n = 0.95) barrier.
 
-    Within a tier the largest-R element is taken to be the compact barrier -
-    the long-standing heuristic, which only distinguishes an oxide barrier
-    from a charge-transfer process. Elements with no parallel resistance have
-    no R to compare and are ranked by capacitance instead.
+    Elements sharing the largest resistance are not separable by it and are
+    ranked by capacitance.
 
     Returns the element and a one-line statement of why it won, which the
     caller reports: the choice is a heuristic and has to be checkable.
     """
-    cc = [e for e in candidates if e['type'] == 'CC']
-    if cc:
-        if len(cc) > 1:
-            warnings.append(
-                f"{len(cc)} Cole-Cole elements in circuit - using "
-                "the one with the largest static capacitance. With several "
-                "dielectric relaxations the layer assignment is yours to make.")
-        dominant = max(cc, key=lambda e: e['C'])
-        return dominant, ("Selected because the circuit models the dielectric "
-                          "relaxation explicitly; a plain C is its degenerate "
-                          "case (ΔC = 0), so the general model wins")
+    dominant = max(candidates,
+                   key=lambda e: (_barrier_resistance(e), _element_size(e)))
+    R_max = _barrier_resistance(dominant)
+    tied = [e for e in candidates if _barrier_resistance(e) == R_max]
 
-    exact = [e for e in candidates if e['type'] in ('C', 'K', 'DQ', 'YG')]
-    tier = exact if exact else candidates
-    with_R = [e for e in tier if e['R'] is not None and e['R'] > 0]
-
-    if with_R:
-        # Rank by R, then by size: elements sharing one parallel resistance sit
-        # in the same combination, where the heuristic has nothing to say and
-        # the larger capacitance is the dominant contribution
-        dominant = max(with_R, key=lambda e: (e['R'], _element_size(e)))
-        tied = [e for e in with_R if e['R'] == dominant['R']]
-        if len(tied) > 1:
-            warnings.append(
-                f"{len(tied)} capacitive elements share one parallel resistance "
-                f"(R = {dominant['R']:.1f} Ω) - using the largest, "
-                f"{_element_size(dominant):.3e}. They are one parallel "
-                "combination, so their individual values are not separately "
-                "identifiable from the spectrum.")
-        if len(tier) > len(with_R):
-            warnings.append(
-                f"{len(tier) - len(with_R)} capacitive element(s) have no "
-                "parallel resistance and cannot be ranked by the largest-R "
-                "heuristic - they were not considered for the dominant "
-                "element. Name the layer explicitly if one of them is it.")
-        return dominant, ("Selection assumes the largest-R element is the "
-                          "compact oxide barrier (verify: a charge-transfer "
-                          "process can also have the largest R)")
-
-    # No resistance anywhere in the tier: rank by capacitance instead
-    dominant = max(tier, key=_element_size)
-    if len(tier) > 1:
+    blocking = R_max == np.inf
+    if len(tied) > 1:
+        shared = ("with no DC path beside them" if blocking else
+                  f"share one parallel resistance (R = {R_max:.1f} Ω)")
         warnings.append(
-            f"{len(tier)} capacitive elements with no parallel resistance - "
-            "using the largest. Their individual values are not separately "
-            "identifiable from the spectrum, so check the fit before relying "
-            "on the split.")
-    return dominant, "No parallel resistance to rank by; the largest wins"
+            f"{len(tied)} capacitive elements {shared} - using the largest, "
+            f"{_element_size(dominant):.3e} F. Their individual values are not "
+            "separately identifiable from the spectrum, so check the fit "
+            "before relying on the split.")
+    if blocking:
+        return dominant, ("Selected as the barrier: no DC path beside it "
+                          "(blocking), so its resistance exceeds any other "
+                          "candidate's")
+    return dominant, ("Selection assumes the largest-R element is the "
+                      "compact oxide barrier (verify: a charge-transfer "
+                      "process can also have the largest R)")
 
 
 def _estimate_cpe_capacitance(Q_val: float, n: float, R_val: float) -> float:
@@ -569,13 +536,56 @@ def _estimate_cpe_capacitance_brug(
     return C_eff
 
 
+def _parallel_combination(resistances: List[float]) -> float:
+    """Parallel combination [Ohm]; inf when every branch blocks, 0 if one shorts."""
+    G_total = sum(1 / r if r > 0 else np.inf for r in resistances)
+    return 1 / G_total if G_total > 0 else np.inf
+
+
+def _branch_resistance(node, across: bool = True) -> float:
+    """Resistance one branch of a Parallel puts beside its siblings [Ohm].
+
+    inf when the branch blocks DC: a C, Q, CC or YG in series means no DC
+    path, so the Debye branch R_rel - C_rel leaves C_geo blocking.
+
+    A relaxation (Parallel, K, DQ) directly across the element (`across`) is
+    part of the element's own parallel combination and counts with its DC
+    resistance: C sees R in C | (R | C2), R in C | K(R, tau). One in series
+    inside the branch is a separate arc, shorted by its own capacitance at
+    this element's frequency: Q_ox in Q_ox | (R_ox - (Q_dl | R_ct)) sees R_ox,
+    not R_ox + R_ct - unless it blocks DC, which blocks the branch.
+    """
+    if isinstance(node, (C, Q, CC, YG)):
+        return np.inf
+    if isinstance(node, R):
+        return node.params[0]
+    if isinstance(node, G):
+        return 1 / node.G if node.G > 0 else np.inf
+    if isinstance(node, Series):
+        return sum(_branch_resistance(e, across=False) for e in node.elements)
+    if isinstance(node, (K, DQ, Parallel)):
+        if isinstance(node, K):
+            R_dc = node.params[0]
+        elif isinstance(node, DQ):
+            R_dc = node.R_pol
+        else:
+            R_dc = _parallel_combination(
+                [_branch_resistance(e) for e in node.elements])
+        return R_dc if across or R_dc == np.inf else 0.0
+    # ponytail: every other element (W, Wo, L, ...) counts as a short. Exact
+    # for L; for a Warburg it keeps R_ct in the Randles branch R_ct - W, where
+    # the DC-exact infinity would hide the arc. Ceiling: an element that
+    # blocks DC or adds resistance and is not listed above is misread - add
+    # it above if that matters.
+    return 0.0
+
+
 def _find_series_resistance(circuit) -> Optional[float]:
     """
     Sum of R and G elements on the series path of the circuit (outside any
     parallel combination) — the ohmic/electrolyte resistance Rs needed
-    by the Brug formula. G contributes 1/G, matching how
-    `parallel_resistance` reads it; G = 0 is an open series branch and
-    contributes nothing.
+    by the Brug formula. G contributes 1/G; G = 0 is an open series branch
+    and contributes nothing.
 
     Returns None if no such element exists or the sum is not positive.
     """
@@ -625,8 +635,8 @@ def _extract_capacitance(
         of at least BRUG_RS_MIN_OHM (below that the fit has not identified
         R_s and Brug's R_s^((1-n)/n) scaling makes the value meaningless);
         in fallback mode 'element_R' and 'element_tau' are None too,
-        and 'element_R' is None for a CC (a blocking dielectric has
-        no parallel resistance).
+        and 'element_R' is None for an element with no DC path beside
+        it (a blocking dielectric).
         None if capacitance could not be extracted.
     """
     # === Mode 1: From fitted circuit (preferred) ===
@@ -884,9 +894,10 @@ def analyze_oxide_layer(
 
     Collects every capacitive element in the circuit (C, Q, K, CC, DQ), keeps
     those that behave as a dielectric (admittance ~ omega^n with n near 1),
-    and reports the dominant one: the general dielectric model first (CC),
-    then the exactly fitted capacitances (C, K, DQ), then a near-ideal CPE (Q),
-    and within a tier the largest parallel resistance - the compact barrier.
+    and reports the dominant one: the largest parallel resistance - the
+    compact barrier - whatever its type, with a blocking element (no DC path
+    beside it) counting as infinite. The parallel resistance is the DC
+    resistance of the sibling branches, so R_ct in Q | (R_ct - W) is found.
     A parallel resistance is required only to convert a Q. The thickness
     follows from the selected element's capacitance.
 

@@ -191,6 +191,27 @@ combination or not. A parallel resistance is recorded when one is present
 (it is what the Hsu-Mansfeld/Brug conversion, `tau = R*C` and the largest-R
 heuristic need), but it is not required for the element to be found.
 
+The parallel resistance of an element combines, in parallel, its **sibling
+branches** in the `Parallel` and any resistance enclosing that `Parallel`
+(`R1 | (R2 | C)` gives `R1 || R2`). Each sibling branch contributes:
+
+- nothing if a `C`, `Q`, `CC` or `YG` sits in series on it - the branch
+  blocks DC (the Debye branch `R_rel - C_rel` leaves `C_geo` blocking);
+- the resistors on its series path;
+- for a relaxation (`K`, `DQ`, nested `Parallel`) directly across the
+  element, its DC resistance - it is part of the same parallel combination;
+- for a relaxation in series inside the branch, nothing - it is a separate
+  arc, shorted by its own capacitance at this element's frequency;
+- for `W`, `L` and any other element, nothing (a short). For a Warburg this
+  is a deliberate simplification: the DC-exact infinity would hide the
+  charge-transfer arc.
+
+So in the Randles circuit `Q | (R_ct - W)` the `Q` sees `R_ct`, and in the
+porous-oxide model `Q_ox | (R_ox - (Q_dl | R_ct))` the outer `Q_ox` sees
+`R_ox` while `Q_dl` sees `R_ct`. Before v0.42.0 only resistors that were direct children of the
+`Parallel` counted, so both circuits fell through to the high-frequency
+estimate.
+
 Before v0.25.3 a capacitance was only registered when it shared a `Parallel`
 with a resistance - a Voigt element. That hid perfectly well fitted
 capacitances: in `L - R0 - (Q|C)` the `C` has no resistance beside it, so the
@@ -201,8 +222,8 @@ Malformed or ambiguous circuits are handled with a warning:
 - a K element with `R <= 0` is skipped (`C = tau/R` is undefined there);
 - a `Q` with no parallel resistance is not a candidate - neither
   Hsu-Mansfeld nor Brug can convert it without one;
-- when one parallel combination contains multiple R elements
-  (e.g. `(R1 | R2 | C)`), the last one is used.
+- when one parallel combination contains several resistive branches
+  (e.g. `(R1 | R2 | C)`), their parallel combination is used.
 
 ### 2. Dominant Element Selection
 
@@ -219,35 +240,26 @@ distribution of resistivity - it is not a dielectric. This criterion replaces
 both the old "find a Voigt element" search and the old "use the last one"
 tie-break, neither of which was physical.
 
-Among the qualifying elements, the order is by how directly each one's
-capacitance is determined:
-
-1. `CC` - the general dielectric relaxation model. A plain `C` is its
-   degenerate case (`dC = 0`), so the more general element wins if both are
-   somehow present; preferring the simpler one would be backwards. (In
-   practice they are alternative descriptions of the same thing and do not
-   appear together.) With more than one `CC` the largest static capacitance
-   is used and a warning is logged - assigning several relaxations to layers
-   is the operator's call.
-2. `C` and `K` - the capacitance is a fitted parameter, exact.
-3. `Q` - a near-ideal CPE, whose capacitance still needs the
-   Hsu-Mansfeld/Brug model on top of the fit.
-
-Within a tier the element with the **largest resistance R** wins:
+Among the qualifying elements the one with the **largest parallel
+resistance R** wins, whatever its type:
 
 - Compact oxide = excellent insulator = dominant resistance barrier
 - Other processes (double layer, pores) have smaller R
 - Largest R typically corresponds to compact oxide layer
 
-Elements sharing one parallel resistance are ranked by capacitance instead
-(the heuristic cannot separate them), with a warning that their individual
-values are not identifiable from the spectrum.
+An element with **no** DC path beside it (a bare `C` or `CC` in series) is
+blocking: its resistance is infinite, so it wins. A `CC` with a leakage branch
+(`R_leak | CC`) is not blocking and competes with `R_leak`.
 
-An element with **no** parallel resistance has no R to compare, so it is left
-out of the largest-R ranking altogether whenever at least one element in the
-tier does have one - a warning names how many were skipped, since one of them
-may well be the layer of interest. Only when no element in the tier has a
-parallel resistance does the ranking fall back to the largest capacitance.
+The type decides only which value is read (section 3), never which element is
+selected. Until v0.41.1 the types were ranked first (`CC`, then `C`/`K`/`DQ`/
+`YG`, then `Q`), so in `R0 - (50 Ohm | 1 nF) - (10 MOhm | Q n=0.95)` the small
+side arc won and the thickness came out at 19 um.
+
+Elements sharing the largest R (one parallel combination, or several blocking
+elements) are ranked by capacitance - the Hsu-Mansfeld `C_eff` for a `Q` -
+with a warning that their individual values are not identifiable from the
+spectrum.
 
 If nothing qualifies as a dielectric but a low-`n` CPE is present, that CPE is
 used with a loud warning that the result has no dielectric meaning - it is
@@ -728,9 +740,8 @@ order-of-magnitude estimates only.
      10% error in the estimated epsilon_r
 
 3. **Single dominant element**
-   - Only one element is reported: the largest-R element *within the highest
-     tier present* (CC before C/K before Q), so a Q with a huge R loses to a
-     C with a smaller one
+   - Only one element is reported: the one with the largest parallel
+     resistance (a blocking element counts as infinite)
    - For complex multilayer systems, manual analysis may be needed
 
 4. **Fit quality dependency**
@@ -766,8 +777,8 @@ order-of-magnitude estimates only.
   the log), which propagates straight into epsilon_r
 
 **Different result than expected**
-- Selection is by tier first (CC, then C/K, then Q) and by largest R only
-  within a tier - check the candidate list in the log
+- Selection is by largest parallel resistance, blocking elements first -
+  check the candidate list in the log
 - For multi-layer systems, the dominant R may not be the layer of interest
 
 ---

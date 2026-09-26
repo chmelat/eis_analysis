@@ -9,11 +9,12 @@ Regression tests for audit findings (2026-07-02):
 """
 
 import numpy as np
+import pytest
 
 from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.fitting.circuit import FitResult
-from eis_analysis.fitting.circuit_elements import C, CC, K, L, Q, R
+from eis_analysis.fitting.circuit_elements import C, CC, DQ, K, L, Q, R, W
 
 OXIDE_LOGGER = 'eis_analysis.analysis.oxide'
 
@@ -327,8 +328,8 @@ def test_k_element_zero_R_skipped():
     assert 'non-positive R' in _reported(oxide)
 
 
-def test_multiple_R_in_parallel_warns():
-    """Regression (audit O4): (R1|R2|C) warns instead of silently taking the last R."""
+def test_multiple_R_in_parallel_combine():
+    """(R1|R2|C): the resistance beside C is R1 || R2, not the last R written."""
     freq, Z = _synthetic_voigt()
     circuit = R(R_S) - (R(1000.0) | R(2000.0) | C(C_P))
     fit_result = _fit_result(circuit, [R_S, 1000.0, 2000.0, C_P])
@@ -336,8 +337,7 @@ def test_multiple_R_in_parallel_warns():
     oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
 
     assert oxide is not None
-    assert oxide.element_R == 2000.0  # last one wins (documented behavior)
-    assert 'Multiple R/G elements' in _reported(oxide)
+    assert abs(oxide.element_R - 2000.0 / 3) < 1e-9
 
 
 def test_multiple_cap_in_parallel_warns():
@@ -568,7 +568,7 @@ def test_multiple_cc_elements_warn_and_pick_largest():
 
     assert oxide is not None
     assert abs(oxide.capacitance - (CC_C_INF + CC_DC)) / (CC_C_INF + CC_DC) < 1e-12
-    assert "2 Cole-Cole elements" in _reported(oxide)
+    assert "2 capacitive elements with no DC path" in _reported(oxide)
 
 
 def test_cc_uses_fitted_values_not_the_initial_guess():
@@ -596,7 +596,7 @@ def test_cc_uses_fitted_values_not_the_initial_guess():
 
 
 def test_cc_inside_a_parallel_leakage_branch_is_found():
-    """R_leak || CC still reports the CC - the traversal recurses into Parallel."""
+    """R_leak || CC reports the CC, with the leakage as its resistance."""
     freq, Z = _synthetic_voigt()
     circuit = R(R_S) - (R(1e7) | CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA))
     fit_result = _fit_result(circuit, circuit.get_all_params())
@@ -605,7 +605,21 @@ def test_cc_inside_a_parallel_leakage_branch_is_found():
 
     assert oxide is not None
     assert oxide.element_type == 'CC'
-    assert oxide.element_R is None
+    assert oxide.element_R == 1e7
+
+
+def test_leaky_cc_side_relaxation_loses_to_a_larger_r_barrier():
+    """A CC with a leakage branch is not blocking; the larger R wins."""
+    freq, Z = _synthetic_voigt()
+    circuit = (R(R_S) - (R(50.0) | CC(CC_C_INF, CC_DC, CC_TAU, CC_ALPHA))
+               - (R(1e7) | C(1e-9)))
+    fit_result = _fit_result(circuit, circuit.get_all_params())
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0, fit_result=fit_result)
+
+    assert oxide is not None
+    assert oxide.element_type == 'C'
+    assert oxide.element_R == 1e7
 
 
 # ---------------------------------------------------------------------------
@@ -794,8 +808,12 @@ def test_series_capacitance_is_found():
     assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
 
 
-def test_ideal_c_beats_a_cpe_in_the_same_parallel():
-    """C (n = 1 exactly) outranks a CPE whose capacitance needs a model."""
+def test_c_and_cpe_sharing_r_are_ranked_by_capacitance_not_type():
+    """A C and a Q in one parallel: the larger capacitance wins, whatever its type.
+
+    The Q enters with its Hsu-Mansfeld C_eff (~2.4e-6 F here), so it is
+    compared with the C (9.06e-8 F) in the same unit.
+    """
     freq, Z = _synthetic_voigt()
     circuit = R(R_S) - (R(R_P) | Q(3e-6, 0.95) | C(REPORTED_C))
 
@@ -804,8 +822,9 @@ def test_ideal_c_beats_a_cpe_in_the_same_parallel():
                                     circuit, circuit.get_all_params()))
 
     assert oxide is not None
-    assert oxide.element_type == 'C'        # not the Q, despite sharing R
-    assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
+    assert oxide.element_type == 'Q'
+    assert oxide.capacitance > REPORTED_C
+    assert 'share one parallel resistance' in _reported(oxide)
 
 
 def test_low_n_cpe_is_not_a_dielectric_but_still_beats_the_fallback():
@@ -870,3 +889,104 @@ def test_cc_still_wins_over_a_plain_capacitance():
 
     assert oxide is not None
     assert oxide.element_type == 'CC'
+
+
+# ---------------------------------------------------------------------------
+# Resistance from sibling branches and type-free selection (review 1.1, 1.2).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("circuit, R_expected", [
+    # Randles: R_ct sits in series with the Warburg, not beside Q directly
+    (R(R_S) - (Q(2e-6, 0.95) | (R(R_P) - W(50.0))), R_P),
+    # Porous oxide: the outer Q sees R_ox, the inner Q_dl sees R_ct (larger)
+    (R(R_S) - (Q(1e-7, 0.95) | (R(200.0) - (Q(2e-6, 0.95) | R(R_P)))), R_P),
+    # Same model with R_ox the larger: the outer Q wins and reports R_ox
+    (R(R_S) - (Q(1e-7, 0.95) | (R(1e7) - (Q(2e-6, 0.95) | R(R_P)))), 1e7),
+])
+def test_resistance_in_a_nested_branch_is_found(circuit, R_expected):
+    """R inside a series sibling branch converts the Q; no HF fallback."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.mode == 'circuit'
+    assert oxide.element_type == 'Q'
+    assert oxide.element_R == R_expected
+
+
+def test_large_r_cpe_barrier_beats_small_r_capacitor():
+    """Review 1.2: a 50 Ohm | 1 nF side arc must not beat a 10 MOhm | Q barrier."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - (R(50.0) | C(1e-9)) - (R(1e7) | Q(1e-9, 0.95))
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_type == 'Q'
+    assert oxide.element_R == 1e7
+
+
+def _candidate_R(oxide, elem_type, value_key, value):
+    """R recorded for the candidate of the given type and parameter value."""
+    return next(e['R'] for e in oxide.candidates
+                if e['type'] == elem_type and e[value_key] == value)
+
+
+@pytest.mark.parametrize("circuit, elem_type, key, value, R_expected", [
+    # A capacitor in series blocks the sibling branch: no DC path beside Q/C
+    (R(R_S) - (Q(1e-9, 0.95) | (R(100.0) - C(1e-6))) - (R(R_P) | C(C_P)),
+     'Q', 'Q', 1e-9, None),
+    (R(R_S) - (C(1e-9) | (R(100.0) - C(1e-6))), 'C', 'C', 1e-9, None),
+    # A relaxation directly across the element conducts through its own R
+    (R(R_S) - (C(1e-10) | K(1e6, 1e-3)), 'C', 'C', 1e-10, 1e6),
+    (R(R_S) - (C(1e-10) | (C(1e-9) | R(1e6))), 'C', 'C', 1e-10, 1e6),
+    # An enclosing R combines with the inner one
+    (R(R_S) - (R(1000.0) | (R(2000.0) | C(C_P))), 'C', 'C', C_P, 2000.0 / 3),
+])
+def test_sibling_branch_resistance(circuit, elem_type, key, value, R_expected):
+    """Resistance beside an element: blocking series C, conducting relaxations."""
+    freq, Z = _synthetic_voigt()
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    R_found = _candidate_R(oxide, elem_type, key, value)
+    if R_expected is None:
+        assert R_found is None
+    else:
+        assert abs(R_found - R_expected) / R_expected < 1e-12
+
+
+def test_c_beside_dq_sees_r_pol():
+    """C | DQ: the DQ conducts DC through R_pol, so the C is not blocking."""
+    freq, Z = _synthetic_voigt()
+    dq = DQ(1e-6, 0.8, 1e-5, 5.0)
+    circuit = R(R_S) - (C(1e-10) | dq)
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert abs(_candidate_R(oxide, 'C', 'C', 1e-10) - dq.R_pol) / dq.R_pol < 1e-12
+
+
+def test_c_beside_a_k_does_not_win_as_blocking():
+    """Review regression: an R the lookup missed must not read as infinite."""
+    freq, Z = _synthetic_voigt()
+    circuit = R(R_S) - (C(1e-10) | K(1e6, 1e-3)) - (R(1e5) | C(1e-9))
+
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide is not None
+    assert oxide.element_R == 1e6
+    assert 'blocking' not in oxide.selection_reason
