@@ -4,6 +4,40 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.42.0 (2026-09-26)
+
+### Fixed
+
+- **Oxide analysis missed the resistance in a nested branch.** Only R/G that
+  were direct children of a `Parallel` counted, so the Randles circuit
+  `R0 - (Q | (R_ct - W))` and the porous-oxide model
+  `Q_ox | (R_ox - (Q_dl | R_ct))` left the CPE without R and fell through to
+  the high-frequency estimate, although the circuit was fitted. The parallel
+  resistance of an element now combines, in parallel, its sibling branches
+  and any enclosing parallel R. A branch with a C, Q, CC or YG in series
+  blocks DC and adds nothing; a relaxation (K, DQ, nested Parallel) directly
+  across the element counts with its DC resistance, one in series inside a
+  branch is a separate arc and counts as 0 (so Q_ox sees R_ox, not
+  R_ox + R_ct); W, L and other elements count as a short. This also fixes
+  `R1 | R2 | C` and `R1 | (R2 | C)`, which used one of the two R instead of
+  `R1 || R2`.
+- **Oxide element selection ranked by type before physics.** Candidates were
+  tiered CC > C/K/DQ/YG > Q and only then ranked by R, so in
+  `R0 - (50 Ohm | 1 nF) - (10 MOhm | Q n=0.95)` the side arc won and gave
+  d = 19 479 nm. The element with the largest parallel resistance now wins
+  whatever its type; an element with no DC path beside it is blocking and
+  counts as infinite. Ties (one parallel combination, several blocking
+  elements) are ranked by capacitance, a Q by its Hsu-Mansfeld C_eff.
+
+### Changed (breaking)
+
+- A `CC` inside a leakage branch (`R_leak | CC`) now reports
+  `element_R = R_leak` instead of None, and competes on that resistance; a
+  bare `CC` in series still wins as blocking. A plain `C` no longer loses to
+  a `CC`, nor a `Q` to a `C`, on type alone.
+
+---
+
 ## Version 0.41.1 (2026-09-25)
 
 ### Fixed
