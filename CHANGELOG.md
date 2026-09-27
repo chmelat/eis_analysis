@@ -4,6 +4,66 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.43.0 (2026-09-27)
+
+### Added
+
+- **Power-law model (Hirschorn-Orazem) for the oxide thickness of a CPE.**
+  Hsu-Mansfeld is commonly used for a distribution of time constants across
+  the film but is not exact for one; Hirschorn et al. (2010) derived
+  `d = (eps*eps0)^n / (g * Q_s * rho_delta^(1-n))`, `g = 1 + 2.88*(1-n)^2.375`.
+  `analyze_oxide_layer` and `estimate_permittivity` take
+  `rho_delta_ohm_cm` (CLI `--rho-delta`), the film resistivity at the
+  electrolyte interface; with it a dominant Q gets `thickness_pl_nm` or
+  `permittivity_pl` beside the Hsu-Mansfeld and Brug values. There is no
+  default, since the spectrum does not determine rho_delta. A warning fires
+  when the sweep reaches above `f_delta = 1/(2*pi*rho_delta*eps*eps0)`,
+  where the film is an ideal capacitor rather than a CPE. The primary value
+  is unchanged. New module `analysis/oxide_power_law.py`.
+
+### Changed
+
+- Docstrings and `doc/OXIDE_ANALYSIS_GUIDE.md` no longer present
+  Hsu-Mansfeld as the exact conversion for a normal (3D) distribution.
+- **`analysis/oxide.py` split into three modules** (it had 1069 lines against
+  the 500-line limit): `oxide_elements.py` finds and selects the capacitive
+  element and converts a Q, `oxide_window.py` holds the notes on what the
+  measured window supports and the high-frequency spectral estimate, and
+  `oxide.py` keeps the result and the public functions. The public API is
+  unchanged; private helpers imported from `analysis.oxide` now live in the
+  new modules.
+
+### Fixed
+
+- **Oxide analysis accepted invalid input.** `area_cm2=0` raised
+  `ZeroDivisionError`, a negative area or `epsilon_r` gave a negative
+  thickness without a warning, and empty data failed inside `np.argmax`.
+  `analyze_oxide_layer` and `estimate_permittivity` now raise `ValueError`
+  when `area_cm2`, `epsilon_r` or `thickness_nm` is not a finite number > 0,
+  or when the data are empty, differ in shape, or contain NaN/Inf or
+  f <= 0. The CLI rejects such `--area`, `--epsilon-r` and `--thickness`
+  values at parse time, and ignores an area <= 0 read from DTA metadata
+  with a warning (falling back to the default) instead of crashing after the
+  fit.
+- **Duplicate warning for a CPE with n < 0.8.** The dominant CPE got both
+  the "No dielectric element" warning and a shorter "not well-defined" one
+  saying the same thing; the second is gone.
+- **`candidates` shared dicts with the result.** The tau computed for the
+  winning Q was written into its `candidates` entry too; `element_params`
+  is now a copy.
+- **The high-frequency estimate used an absolute 1e-10 Ohm threshold on
+  Z''.** At pOhm scale every point fell below it and the estimate failed.
+  The threshold is now relative to |Z| (`HF_ZIMAG_MIN_REL` in
+  `analysis/config.py`).
+- **Library logged errors.** `estimate_permittivity` logged "Could not
+  extract capacitance from data", which the CLI prints as well; the line is
+  gone, and the spectral estimate reports its own failure as a warning.
+- Stale docstrings and types: the module docstring, the YG element in the
+  element lists, and `element_params: Dict[str, Any]` (it holds `type`,
+  `C_regime` and `tau_fixed` besides numbers).
+
+---
+
 ## Version 0.42.0 (2026-09-26)
 
 ### Fixed
