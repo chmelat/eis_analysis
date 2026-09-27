@@ -115,3 +115,14 @@ def test_fit_on_zhit_conflicts_with_no_fit(monkeypatch):
 def test_fit_on_all_is_allowed_with_no_fit(monkeypatch):
     # --fit-on all still feeds R_inf and DRT, so it has work to do.
     assert parse(monkeypatch, '--fit-on', 'all', '--no-fit').fit_on == 'all'
+
+
+@pytest.mark.parametrize("flag", ['--area', '--epsilon-r', '--thickness', '--rho-delta'])
+@pytest.mark.parametrize("value", ['0', '-1', 'nan'])
+def test_oxide_quantities_must_be_positive(monkeypatch, flag, value):
+    with pytest.raises(SystemExit):
+        parse(monkeypatch, flag, value)
+
+
+def test_rho_delta_is_parsed(monkeypatch):
+    assert parse(monkeypatch, '--rho-delta', '500').rho_delta == 500.0

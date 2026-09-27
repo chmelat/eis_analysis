@@ -30,6 +30,13 @@ def _tau_extend(value: str):
         raise argparse.ArgumentTypeError(f"must be a finite number >= 0, got {decades}")
     return decades
 
+def _positive_float(value: str) -> float:
+    """argparse type for physical quantities that must be finite and > 0."""
+    number = float(value)  # argparse reports a ValueError as "invalid value"
+    if not (math.isfinite(number) and number > 0):
+        raise argparse.ArgumentTypeError(f"must be a finite number > 0, got {number}")
+    return number
+
 def parse_arguments() -> argparse.Namespace:
     """
     Parse command line arguments.
@@ -275,14 +282,18 @@ Examples:
 
     oxide_group.add_argument('--analyze-oxide', action='store_true',
                              help='Perform oxide layer analysis')
-    oxide_group.add_argument('--epsilon-r', type=float, default=None,
+    oxide_group.add_argument('--epsilon-r', type=_positive_float, default=None,
                              help='Relative permittivity of oxide (default: 22 for ZrO2)')
-    oxide_group.add_argument('--thickness', type=float, default=None,
+    oxide_group.add_argument('--thickness', type=_positive_float, default=None,
                              help='Known oxide thickness [nm] - switches '
                                   '--analyze-oxide to permittivity estimation')
-    oxide_group.add_argument('--area', type=float, default=None,
+    oxide_group.add_argument('--area', type=_positive_float, default=None,
                              help='Electrode area in cm^2 (default: from DTA '
                                   'metadata, else 1.0)')
+    oxide_group.add_argument('--rho-delta', type=_positive_float, default=None,
+                             help='Film resistivity at the electrolyte interface '
+                                  '[Ohm cm] - enables the power-law (Hirschorn-'
+                                  'Orazem) thickness for a CPE')
 
     # ==========================================================================
     # Visualization Group

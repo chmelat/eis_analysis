@@ -749,16 +749,18 @@ result = analyze_oxide_layer(
     Z,
     epsilon_r=22.0,          # Relative permittivity (ZrO2 ~ 20-25)
     area_cm2=1.0,            # Electrode area [cm^2]
-    fit_result=fit_result    # FitResult from fit_equivalent_circuit()
+    fit_result=fit_result,   # FitResult from fit_equivalent_circuit()
+    rho_delta_ohm_cm=500.0   # Optional: enables the power-law model for a Q
 )
 
 # result is OxideAnalysisResult dataclass:
 result.capacitance           # Effective capacitance [F]
 result.capacitance_specific  # Specific capacitance [F/cm^2]
 result.thickness_nm          # Oxide thickness [nm]
-result.element_type          # 'C', 'K', 'Q', or 'estimate'
+result.element_type          # 'C', 'K', 'Q', 'CC', 'DQ', 'YG', or 'estimate'
 result.element_R             # Resistance of dominant element [Ohm]
 result.element_tau           # Time constant [s]
+result.thickness_pl_nm       # Power-law (Hirschorn-Orazem) comparison, or None
 ```
 
 **Inverse direction (permittivity from known thickness):**
@@ -777,6 +779,7 @@ inverse = estimate_permittivity(
 # Also an OxideAnalysisResult, with input and output swapped:
 inverse.permittivity         # Estimated relative permittivity
 inverse.permittivity_brug    # Brug (2D) comparison, or None
+inverse.permittivity_pl      # Power-law comparison (needs rho_delta_ohm_cm), or None
 inverse.thickness_nm         # The thickness that was passed in
 ```
 

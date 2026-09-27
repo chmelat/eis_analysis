@@ -24,6 +24,7 @@ import tempfile
 import logging
 
 import numpy as np
+import pytest
 
 # Ensure the package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -115,6 +116,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'epsilon_r': None,
         'thickness': None,
         'area': None,
+        'rho_delta': None,
 
         # Visualization
         'ocv': False,
@@ -824,6 +826,21 @@ def test_oxide_area_falls_back_to_metadata(caplog):
 
     assert 'Using area from DTA metadata: 0.5000' in caplog.text
     print("  [OK] Metadata area used when flag omitted")
+
+
+@pytest.mark.parametrize("bad_area", [0.0, -0.5])
+def test_oxide_invalid_metadata_area_is_ignored(caplog, bad_area):
+    """An AREA <= 0 in the DTA file must not crash the run after fitting."""
+    from eis_analysis.cli import run_oxide_analysis
+
+    frequencies, Z = get_synthetic_data()
+    args = create_test_args(analyze_oxide=True)
+
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.oxide'):
+        run_oxide_analysis(frequencies, Z, args, None, {'area': bad_area})
+
+    assert 'Ignoring invalid DTA metadata area' in caplog.text
+    assert 'Using area from DTA metadata' not in caplog.text
 
 
 

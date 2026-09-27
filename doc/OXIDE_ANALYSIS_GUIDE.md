@@ -14,9 +14,10 @@ Two complementary functions for oxide layer analysis:
   `omega^n` with `n` near 1 - not by element type or position in the circuit
   expression; a capacitance needs no parallel resistance to be found
 - Uses parallel plate capacitor model
-- For Q: uses Hsu-Mansfeld formula for effective capacitance (primary,
-  3D model); the Brug (2D) estimate and thickness are reported alongside
-  for comparison when the circuit contains a series resistance
+- For Q: uses Hsu-Mansfeld formula for effective capacitance (primary);
+  the Brug (2D) estimate is reported alongside for comparison when the
+  circuit contains a series resistance, and the power-law
+  (Hirschorn-Orazem) estimate when you supply rho_delta
 - Returns structured `OxideAnalysisResult` dataclass
 
 ---
@@ -76,7 +77,8 @@ def analyze_oxide_layer(
     Z: NDArray,
     epsilon_r: float = 22.0,
     area_cm2: float = 1.0,
-    fit_result: Optional[FitResult] = None
+    fit_result: Optional[FitResult] = None,
+    rho_delta_ohm_cm: Optional[float] = None
 ) -> Optional[OxideAnalysisResult]
 ```
 
@@ -86,6 +88,9 @@ def analyze_oxide_layer(
 - `epsilon_r` - Relative permittivity (default: 22 for ZrO2)
 - `area_cm2` - Electrode area [cm^2] (default: 1.0)
 - `fit_result` - Result from `fit_equivalent_circuit()` (recommended)
+- `rho_delta_ohm_cm` - Film resistivity at the electrolyte interface [Ohm cm];
+  enables the power-law comparison value for a dominant Q (see
+  "Power-Law Model" below). None (default) skips it.
 
 **Returns:** `OxideAnalysisResult` or `None` if analysis fails.
 
@@ -99,7 +104,8 @@ def estimate_permittivity(
     Z: NDArray,
     thickness_nm: float,
     area_cm2: float = 1.0,
-    fit_result: Optional[FitResult] = None
+    fit_result: Optional[FitResult] = None,
+    rho_delta_ohm_cm: Optional[float] = None
 ) -> Optional[OxideAnalysisResult]
 ```
 
@@ -109,9 +115,13 @@ def estimate_permittivity(
 - `thickness_nm` - Known oxide thickness [nm] (e.g., from SEM/TEM)
 - `area_cm2` - Electrode area [cm^2] (default: 1.0)
 - `fit_result` - Result from `fit_equivalent_circuit()` (recommended)
+- `rho_delta_ohm_cm` - Film resistivity at the electrolyte interface [Ohm cm];
+  enables the power-law comparison value for a dominant Q (see
+  "Power-Law Model" below). None (default) skips it.
 
 **Returns:** `OxideAnalysisResult` with the estimate in `permittivity`
-(and `permittivity_brug` for a dominant Q element with series R), or
+(and `permittivity_brug` for a dominant Q element with series R,
+`permittivity_pl` for one with `rho_delta_ohm_cm` given), or
 `None` if failed. Here `thickness_nm` holds the value that was passed
 in, since in this direction the thickness is the input.
 
@@ -132,10 +142,10 @@ class OxideAnalysisResult:
     capacitance: float          # Effective capacitance [F]
     capacitance_specific: float # Specific capacitance [F/cm^2]
     thickness_nm: float         # Oxide thickness [nm]
-    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', or 'estimate'
+    element_type: str           # 'C', 'K', 'Q', 'CC', 'DQ', 'YG', or 'estimate'
     element_R: Optional[float]  # Associated resistance [Ohm]
     element_tau: Optional[float] # Time constant [s]
-    element_params: Dict        # All element parameters
+    element_params: Dict[str, Any]  # All element parameters (+ 'type', flags)
     # Brug (2D) comparison values - only for a dominant Q element
     # when the circuit contains a series resistance; otherwise None
     capacitance_brug: Optional[float]          # Brug C_eff [F]
@@ -144,9 +154,13 @@ class OxideAnalysisResult:
     # Inverse mode - set only by estimate_permittivity()
     permittivity: Optional[float]              # epsilon_r from known thickness
     permittivity_brug: Optional[float]         # epsilon_r from Brug C_eff
+    # Power-law model - only for a dominant Q when rho_delta_ohm_cm is given
+    thickness_pl_nm: Optional[float]           # thickness [nm]
+    permittivity_pl: Optional[float]           # epsilon_r from known thickness
+    rho_delta_ohm_cm: Optional[float]          # rho_delta it assumed [Ohm cm]
     # How the capacitance was obtained
     mode: str                    # 'circuit' (from the fit) or 'hf_estimate'
-    candidates: List[Dict]       # every capacitive element the circuit offered
+    candidates: List[Dict[str, Any]]  # every capacitive element the circuit offered
     selection_reason: str        # why the dominant one was picked
     n_hf_points: Optional[int]   # points behind the HF median estimate
     epsilon_r: Optional[float]   # value assumed by analyze_oxide_layer()
@@ -160,6 +174,21 @@ reads them directly. The dominant-element choice is a heuristic - the
 largest-R element may equally be a charge-transfer process - so
 `candidates` is what lets you check it.
 
+### Input Validation
+
+Both functions raise `ValueError` rather than return a signed or infinite
+result when:
+
+- `area_cm2`, `epsilon_r`, `thickness_nm` or `rho_delta_ohm_cm` (when given)
+  is not a finite number > 0 - a zero divides by zero, a negative value
+  flips the sign of the thickness or permittivity;
+- the data are empty, `frequencies` and `Z` differ in shape, or they contain
+  NaN/Inf or a frequency <= 0.
+
+The CLI rejects such `--area`, `--epsilon-r`, `--thickness` and
+`--rho-delta` values when parsing. An area <= 0 read from DTA metadata is
+ignored with a warning and the default 1.0 cm^2 is used instead.
+
 ---
 
 ## CLI Arguments
@@ -170,6 +199,7 @@ largest-R element may equally be a charge-transfer process - so
 | `--epsilon-r` | 22.0 | Relative permittivity of oxide |
 | `--thickness` | - | Known oxide thickness [nm] - switches to permittivity estimation |
 | `--area` | DTA metadata, else 1.0 | Electrode area [cm^2] |
+| `--rho-delta` | - | Film resistivity at the electrolyte interface [Ohm cm] - adds the power-law thickness/permittivity for a CPE |
 
 **Note:** `--thickness` reverses the analysis: the thickness becomes the
 input and epsilon_r the estimated quantity. `--epsilon-r` is then
@@ -186,7 +216,7 @@ metadata, including `--area 1.0`. Without either, 1.0 cm^2 is assumed.
 ### 1. Element Detection
 
 The function traverses the circuit tree and collects **every** capacitive
-element - `C`, `Q`, `K`, `CC` and `DQ` - wherever it sits, in a parallel
+element - `C`, `Q`, `K`, `CC`, `DQ` and `YG` - wherever it sits, in a parallel
 combination or not. A parallel resistance is recorded when one is present
 (it is what the Hsu-Mansfeld/Brug conversion, `tau = R*C` and the largest-R
 heuristic need), but it is not required for the element to be found.
@@ -265,8 +295,9 @@ If nothing qualifies as a dielectric but a low-`n` CPE is present, that CPE is
 used with a loud warning that the result has no dielectric meaning - it is
 still a fitted parameter, which the spectral fallback is not.
 
-All candidate elements (type, R, C/Q/n, tau) are listed in the log together
-with the stated selection assumption, so the choice can be verified.
+All candidate elements (type, R, C/Q/n, tau) are returned in `candidates`,
+with the stated selection assumption in `selection_reason`, so the choice can
+be verified; the CLI prints both.
 **Caution:** a charge-transfer process can also have the largest R -
 always check that the selected element represents the oxide.
 
@@ -345,6 +376,8 @@ time constant is the relaxation time `tau`, not `R*C`.
 Rs, the Brug (2D) estimate `C = Q^(1/n) * (1/Rs + 1/Rct)^((n-1)/n)` and its
 thickness are computed as well and returned in `capacitance_brug` /
 `thickness_brug_nm` (see "2D vs 3D Distribution of Time Constants" below).
+With `rho_delta_ohm_cm` given, the power-law thickness follows as well, in
+`thickness_pl_nm` (see "Power-Law Model" below).
 Hsu-Mansfeld remains the primary value. This concerns `Q` only - for a `CC`
 both reported capacitances are exact model limits, so no Hsu-Mansfeld/Brug
 choice arises and neither Brug field is set.
@@ -370,7 +403,10 @@ is preferred over it.
 
 Without `fit_result`, capacitance is estimated as the **median** of
 `C_i = -1 / (omega * Z'')` over the capacitive points in the top frequency
-decade (`f >= f_max / 10`). Warnings are logged:
+decade (`f >= f_max / 10`). A point counts as capacitive when
+`Z'' < -1e-10 * |Z|` (`HF_ZIMAG_MIN_REL`): below that Z'' is round-off, and
+the threshold is relative so it does not depend on the impedance scale.
+Warnings are returned in `warnings`:
 
 - always, and as plainly as a parameter sitting on its bound: the value is
   **not from the fit**, carries no confidence interval, and the thickness or
@@ -384,7 +420,9 @@ decade (`f >= f_max / 10`). Warnings are logged:
   the decade and the estimate is unreliable.
 
 If no capacitive point exists in the top decade, the single
-highest-frequency point is used (pre-0.16.16 behavior).
+highest-frequency point is used (pre-0.16.16 behavior). If its Z'' is
+round-off as well, no capacitance can be read and the function returns
+`None`; a positive (inductive) Z'' there is used with a warning.
 
 ---
 
@@ -415,7 +453,8 @@ rather than borrowing an enclosing parallel R, and reports `tau_max` as its
 time constant with the full `tau_min..tau_max` range beside it, because one
 number cannot stand for a distribution.
 
-**Note:** Series R elements are ignored (they don't form RC time constants).
+**Note:** Series R elements are never candidates (they form no RC time
+constant); their sum is used only as Rs for the Brug comparison.
 
 ---
 
@@ -628,13 +667,17 @@ lives (classification by Hirschorn et al., 2010):
 
 - **Normal (3D, through-layer) distribution** - properties vary *across*
   the film thickness (resistivity/stoichiometry gradient from the
-  metal/oxide interface to the outer surface). The appropriate
-  conversion is the **Hsu-Mansfeld (2001)** formula, which involves the
-  parallel (film) resistance R:
+  metal/oxide interface to the outer surface). The **Hsu-Mansfeld (2001)**
+  formula, with the parallel (film) resistance R, is the conversion
+  commonly used here:
 
   ```
   C_eff = (R * Q)^(1/n) / R
   ```
+
+  It is not exact for this case: Hirschorn et al. (2010) showed that for a
+  normal distribution it does not in general return the film capacitance,
+  and derived the power-law model for it (see below).
 
 These are not two approximations of the same quantity but two different
 physical assumptions - using the wrong one gives a systematically
@@ -648,8 +691,10 @@ which propagates directly into the thickness estimate.
 dominant source of dispersion is usually the steep resistivity gradient
 across the film - e.g. substoichiometric, more conductive oxide near
 the metal interface vs nearly stoichiometric oxide outside. That is a
-normal (3D) distribution, so **Hsu-Mansfeld is the physically better
-default for oxide layers and is the primary value in this toolkit.**
+normal (3D) distribution. **Hsu-Mansfeld is the primary value in this
+toolkit** because it needs nothing beyond the fit; the power-law model is
+better founded for this case but needs rho_delta, which the spectrum does
+not give, so it is reported as a comparison when you supply it.
 Real films always contain some lateral (2D) component as well
 (undulated metal/oxide interface, local thickness variation, cracks and
 porosity after transition), which is why the Brug value is reported
@@ -673,28 +718,60 @@ alongside for comparison.
    sample series (same model, same conditions), where the systematic
    model bias cancels.
 
-3. **Neither formula is the last word.** For a realistic power-law
-   resistivity profile across the film, Hirschorn et al. (2010) derived
-   a more rigorous "power-law model"
-   (`C_eff = g * Q * (rho_delta * eps * eps_0)^(1-n)`); Hsu-Mansfeld
-   with the film resistance can misestimate thickness when the
-   low-frequency R is not purely the dielectric film response (e.g.
-   mixed with a faradaic process). The power-law model is not
-   implemented in this toolkit.
+3. **Hsu-Mansfeld leans on R.** With the film resistance it can
+   misestimate thickness when the low-frequency R is not purely the
+   dielectric film response (e.g. mixed with a faradaic process). The
+   power-law model below needs no R at all.
 
 4. **Cross-validate absolute values.** For Zr alloys, check EIS
    thickness at least once against weight gain (~15 mg/dm^2 per um of
    ZrO2) or metallography/SEM. Always report n: as n approaches 0.8 the
    2D/3D difference stops being academic and the thickness becomes soft.
 
-A warning is logged when the dominant element has n < 0.8: the
-distribution of time constants is then too broad for a single effective
-capacitance to be well-defined, and the thickness estimate may be
-unreliable.
+A CPE with n < 0.8 is not a dielectric candidate (see "Dominant Element
+Selection"). It is used only when nothing else qualifies, and then with a
+"No dielectric element" warning: the capacitance, and any thickness from
+it, has no dielectric meaning.
 
 **References:** Hsu & Mansfeld, Corrosion 57, 747 (2001);
 Brug et al., J. Electroanal. Chem. 176, 275 (1984);
 Hirschorn et al., Electrochim. Acta 55, 6218 (2010).
+
+### Power-Law Model (Hirschorn-Orazem)
+
+A resistivity falling as a power law across the film, from rho_0 at the
+metal to rho_delta at the electrolyte (`rho ~ (x/d)^(-1/(1-n))`), with a
+uniform permittivity, makes the film a CPE between
+`f_0 = 1/(2*pi*rho_0*eps*eps_0)` and `f_delta = 1/(2*pi*rho_delta*eps*eps_0)`,
+with
+
+```
+Q = (eps*eps_0)^n / (g * d * rho_delta^(1-n)),   g = 1 + 2.88*(1-n)^2.375
+
+d   = (eps*eps_0)^n / (g * Q_s * rho_delta^(1-n))          (thickness)
+eps = (d * g * Q_s * rho_delta^(1-n))^(1/n) / eps_0         (known d)
+```
+
+where `Q_s = Q / area`. At n = 1, g = 1 and d = eps*eps_0/Q_s, the ideal
+capacitor. Above f_delta every layer is capacitive and the film is an ideal
+capacitor, not a CPE; a warning fires when the measured sweep reaches above
+f_delta.
+
+**rho_delta is an input.** The spectrum does not determine it, so no default
+is assumed: pass `rho_delta_ohm_cm` (CLI `--rho-delta`) and the result gains
+`thickness_pl_nm` or `permittivity_pl`, printed beside Hsu-Mansfeld and
+Brug. It enters only as `rho_delta^(1-n)`, so for n near 1 a rough value is
+enough (at n = 0.9 a factor of 10 in rho_delta moves d by 26 %). Literature
+values come from calibrating against an independent thickness (e.g. TEM):
+run `--thickness` with a known sample, or compare `thickness_pl_nm` with it.
+
+The model needs no resistance from the circuit, but it is computed only for
+a dominant Q; for any other element (or the high-frequency estimate) a
+warning says so and the fields stay None.
+
+Tested against the model's own physics: numerically integrating
+`Z = int rho/(1 + j*omega*eps*eps_0*rho) dx` over the profile and reading Q
+from the CPE band recovers the thickness to < 1 % for n = 0.6 .. 0.95.
 
 **Implementation notes:** The parallel resistance R needed for the
 Hsu-Mansfeld conversion is always available *for a Q*: a CPE without a
@@ -709,8 +786,8 @@ The Rs for the Brug comparison is the sum of the R elements on the series
 path of the fitted circuit (outside any parallel combination). The Brug
 estimate is skipped, and the result fields stay None, in two cases:
 
-- there is no series R at all (logged as information);
-- `Rs < BRUG_RS_MIN_OHM` (10 mOhm), logged as a warning. A CPE with n < 1
+- there is no series R at all (a warning in `warnings`);
+- `Rs < BRUG_RS_MIN_OHM` (10 mOhm), with a warning. A CPE with n < 1
   mimics a series resistance at high frequency, so a degenerate fit drives Rs
   to the optimizer floor instead of the true ohmic resistance; since Brug
   scales as `Rs^((1-n)/n)`, a floored Rs would yield an arbitrarily small
@@ -752,8 +829,8 @@ order-of-magnitude estimates only.
 
 ## Troubleshooting
 
-**"No capacitive element (C, Q, K, CC) found in circuit"**
-- The circuit has no `C`, `Q`, `K` or `CC` at all - add one, or accept the
+**"No capacitive element (C, Q, K, CC, DQ, YG) found in circuit"**
+- The circuit has none of these elements - add one, or accept the
   high-frequency fallback estimate
 - A parallel resistance is *not* required; a bare `C` in series is found too
 
@@ -778,14 +855,15 @@ order-of-magnitude estimates only.
 
 **Different result than expected**
 - Selection is by largest parallel resistance, blocking elements first -
-  check the candidate list in the log
+  check `candidates` (printed by the CLI)
 - For multi-layer systems, the dominant R may not be the layer of interest
 
 ---
 
 ## References
 
-- Hsu & Mansfeld (2001): Q effective capacitance formula (3D distribution)
+- Hsu & Mansfeld (2001): Q effective capacitance formula (commonly used for a
+  normal distribution)
 - Brug et al. (1984): alternative Q conversion for surface (2D) distribution
 - Hirschorn et al., Electrochim. Acta 55, 6218 (2010): 2D/3D classification,
   power-law model for normal resistivity distributions
@@ -794,4 +872,4 @@ order-of-magnitude estimates only.
 
 ---
 
-*Last updated: 2026-08-30*
+*Last updated: 2026-09-27*

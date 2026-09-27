@@ -35,6 +35,12 @@ HF_ESTIMATE_DECADE_FACTOR = 10.0
 # bottom of the decade (C_i = C·(1 + 1/(ωRC)²) for R||C).
 HF_C_SPREAD_MAX_RATIO = 1.2
 
+# Smallest |Z''| relative to |Z| that the high-frequency estimate reads as a
+# capacitive response. Below it Z'' is floating-point round-off of a real
+# (resistive) value, and C = -1/(omega*Z'') would be arbitrary. Relative, so
+# the threshold does not depend on the impedance scale (mOhm vs GOhm).
+HF_ZIMAG_MIN_REL = 1e-10
+
 # Series resistance below which the Brug (2D) effective capacitance is not
 # reported. The default optimizer floor for an R parameter is 0.1 mOhm, and a
 # CPE with n < 1 mimics a series resistance at high frequency, so a degenerate
@@ -67,6 +73,7 @@ __all__ = [
     'CPE_N_RELIABLE_MIN',
     'HF_ESTIMATE_DECADE_FACTOR',
     'HF_C_SPREAD_MAX_RATIO',
+    'HF_ZIMAG_MIN_REL',
     'BRUG_RS_MIN_OHM',
     'BRUG_HM_DIVERGENCE_MAX',
     'CC_WINDOW_EDGE_MARGIN_DECADES',

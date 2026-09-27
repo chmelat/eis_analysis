@@ -10,9 +10,11 @@ Regression tests for audit findings (2026-07-02):
 
 import numpy as np
 import pytest
+from scipy.integrate import quad
 
 from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
+from eis_analysis.analysis.oxide_power_law import _power_law_thickness_cm
 from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.circuit_elements import C, CC, DQ, K, L, Q, R, W
 
@@ -167,9 +169,9 @@ def test_candidates_listed_and_assumption_noted():
 
 # --- Audit O3: CPE exponent warning ---
 
-def _fit_result_voigt_q(n):
-    circuit = R(R_S) - (R(R_P) | Q(2e-6, n))
-    params = np.array([R_S, R_P, 2e-6, n])
+def _fit_result_voigt_q(n, Q_total=2e-6):
+    circuit = R(R_S) - (R(R_P) | Q(Q_total, n))
+    params = np.array([R_S, R_P, Q_total, n])
     return FitResult(
         circuit=circuit,
         params_opt=params,
@@ -179,7 +181,7 @@ def _fit_result_voigt_q(n):
 
 
 def test_cpe_low_n_warns():
-    """Regression (audit O3): n < 0.8 -> C_eff not well-defined warning."""
+    """Regression (audit O3): n < 0.8 -> no-dielectric warning, exactly once."""
     freq, Z = _synthetic_voigt()
 
     oxide = analyze_oxide_layer(
@@ -187,7 +189,7 @@ def test_cpe_low_n_warns():
     )
 
     assert oxide is not None
-    assert 'not well-defined' in _reported(oxide)
+    assert _reported(oxide).count('< 0.8') == 1
 
 
 def test_cpe_high_n_no_warning():
@@ -198,7 +200,7 @@ def test_cpe_high_n_no_warning():
     )
 
     assert oxide is not None
-    assert 'not well-defined' not in _reported(oxide)
+    assert '< 0.8' not in _reported(oxide)
 
 
 # --- Traversal and CPE conversion (audit 2026-07-02, priority 4) ---
@@ -990,3 +992,167 @@ def test_c_beside_a_k_does_not_win_as_blocking():
     assert oxide is not None
     assert oxide.element_R == 1e6
     assert 'blocking' not in oxide.selection_reason
+
+
+# --- Input validation (review section 2) ------------------------------------
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({'area_cm2': 0.0}, "area_cm2"),
+    ({'area_cm2': -1.0}, "area_cm2"),
+    ({'area_cm2': np.nan}, "area_cm2"),
+    ({'epsilon_r': -5.0}, "epsilon_r"),
+    ({'epsilon_r': 0.0}, "epsilon_r"),
+    ({'epsilon_r': np.inf}, "epsilon_r"),
+])
+def test_analyze_rejects_invalid_scalar(kwargs, match):
+    freq, Z = _synthetic_voigt()
+    with pytest.raises(ValueError, match=match):
+        analyze_oxide_layer(freq, Z, fit_result=_fit_result_voigt(), **kwargs)
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({'thickness_nm': 0.0}, "thickness_nm"),
+    ({'thickness_nm': -20.0}, "thickness_nm"),
+    ({'thickness_nm': 20.0, 'area_cm2': 0.0}, "area_cm2"),
+])
+def test_permittivity_rejects_invalid_scalar(kwargs, match):
+    freq, Z = _synthetic_voigt()
+    with pytest.raises(ValueError, match=match):
+        estimate_permittivity(freq, Z, fit_result=_fit_result_voigt(), **kwargs)
+
+
+@pytest.mark.parametrize("corrupt, match", [
+    (lambda f, Z: (f[:0], Z[:0]), "Empty"),
+    (lambda f, Z: (f, Z[:-1]), "shape"),
+    (lambda f, Z: (f, np.r_[Z[:-1], np.nan]), "NaN"),
+    (lambda f, Z: (np.r_[f[:-1], 0.0], Z), "<= 0"),
+])
+@pytest.mark.parametrize("with_fit", [False, True])
+def test_invalid_data_is_rejected(corrupt, match, with_fit):
+    freq, Z = corrupt(*_synthetic_voigt())
+    fit = _fit_result_voigt() if with_fit else None
+    with pytest.raises(ValueError, match=match):
+        analyze_oxide_layer(freq, Z, fit_result=fit)
+    with pytest.raises(ValueError, match=match):
+        estimate_permittivity(freq, Z, thickness_nm=20.0, fit_result=fit)
+
+
+# --- Module hygiene (review section 4) ----------------------------------------
+
+def test_q_tau_does_not_leak_into_candidates():
+    """element_params is a copy: tau computed for the winning Q stays off `candidates`."""
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, fit_result=_fit_result_voigt_q(0.9))
+    assert oxide.element_params['tau'] > 0
+    assert oxide.candidates[0]['tau'] is None
+
+
+def test_hf_estimate_does_not_depend_on_impedance_scale():
+    """At pOhm scale every Z'' is below the old absolute 1e-10 Ohm threshold."""
+    freq, Z = _synthetic_voigt()
+    scale = 1e-12
+    reference = analyze_oxide_layer(freq, Z)
+    scaled = analyze_oxide_layer(freq, Z * scale)
+    assert scaled is not None
+    assert scaled.capacitance == pytest.approx(reference.capacitance / scale, rel=1e-9)
+
+
+# --- Power-law model (Hirschorn-Orazem) ---------------------------------------
+
+PL_EPS_R = 22.0
+PL_D_CM = 20e-7      # 20 nm
+PL_RHO_D = 500.0     # Ohm cm, at the electrolyte side
+PL_RHO_0 = 1e14      # Ohm cm, at the metal; f_0 ~ 1 mHz, far below the CPE band used
+PL_AREA = 0.5
+
+
+def _integrated_film_Q(n):
+    """Q [F s^(n-1) cm^-2] of a film with the power-law resistivity profile.
+
+    Integrates Z = int rho/(1 + j*omega*eps*eps0*rho) dx over the film - the
+    physics the model rests on, not its closed form - and reads Q from |Z| in
+    the middle of the CPE band f_0 .. f_delta.
+    """
+    gamma = 1 / (1 - n)
+    eps = PL_EPS_R * EPSILON_0
+
+    def rho(x):
+        return PL_RHO_D / (PL_RHO_D / PL_RHO_0
+                           + (1 - PL_RHO_D / PL_RHO_0) * (x / PL_D_CM) ** gamma)
+
+    f_0 = 1 / (2 * np.pi * PL_RHO_0 * eps)
+    f_delta = 1 / (2 * np.pi * PL_RHO_D * eps)
+    omega = 2 * np.pi * np.sqrt(f_0 * f_delta)
+    breaks = [PL_D_CM * 1e-3, PL_D_CM * 1e-2, PL_D_CM * 0.1]
+    re = quad(lambda x: rho(x) / (1 + (omega * eps * rho(x)) ** 2),
+              0, PL_D_CM, limit=500, points=breaks)[0]
+    im = quad(lambda x: omega * eps * rho(x) ** 2 / (1 + (omega * eps * rho(x)) ** 2),
+              0, PL_D_CM, limit=500, points=breaks)[0]
+    return 1 / (abs(complex(re, im)) * omega ** n)
+
+
+@pytest.mark.parametrize("n", [0.6, 0.7, 0.8, 0.9, 0.95])
+def test_power_law_recovers_the_thickness_of_an_integrated_film(n):
+    """The closed form (incl. Hirschorn's g(n) fit) matches the physics to < 1 %."""
+    Q_s = _integrated_film_Q(n)
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=PL_EPS_R, area_cm2=PL_AREA,
+                                fit_result=_fit_result_voigt_q(n, Q_s * PL_AREA),
+                                rho_delta_ohm_cm=PL_RHO_D)
+    assert oxide.thickness_pl_nm == pytest.approx(PL_D_CM * 1e7, rel=1e-2)
+    assert oxide.rho_delta_ohm_cm == PL_RHO_D
+
+
+@pytest.mark.parametrize("rho_d", [1.0, 500.0, 1e6])
+def test_power_law_at_n_1_is_an_ideal_capacitor(rho_d):
+    Q_s = 1e-6
+    assert _power_law_thickness_cm(Q_s, 1.0, PL_EPS_R, rho_d) == pytest.approx(
+        PL_EPS_R * EPSILON_0 / Q_s, rel=1e-12)
+
+
+@pytest.mark.parametrize("n", [0.7, 0.9])
+def test_power_law_permittivity_inverts_the_thickness(n):
+    freq, Z = _synthetic_voigt()
+    fit = _fit_result_voigt_q(n)
+    forward = analyze_oxide_layer(freq, Z, epsilon_r=PL_EPS_R, area_cm2=PL_AREA,
+                                  fit_result=fit, rho_delta_ohm_cm=PL_RHO_D)
+    inverse = estimate_permittivity(freq, Z, thickness_nm=forward.thickness_pl_nm,
+                                    area_cm2=PL_AREA, fit_result=fit,
+                                    rho_delta_ohm_cm=PL_RHO_D)
+    assert inverse.permittivity_pl == pytest.approx(PL_EPS_R, rel=1e-10)
+
+
+def test_power_law_is_off_without_rho_delta():
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, fit_result=_fit_result_voigt_q(0.9))
+    assert oxide.thickness_pl_nm is None and oxide.rho_delta_ohm_cm is None
+    assert 'ower-law' not in _reported(oxide)
+
+
+@pytest.mark.parametrize("fit, reason", [
+    (_fit_result_voigt(), "dominant element is not one"),
+    (None, "high-frequency estimate, not a fitted Q"),
+], ids=["C", "hf_estimate"])
+def test_power_law_needs_a_dominant_cpe(fit, reason):
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, fit_result=fit, rho_delta_ohm_cm=PL_RHO_D)
+    assert oxide.thickness_pl_nm is None
+    assert reason in _reported(oxide)
+
+
+@pytest.mark.parametrize("rho_d, warned", [(PL_RHO_D, False), (1e9, True)])
+def test_power_law_warns_when_the_sweep_passes_f_delta(rho_d, warned):
+    """rho_d = 1e9 Ohm cm puts f_delta near 80 Hz, inside the 10 mHz..100 kHz sweep."""
+    freq, Z = _synthetic_voigt()
+    oxide = analyze_oxide_layer(freq, Z, fit_result=_fit_result_voigt_q(0.9),
+                                rho_delta_ohm_cm=rho_d)
+    assert ('f_delta' in _reported(oxide)) is warned
+
+
+@pytest.mark.parametrize("rho_d", [0.0, -500.0, np.nan])
+def test_power_law_rejects_invalid_rho_delta(rho_d):
+    freq, Z = _synthetic_voigt()
+    with pytest.raises(ValueError, match="rho_delta_ohm_cm"):
+        analyze_oxide_layer(freq, Z, rho_delta_ohm_cm=rho_d)
+    with pytest.raises(ValueError, match="rho_delta_ohm_cm"):
+        estimate_permittivity(freq, Z, thickness_nm=20.0, rho_delta_ohm_cm=rho_d)

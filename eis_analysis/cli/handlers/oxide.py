@@ -44,7 +44,8 @@ def run_oxide_analysis(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: analyze_oxide, epsilon_r, thickness, area)
+        CLI arguments (uses: analyze_oxide, epsilon_r, thickness, area,
+        rho_delta)
     fitted_result : FitResult or None
         Circuit fitting result
     metadata : dict or None
@@ -57,6 +58,11 @@ def run_oxide_analysis(
     # was omitted (args.area is None), so that --area 1.0 is honored like
     # any other value rather than being mistaken for the default
     area_from_metadata = metadata.get('area') if metadata is not None else None
+    # A zero or negative AREA in the file would stop the run after fitting
+    if area_from_metadata is not None and not (np.isfinite(area_from_metadata)
+                                               and area_from_metadata > 0):
+        logger.warning(f"Ignoring invalid DTA metadata area {area_from_metadata} cm^2")
+        area_from_metadata = None
     if args.area is not None:
         area_to_use = args.area
         if area_from_metadata is not None:
@@ -76,7 +82,8 @@ def run_oxide_analysis(
             frequencies, Z,
             thickness_nm=args.thickness,
             area_cm2=area_to_use,
-            fit_result=fitted_result
+            fit_result=fitted_result,
+            rho_delta_ohm_cm=args.rho_delta
         )
         _print_oxide_section(oxide, "Permittivity estimation from known thickness")
     else:
@@ -85,7 +92,8 @@ def run_oxide_analysis(
             epsilon_r=args.epsilon_r if args.epsilon_r is not None
                       else DEFAULT_EPSILON_R,
             area_cm2=area_to_use,
-            fit_result=fitted_result
+            fit_result=fitted_result,
+            rho_delta_ohm_cm=args.rho_delta
         )
         _print_oxide_section(oxide, "Oxide layer analysis")
 
@@ -186,7 +194,7 @@ def _print_oxide_section(oxide: Optional[OxideAnalysisResult],
         logger.info(f"  Capacitance:        {oxide.capacitance:.3e} F{cc_suffix}")
         if oxide.capacitance_brug is not None:
             logger.info(f"  C (Brug, 2D):       {oxide.capacitance_brug:.3e} F "
-                        f"(comparison; primary value is Hsu-Mansfeld, 3D)")
+                        f"(comparison; primary value is Hsu-Mansfeld)")
         logger.info(f"  Specific cap.:      "
                     f"{oxide.capacitance_specific * 1e6:.2f} µF/cm²")
         if oxide.element_tau is not None and oxide.element_tau > 0:
@@ -214,12 +222,18 @@ def _print_oxide_section(oxide: Optional[OxideAnalysisResult],
             # orders of magnitude and a fixed-point format would print "0.0"
             logger.info(f"  ε_r (Brug):         {oxide.permittivity_brug:.3g} "
                         f"(2D model, for comparison)")
+        if oxide.permittivity_pl is not None:
+            logger.info(f"  ε_r (p-law):        {oxide.permittivity_pl:.3g} "
+                        f"(rho_delta = {oxide.rho_delta_ohm_cm:g} Ω·cm, for comparison)")
         logger.info(f"  (area={oxide.area_cm2} cm²)")
     else:
         logger.info(f"  Oxide thickness:    {oxide.thickness_nm:.1f} nm")
         if oxide.thickness_brug_nm is not None:
             logger.info(f"  Thickness (Brug):   {oxide.thickness_brug_nm:.1f} nm "
                         f"(2D model, for comparison)")
+        if oxide.thickness_pl_nm is not None:
+            logger.info(f"  Thickness (p-law):  {oxide.thickness_pl_nm:.1f} nm "
+                        f"(rho_delta = {oxide.rho_delta_ohm_cm:g} Ω·cm, for comparison)")
         logger.info(f"  (assuming ε_r={oxide.epsilon_r}, "
                     f"area={oxide.area_cm2} cm²)")
 
