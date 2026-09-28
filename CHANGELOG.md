@@ -4,6 +4,48 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.46.0 (2026-09-28)
+
+### Fixed
+
+- **Lin-KK no longer stops at a discretization dip of mu.** mu is not
+  monotonic in M: on a coarse tau grid the fit represents a relaxation
+  between grid points with alternating-sign R_k, mu dips below the threshold
+  and the search stopped with an under-resolved model - 3.8 % residuals on
+  an exact 2-RC spectrum, 19 % on a ZARC with 0.3 % noise. The search now
+  starts at `M_lower`, the first M whose log10(pseudo chi^2) is within 0.3
+  decades of the lowest over the next 8 M (`CHI2_PLATEAU_DECADES`,
+  `CHI2_PLATEAU_WINDOW`). Exact 2-RC now gives 0.15 %, the noisy ZARC
+  0.30 %. The window is local because on drifting data chi^2 keeps creeping
+  down as negative R_k absorb the drift; a minimum over all M hid a 10 %
+  drift in 2 of 6 synthetic spectra (doc/KRAMERS_KRONIG_REVIEW.md, 1.1).
+- **M is capped by the number of points.** The fitted part keeps a degree
+  of freedom: N - 2, and for `fit_type='imag'` also minus L and C. Below 5
+  points `lin_kk_native` raises ValueError (`kramers_kronig_validation`
+  returns it as `error`); before, 3 points were fitted with M = 50.
+
+### Changed (results)
+
+- The example files are unchanged (EISPOT-test1: M=19 with 0.6 decades;
+  real_gamry_example: M=22), and so is the residual of a single bad point.
+- On spectra where mu dipped early, M grows and the residuals fall to the
+  noise level.
+- **Drift no longer shows as a large mean residual.** The 20 % mean residual
+  it used to give came from the premature stop, and a valid spectrum got the
+  same. Drift now shows as a local peak (7.6-9.1 % at 10 % drift of R_ct,
+  1.6-3.1 % at 2 %) and a higher noise estimate, while the mean stays below
+  the 5 % of `is_valid` - the per-point report (`--max-residual`) flags it
+  (review 1.4).
+
+### Changed (API)
+
+- `LinKKResult.M_lower` (required field) and `KKResult.M_lower`: the first M
+  the mu search tried. The CLI summary prints it as
+  `KK: M=19 (from M=4, chi^2 plateau), ...`.
+- `find_optimal_M_mu(..., min_M=3)`: new parameter; Voigt auto-M keeps 3.
+
+---
+
 ## Version 0.45.0 (2026-09-28)
 
 ### Fixed

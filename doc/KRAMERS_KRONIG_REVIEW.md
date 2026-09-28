@@ -2,7 +2,8 @@
 
 Datum: 2026-09-28, verze v0.44.1
 
-**Stav:** body 1.2 a 1.3 jsou opraveny ve v0.45.0 (commit 4df6cb6).
+**Stav:** body 1.2 a 1.3 jsou opraveny ve v0.45.0 (commit 4df6cb6), bod 1.1
+ve v0.46.0 (commit 77e6e35).
 
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,
@@ -50,6 +51,34 @@ Jde o znamou slabinu puvodni metody (Schonleber 2014), kterou resi pyimpspec
 Navrh minimalni opravy: nezastavovat na prvnim poklesu mu. Projit M az do
 `max_M` a vzit prvni M, kde mu < prah a zaroven se pseudo chi^2 uz vyrazne
 nezlepsuje. Pred zmenou vychoziho chovani zmerit na realnych datech.
+
+**Stav: opraveno ve v0.46.0.** Hledani mu zacina na `M_lower`: prvni M,
+jehoz log10(chi^2) je do 0.3 dekady od minima v nasledujicich 8 M
+(`CHI2_PLATEAU_DECADES`, `CHI2_PLATEAU_WINDOW`). M je navic omezeno na
+N - 2; pod 5 body Lin-KK skonci chybou. Mereni pri oprave:
+
+- Realne soubory beze zmeny (EISPOT: M=19, ext 0.6; real_gamry: M=22).
+- Presne 2-RC: 0.15 % misto 3.8 %; ZARC s 0.3 % sumem: 0.30 % misto 19 %;
+  2-RC s 1 % sumem: 0.8-1.1 % misto 2.4 %.
+- Jediny vadny bod (spike 2-20 %): velikost rezidua beze zmeny.
+- Okno misto minima pres vsechna M: na datech s driftem chi^2 pomalu klesa,
+  jak zaporna R drift pohlcuji, a globalni minimum posunulo start na
+  M ~ 45-49 ve 2 ze 6 seedu (10% drift pak jen 2.4 % misto 9 %).
+
+Dusledek pro drift (R_ct roste o 0-20 % behem mereni, sum 0.2 %): drive
+"detekovan" 20% prumernym reziduem, ktere ale davalo i validni spektrum.
+Nyni se drift projevi lokalne a v odhadu sumu (rozsah pres 6 seedu):
+
+| drift | prumer \|res\| | max \|res\| | odhad sumu |
+|---|---|---|---|
+| 0 % | 0.18-0.23 % | 0.5-1.5 % | 0.19-0.26 % |
+| 2 % | 0.32-0.41 % | 1.6-3.1 % | 0.36-0.50 % |
+| 10 % | 1.04-1.14 % | 7.6-9.1 % | 1.52-1.66 % |
+| 20 % | 1.91-2.00 % | 14.0-15.4 % | 2.88-3.01 % |
+
+Prumer zustava pod 5 %, takze `is_valid` takova data prohlasi za validni.
+Drift od ~10 % zachyti per-point report (`--max-residual` 5 %), 2% drift
+jen zvyseny odhad sumu. To je nalez 1.4.
 
 ### 1.2 `auto_extend_decades` obchazi mu (overeno)
 
