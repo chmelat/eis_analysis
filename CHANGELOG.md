@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.44.1 (2026-09-28)
+
+### Fixed
+
+- **The `--fit-on all` warning named the wrong cause.** It blamed the
+  one-sided `np.gradient` at the spectrum edge for the ~1% error in the
+  highest decade. That error is the truncation of the Z-HIT series after the
+  phi' term, which peaks at a relaxation wherever it sits (up to ~3% at an
+  ideal RC); on the reference spectrum the exact two-term formula without any
+  `np.gradient` gives 1.13% there, against 1.02% for the implementation. The
+  warning now says so, and the test pinning it is renamed to
+  `test_reconstruction_is_least_accurate_at_the_hf_relaxation`. Analysis in
+  doc/ZHIT_REVIEW.md, 1.3.
+
+---
+
 ## Version 0.44.0 (2026-09-28)
 
 ### Fixed
