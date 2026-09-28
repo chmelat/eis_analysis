@@ -109,7 +109,7 @@ def read_gamry_native(filename: str) -> LoadResult:
     Notes
     -----
     Gamry DTA format:
-    - Tab/whitespace-separated values
+    - Tab-separated values, rows open with a tab
     - European decimal format (comma as separator)
     - ZCURVE section contains EIS data
     - Columns: Pt, Time, Freq, Zreal, Zimag, ...
@@ -147,15 +147,16 @@ def read_gamry_native(filename: str) -> LoadResult:
         raise ValueError(f"Experiment in {filename} was aborted before the impedance "
                          f"sweep started; the ZCURVE section contains no data")
 
-    # Follow the header row rather than assuming columns 3 to 5.
+    # Follow the header row rather than assuming columns. Tab split keeps empty
+    # cells as fields; rows open with a tab, so standard order starts at 3.
     warnings: List[str] = []
-    header = lines[start_line + 1].split() if start_line + 1 < len(lines) else []
+    header = lines[start_line + 1].split('\t') if start_line + 1 < len(lines) else []
     try:
         col_freq, col_zreal, col_zimag = (header.index(n) for n in ('Freq', 'Zreal', 'Zimag'))
     except ValueError:
         warnings.append(f"ZCURVE header in {filename} does not name Freq/Zreal/Zimag "
                         f"({header or 'header row missing'}); assuming standard order")
-        col_freq, col_zreal, col_zimag = 2, 3, 4
+        col_freq, col_zreal, col_zimag = 3, 4, 5
 
     # A row must be long enough to hold the rightmost column we actually read.
     min_columns = max(col_freq, col_zreal, col_zimag) + 1
@@ -168,13 +169,11 @@ def read_gamry_native(filename: str) -> LoadResult:
 
     # Parse data lines
     for line in raw_data:
-        line = line.strip()
-        if not line:
+        if not line.strip():
             continue
 
-        # Convert European decimal format and split by whitespace
-        line = line.replace(',', '.')
-        parts = line.split()
+        # Convert European decimal format; a comma is never a separator here
+        parts = line.replace(',', '.').split('\t')
 
         if len(parts) < min_columns:
             continue
@@ -240,6 +239,16 @@ def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
         logger.debug(f"No OCVCURVE section found in {filename}")
         return None
 
+    # Columns by name, as for ZCURVE; tab split keeps empty cells in place.
+    header = lines[start_line + 1].split('\t') if start_line + 1 < len(lines) else []
+    try:
+        col_t, col_vf, col_vm = (header.index(n) for n in ('T', 'Vf', 'Vm'))
+    except ValueError:
+        # OCV is auxiliary, so no curve beats a guessed column assignment.
+        logger.warning(f"OCVCURVE header in {filename} does not name T/Vf/Vm "
+                       f"({header or 'header row missing'}); OCV curve skipped")
+        return None
+
     # Parse number of points from header: OCVCURVE<tab>TABLE<tab>N
     try:
         header_parts = lines[start_line].strip().split('\t')
@@ -264,20 +273,17 @@ def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
             break
 
         # Convert European decimal format
-        line = line.replace(',', '.')
-        parts = line.split()
+        parts = lines[i].replace(',', '.').split('\t')
 
-        # Columns: Pt, T, Vf, Vm, Ach, Over, Temp
-        if len(parts) >= 4:
-            try:
-                t = float(parts[1])
-                vf = float(parts[2])
-                vm = float(parts[3])
-                time_data.append(t)
-                vf_data.append(vf)
-                vm_data.append(vm)
-            except (ValueError, IndexError):
-                continue
+        try:
+            t = float(parts[col_t])
+            vf = float(parts[col_vf])
+            vm = float(parts[col_vm])
+            time_data.append(t)
+            vf_data.append(vf)
+            vm_data.append(vm)
+        except (ValueError, IndexError):
+            continue
 
     if len(time_data) == 0:
         return None
