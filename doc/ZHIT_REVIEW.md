@@ -201,7 +201,7 @@ byla dalsi volba k ladeni.
 #### 1.3.7 Navrhy
 
 1. **Stav:** CLI varovani a docstring testu opraveny ve v0.44.1, README
-   zatim ne.
+   dodatecne (jen dokumentace, bez nove verze).
    Opravit vysvetleni v CLI varovani, README a docstringu testu: chyba sedi
    tam, kde se faze ohyba, ne na okraji. Varovani pro `--fit-on all` bud
    podminit velikosti |pi^3/360 * phi'''| v HF oblasti, nebo ho preformulovat

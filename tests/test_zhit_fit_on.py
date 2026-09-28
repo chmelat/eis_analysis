@@ -157,9 +157,7 @@ def test_reconstruction_is_least_accurate_at_the_hf_relaxation():
     high-frequency end of the DRT read, far from the drift the switch corrects.
     The CLI warns about this under --fit-on all.
 
-    It is not the one-sided np.gradient at the edge: the exact two-term
-    formula, with derivatives from a dense grid, gives 1.13% over that decade
-    against the implementation's 1.02% (doc/ZHIT_REVIEW.md 1.3.4).
+    Not the edge np.gradient: doc/ZHIT_REVIEW.md 1.3.4.
     """
     Z_clean, _ = _clean_spectrum()
     residuals = abs(zhit_validation(FREQUENCIES, Z_clean).residuals_mag)

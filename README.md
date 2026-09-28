@@ -238,12 +238,15 @@ makes the fitted resistances clearly better, and sometimes up to three times
 when the per-point residual check reports a systematic deviation at the lowest
 frequencies - that is drift - and not to clean up a scattered one.
 
-The same derivative degrades at the edges of the frequency range, where
-`np.gradient` falls back to one-sided differences. On a noise-free, exactly
-K-K compliant spectrum the magnitude residual is 0.08% over the lowest decade
-and 1.0% over the highest. That matters mainly for `--fit-on all`, where R_inf
-and the high-frequency end of the DRT read that edge - the opposite end from
-the drift being corrected - so the run warns about it.
+Even on noise-free, exactly K-K compliant data the reconstruction is not
+exact: Z-HIT truncates an asymptotic series after the phase-derivative term,
+and the error peaks where the phase bends most - around a relaxation, not at
+the edges of the frequency range. It is up to ~3% in |Z| at an ideal RC and
+0.3-0.5% on the mean for CPE-like data. That matters mainly for
+`--fit-on all`, where R_inf and the DRT read the reconstruction wherever a
+relaxation sits, including the high-frequency end far from the drift being
+corrected, so the run warns about it. Details in
+[doc/ZHIT_REVIEW.md](doc/ZHIT_REVIEW.md), 1.3.
 
 **Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 

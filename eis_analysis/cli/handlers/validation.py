@@ -224,13 +224,8 @@ def apply_zhit_reconstruction(
                                   else "the circuit fit only"))
 
     if args.fit_on == 'all':
-        # Z-HIT truncates an asymptotic series after the phi' term, so even
-        # exactly K-K compliant data are reconstructed with an error that
-        # peaks where the phase bends most - around a relaxation, not at the
-        # edges (up to ~3% at an ideal RC, doc/ZHIT_REVIEW.md 1.3). Under
-        # --fit-on all, R_inf and the DRT read that error wherever a relaxation
-        # sits, including the high-frequency end, far from the drift being
-        # corrected.
+        # Truncation error peaks at relaxations, not edges; R_inf/DRT read it
+        # wherever one sits (doc/ZHIT_REVIEW.md 1.3).
         logger.warning("R_inf and the DRT now read the Z-HIT reconstruction, "
                        "which deviates from |Z| by up to ~3% around sharp "
                        "relaxations even on clean data")
