@@ -173,6 +173,7 @@ result = kramers_kronig_validation(
 
 # result: KKResult dataclass
 result.M                   # Number of Voigt elements used
+result.M_lower             # First M the mu search tried (chi^2 plateau)
 result.mu                  # Lin-KK stop value (< mu_threshold on normal
                            # termination; not a quality metric - use residuals).
                            # With extend_decades > 0 the returned model's own

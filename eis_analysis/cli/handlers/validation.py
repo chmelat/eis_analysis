@@ -75,7 +75,8 @@ def run_kk_validation(
         return None
 
     # Summary (format consistent with Z-HIT validation)
-    logger.info(f"KK: M={result.M}, mu={result.mu:.4f} "
+    logger.info(f"KK: M={result.M} (from M={result.M_lower}, chi^2 plateau), "
+                f"mu={result.mu:.4f} "
                 f"(Lin-KK stop, threshold {args.mu_threshold}), "
                 f"extend_decades={result.extend_decades:.2f}")
     logger.info(f"  Mean |res_real|: {result.mean_residual_real:.2f}%")

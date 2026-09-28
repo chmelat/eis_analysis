@@ -454,3 +454,96 @@ def test_kk_cli_logs_result_warnings(caplog):
                    for rec in caplog.records)
     finally:
         plt.close('all')
+
+
+# =============================================================================
+# chi^2 lower limit on M: mu dips of an under-resolved tau grid must not stop
+# the search (review doc/KRAMERS_KRONIG_REVIEW.md 1.1)
+# =============================================================================
+
+def zarc_impedance(frequencies, R, Q, n):
+    """R | CPE: a distributed relaxation, KK-compliant by construction."""
+    return R / (1 + R * Q * (2j * np.pi * frequencies) ** n)
+
+
+def add_noise(Z, sigma, seed):
+    """Relative complex Gaussian noise (sigma of each component / |Z|)."""
+    rng = np.random.default_rng(seed)
+    return Z + sigma * np.abs(Z) * (rng.standard_normal(len(Z))
+                                    + 1j * rng.standard_normal(len(Z)))
+
+
+def drifting_zarc(frequencies, drift, sigma, seed):
+    """10 Ohm + ZARC whose R grows linearly with measurement time by `drift`.
+
+    HF-to-LF sweep, each point takes max(2 periods, 1 s): the low-frequency
+    points carry most of the drift, like a real non-stationary sample.
+    """
+    t = np.cumsum(np.maximum(2.0 / frequencies, 1.0))
+    t /= t[-1]
+    Z = 10.0 + zarc_impedance(frequencies, 1000.0 * (1 + drift * t), 1e-5, 0.85)
+    return add_noise(Z, sigma, seed)
+
+
+def test_exact_two_rc_fits_with_default_threshold():
+    # mu dips below 0.85 at M=7 on this exact spectrum (3.8 % residuals).
+    f = np.logspace(-1, 5, 60)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    r = lin_kk_native(f, Z)
+    assert r.mean_residual_real < 0.5
+    assert r.mean_residual_imag < 0.5
+
+
+def test_noisy_zarc_reaches_noise_floor():
+    # mu dips at M=4 on a ZARC (19 % residuals); with the lower limit the
+    # residuals fall to the 0.3 % noise.
+    f = np.logspace(5, -2, 71)
+    Z = add_noise(10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8), 0.003, seed=0)
+    r = lin_kk_native(f, Z)
+    assert r.M >= r.M_lower > 3
+    assert max(r.mean_residual_real, r.mean_residual_imag) < 0.5
+
+
+def test_M_capped_below_number_of_points():
+    f = np.logspace(5, -2, 15)
+    Z = add_noise(10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8), 0.003, seed=0)
+    r = lin_kk_native(f, Z)
+    assert r.M <= len(f) - 2
+    assert max(r.mean_residual_real, r.mean_residual_imag) < 1.0
+
+
+def test_imag_fit_cap_counts_L_and_C():
+    # At M = N - 2 an imag fit with L and C has N unknowns and passes
+    # through every point (0 % imaginary residual).
+    f = np.logspace(5, -2, 12)
+    Z = add_noise(10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8), 0.003, seed=0)
+    r = lin_kk_native(f, Z, fit_type='imag', include_C=True)
+    assert r.M <= len(f) - 4
+    assert r.mean_residual_imag > 0.01
+
+
+def test_zero_impedance_point_falls_back_to_M_3():
+    # Z = 0 makes pseudo chi^2 infinite at every M: no plateau to find.
+    f = np.logspace(5, -2, 40)
+    Z = add_noise(10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8), 0.003, seed=0)
+    Z[3] = 0
+    r = lin_kk_native(f, Z)
+    assert r.M_lower == 3
+
+
+def test_too_few_points_is_an_error():
+    f = np.logspace(3, 0, 4)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-2)])
+    with pytest.raises(ValueError, match="at least 5 points"):
+        lin_kk_native(f, Z)
+    assert kramers_kronig_validation(f, Z).error is not None
+
+
+def test_drift_shows_in_pointwise_residuals():
+    # A 10 % drift of R_ct peaks locally; a stationary spectrum stays at noise.
+    f = np.logspace(5, -2, 71)
+    def peak(r):
+        return 100 * max(np.abs(r.residuals_real).max(), np.abs(r.residuals_imag).max())
+
+    assert peak(lin_kk_native(f, drifting_zarc(f, 0.10, 0.002, seed=1))) > 5.0
+    assert peak(lin_kk_native(f, drifting_zarc(f, 0.0, 0.002, seed=1))) < 2.0

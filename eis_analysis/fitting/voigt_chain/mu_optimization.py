@@ -137,12 +137,13 @@ def find_optimal_M_mu(
     include_C: bool = False,
     fit_type: str = 'complex',
     allow_negative: bool = True,
-    weighting: str = 'modulus'
+    weighting: str = 'modulus',
+    min_M: int = 3
 ) -> MuOptimization:
     """
     Find optimal number of Voigt elements using mu metric (Lin-KK style).
 
-    Iteratively increases M from 3 until mu < mu_threshold or M >= max_M.
+    Iteratively increases M from min_M until mu < mu_threshold or M >= max_M.
 
     Parameters
     ----------
@@ -173,6 +174,10 @@ def find_optimal_M_mu(
         With NNLS (allow_negative=False), all R_i >= 0, so mu ~ 1 always.
     weighting : str, optional
         Point weighting scheme (default: 'modulus' = Lin-KK standard)
+    min_M : int, optional
+        First M to try (default: 3, Lin-KK standard). Lin-KK validation
+        raises it to where pseudo chi^2 levels off, so that a mu dip of an
+        under-resolved tau grid does not stop the search.
 
     Returns
     -------
@@ -184,7 +189,7 @@ def find_optimal_M_mu(
     Notes
     -----
     Algorithm from Schonleber et al. (2014):
-    1. Start with M = 3
+    1. Start with M = min_M (3 in the original)
     2. Generate M time constants logarithmically
     3. Fit R_i using pseudoinverse (allow_negative=True)
     4. Calculate mu metric
@@ -198,6 +203,9 @@ def find_optimal_M_mu(
     """
     # Validate inputs
     validate_eis_data(frequencies, Z, context="find_optimal_M_mu")
+    if not 1 <= min_M <= max_M:
+        raise ValueError(f"find_optimal_M_mu: need 1 <= min_M <= max_M, "
+                         f"got min_M={min_M}, max_M={max_M}")
 
     warnings: List[str] = []
     if not allow_negative:
@@ -206,7 +214,7 @@ def find_optimal_M_mu(
 
     iterations: List[MuIteration] = []
 
-    M = 2  # Start with M=3 (Lin-KK standard)
+    M = min_M - 1  # the loop increments before fitting
     mu = 1.0
     iteration = 0
     L_value = None
@@ -242,7 +250,7 @@ def find_optimal_M_mu(
         mu = calc_mu(R_i)
 
         # Sample the search every 5 steps, plus the first and the last one
-        if M % 5 == 0 or mu <= mu_threshold or M == 3:
+        if M % 5 == 0 or mu <= mu_threshold or M == min_M:
             iterations.append(MuIteration(
                 iteration=iteration, M=M, mu=mu, residual=residual,
                 n_negative=int(np.sum(R_i < 0)), n_R=len(R_i)))
