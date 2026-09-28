@@ -125,8 +125,11 @@ Odchylky od návrhu:
   handler nedostane. Tisk je v něm jako dočasné `_log_mu_optimization()`
   s poznámkou, že ho etapa 4 přesune do `cli/handlers/fitting.py` spolu se
   zbytkem kroků. Etapa 2 tím řeší to podstatné — zamoření KK sekce.
-- `calc_mu()` si ponechává `logger.warning` ("all R_i are negative"): vrací
-  float, žádný výsledek to nekvalifikuje. Kritérium R1.
+- `calc_mu()` si ponechal `logger.warning` ("all R_i are negative"): vrací
+  float, žádný výsledek to nekvalifikuje. Kritérium R1. **Od v0.45.0
+  `logger.debug`:** KK volá `calc_mu` i na kandidáty `extend_decades`, které
+  pak zahodí, a varování by se tisklo u fitu, který ve výsledku není.
+  Hodnota -1 se sama projeví jako `MuOptimization.mu` nebo vyřazení kandidáta.
 - Varování o dosažení `max_M` je jeden záznam místo tří řádků. V obou
   volajících se nespustí (oba předávají `allow_negative=True`).
 - Zanikla mrtvá jména `elements_mu` a `L_value_mu` — 6-tuple se rozbaloval

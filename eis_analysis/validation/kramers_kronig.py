@@ -31,6 +31,8 @@ class KKResult:
         mu_threshold, so it is expected to be below the threshold on
         normal termination. Not a data-quality metric (judge quality by
         the residuals); mu > threshold only when max_M was reached.
+        With extend_decades > 0 the returned model's own mu is at least
+        this value: extensions that would lower it are rejected.
     Z_fit : NDArray[np.complex128] or None
         Fitted impedance
     residuals_real : NDArray[np.float64] or None
@@ -108,6 +110,8 @@ class LinKKResult:
         mu_threshold, so it is expected to be below the threshold on
         normal termination. Not a data-quality metric (judge quality by
         the residuals); mu > threshold only when max_M was reached.
+        With extend_decades > 0 the returned model's own mu is at least
+        this value: extensions that would lower it are rejected.
     Z_fit : NDArray[np.complex128]
         Fitted impedance
     residuals_real : NDArray[np.float64]
@@ -131,6 +135,8 @@ class LinKKResult:
     capacitance : Optional[float]
         Fitted series capacitance [F] (None unless include_C was requested;
         not part of the elements array)
+    warnings : List[str]
+        Caveats about the fit (e.g. max_M reached, extension rejected)
     """
     M: int
     mu: float
@@ -145,6 +151,7 @@ class LinKKResult:
     tau: NDArray[np.float64]
     weighting: str = 'modulus'
     capacitance: Optional[float] = None
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def mean_residual_real(self) -> float:
@@ -278,8 +285,9 @@ def find_optimal_extend_decades(
     include_L: bool = True,
     include_C: bool = False,
     fit_type: str = 'real',
-    weighting: str = 'modulus'
-) -> Tuple[float, float, NDArray[np.float64], NDArray[np.float64], Optional[float], Optional[float]]:
+    weighting: str = 'modulus',
+    min_mu: float = -np.inf
+) -> Optional[Tuple[float, float, NDArray[np.float64], NDArray[np.float64], Optional[float], Optional[float]]]:
     """
     Find optimal extend_decades that minimizes pseudo chi-squared.
 
@@ -305,9 +313,16 @@ def find_optimal_extend_decades(
         Fit type ('real', 'imag', 'complex')
     weighting : str
         Weighting scheme
+    min_mu : float
+        Reject candidates whose own mu falls below this value. Lin-KK passes
+        its stop mu: at fixed M, a wider tau grid can fit with oscillating
+        negative R_i, the overfit the mu criterion exists to prevent.
+        -inf (default) keeps every candidate.
 
     Returns
     -------
+    None
+        Only with min_mu, when every candidate falls below it.
     optimal_extend_decades : float
         Value that minimizes chi^2
     min_chi2 : float
@@ -321,7 +336,7 @@ def find_optimal_extend_decades(
     C_value : float or None
         Series capacitance for optimal extend_decades
     """
-    from ..fitting.voigt_chain import generate_tau_grid_fixed_M, estimate_R_linear
+    from ..fitting.voigt_chain import generate_tau_grid_fixed_M, estimate_R_linear, calc_mu
 
     candidates = np.linspace(search_range[0], search_range[1], n_evaluations)
     results = []
@@ -335,9 +350,16 @@ def find_optimal_extend_decades(
             weighting=weighting
         )
 
+        # R_1..R_M sit right after R_s whether or not L follows them
+        if calc_mu(elements[1:1 + len(tau)]) < min_mu:
+            continue
+
         Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)
         chi2 = compute_pseudo_chisqr(Z, Z_fit)
         results.append((ext_dec, chi2, tau, elements, L_value, C_value))
+
+    if not results:
+        return None
 
     # Find minimum chi^2
     min_chi2 = min(r[1] for r in results)
@@ -398,7 +420,8 @@ def lin_kk_native(
         noise_estimate, extend_decades, inductance, elements, tau.
         Note: the returned mu is the Lin-KK stop value and is expected
         to be below mu_threshold on normal termination — judge data
-        quality by the residuals, not by mu.
+        quality by the residuals, not by mu. An extended tau grid is
+        accepted only if its own mu is not below it.
 
     References
     ----------
@@ -425,18 +448,26 @@ def lin_kk_native(
     L_value, C_value = mu_opt.L_value, mu_opt.C_value
 
     extend_decades = 0.0
+    warnings = list(mu_opt.warnings)
 
-    # Optionally optimize extend_decades
+    # Optionally optimize extend_decades, never below the stop mu
     if auto_extend_decades:
-        extend_decades, chi2_opt, tau, elements, L_value, C_value = find_optimal_extend_decades(
+        best = find_optimal_extend_decades(
             frequencies, Z, M,
             search_range=extend_decades_range,
             n_evaluations=11,
             include_L=include_L,
             include_C=include_C,
             fit_type=fit_type,
-            weighting=weighting
+            weighting=weighting,
+            min_mu=mu
         )
+        if best is None:
+            warnings.append(f"Every extend_decades in {extend_decades_range} "
+                            f"lowers mu below the stop value {mu:.4f}; "
+                            f"kept the unextended tau grid")
+        else:
+            extend_decades, _, tau, elements, L_value, C_value = best
 
     # Reconstruct Z_fit from fitted parameters
     Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)
@@ -465,7 +496,8 @@ def lin_kk_native(
         elements=elements,
         tau=tau,
         weighting=weighting,
-        capacitance=C_value
+        capacitance=C_value,
+        warnings=warnings
     )
 
 
@@ -514,8 +546,6 @@ def kramers_kronig_validation(
         residuals (result.is_valid); result.mu is only the Lin-KK stop
         value (expected below mu_threshold on normal termination).
     """
-    warnings = []
-
     try:
         lkk = lin_kk_native(
             frequencies, Z,
@@ -534,10 +564,6 @@ def kramers_kronig_validation(
 
     if lkk.Z_fit is None:
         return KKResult(error="KK fitting failed - could not fit Voigt chain")
-
-    # Quality assessment
-    if not lkk.is_valid:
-        warnings.append("Data may contain artifacts (residuals >= 5%)")
 
     # Generate interpolated frequencies for smooth curve
     f_min, f_max = frequencies.min(), frequencies.max()
@@ -586,5 +612,5 @@ def kramers_kronig_validation(
         inductance=lkk.inductance,
         capacitance=lkk.capacitance,
         figure=fig,
-        warnings=warnings
+        warnings=lkk.warnings
     )

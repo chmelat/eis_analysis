@@ -116,8 +116,10 @@ def calc_mu(R_i: NDArray[np.float64]) -> float:
     pos_sum = float(np.sum(np.abs(R_i[R_i >= 0])))
 
     if pos_sum == 0:
-        # All negative (very bad)
-        logger.warning("calc_mu: all R_i are negative!")
+        # All negative (very bad). Debug only: the -1 is the report - it
+        # stops the M search (and shows as MuOptimization.mu) or rejects an
+        # extend_decades candidate, which is often a discarded overfit fit.
+        logger.debug("calc_mu: all R_i are negative!")
         return -1.0
 
     mu = 1.0 - neg_sum / pos_sum

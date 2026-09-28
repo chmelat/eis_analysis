@@ -383,3 +383,74 @@ def test_kk_cli_log_explains_mu(caplog):
         assert mu_value < 0.85
     finally:
         plt.close('all')
+
+
+# =============================================================================
+# auto-extend keeps mu at or above the stop value; M-search warnings reach the
+# result and the CLI (review doc/KRAMERS_KRONIG_REVIEW.md 1.2 and 1.3, K3)
+# =============================================================================
+
+def _two_rc_wide():
+    """Exact 2-RC spectrum whose Lin-KK search stops at M=6 (mu=0.808).
+
+    At that M every extension of the tau grid drives mu negative
+    (0.3 decades -> -0.23), i.e. the extended fits are overfit.
+    """
+    f = np.logspace(5, -2, 71)
+    return f, voigt_impedance(f, 10.0, [(100.0, 1e-3), (500.0, 0.5)])
+
+
+def _voigt_mu(result):
+    """mu of the returned model itself (R_1..R_M, without R_s and L)."""
+    from eis_analysis.fitting.voigt_chain import calc_mu
+    return calc_mu(result.elements[1:1 + len(result.tau)])
+
+
+def test_auto_extend_rejects_extension_that_lowers_mu():
+    f, Z = _two_rc_wide()
+    r = lin_kk_native(f, Z, auto_extend_decades=True,
+                      extend_decades_range=(0.3, 0.3))
+    assert r.extend_decades == 0.0
+    assert _voigt_mu(r) == pytest.approx(r.mu)
+    assert any('extend' in w for w in r.warnings)
+
+
+@pytest.mark.skipif(not os.path.exists(REAL_DTA),
+                    reason="example/EISPOT-test1.DTA missing")
+def test_auto_extend_returned_model_mu_not_below_stop_value():
+    # EISPOT: stop mu 0.846 at M=19; the chosen extension (0.6 decades)
+    # has mu 1.000 and must still be chosen.
+    loaded = load_data(REAL_DTA)
+    r = lin_kk_native(loaded.frequencies, loaded.Z, auto_extend_decades=True)
+    assert r.extend_decades > 0.0
+    assert _voigt_mu(r) >= r.mu
+
+
+def test_lin_kk_native_propagates_max_M_warning():
+    f = np.logspace(-1, 5, 60)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    r = lin_kk_native(f, Z, max_M=4)
+    assert any('Reached max_M' in w for w in r.warnings)
+
+
+def test_kk_cli_logs_result_warnings(caplog):
+    import argparse
+    import logging
+
+    from eis_analysis.cli.handlers.validation import run_kk_validation
+
+    f = np.logspace(4, -1, 40)
+    Z = voigt_impedance(f, 100.0, [(5000.0, 5e-3)])
+    # A threshold of -inf never stops the search, so it runs to max_M.
+    args = argparse.Namespace(
+        no_kk=False, mu_threshold=float('-inf'), auto_extend=False,
+        extend_decades_max=1.0, kk_series_c=False, save=None, format='png',
+    )
+    with caplog.at_level(logging.INFO,
+                         logger='eis_analysis.cli.handlers.validation'):
+        run_kk_validation(f, Z, args)
+    try:
+        assert any(rec.levelno == logging.WARNING and 'Reached max_M' in rec.message
+                   for rec in caplog.records)
+    finally:
+        plt.close('all')

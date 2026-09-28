@@ -84,6 +84,8 @@ def run_kk_validation(
     logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
     if result.capacitance is not None:
         logger.info(f"  Series C: {result.capacitance:.2e} F")
+    for warning in result.warnings:
+        logger.warning(warning)
 
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
     log_fn = logger.info if result.is_valid else logger.warning

@@ -174,7 +174,9 @@ result = kramers_kronig_validation(
 # result: KKResult dataclass
 result.M                   # Number of Voigt elements used
 result.mu                  # Lin-KK stop value (< mu_threshold on normal
-                           # termination; not a quality metric - use residuals)
+                           # termination; not a quality metric - use residuals).
+                           # With extend_decades > 0 the returned model's own
+                           # mu is at least this value
 result.Z_fit               # Reconstructed impedance
 result.residuals_real      # Real part residuals (fraction)
 result.residuals_imag      # Imaginary part residuals (fraction)
@@ -182,6 +184,7 @@ result.pseudo_chisqr       # Pseudo chi-squared (Boukamp 1995)
 result.noise_estimate      # Estimated noise [%] (Yrjana & Bobacka 2024)
 result.inductance          # Fitted inductance [H] (if include_L=True)
 result.figure              # matplotlib Figure
+result.warnings            # Caveats (max_M reached, extension rejected)
 
 # Convenience properties
 result.mean_residual_real  # Mean |res_real| [%]
