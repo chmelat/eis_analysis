@@ -148,12 +148,18 @@ def test_reconstruction_costs_accuracy_on_noisy_stationary_data():
         "if that is a deliberate improvement, rewrite this test")
 
 
-def test_reconstruction_is_least_accurate_at_the_high_frequency_edge():
-    """Where --fit-on all's cost lands: np.gradient degrades at the edges.
+def test_reconstruction_is_least_accurate_at_the_hf_relaxation():
+    """Where --fit-on all's cost lands: at a relaxation, here the HF one.
 
-    R_inf and the high-frequency end of the DRT read only that edge, which is
-    the opposite end of the spectrum from the drift the switch corrects. The
-    CLI warns about this under --fit-on all.
+    Z-HIT truncates an asymptotic series after the phi' term; the error peaks
+    where the phase bends most. R0 || Q0 relaxes at tau0 = (R*Q)^(1/n) =
+    3.6e-5 s, f = 4.4 kHz, inside the highest decade - which R_inf and the
+    high-frequency end of the DRT read, far from the drift the switch corrects.
+    The CLI warns about this under --fit-on all.
+
+    It is not the one-sided np.gradient at the edge: the exact two-term
+    formula, with derivatives from a dense grid, gives 1.13% over that decade
+    against the implementation's 1.02% (doc/ZHIT_REVIEW.md 1.3.4).
     """
     Z_clean, _ = _clean_spectrum()
     residuals = abs(zhit_validation(FREQUENCIES, Z_clean).residuals_mag)

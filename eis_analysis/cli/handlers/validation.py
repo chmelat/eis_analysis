@@ -224,16 +224,16 @@ def apply_zhit_reconstruction(
                                   else "the circuit fit only"))
 
     if args.fit_on == 'all':
-        # The reconstruction is least accurate at the edges of the spectrum:
-        # the second-order term differentiates the phase, and np.gradient falls
-        # back to one-sided differences there. On a noise-free, exactly K-K
-        # compliant reference spectrum the magnitude residual is 0.08% over the
-        # lowest decade but 1.0% over the highest - and R_inf reads only the
-        # highest. Worth saying out loud, because the drift being corrected is
-        # usually at the opposite end.
-        logger.warning("R_inf and the high-frequency end of the DRT now read a "
-                       "reconstructed edge, where Z-HIT is least accurate "
-                       "(~1% on clean reference data)")
+        # Z-HIT truncates an asymptotic series after the phi' term, so even
+        # exactly K-K compliant data are reconstructed with an error that
+        # peaks where the phase bends most - around a relaxation, not at the
+        # edges (up to ~3% at an ideal RC, doc/ZHIT_REVIEW.md 1.3). Under
+        # --fit-on all, R_inf and the DRT read that error wherever a relaxation
+        # sits, including the high-frequency end, far from the drift being
+        # corrected.
+        logger.warning("R_inf and the DRT now read the Z-HIT reconstruction, "
+                       "which deviates from |Z| by up to ~3% around sharp "
+                       "relaxations even on clean data")
         # Title flows into visualize_data, so the Nyquist/Bode plot says which
         # curve it is showing.
         return replace(data, Z=zhit_result.Z_fit,
