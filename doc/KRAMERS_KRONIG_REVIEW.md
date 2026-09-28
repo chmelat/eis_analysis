@@ -2,6 +2,8 @@
 
 Datum: 2026-09-28, verze v0.44.1
 
+**Stav:** body 1.2 a 1.3 jsou opraveny ve v0.45.0 (commit 4df6cb6).
+
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,
 `calc_mu`), `fitting/voigt_chain/tau_grid.py` (`generate_tau_grid_fixed_M`),
@@ -64,11 +66,20 @@ Vynucene rozsireni na spektru z 1.1 (radek 3):
 | 1.0 | 0.808 | -43 |
 
 Skutecne mu znamena silne oscilujici zaporna R - presne to preuceni, pred
-kterym ma mu chranit. Minimalizace chi^2 bez teto pojistky snizuje citlivost
-testu. Na `EISPOT-test1.DTA` je to naopak: hlasene mu 0.846, skutecne 1.000.
+kterym ma mu chranit. Na `EISPOT-test1.DTA` je to naopak: hlasene mu 0.846,
+skutecne 1.000.
 
-Dusledek: `result.mu`, titulek grafu i vypis CLI popisuji jiny model, nez
-ktery je v `Z_fit`.
+Upresneni (overeno pri oprave): na 5 spektrech (EISPOT, dve presna 2-RC,
+LF chvost tau = 200 s se sumem i bez) vybral chi^2 pokazde kandidata s
+mu >= stop mu - preuceni kandidati fituji hure. Slo tedy o chybejici
+zaruku, ne o pozorovany spatny vysledek; projevila se jen pri vynucenem
+rozsahu rozsireni.
+
+**Stav: opraveno ve v0.45.0.** `find_optimal_extend_decades` ma parametr
+`min_mu` a zahodi kandidaty s mu pod nim; `lin_kk_native` preda stop mu a
+kdyz nezbude zadny kandidat, ponecha grid bez rozsireni s varovanim. Stop
+mu je tak dolni mez mu vraceneho modelu. Vysledky na overenych spektrech
+se nezmenily.
 
 ### 1.3 Varovani z hledani M se zahazuji (overeno)
 
@@ -79,6 +90,11 @@ be overfit" se k uzivateli nikdy nedostane.
 
 Priklad: pri N = 3 bodech bezi smycka az do M = 50, protoze `max_M` neni
 omezeno poctem bodu. Uloha je silne podurcena a uzivatel se to nedozvi.
+
+**Stav: opraveno ve v0.45.0.** Varovani jdou do `LinKKResult.warnings`,
+`KKResult.warnings` a CLI je vypisuje. Hlaska "Data may contain artifacts"
+z `KKResult.warnings` zmizela, protoze opakovala `is_valid`. Omezeni M
+poctem bodu reseno neni.
 
 ### 1.4 `is_valid` (prumer |res| < 5 %) je prilis volne a nekonzistentni
 

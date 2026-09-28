@@ -4,6 +4,41 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.45.0 (2026-09-28)
+
+### Fixed
+
+- **Lin-KK auto-extend can no longer lower mu below the stop value.** M was
+  chosen by the mu criterion on the unextended tau grid; the extension search
+  then refit that M on wider grids by pseudo chi^2 alone and never looked at
+  mu again. At fixed M a wider grid can fit with oscillating negative R_i: on
+  an exact 2-RC spectrum 0.3 decades gave mu -0.23 against a stop value of
+  0.81, the overfit mu exists to prevent. `find_optimal_extend_decades` takes
+  `min_mu` and drops such candidates; `lin_kk_native` passes its stop mu and,
+  when every candidate falls below it, keeps the unextended grid with a
+  warning. The stop mu is now a lower bound on the returned model's own mu.
+  On the spectra checked (the example DTA and four synthetic ones) chi^2
+  never picked such a candidate, so their results do not change
+  (doc/KRAMERS_KRONIG_REVIEW.md, 1.2).
+- **The M-search warnings reach the result and the CLI.** "Reached max_M
+  ..., model may still be overfit" was dropped by `lin_kk_native`; it is now
+  in the new `LinKKResult.warnings`, in `KKResult.warnings`, and the CLI
+  prints `KKResult.warnings`, which it never read before (1.3; audit K3).
+
+### Changed (API)
+
+- `KKResult.warnings` no longer carries "Data may contain artifacts
+  (residuals >= 5%)". It restated `is_valid`, which the CLI reports in its
+  "Data quality" line.
+- `find_optimal_extend_decades(..., min_mu=-inf)`: new parameter; the
+  function returns None when every candidate falls below `min_mu`, which
+  the default never triggers.
+- `calc_mu` logs "all R_i are negative" at debug level instead of warning:
+  it now also runs on extension candidates that are discarded, and its -1
+  already shows as the search's mu or as a rejected candidate.
+
+---
+
 ## Version 0.44.1 (2026-09-28)
 
 ### Fixed

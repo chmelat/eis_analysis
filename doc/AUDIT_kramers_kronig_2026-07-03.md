@@ -2,14 +2,15 @@
 
 **Datum:** 2026-07-03 | **Verze:** 0.16.18 | **Typ:** kritické code-level review (Claude Code)
 
-## Stav oprav (aktualizováno 2026-09-02)
+## Stav oprav (aktualizováno 2026-09-28)
 
 | Nález | Stav | Verze | Commit |
 |-------|------|-------|--------|
 | K1    | Opraveno | 0.16.19 | 2354c2d |
 | K2    | Opraveno | 0.16.20 | 67ee6b9 |
+| K3    | Opraveno | 0.45.0 | 4df6cb6 |
 | K10   | Opraveno | 0.21.6 | 9f9991b |
-| K3-K9, K11 | Otevřené | — | — |
+| K4-K9, K11 | Otevřené | — | — |
 
 Stav K3-K9 a K11 ověřen k 2026-09-02 (v0.30.0). Čísla řádků v nálezech
 níže jsou z data auditu a od té doby se posunula — K8 je dnes na ř. 532.
