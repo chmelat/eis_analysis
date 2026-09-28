@@ -82,7 +82,6 @@ def create_test_args(**kwargs) -> argparse.Namespace:
 
         # Z-HIT
         'no_zhit': True,  # Skip by default for speed
-        'zhit_optimize_offset': False,
 
         # Circuit Fitting
         'circuit': None,

@@ -104,8 +104,9 @@ def test_reconstruction_recovers_resistances_from_drifted_modulus():
     err_reconstructed = _fit_max_resistance_error(reconstruction.Z_fit,
                                                   params_true)
 
-    # Measured on this spectrum: 19.6% raw, 0.12% reconstructed (factor ~160).
-    # The thresholds keep an order of magnitude of headroom on each side.
+    # Measured on this spectrum: 19.6% raw, 0.42% reconstructed (factor ~47).
+    # The drifted quarter of the points pulls the median offset slightly; the
+    # thresholds keep headroom on each side.
     assert err_original > 10.0, (
         f"drift did not bias the raw fit ({err_original:.2f}%) - the test "
         "no longer exercises what it claims to")
@@ -122,9 +123,10 @@ def test_reconstruction_costs_accuracy_on_noisy_stationary_data():
     pins the trade-off the README warns about, so it cannot quietly change.
 
     Measured over seeds 0-4 at 1% noise, max resistance error raw vs
-    reconstructed: 0.45/2.88, 0.59/7.27, 0.33/1.48, 0.58/2.91, 1.60/1.45 -
-    usually several times worse, occasionally a wash. Seed 1 is used here for
-    its clear margin. Should the reconstruction ever learn to smooth the phase,
+    reconstructed: 0.45/0.70, 0.59/2.02, 0.33/0.23, 0.58/0.50, 1.60/1.76 -
+    never clearly better, up to ~3x worse. (Before v0.44.0 the offset came from
+    a single point, whose noise shifted the whole curve: 2.88, 7.27, 1.48,
+    2.91, 1.45.) Seed 1 is used here as the case where the cost shows. Should the reconstruction ever learn to smooth the phase,
     this test is meant to fail and be rewritten, not silently kept passing.
     """
     Z_clean, params_true = _clean_spectrum()
@@ -236,7 +238,7 @@ def _failed_reconstruction():
         Z_mag_reconstructed=empty,
         Z_fit=np.array([], dtype=np.complex128),
         residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
-        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0, ref_freq=1.0,
+        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0,
     )
 
 

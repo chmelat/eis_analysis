@@ -197,9 +197,7 @@ from eis_analysis.validation import zhit_validation, ZHITResult
 result = zhit_validation(
     frequencies,
     Z,
-    ref_freq=None,           # Reference frequency [Hz] (default: geometric mean)
     quality_threshold=5.0,   # Threshold for quality metric [%]
-    optimize_offset=False    # Use weighted offset optimization
 )
 
 # result: ZHITResult dataclass
@@ -211,7 +209,6 @@ result.residuals_imag       # Imaginary part residuals (fraction)
 result.pseudo_chisqr        # Pseudo chi-squared
 result.noise_estimate       # Upper bound noise estimate [%]
 result.quality              # Quality metric (0-1)
-result.ref_freq             # Reference frequency used [Hz]
 result.figure               # matplotlib Figure
 
 # Convenience properties
@@ -228,7 +225,7 @@ result.is_valid             # True if mean_residual_mag < 5%
 |--------|--------|-------|
 | Method | Parametric (Voigt chain fitting) | Non-parametric (numerical integration) |
 | Speed | Slower (iterative optimization) | Faster (single pass) |
-| Output | M, mu, inductance | Quality metric, ref_freq |
+| Output | M, mu, inductance | Quality metric |
 | Noise estimate | Accurate | Upper bound |
 
 Both methods are complementary. Z-HIT is faster and model-free, Lin-KK provides

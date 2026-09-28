@@ -232,8 +232,9 @@ curve is the reconstructed one.
 
 It corrects drift, not noise, and the distinction is not cosmetic: the
 second-order term differentiates the phase, so phase noise is amplified rather
-than smoothed. On a stationary spectrum with 1% noise the reconstruction makes
-the fitted resistances several times *worse* than the measurement does. Use it
+than smoothed. On a stationary spectrum with 1% noise the reconstruction never
+makes the fitted resistances clearly better, and sometimes up to three times
+*worse*, than the measurement does. Use it
 when the per-point residual check reports a systematic deviation at the lowest
 frequencies - that is drift - and not to clean up a scattered one.
 
@@ -612,7 +613,6 @@ the fit reports `Global search contributed nothing` - see
 ### Z-HIT validation
 
 - `--no-zhit` - Disable Z-HIT validation (runs by default alongside Lin-KK).
-- `--zhit-optimize-offset` - Use weighted least-squares offset optimization instead of fixed reference point.
 
 ### Data quality
 

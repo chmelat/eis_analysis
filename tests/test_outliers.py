@@ -212,7 +212,7 @@ def test_empty_zhit_result_is_ignored():
     zhit = ZHITResult(
         Z_mag_reconstructed=empty, Z_fit=np.array([], dtype=complex),
         residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
-        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0, ref_freq=1.0,
+        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0,
         figure=None
     )
     report = find_outliers(np.logspace(-2, 5, 10), None, zhit)

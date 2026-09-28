@@ -10,7 +10,7 @@ Implementation notes
 --------------------
 The Z-HIT method reconstructs |Z| from phase using the Kramers-Kronig relation:
 
-    ln|Z(omega)| = ln|Z(omega_ref)| + (2/pi) * H[phi(omega)]
+    ln|Z(omega)| = C + (2/pi) * H[phi(omega)]
 
 where H is the Hilbert transform. Two computational approaches exist:
 
@@ -82,8 +82,6 @@ class ZHITResult:
         Estimated noise [%] (Yrjana & Bobacka 2024)
     quality : float
         Quality metric (0-1 scale, based on magnitude residuals)
-    ref_freq : float
-        Reference frequency used [Hz]
     quality_threshold : float
         Pass/fail threshold for `is_valid` and the `quality` metric [%].
     figure : Optional[plt.Figure]
@@ -97,7 +95,6 @@ class ZHITResult:
     pseudo_chisqr: float
     noise_estimate: float
     quality: float
-    ref_freq: float
     quality_threshold: float = 5.0
     figure: Optional[plt.Figure] = None
 
@@ -137,70 +134,10 @@ class ZHITResult:
         return _quality_label(self.mean_residual_mag)
 
 
-def _calculate_offset_weighted(
-    ln_Z_fit: NDArray[np.float64],
-    ln_Z_exp: NDArray[np.float64],
-    frequencies: NDArray[np.float64],
-    center: Optional[float] = None,
-    width: float = 3.0
-) -> float:
-    """
-    Calculate optimal offset using weighted least-squares.
-
-    Uses a Gaussian window in log-frequency space to weight the fit.
-
-    Parameters
-    ----------
-    ln_Z_fit : array
-        Reconstructed ln|Z| (before offset adjustment)
-    ln_Z_exp : array
-        Experimental ln|Z|
-    frequencies : array
-        Frequencies [Hz]
-    center : float, optional
-        Center of weight window on log10(f) scale.
-        If None (default), uses the median of log10(frequencies) so the window
-        always overlaps the measured spectrum regardless of frequency range.
-    width : float
-        Width of weight window in decades (default: 3.0)
-
-    Returns
-    -------
-    offset : float
-        Optimal offset to add to ln_Z_fit
-    """
-    log_f = np.log10(frequencies)
-
-    # Default to median(log10 f) so the window is centered inside the measured
-    # range; a fixed center can fall outside the data (e.g. mHz corrosion scans)
-    # and starve the Gaussian of weight.
-    if center is None:
-        center = float(np.median(log_f))
-
-    # Gaussian window: ~95% of weight within 'width' decades
-    sigma = width / 4
-    weights = np.exp(-0.5 * ((log_f - center) / sigma)**2)
-
-    # Clip weights to [0, 1]
-    weights = np.clip(weights, 0.0, 1.0)
-
-    # Analytical weighted least-squares solution
-    diff = ln_Z_exp - ln_Z_fit
-    offset = float(np.sum(weights * diff) / np.sum(weights))
-
-    return offset
-
-
 def zhit_reconstruct_magnitude(
     frequencies: NDArray[np.float64],
     phi: NDArray[np.float64],
-    ln_Z_ref: float,
-    ref_idx: int,
-    use_second_order: bool = True,
-    optimize_offset: bool = False,
-    ln_Z_exp: Optional[NDArray[np.float64]] = None,
-    offset_center: Optional[float] = None,
-    offset_width: float = 3.0
+    ln_Z_exp: NDArray[np.float64]
 ) -> NDArray[np.float64]:
     """
     Reconstruct impedance magnitude from phase using Z-HIT method.
@@ -214,22 +151,9 @@ def zhit_reconstruct_magnitude(
         Frequencies [Hz], sorted ascending
     phi : ndarray of float
         Phase angles [rad], sorted by ascending frequency
-    ln_Z_ref : float
-        Natural logarithm of impedance magnitude at reference frequency
-    ref_idx : int
-        Index of reference frequency in the data
-    use_second_order : bool, optional
-        Use second-order correction term (derivative of phase). Default: True
-    optimize_offset : bool, optional
-        Use weighted least-squares offset optimization instead of fixed reference
-        point. Default: False
-    ln_Z_exp : array, optional
-        Experimental ln|Z| values, required if optimize_offset=True
-    offset_center : float, optional
-        Center of weight window on log10(f) scale.
-        If None (default), uses the median of log10(frequencies).
-    offset_width : float, optional
-        Width of weight window in decades (default: 3.0)
+    ln_Z_exp : ndarray of float
+        Experimental ln|Z|, sorted by ascending frequency. Only fixes the
+        integration constant (see Notes).
 
     Returns
     -------
@@ -240,63 +164,41 @@ def zhit_reconstruct_magnitude(
     -----
     The Z-HIT formula (first order):
 
-        ln|Z(omega)| = ln|Z(omega_ref)| + (2/pi) * integral[phi * d(ln omega)]
+        ln|Z(omega)| = C + (2/pi) * integral[phi * d(ln omega)]
 
     Second order correction (Ehm et al. 2001):
 
-        ln|Z(omega)| = first_order - gamma * d(phi)/d(ln omega)
+        ln|Z(omega)| = first_order + gamma * d(phi)/d(ln omega),  gamma = -pi/6
 
-    where gamma is a weighting factor (typically ~0.2-0.5).
+    The phase determines ln|Z| only up to the constant C. It is set to
+    median(ln_Z_exp - reconstruction) over the whole spectrum rather than by
+    matching a single reference point: a single point carries its own noise and
+    the local approximation error of the second-order term into every point of
+    the reconstruction (1.7% mean residual on a noise-free R+RC when the point
+    sits at the relaxation). The median is robust to outliers and to drift in
+    fewer than half of the points; it fails when most of the spectrum is bad.
     """
     ln_omega = np.log(2 * np.pi * frequencies)
 
     # First order: cumulative integration of phase
-    # Uses scipy cumulative_trapezoid for clean vectorized implementation
-    integrand = (2.0 / np.pi) * phi
-    integral_from_start = cumulative_trapezoid(integrand, ln_omega, initial=0)
+    ln_Z_reconstructed = cumulative_trapezoid((2.0 / np.pi) * phi, ln_omega, initial=0)
 
-    # Shift integral so it equals ln_Z_ref at the reference point
-    ln_Z_first_order = ln_Z_ref + (integral_from_start - integral_from_start[ref_idx])
-
-    if not use_second_order:
-        return ln_Z_first_order
-
-    # Second order correction: derivative of phase
-    # np.gradient handles non-equidistant data correctly
+    # Second order: np.gradient handles non-equidistant data correctly
     d_phi_d_ln_omega = np.gradient(phi, ln_omega)
 
     # Second-order correction coefficient gamma = -pi/6
     # Derived from Taylor expansion of the Hilbert transform kernel in log-omega space.
     # See Ehm et al. (2001) eq. 15 and Schiller et al. (2001) for derivation.
-    # Formula: ln|Z| = (2/pi) * integral + gamma * d(phi)/d(ln omega)
     gamma = -np.pi / 6.0  # ≈ -0.524
+    ln_Z_reconstructed += gamma * d_phi_d_ln_omega
 
-    ln_Z_reconstructed = ln_Z_first_order + gamma * d_phi_d_ln_omega
-
-    # Calculate offset
-    if optimize_offset and ln_Z_exp is not None:
-        # Weighted least-squares optimization
-        offset = _calculate_offset_weighted(
-            ln_Z_reconstructed, ln_Z_exp, frequencies,
-            center=offset_center, width=offset_width
-        )
-    else:
-        # Original behavior: fixed offset at reference point
-        offset = ln_Z_ref - ln_Z_reconstructed[ref_idx]
-
-    ln_Z_reconstructed += offset
-
-    return ln_Z_reconstructed
+    return ln_Z_reconstructed + np.median(ln_Z_exp - ln_Z_reconstructed)
 
 
 def zhit_validation(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    ref_freq: Optional[float] = None,
-    quality_threshold: float = 5.0,
-    optimize_offset: bool = False,
-    offset_center: Optional[float] = None,
-    offset_width: float = 3.0
+    quality_threshold: float = 5.0
 ) -> ZHITResult:
     """
     Perform Z-HIT (Z-Hilbert Impedance Transform) validation on EIS data.
@@ -310,20 +212,9 @@ def zhit_validation(
         Measured frequencies [Hz]
     Z : ndarray of complex
         Complex impedance [Ohm]
-    ref_freq : float, optional
-        Reference frequency for magnitude anchor [Hz].
-        Default: geometric mean of frequency range.
     quality_threshold : float, optional
         Reference threshold for quality metric calculation [%].
         Default: 5.0 (5% mean residual = quality 0)
-    optimize_offset : bool, optional
-        Use weighted least-squares offset optimization instead of fixed reference
-        point. Default: False
-    offset_center : float, optional
-        Center of weight window on log10(f) scale.
-        If None (default), uses the median of log10(frequencies).
-    offset_width : float, optional
-        Width of weight window in decades (default: 3.0)
 
     Returns
     -------
@@ -337,16 +228,17 @@ def zhit_validation(
         - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
         - noise_estimate: Estimated noise [%]
         - quality: Quality metric (0-1 scale)
-        - ref_freq: Reference frequency used [Hz]
         - figure: Visualization figure
 
     Notes
     -----
     The Z-HIT method reconstructs |Z| from phase using:
 
-        ln|Z(omega)| = ln|Z(omega_ref)| + (2/pi) * H[phi(omega)]
+        ln|Z(omega)| = C + (2/pi) * integral[phi * d(ln omega)]
+                       + gamma * d(phi)/d(ln omega)
 
-    where H is the Hilbert transform operator.
+    with C fixed by the median over the spectrum, see
+    `zhit_reconstruct_magnitude`.
 
     Advantages over Lin-KK:
     - No model fitting required (truly non-parametric)
@@ -372,23 +264,10 @@ def zhit_validation(
     Z_mag = np.abs(Z)
     phi = np.unwrap(np.arctan2(Z.imag, Z.real))
 
-    # Select reference frequency (geometric mean by default)
-    if ref_freq is None:
-        ref_freq = np.sqrt(frequencies[0] * frequencies[-1])
-
-    # Find index closest to reference frequency
-    ref_idx = int(np.argmin(np.abs(frequencies - ref_freq)))
-    actual_ref_freq = frequencies[ref_idx]
-    ln_Z_ref = np.log(Z_mag[ref_idx])
-
     # Perform Z-HIT magnitude reconstruction using numerical integration
     try:
         ln_Z_reconstructed = zhit_reconstruct_magnitude(
-            frequencies, phi, ln_Z_ref, ref_idx,
-            optimize_offset=optimize_offset,
-            ln_Z_exp=np.log(Z_mag),
-            offset_center=offset_center,
-            offset_width=offset_width
+            frequencies, phi, np.log(Z_mag)
         )
         Z_mag_reconstructed = np.exp(ln_Z_reconstructed)
     except Exception as e:
@@ -404,7 +283,6 @@ def zhit_validation(
             pseudo_chisqr=0.0,
             noise_estimate=0.0,
             quality=0.0,
-            ref_freq=actual_ref_freq,
             quality_threshold=quality_threshold,
             figure=None
         )
@@ -442,9 +320,6 @@ def zhit_validation(
     ax1.legend()
     ax1.grid(True, alpha=0.3, which='both')
 
-    # Mark reference frequency
-    ax1.axvline(x=actual_ref_freq, color='gray', linestyle='--', alpha=0.5)
-
     # Right panel: Complex residuals
     ax2 = axes[1]
     ax2.semilogx(frequencies, residuals_real * 100, 'o', label='Real', markersize=4, alpha=0.7)
@@ -471,7 +346,6 @@ def zhit_validation(
         pseudo_chisqr=pseudo_chisqr,
         noise_estimate=noise_estimate,
         quality=quality,
-        ref_freq=actual_ref_freq,
         quality_threshold=quality_threshold,
         figure=fig
     )

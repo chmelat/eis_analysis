@@ -179,9 +179,6 @@ Examples:
 
     zhit_group.add_argument('--no-zhit', action='store_true',
                             help='Skip Z-HIT validation')
-    zhit_group.add_argument('--zhit-optimize-offset', action='store_true',
-                            help='Optimize Z-HIT offset using weighted least-squares '
-                                 '(default: fixed reference point)')
 
     # ==========================================================================
     # Data Quality Group

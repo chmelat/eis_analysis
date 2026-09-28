@@ -122,7 +122,7 @@ def run_zhit_validation(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: no_zhit, zhit_optimize_offset, save, format)
+        CLI arguments (uses: no_zhit, save, format)
 
     Returns
     -------
@@ -137,17 +137,14 @@ def run_zhit_validation(
     logger.info("Z-HIT validation")
     log_separator()
 
-    result = zhit_validation(
-        frequencies, Z,
-        optimize_offset=args.zhit_optimize_offset
-    )
+    result = zhit_validation(frequencies, Z)
     if not result.success:
         # zhit_validation already logged why; the empty result still goes back
         # so the outlier report can skip Z-HIT rather than mistake it for data.
         return result
 
     # Summary (format consistent with KK validation)
-    logger.info(f"Z-HIT: ref_freq={result.ref_freq:.2e} Hz")
+    logger.info("Z-HIT: second order, offset = median over the spectrum")
     logger.info(f"  Mean |res_real|: {result.mean_residual_real:.2f}%")
     logger.info(f"  Mean |res_imag|: {result.mean_residual_imag:.2f}%")
     logger.info(f"  Pseudo chi^2: {result.pseudo_chisqr:.2e}")
