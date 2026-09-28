@@ -4,6 +4,40 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.44.0 (2026-09-28)
+
+### Fixed
+
+- **Z-HIT no longer anchors the reconstruction at a single point.** The phase
+  fixes ln|Z| only up to a constant, which was taken from the point nearest
+  the geometric-mean frequency. That point's noise and the local error of the
+  second-order term then shifted the whole curve: a noise-free R+RC with its
+  relaxation mid-spectrum scored 1.72% ("acceptable") instead of 0.63%, and a
+  single 5% outlier there moved every other point by ~3%. The constant is now
+  `median(ln|Z_exp| - ln|Z_rec|)` over the spectrum, robust to outliers and to
+  drift in fewer than half of the points (doc/ZHIT_REVIEW.md, 1.1).
+- **The first-order path is gone.** With `use_second_order=False` the
+  weighted offset was never applied (1.2); nothing in the toolkit used that
+  path, so the second-order term is now always on.
+
+Side effects on `--fit-on`: on 1%-noise data the reconstruction now costs
+much less (max resistance error over seeds 0-4 drops from 1.5-7.3% to
+0.2-2.0%); on the drift reference spectrum it recovers the resistances to
+0.42% instead of 0.12%, because the drifted quarter of the points pulls the
+median slightly.
+
+### Breaking (API and CLI)
+
+- `zhit_validation`: `ref_freq`, `optimize_offset`, `offset_center`,
+  `offset_width` removed. `ZHITResult.ref_freq` removed.
+- `zhit_reconstruct_magnitude(frequencies, phi, ln_Z_exp)` replaces
+  `(frequencies, phi, ln_Z_ref, ref_idx, use_second_order, ...)`.
+- CLI `--zhit-optimize-offset` removed.
+
+  Migration: drop these arguments; there is no offset to choose any more.
+
+---
+
 ## Version 0.43.1 (2026-09-28)
 
 ### Fixed
