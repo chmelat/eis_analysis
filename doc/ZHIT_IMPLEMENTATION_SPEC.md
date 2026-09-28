@@ -1,232 +1,199 @@
 # Z-HIT Validation - Implementation Specification
 
-Status: IMPLEMENTED (v0.10.0+)
+Status: implemented since v0.10.0; this document describes v0.44.1.
+
+Code: `eis_analysis/validation/zhit.py`. API reference: docstrings and
+[PYTHON_API.md](PYTHON_API.md). Known open issues: [ZHIT_REVIEW.md](ZHIT_REVIEW.md).
 
 ## Overview
 
-Z-HIT (Z-Hilbert Impedance Transform) is a non-parametric method for validating Kramers-Kronig compliance of EIS data. It complements the existing Lin-KK method by providing a faster, model-free validation.
-
-## Motivation
+Z-HIT (Z-Hilbert Impedance Transform) is a non-parametric check of
+Kramers-Kronig compliance. It reconstructs |Z| from the measured phase and
+compares the reconstruction with the measured |Z|. It runs by default
+alongside Lin-KK.
 
 | Aspect | Lin-KK | Z-HIT |
 |--------|--------|-------|
 | Method | Parametric (Voigt chain fitting) | Non-parametric (numerical integration) |
-| Speed | Slower (iterative optimization) | Faster (single pass) |
+| Speed | Slower (iterative choice of M) | Single pass |
 | Model dependency | Requires model selection (M elements) | Model-free |
-| Sensitivity | Better for fitting quality | Better for phase-magnitude consistency |
+| What it compares | Full complex residual | Magnitude only; the phase is taken as given |
 
-## Implementation Notes
+## Mathematical Background
 
-### Design Decision: Numerical Integration vs FFT
-
-The Z-HIT method can be implemented using two approaches:
-
-1. **FFT-based Hilbert transform** (`scipy.signal.hilbert`)
-   - Fast but sensitive to edge effects
-   - Requires padding to mitigate boundary artifacts
-
-2. **Direct numerical integration in log-omega space** (used here)
-   - Ehm et al. (2001) showed that in log-omega space:
-     `H[phi] ~ integral of phi * d(ln omega) + correction term`
-   - More robust for finite frequency ranges typical in EIS
-   - No padding required, simpler implementation
-
-We chose approach (2) because EIS data has limited frequency range where
-edge effects from FFT-based Hilbert transform can distort results.
-
-This design was informed by studying the pyimpspec library implementation,
-which uses a more sophisticated pipeline (smoothing + spline interpolation +
-integration). Our implementation is simpler but achieves comparable results
-for typical EIS data.
-
-### Mathematical Background
-
-The Z-HIT formula (first order):
+In x = ln(omega), the magnitude of a minimum-phase impedance follows from its
+phase through the Kramers-Kronig relation. Ehm et al. (2001) replace the
+non-local integral by a local expansion. Written out, the series is (derivation
+in [ZHIT_REVIEW.md](ZHIT_REVIEW.md), 1.3.1):
 
 ```
-ln|Z(omega)| = ln|Z(omega_ref)| + (2/pi) * integral[phi * d(ln omega)]
+ln|Z(x)| = C + (2/pi) * integral[phi dx]
+             - (pi/6)       * phi'(x)
+             - (pi^3/360)   * phi'''(x)
+             - ...
 ```
 
-Second order correction (Ehm et al. 2001):
+The implementation keeps the first two terms (gamma = -pi/6):
 
 ```
-ln|Z(omega)| = first_order + gamma * d(phi)/d(ln omega)
+ln|Z(x)| = C + (2/pi) * integral[phi dx] + gamma * d(phi)/dx
 ```
 
-where gamma = -pi/6 (derived from Taylor expansion of the Hilbert transform
-kernel in log-omega space, see Ehm et al. 2001 eq. 15).
+### Integration constant
 
-## File Structure
+The phase determines ln|Z| only up to C. C is set to
+`median(ln|Z_exp| - reconstruction)` over the whole spectrum (since v0.44.0).
+Matching a single reference point, as older versions did, carried that point's
+noise and the local approximation error into every point of the
+reconstruction. The median is robust to outliers and to drift in fewer than
+half of the points; it fails when most of the spectrum is bad.
 
-```
-eis_analysis/
-  validation/
-    __init__.py          # Exports
-    kramers_kronig.py    # Lin-KK implementation
-    zhit.py              # Z-HIT implementation
-```
+### Accuracy floor
 
-## Public API
+The series is asymptotic, not convergent, so the two-term formula has an
+error even on exact, noise-free, K-K compliant data. It peaks where the phase
+bends most, i.e. around a relaxation, not at the edges of the frequency range:
 
-### `zhit_validation()`
+| Data (noise-free) | mean | max |
+|---|---|---|
+| R+RC (ideal, Debye) | 0.7 % | 3.2 % |
+| R+CPE, n = 0.8 | 0.3 % | 1.2 % |
+| R+CPE, n = 0.6 | 0.1 % | 0.4 % |
 
-```python
-def zhit_validation(
-    frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    ref_freq: Optional[float] = None,
-    quality_threshold: float = 5.0,
-    optimize_offset: bool = False,
-    offset_center: float = 1.5,
-    offset_width: float = 3.0
-) -> ZHITResult:
-    """
-    Perform Z-HIT validation on EIS data.
+Discretization adds almost nothing at 10 points/decade. Adding the phi'''
+term would halve the floor on clean data but amplifies noise (third
+derivative), making real data worse. Details and measurements:
+[ZHIT_REVIEW.md](ZHIT_REVIEW.md), 1.3.
 
-    Parameters
-    ----------
-    frequencies : ndarray of float
-        Measured frequencies [Hz]
-    Z : ndarray of complex
-        Complex impedance [Ohm]
-    ref_freq : float, optional
-        Reference frequency for magnitude anchor [Hz].
-        Default: geometric mean of frequency range.
-    quality_threshold : float, optional
-        Reference threshold for quality metric calculation [%].
-        Default: 5.0 (5% mean residual = quality 0)
-    optimize_offset : bool, optional
-        Use weighted least-squares offset optimization instead of fixed
-        reference point. Default: False
-    offset_center : float, optional
-        Center of weight window on log10(f) scale (default: 1.5 -> ~31.6 Hz)
-    offset_width : float, optional
-        Width of weight window in decades (default: 3.0)
+### Why not an FFT Hilbert transform
 
-    Returns
-    -------
-    ZHITResult
-        Dataclass with validation results and visualization
-    """
-```
+The exact relation is a multiplication by `-i * coth(pi*k/2)` in the Fourier
+domain of ln(omega). Evaluating it (or `scipy.signal.hilbert`) needs the phase
+outside the measured range, i.e. padding or extrapolation, and a finite EIS
+window makes the result edge-sensitive. The local expansion needs neither.
 
-### `zhit_reconstruct_magnitude()`
+## Algorithm (`zhit_validation`)
 
-Low-level function for magnitude reconstruction from phase:
+1. Sort by ascending frequency; outputs are returned in the caller's order.
+2. `phi = np.unwrap(arctan2(Z.imag, Z.real))` removes 2*pi jumps that would
+   spike the derivative.
+3. `zhit_reconstruct_magnitude(frequencies, phi, ln|Z|)`:
+   cumulative trapezoid of `(2/pi) * phi` over ln(omega), plus
+   `-pi/6 * np.gradient(phi, ln omega)`, plus the median offset.
+4. `Z_fit = |Z_recon| * exp(j * phi)`: only the magnitude is reconstructed,
+   the measured phase is kept.
+5. Residuals: `residuals_mag = (|Z| - |Z_recon|) / |Z| * 100` [%];
+   `residuals_real/imag = (Z - Z_fit) / |Z|` [fraction].
+6. Pseudo chi-squared, noise estimate, quality metric, figure.
 
-```python
-def zhit_reconstruct_magnitude(
-    frequencies: NDArray[np.float64],
-    phi: NDArray[np.float64],
-    ln_Z_ref: float,
-    ref_idx: int,
-    use_second_order: bool = True,
-    optimize_offset: bool = False,
-    ln_Z_exp: Optional[NDArray[np.float64]] = None,
-    offset_center: float = 1.5,
-    offset_width: float = 3.0
-) -> NDArray[np.float64]:
-    """
-    Reconstruct impedance magnitude from phase using Z-HIT method.
+Because `Z_fit` carries the measured phase, `Z - Z_fit = (|Z| - |Z_recon|) *
+exp(j*phi)`: the real and imaginary residuals are the magnitude residual
+projected by cos(phi) and sin(phi), not an independent check
+([ZHIT_REVIEW.md](ZHIT_REVIEW.md), 2.1).
 
-    Uses numerical integration in log-frequency space according to
-    the modified logarithmic Hilbert transform (Ehm et al. 2001).
-    """
-```
+## Result
 
-### `ZHITResult` Dataclass
+`ZHITResult` fields and properties are documented in its docstring and in
+PYTHON_API.md. The decisions built on them:
 
-```python
-@dataclass
-class ZHITResult:
-    Z_mag_reconstructed: NDArray[np.float64]  # Reconstructed |Z| [Ohm]
-    Z_fit: NDArray[np.complex128]             # Reconstructed Z [Ohm]
-    residuals_mag: NDArray[np.float64]        # Magnitude residuals [%]
-    residuals_real: NDArray[np.float64]       # Real residuals (fraction)
-    residuals_imag: NDArray[np.float64]       # Imag residuals (fraction)
-    pseudo_chisqr: float                       # Pseudo chi-squared
-    noise_estimate: float                      # Upper bound noise estimate [%]
-    quality: float                             # Quality metric (0-1)
-    ref_freq: float                            # Reference frequency [Hz]
-    figure: Optional[plt.Figure]               # Visualization
+- `success`: False when the reconstruction raised; all arrays are then empty.
+- `is_valid`: `mean_residual_mag < quality_threshold` (default 5 %).
+- `quality`: `max(0, 1 - mean_residual_mag / quality_threshold)`.
+- `quality_label`: shared with Lin-KK (`_quality_label`):
 
-    # Properties
-    mean_residual_real: float   # Mean |res_real| [%]
-    mean_residual_imag: float   # Mean |res_imag| [%]
-    mean_residual_mag: float    # Mean |res_mag| [%]
-    is_valid: bool              # True if mean_residual_mag < 5%
-```
+| Mean \|res_mag\| | Label |
+|---|---|
+| < 0.5 % | excellent |
+| < 1.0 % | good |
+| < 2.5 % | acceptable |
+| < 5.0 % | marginal (check for drift/nonlinearity) |
+| >= 5.0 % | poor |
 
-## CLI Integration
-
-### Arguments
-
-```
---no-zhit           Disable Z-HIT validation
---zhit-optimize-offset  Use weighted offset optimization
-```
-
-Z-HIT runs by default alongside Lin-KK validation.
-
-### Output Format
-
-```
-============================================================
-Z-HIT validation
-============================================================
-Z-HIT: ref_freq=2.81e+01 Hz
-  Mean |res_real|: 1.23%
-  Mean |res_imag|: 0.89%
-  Pseudo chi^2: 2.70e-02
-  Estimated noise (upper bound): 1.39%
-Data quality is good (residuals < 5%)
-```
-
-### Graph Title
-
-```
-Z-HIT residuals (χ²=2.70e-02, noise≤1.4%)
-```
-
-Note: Noise estimate is labeled as upper bound because Z-HIT residuals
-include both noise and integration approximation errors.
+These thresholds were set for Lin-KK. Given the accuracy floor above, an
+ideal RC scores "good" at best under Z-HIT.
 
 ## Noise Estimation
 
-The noise estimate uses the same pseudo chi-squared formula as Lin-KK
-(Yrjana & Bobacka 2024):
+The noise estimate uses the Lin-KK formula (Yrjana & Bobacka 2024):
 
 ```python
 noise_estimate = sqrt(chi2_ps * 5000 / n_points)
 ```
 
-**Important caveat:** For Z-HIT, this is an upper bound because:
-- Lin-KK fits a model, so residuals are mostly noise
-- Z-HIT reconstructs from phase, so residuals = noise + integration error
+It is reported as an upper bound: Z-HIT residuals contain the accuracy floor
+as well as noise, and, since the real/imag residuals are projections of the
+magnitude residual, chi2_ps measures the magnitude deviation only.
+
+## CLI Integration
+
+```
+--no-zhit                    Skip Z-HIT validation
+--fit-on {original,zhit,all} Fit the circuit (zhit) or every stage (all)
+                             against the Z-HIT reconstruction
+```
+
+`--fit-on zhit|all` cannot be combined with `--no-zhit`.
+
+Output (`cli/handlers/validation.py`, `run_zhit_validation`):
+
+```
+============================================================
+Z-HIT validation
+============================================================
+Z-HIT: second order, offset = median over the spectrum
+  Mean |res_real|: 1.20%
+  Mean |res_imag|: 0.88%
+  Pseudo chi^2: 2.42e-02
+  Estimated noise (upper bound): 1.31%
+Data quality: acceptable (mean |res_mag|=1.55%, threshold=5.0%)
+```
+
+The data-quality line is a warning when `is_valid` is False.
+
+The figure has two panels: measured vs reconstructed |Z| (log-log), and the
+real/imag residuals in % with fixed +-5 % guide lines. It is saved as `zhit`
+with `--save`.
+
+The per-point outlier report (`validation/outliers.py`, `find_outliers`)
+reads `|residuals_mag|` from this result.
+
+## Second use: reconstruction as a data correction (v0.34.0)
+
+`ZHITResult.Z_fit` is not only the reference curve the residuals are measured
+against - `--fit-on` makes it the data the circuit is fitted to. See README,
+"Z-HIT as a correction", and [ZAHNER_ANALYSIS_REVIEW.md](ZAHNER_ANALYSIS_REVIEW.md)
+section 7.
+
+Two constraints follow from the transform and are enforced by where the CLI
+calls it: the reconstruction is computed on the full spectrum (a range
+truncated by `--f-min`/`--f-max` is a different reconstruction, so
+`apply_zhit_reconstruction()` runs before `filter_by_frequency()`), and it
+trusts the phase to replace the magnitude, which is what limits it to drift.
+
+Two costs follow from the accuracy floor and the derivative:
+
+- Around sharp relaxations |Z| is shifted by up to ~3 % even on clean data.
+  Under `--fit-on all`, R_inf and the DRT read that error wherever a
+  relaxation sits; the run warns about it.
+- The gamma * phi' term differentiates phase noise. On 1 % noise the
+  reconstruction does not make fitted resistances clearly better and can make
+  them up to ~3x worse (`tests/test_zhit_fit_on.py`). Use it for drift, not
+  for scatter.
 
 ## Comparison with pyimpspec
 
-Our implementation is simpler than pyimpspec's Z-HIT:
-
 | Feature | eis_analysis | pyimpspec |
 |---------|--------------|-----------|
-| Smoothing | None | Multiple options (lowess, savgol, modsinc, whithend) |
-| Interpolation | None | Multiple splines (akima, makima, cubic, pchip) |
+| Smoothing | None | lowess, savgol, modsinc, whithend |
+| Interpolation | None | akima, makima, cubic, pchip splines |
 | Integration | Trapezoidal on raw data | Spline integration |
-| Offset fitting | Weighted least-squares | lmfit minimization |
+| Offset | Median over the spectrum | lmfit minimization over a window |
 | Auto-optimization | No | Yes (tests all combinations) |
-| Parallel processing | No | Yes |
 
-For typical EIS data with reasonable signal-to-noise ratio, both approaches
-yield similar results. pyimpspec's approach may be more robust for noisy data.
-
-## Quality Interpretation
-
-| Mean Residual | Interpretation |
-|---------------|----------------|
-| < 2%          | Excellent K-K compliance |
-| < 5%          | Good K-K compliance |
-| >= 5%         | Data may contain artifacts |
+The missing smoothing is why phase noise reaches the reconstruction
+unfiltered (open point 2 of [ZHIT_AUDIT_2026-04-26.md](ZHIT_AUDIT_2026-04-26.md)).
+A code-level comparison is in [ZHIT_comparison_report.md](ZHIT_comparison_report.md);
+the two have not been benchmarked against each other on the same data.
 
 ## References
 
@@ -242,17 +209,3 @@ yield similar results. pyimpspec's approach may be more robust for noisy data.
    testing using pyimpspec." *Electrochim. Acta* 504, 144951.
 
 4. pyimpspec library: https://github.com/vyrjana/pyimpspec
-   (inspiration for implementation approach)
-
-
-## Second use: reconstruction as a data correction (v0.34.0)
-
-`ZHITResult.Z_fit` is not only the reference curve the residuals are measured
-against - `--fit-on` makes it the data the circuit is fitted to. See README,
-"Z-HIT as a correction", and `doc/ZAHNER_ANALYSIS_REVIEW.md` section 7.
-
-Two constraints follow from the transform and are enforced by where the CLI
-calls it: the reconstruction is computed on the full spectrum (a range
-truncated by `--f-min`/`--f-max` is a different reconstruction, so
-`apply_zhit_reconstruction()` runs before `filter_by_frequency()`), and it
-trusts the phase to replace the magnitude, which is what limits it to drift.
