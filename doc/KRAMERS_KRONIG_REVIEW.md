@@ -1,0 +1,164 @@
+# Kriticka analyza modulu kramers_kronig
+
+Datum: 2026-09-28, verze v0.44.1
+
+Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
+ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,
+`calc_mu`), `fitting/voigt_chain/tau_grid.py` (`generate_tau_grid_fixed_M`),
+`fitting/voigt_chain/fitting.py` (`estimate_R_linear`). Dale
+`cli/handlers/validation.py` a `tests/test_kramers_kronig.py`.
+
+Nalezy oznacene "overeno" byly reprodukovany skriptem na syntetickych
+Voigtovych spektrech (presne KK-kompatibilnich, bez sumu) a na
+`example/EISPOT-test1.DTA`. Referenci byla `impedance.py` 1.7.1
+(`impedance.validation.linKK`).
+
+## Celkovy dojem
+
+Implementace je vernou kopii referencni Lin-KK: pro `fit_type='real'` i
+`'complex'` dava stejne M, mu i rezidua jako `impedance.py` (overeno).
+Hlavni problemy proto nejsou chyby prepisu, ale vedecke: s vychozim
+nastavenim ukazuje test na dokonale KK datech rezidua v rade procent a
+optimalizace `extend_decades` obchazi pojistku proti preuceni.
+
+## 1. Chyby s dopadem na vysledek
+
+### 1.1 Mu kriterium s prahem 0.85 zastavuje prilis brzy (overeno)
+
+mu(M) neni monotonni. Na hrubem tau-gridu pinv aproximuje tau lezici mezi
+body gridu stridave kladnymi a zapornymi R, takze mu kratce spadne pod prah
+a hledani skonci.
+
+| Spektrum (presne, bez sumu) | Prah | M | prumer \|res\| re/im | max \|res\| |
+|---|---|---|---|---|
+| 2-RC z `test_kramers_kronig.py` (10^-1 .. 10^5 Hz, 60 bodu) | 0.85 (vychozi CLI) | 7 | 3.8 / 4.0 % | 14 % |
+| totez | 0.7 | 17 | 0.14 / 0.15 % | 0.6 % |
+| 2-RC, tau = 1 ms a 0.5 s, 10^-2 .. 10^5 Hz, 71 bodu | 0.85 | 6 | 1.8 / 2.2 % | -9 % (imag, 0.01 Hz) |
+| totez, `fit_type='complex'` | 0.85 | 7 | 11.0 / 10.9 % | - |
+
+Prubeh mu pro posledni spektrum (real fit): M = 3..5 -> mu ~ 1.0, M = 6 ->
+0.81 (stop), M = 7..9 -> 0.52 .. 0.65, M = 10 -> 0.86.
+
+Testy se tomu vyhybaji pouzitim `mu_threshold=0.7`
+(`tests/test_kramers_kronig.py:183`, `:210`); CLI pouziva 0.85.
+
+Jde o znamou slabinu puvodni metody (Schonleber 2014), kterou resi pyimpspec
+(Yrjana & Bobacka 2024) - na ten modul uz odkazuje u odhadu sumu.
+
+Navrh minimalni opravy: nezastavovat na prvnim poklesu mu. Projit M az do
+`max_M` a vzit prvni M, kde mu < prah a zaroven se pseudo chi^2 uz vyrazne
+nezlepsuje. Pred zmenou vychoziho chovani zmerit na realnych datech.
+
+### 1.2 `auto_extend_decades` obchazi mu (overeno)
+
+`lin_kk_native` vybere M na gridu s `extend_decades=0`. Potom
+`find_optimal_extend_decades` fituje pri tomtez M na jinem gridu a vybira
+pouze podle pseudo chi^2. Mu na vyslednem gridu se neprepocita.
+
+Vynucene rozsireni na spektru z 1.1 (radek 3):
+
+| ext [dekady] | hlasene mu | skutecne mu vysledneho modelu |
+|---|---|---|
+| 0.3 | 0.808 | -0.23 |
+| 0.6 | 0.808 | -4.8 |
+| 1.0 | 0.808 | -43 |
+
+Skutecne mu znamena silne oscilujici zaporna R - presne to preuceni, pred
+kterym ma mu chranit. Minimalizace chi^2 bez teto pojistky snizuje citlivost
+testu. Na `EISPOT-test1.DTA` je to naopak: hlasene mu 0.846, skutecne 1.000.
+
+Dusledek: `result.mu`, titulek grafu i vypis CLI popisuji jiny model, nez
+ktery je v `Z_fit`.
+
+### 1.3 Varovani z hledani M se zahazuji (overeno)
+
+`lin_kk_native` (`kramers_kronig.py:424-425`) prevezme z `MuOptimization`
+M, mu, tau, prvky, L a C, ale ne `warnings` ani `reached_max_M`.
+`LinKKResult` pro ne nema pole. Varovani "Reached max_M ... model may still
+be overfit" se k uzivateli nikdy nedostane.
+
+Priklad: pri N = 3 bodech bezi smycka az do M = 50, protoze `max_M` neni
+omezeno poctem bodu. Uloha je silne podurcena a uzivatel se to nedozvi.
+
+### 1.4 `is_valid` (prumer |res| < 5 %) je prilis volne a nekonzistentni
+
+- Prumer schova lokalni poruseni: 10 z 70 bodu s rezidui 20 % da prumer
+  ~2.9 % a data "projdou".
+- Graf kresli +-5 % jako bodovou mez, `is_valid` ale testuje prumer.
+- Cislo 5 neni nikde zduvodneno (pravidlo projektu o magickych cislech) a
+  opakuje se na ctyrech mistech: `KKResult.is_valid`, `LinKKResult.is_valid`,
+  CLI handler a graf.
+
+### 1.5 Rozsireni gridu jde jen k nizkym frekvencim
+
+Docstring `kramers_kronig_validation` (`kramers_kronig.py:497-500`) slibuje
+reseni "capacitive/inductive tails". `generate_tau_grid_fixed_M` ale
+rozsiruje pouze smerem k nizkym frekvencim. Vysokofrekvencni induktivni
+chvost pokryva jen clen L. Docstring je treba opravit.
+
+## 2. Architektura a robustnost
+
+### 2.1 Vizualizace v jadru knihovny (overeno)
+
+Odporuje pravidlu CLAUDE.md "Visualization separated from algorithms".
+
+- `kramers_kronig_validation` vytvori figure pri kazdem volani; po trech
+  volanich zustanou tri otevrene figure (unik pameti pri davkovem
+  zpracovani).
+- Uz samotny `import eis_analysis.validation` natahne `matplotlib.pyplot`.
+- `KKResult` neobsahuje `elements` ani `tau`, takze si volajici graf mimo
+  modul nevykresli.
+
+### 2.2 `except Exception` polyka programatorske chyby (overeno)
+
+`kramers_kronig.py:531`. Predani listu misto ndarray vrati
+`KKResult(error="'<=' not supported between instances of 'list' and 'int'")`,
+zaloguje se jen na urovni debug a CLI to poda jako "KK validation failed".
+Stacilo by chytat `ValueError` a `np.linalg.LinAlgError`.
+
+### 2.3 Duplicita `KKResult` / `LinKKResult`
+
+Deset stejnych poli a tri stejne property (`mean_residual_real`,
+`mean_residual_imag`, `is_valid`). Cistsi by bylo
+`KKResult(fit: Optional[LinKKResult], warnings, error)`. Zaroven by to
+vyresilo chybejici tau a prvky (2.1) i zahozena varovani (1.3).
+
+## 3. Drobnosti
+
+- **Mrtvy kod:** `if lkk.Z_fit is None` (`kramers_kronig.py:535`) nemuze
+  nastat, `Z_fit` je v `LinKKResult` povinne pole.
+- **Tuple misto dataclassy:** `find_optimal_extend_decades` vraci 6-tuple,
+  projekt predepisuje `*Result` dataclassy.
+- **Nezdokumentovane konstanty:** tolerance `0.001` (`:344`),
+  `n_evaluations=11` (`:434`), `5000` v `estimate_noise_percent`
+  (= 100^2 / 2 za predpokladu stejneho relativniho sumu v obou slozkach;
+  patri do docstringu spolu s tim, ze jde o horni odhad).
+- **`estimate_noise_percent(chi2, 0)`** skonci `ZeroDivisionError`.
+- **Nekonzistentni ochrana |Z| = 0:** rezidua maji floor 1e-15,
+  `compute_pseudo_chisqr` ne.
+- **Krehke API `reconstruct_impedance`:**
+  - L je ulozene uvnitr `elements`, C mimo ne;
+  - `zip(R_i, tau)` pri nesouhlasnych delkach potichu orizne data;
+  - `include_L=True` u pole bez L potichu zahodi posledni R.
+- `kramers_kronig_validation` natvrdo pouziva `fit_type='real'`,
+  `weighting='modulus'`, `include_L=True`; neni to v parametrech ani v
+  docstringu.
+
+## 4. Co je v poradku
+
+- Vernost referenci (`impedance.py`) je overena.
+- Vzorec pro mu, normalizace rezidui pres |Z| a pseudo chi^2 podle Boukampa
+  jsou spravne.
+- Seriova kapacita (`include_C`, ekvivalent `add_cap`) funguje.
+- Hranice knihovna / CLI je, az na graf, dodrzena.
+
+## 5. Doporucene poradi
+
+1. **1.2 a 1.3** - male, jasne zmeny: prepocitat mu po rozsireni gridu (a
+   odmitnout rozsireni, ktere mu shodi pod prah) a propagovat varovani.
+2. **1.1** - zmena vyberu M; nutne zmerit na realnych datech pred zmenou
+   vychoziho chovani.
+3. **1.4 a 1.5** - kriterium platnosti a docstring.
+4. **2.1-2.3** - refaktor: graf do `visualization/`, jeden result typ,
+   uzsi `except`.
+5. Sekce 3 prubezne.
