@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.43.1 (2026-09-28)
+
+### Fixed
+
+- **DTA tables are split on the tab, not on any whitespace.** `split()`
+  merged an empty cell with its neighbour, so every column after it shifted
+  left and a value landed in the wrong column. ZCURVE and OCVCURVE rows now
+  use `split('\t')`; the ZCURVE fallback for an unnamed header moves from
+  columns 2-4 to 3-5 to account for the leading empty field.
+- **`parse_ocv_curve` locates T, Vf and Vm by header name** instead of
+  assuming columns 1-3, as ZCURVE already did. A header that does not name
+  them returns None with a warning rather than a guessed assignment.
+
+---
+
 ## Version 0.43.0 (2026-09-27)
 
 ### Added
