@@ -49,18 +49,6 @@ KK_RESIDUAL_THRESHOLD = 5.0
 KK_MAX_FRACTION_ABOVE = 0.05
 
 
-def count_points_above_threshold(
-    residuals_real: NDArray[np.float64],
-    residuals_imag: NDArray[np.float64]
-) -> int:
-    """Count points whose larger |residual| component exceeds KK_RESIDUAL_THRESHOLD [%].
-
-    NaN residuals count as above: a point that could not be fitted is not a pass.
-    """
-    per_point = 100 * np.maximum(np.abs(residuals_real), np.abs(residuals_imag))
-    return int(np.sum(~(per_point <= KK_RESIDUAL_THRESHOLD)))
-
-
 @dataclass
 class KKResult:
     """Result of a Lin-KK fit: `lin_kk_native` and `kramers_kronig_validation`.
@@ -151,7 +139,9 @@ class KKResult:
         """Points with max(|res_real|, |res_imag|) above KK_RESIDUAL_THRESHOLD."""
         if self.residuals_real is None or self.residuals_imag is None:
             return 0
-        return count_points_above_threshold(self.residuals_real, self.residuals_imag)
+        per_point = 100 * np.maximum(np.abs(self.residuals_real), np.abs(self.residuals_imag))
+        # NaN counts as above: a point that could not be fitted is not a pass
+        return int(np.sum(~(per_point <= KK_RESIDUAL_THRESHOLD)))
 
     @property
     def is_valid(self) -> bool:
