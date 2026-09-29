@@ -2,7 +2,7 @@
 
 ## Prehled
 
-Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Lin-KK testu (Linear Kramers-Kronig) pro validaci kvality EIS dat. Implementace je zalozena na metode Schonleber et al. (2014) a krome numpy nevyzaduje externi zavislosti. Pro `fit_type='real'` i `'complex'` dava stejne M, mu i rezidua jako referencni `impedance.py` (`impedance.validation.linKK`), az na odchylky popsane v sekci 3 (start hledani M) a 5 (rozsireni tau).
+Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Lin-KK testu (Linear Kramers-Kronig) pro validaci kvality EIS dat. Intuitivni vysvetleni principu je v [KK_INTUITION.md](KK_INTUITION.md). Implementace je zalozena na metode Schonleber et al. (2014) a krome numpy nevyzaduje externi zavislosti. Pro `fit_type='real'` i `'complex'` dava stejne M, mu i rezidua jako referencni `impedance.py` (`impedance.validation.linKK`), az na odchylky popsane v sekci 3 (start hledani M) a 5 (rozsireni tau).
 
 **Reference:**
 - Schonleber, M. et al. "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20-27 (2014)
@@ -382,7 +382,7 @@ KK: M=22 (from M=8, chi^2 plateau), mu=0.8477 (Lin-KK stop, threshold 0.85), ext
 ! Data quality: poor (19/72 points above 5.0%, allowed 5%; max mean |res|=3.82%)
 ```
 
-- Imaginarni rezidua tvori hladky hrb jednoho znamenka mezi 0.03 a 4 Hz s maximem 20 % u 0.25 Hz. Realna cast sedi na +-1 %.
+- Imaginarni rezidua tvori hladky hrb jednoho znamenka mezi 0.03 a 4 Hz s maximem 20 % u 0.25 Hz. Realna cast sedi do 3 %.
 - Prumer (3.82 %) je pod 5 %. Poruseni ukazuje az pocet bodu nad mezi.
 - Odhad sumu 4.84 % neni sum mereni, ale dusledek poruseni (sekce 4)
 - Mozne priciny: nestacionarita, artefakty, nelinearita

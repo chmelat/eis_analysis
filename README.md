@@ -835,6 +835,7 @@ On Windows, use `python -m pytest` instead of `python3 -m pytest`.
 | [doc/K_ELEMENT_GUIDE.md](doc/K_ELEMENT_GUIDE.md) | K element guide |
 | [doc/MODEL_SELECTION_AIC_BIC.md](doc/MODEL_SELECTION_AIC_BIC.md) | Choosing between circuits (AIC/BIC) |
 | [doc/RESIDUAL_DIAGNOSTICS.md](doc/RESIDUAL_DIAGNOSTICS.md) | Are the residuals noise? - intuitive introduction |
+| [doc/KK_INTUITION.md](doc/KK_INTUITION.md) | KK validation - intuitive introduction |
 | [doc/LinKK_analysis.md](doc/LinKK_analysis.md) | Kramers-Kronig validation |
 | [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md) | Z-HIT validation |
 | [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md) | DRT - intuitive introduction |
