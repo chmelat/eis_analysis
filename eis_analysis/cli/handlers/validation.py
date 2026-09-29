@@ -52,13 +52,13 @@ def run_kk_validation(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_kk, mu_threshold, auto_extend, extend_decades_max,
-        kk_series_c, save, format)
+        kk_series_c)
 
     Returns
     -------
     result : KKResult or None
-        Validation result (including `figure` and per-point residuals),
-        or None if KK was skipped or failed.
+        Validation result with per-point residuals, or None if KK was
+        skipped or failed. The figure is drawn by plot_validation.
     """
     if args.no_kk:
         return None
@@ -138,13 +138,13 @@ def run_zhit_validation(
     Z : ndarray
         Complex impedance [Ohm]
     args : argparse.Namespace
-        CLI arguments (uses: no_zhit, save, format)
+        CLI arguments (uses: no_zhit)
 
     Returns
     -------
     result : ZHITResult or None
-        Validation result (including `figure` and per-point residuals),
-        or None if Z-HIT was skipped.
+        Validation result with per-point residuals, or None if Z-HIT was
+        skipped. The figure is drawn by plot_validation.
     """
     if args.no_zhit:
         return None

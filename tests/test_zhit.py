@@ -72,3 +72,17 @@ def test_validation_leaves_no_open_figures():
     for _ in range(3):
         zhit_validation(FREQUENCIES, _r_rc(1e-2))
     assert plt.get_fignums() == []
+
+
+def test_plot_zhit_validation_draws_the_result_s_threshold():
+    from eis_analysis.visualization import plot_zhit_validation
+
+    Z = _r_rc(1e-2)
+    result = zhit_validation(FREQUENCIES, Z, quality_threshold=2.0)
+    plt.close('all')
+    fig = plot_zhit_validation(FREQUENCIES, Z, result)
+    try:
+        levels = {line.get_ydata()[0] for line in fig.axes[1].lines[2:]}
+        assert levels == {0.0, 2.0, -2.0}
+    finally:
+        plt.close(fig)

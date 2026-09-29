@@ -354,7 +354,8 @@ def plot_zhit_validation(
     Returns
     -------
     fig : Figure
-        Measured vs reconstructed |Z| (left) and complex residuals (right).
+        Measured vs reconstructed |Z| (left) and complex residuals with
+        +-result.quality_threshold lines (right).
     """
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
@@ -370,7 +371,7 @@ def plot_zhit_validation(
     ax1.legend()
     ax1.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
 
-    _residual_panel(axes[1], frequencies, result, 5.0,
+    _residual_panel(axes[1], frequencies, result, result.quality_threshold,
                     f"Z-HIT residuals (χ²={result.pseudo_chisqr:.2e}, noise≤{result.noise_estimate:.1f}%)",
                     flagged_frequencies)
 

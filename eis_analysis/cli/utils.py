@@ -80,8 +80,7 @@ def save_figure(
     fig: Optional[plt.Figure],
     prefix: Optional[str],
     suffix: str,
-    fmt: str = 'png',
-    quiet: bool = False
+    fmt: str = 'png'
 ) -> None:
     """
     Save figure to file if fig and prefix are provided.
@@ -96,9 +95,6 @@ def save_figure(
         File suffix (e.g., 'nyquist_bode', 'kk', 'drt')
     fmt : str
         Output format: 'png', 'pdf', 'svg', 'eps' (default: 'png')
-    quiet : bool
-        Suppress the "Saved:" message (default: False). For rewriting a file
-        this run already reported, where a second identical line reads as a bug.
     """
     if fig is None or prefix is None:
         return
@@ -111,8 +107,7 @@ def save_figure(
         else:
             # Vector formats (pdf, svg, eps)
             fig.savefig(filepath, bbox_inches='tight')
-        if not quiet:
-            logger.info(f"Saved: {filepath}")
+        logger.info(f"Saved: {filepath}")
     except Exception as e:
         logger.error(f"Error saving figure: {e}")
 

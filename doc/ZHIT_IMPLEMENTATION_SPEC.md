@@ -152,8 +152,8 @@ The data-quality line is a warning when `is_valid` is False.
 
 The figure is drawn outside the validation, by
 `visualization.plot_zhit_validation`. It has two panels: measured vs
-reconstructed |Z| (log-log), and the real/imag residuals in % with fixed
-+-5 % guide lines and the points flagged by the per-point check. It is saved
+reconstructed |Z| (log-log), and the real/imag residuals in % with guide lines
+at +-`quality_threshold` and the points flagged by the per-point check. It is saved
 as `zhit` with `--save`.
 
 The per-point outlier report (`validation/outliers.py`, `find_outliers`)
