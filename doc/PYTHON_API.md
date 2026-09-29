@@ -554,7 +554,7 @@ ms_result.best_result   # Best FitResult
 ms_result.all_results   # All FitResult objects
 ms_result.n_starts      # Number of starts
 ms_result.n_successful  # Number of successful fits
-ms_result.improvement   # Improvement over initial fit [%]
+ms_result.improvement   # Improvement over initial fit, on the weighted SSR [%]
 ms_result.diagnostics   # MultistartDiagnostics dataclass
 
 # MultistartDiagnostics contains:

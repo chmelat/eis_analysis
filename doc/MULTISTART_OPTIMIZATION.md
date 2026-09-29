@@ -355,7 +355,7 @@ class MultistartResult:
     all_results: List[FitResult]  # Všechny úspěšné výsledky
     n_starts: int               # Počet startů
     n_successful: int           # Počet úspěšných
-    improvement: float          # Zlepšení oproti initial [%]
+    improvement: float          # Zlepšení vážené SSR oproti initial [%]
 ```
 
 

@@ -61,7 +61,8 @@ class MultistartResult:
     n_successful : int
         Number of successful optimizations
     improvement : float
-        Relative improvement over initial fit [%]
+        Relative improvement of the weighted SSR over the initial fit [%] -
+        the quantity the best start is selected on, so it is never negative
     diagnostics : MultistartDiagnostics
         Detailed diagnostics
     """
@@ -329,7 +330,9 @@ def fit_circuit_multistart(
     best_pos = int(np.argmin(rss))
     best_result = all_results[best_pos]
     best_error = best_result.fit_error_rel
-    improvement = (initial_error - best_error) / initial_error * 100 if initial_error > 0 else 0
+    # On the selection criterion: the initial fit is rss[0], and best_error
+    # (fit_error_rel) can exceed initial_error when the two metrics disagree.
+    improvement = (rss[0] - rss[best_pos]) / rss[0] * 100 if rss[0] > 0 else 0
 
     # Which start produced the best result. result_indices is aligned with
     # all_results, so this is robust to completion-order shuffling that

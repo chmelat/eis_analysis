@@ -152,7 +152,9 @@ def _log_multistart_diagnostics(multistart_result: MultistartResult) -> None:
     logger.info(f"  Initial error: {diag.initial_error:.3f}%")
     logger.info(f"  Best error: {diag.best_error:.3f}%")
     logger.info(f"  Best start: #{diag.best_start_index}")
-    logger.info(f"  Improvement: {multistart_result.improvement:+.1f}%")
+    # On the weighted SSR the best start is selected on, as for DE; the errors
+    # above are weighted relative errors and can move the other way.
+    logger.info(f"  Improvement (SSR): {multistart_result.improvement:+.1f}%")
     logger.info("")
 
     # Warnings
@@ -225,10 +227,6 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
                    "Structure left after")
     logger.warning("    it means the right elements, too few of them - the residual "
                    "plot shows where.")
-    # s^2 (J^T J)^-1 assumes independent residuals from a correct model; a
-    # missing element breaks both, so every printed uncertainty is too small.
-    logger.warning("    The +/- and CIs above assume random residuals; with these "
-                   "they are too narrow.")
 
 
 def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) -> str:
@@ -291,6 +289,12 @@ def _log_fit_result(result: FitResult,
 
     if residuals is not None:
         _log_residual_diagnostics(residuals)
+        # Here, not in _log_residual_diagnostics: --voigt-chain shares that
+        # block but prints no uncertainties. s^2 (J^T J)^-1 assumes independent
+        # residuals from a correct model; a missing element breaks both.
+        if residuals.is_systematic:
+            logger.warning("    The +/- and CIs above assume random residuals; with "
+                           "these they are too narrow.")
 
     # Warnings
     for warning in result.all_warnings:

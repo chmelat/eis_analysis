@@ -12,7 +12,8 @@ Complete change history for all project versions.
   standard errors and 95 % CIs are s^2 (J^T J)^-1, which assumes independent
   residuals from a correct model. When the residual diagnostics flag
   systematic structure, the CLI now ends that warning block with "The +/- and
-  CIs above assume random residuals; with these they are too narrow."
+  CIs above assume random residuals; with these they are too narrow." (after
+  `--circuit` fits only; `--voigt-chain` prints no uncertainties).
 
 - **One result class for Lin-KK.** `lin_kk_native` now returns `KKResult`,
   the same class as `kramers_kronig_validation`; `LinKKResult` remains as an
@@ -96,7 +97,9 @@ Complete change history for all project versions.
   quantity every start minimizes, so it could return a point that is not the
   least-squares minimum - with covariance and AIC/BIC of that point. On a
   two-arc test spectrum the two criteria chose different starts. The
-  differential-evolution path already selected on RSS.
+  differential-evolution path already selected on RSS. The reported
+  improvement is now on the same weighted SSR ("Improvement (SSR)"), so it
+  cannot turn negative when the relative error moves the other way.
 
 ## Version 0.46.0 (2026-09-28)
 

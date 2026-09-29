@@ -215,6 +215,9 @@ Every `--circuit` and `--voigt-chain` fit ends with:
 !     The +/- and CIs above assume random residuals; with these they are too narrow.
 ```
 
+The last line is printed only after a `--circuit` fit, whose parameter table
+shows +/- and CIs; `--voigt-chain` reports none.
+
 The first line always prints. The indented block appears **only when the runs
 test rejects independence** on at least one part, so silence there is a pass.
 
