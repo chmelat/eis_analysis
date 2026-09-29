@@ -34,6 +34,15 @@ logger = logging.getLogger(__name__)
 CHI2_PLATEAU_DECADES = 0.3
 CHI2_PLATEAU_WINDOW = 8
 
+# find_optimal_extend_decades grid: 11 points are 0.1-decade steps over the
+# default 0-1 decade range. Candidates whose chi^2 is within EXTEND_CHI2_TIE
+# (relative) of the lowest are a tie, and the smallest extension wins: it
+# departs least from the standard, unextended Lin-KK grid. 0.1 % is a
+# tie-breaker for numerically equal chi^2 (an extension that adds nothing),
+# not a tuned value.
+EXTEND_N_EVALUATIONS = 11
+EXTEND_CHI2_TIE = 1e-3
+
 # is_valid counts the points whose larger residual component, max(|res_real|,
 # |res_imag|), exceeds KK_RESIDUAL_THRESHOLD [%] - the +-lines of the plot -
 # and passes the spectrum when at most KK_MAX_FRACTION_ABOVE of them do.
@@ -192,25 +201,37 @@ def estimate_noise_percent(chi2_ps: float, n_points: int) -> float:
     """
     Estimate noise standard deviation from pseudo chi-squared.
 
-    Based on Yrjana & Bobacka (2024).
+    Based on Yrjana & Bobacka (2024). With the same relative noise sigma in
+    the real and the imaginary part, chi2_ps ~ 2 * N * sigma^2, so
+    sigma [%] = 100 * sqrt(chi2_ps / (2N)) = sqrt(chi2_ps * 5000 / N).
+
+    It is an upper bound: chi2_ps also contains the misfit of the model and
+    any KK violation, not only the measurement noise.
 
     Parameters
     ----------
     chi2_ps : float
         Pseudo chi-squared value
     n_points : int
-        Number of data points
+        Number of data points (must be positive)
 
     Returns
     -------
     float
         Estimated noise in percent
 
+    Raises
+    ------
+    ValueError
+        If n_points is not positive
+
     References
     ----------
     Yrjana, V. and Bobacka, J. "Implementing Kramers-Kronig validity testing
     using pyimpspec." Electrochim. Acta 504, 144951 (2024)
     """
+    if n_points <= 0:
+        raise ValueError(f"estimate_noise_percent: n_points must be positive, got {n_points}")
     return float(np.sqrt(chi2_ps * 5000 / n_points))
 
 
@@ -245,11 +266,21 @@ def reconstruct_impedance(
     -------
     Z_fit : array
         Reconstructed complex impedance
+
+    Raises
+    ------
+    ValueError
+        If elements does not hold one R per tau (plus R_s and, with
+        include_L, L). zip() would silently drop the surplus, e.g. the last
+        R_k when include_L=True is passed for an array without L.
     """
     omega = 2 * np.pi * frequencies
     R_s = elements[0]
     R_i_end = -1 if include_L else len(elements)
     R_i = elements[1:R_i_end]
+    if len(R_i) != len(tau):
+        raise ValueError(f"reconstruct_impedance: {len(R_i)} resistances for {len(tau)} "
+                         f"time constants (include_L={include_L}, {len(elements)} elements)")
 
     Z_fit = np.full_like(frequencies, R_s, dtype=complex)
     for r, t in zip(R_i, tau):
@@ -269,7 +300,7 @@ def find_optimal_extend_decades(
     Z: NDArray[np.complex128],
     M: int,
     search_range: Tuple[float, float] = (0.0, 1.0),
-    n_evaluations: int = 11,
+    n_evaluations: int = EXTEND_N_EVALUATIONS,
     include_L: bool = True,
     include_C: bool = False,
     fit_type: str = 'real',
@@ -351,7 +382,7 @@ def find_optimal_extend_decades(
 
     # Find minimum chi^2
     min_chi2 = min(r[1] for r in results)
-    tolerance = 0.001 * min_chi2
+    tolerance = EXTEND_CHI2_TIE * min_chi2
     near_optimal = [r for r in results if r[1] <= min_chi2 + tolerance]
     best = min(near_optimal, key=lambda x: abs(x[0]))
     return best[0], best[1], best[2], best[3], best[4], best[5]
@@ -501,7 +532,7 @@ def lin_kk_native(
         best = find_optimal_extend_decades(
             frequencies, Z, M,
             search_range=extend_decades_range,
-            n_evaluations=11,
+            n_evaluations=EXTEND_N_EVALUATIONS,
             include_L=include_L,
             include_C=include_C,
             fit_type=fit_type,
@@ -560,7 +591,10 @@ def kramers_kronig_validation(
     """
     Perform Kramers-Kronig validation test on EIS data.
 
-    Uses native Lin-KK implementation (Schönleber et al. 2014).
+    Uses native Lin-KK implementation (Schönleber et al. 2014) with the
+    validation settings fixed: fit_type='real' (the imaginary residuals are
+    the KK prediction), weighting='modulus' and a series L. Call
+    lin_kk_native directly to change them.
 
     Parameters
     ----------

@@ -702,3 +702,19 @@ def test_mu_threshold_nan_is_rejected():
     f = np.logspace(5, -1, 30)
     with pytest.raises(ValueError, match="NaN"):
         find_optimal_M_mu(f, voigt_impedance(f, 10.0, [(100.0, 1e-3)]), mu_threshold=float('nan'))
+
+
+def test_reconstruct_impedance_rejects_mismatched_lengths():
+    # include_L=True on an array without L used to drop the last R_k silently
+    f = np.logspace(0, 3, 5)
+    elements = np.array([10.0, 50.0, 30.0])      # R_s, R_1, R_2 - no L
+    tau = np.array([1e-3, 1e-1])
+    Z = reconstruct_impedance(f, elements, tau, None, include_L=False)
+    assert np.allclose(Z, voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)]))
+    with pytest.raises(ValueError, match="2 time constants"):
+        reconstruct_impedance(f, elements, tau, None, include_L=True)
+
+
+def test_estimate_noise_percent_rejects_zero_points():
+    with pytest.raises(ValueError, match="positive"):
+        estimate_noise_percent(1.0, 0)

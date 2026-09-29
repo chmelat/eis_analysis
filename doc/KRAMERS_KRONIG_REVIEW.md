@@ -12,6 +12,12 @@ kresli `visualization.plot_kk_validation` / `plot_zhit_validation`, pole
 pyplot, ale kvuli `eis_analysis/__init__.py`, ktery importuje `visualization`
 - to je vlastnost celeho balicku, ne tohoto modulu. Bod 2.3 je vyresen
 jednou tridou: `lin_kk_native` vraci `KKResult`, `LinKKResult` je jeho alias.
+Ze sekce 3 je opraven mrtvy kod, konstanty (`EXTEND_N_EVALUATIONS`,
+`EXTEND_CHI2_TIE`, odvozeni 5000), deleni nulou v `estimate_noise_percent`,
+tiche orezani v `reconstruct_impedance` (obe podbody) a docstring wrapperu.
+Otevrene zustavaji: 6-tuple z `find_optimal_extend_decades`, ochrana |Z| = 0
+v pseudo chi^2 (na nekonecnem chi^2 stavi `_chi2_lower_M` a test) a
+ulozeni L uvnitr `elements`, C mimo ne.
 
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,

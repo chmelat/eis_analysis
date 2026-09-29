@@ -64,6 +64,13 @@ Complete change history for all project versions.
   loop and returned no fit: KK failed with "'NoneType' object is not
   subscriptable". Any threshold >= 1 now stops at the first M tried; NaN
   raises ValueError. Found by mypy (tau/elements possibly None).
+- **`reconstruct_impedance` rejects mismatched lengths.** It paired the
+  resistances with the time constants through `zip`, which silently drops
+  the surplus: `include_L=True` on an array without L lost the last R_k.
+  It now raises ValueError. `estimate_noise_percent(chi2, 0)` raises
+  ValueError instead of ZeroDivisionError. The extend_decades grid and tie
+  tolerance are named constants with their rationale, and the 5000 in the
+  noise estimate is derived in its docstring (doc/KRAMERS_KRONIG_REVIEW.md, 3).
 
 ## Version 0.46.0 (2026-09-28)
 
