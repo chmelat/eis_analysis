@@ -2,7 +2,7 @@
 
 ## Prehled
 
-Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Lin-KK testu (Linear Kramers-Kronig) pro validaci kvality EIS dat. Implementace je zalozena na metode Schonleber et al. (2014) a nevyzaduje externi zavislosti.
+Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Lin-KK testu (Linear Kramers-Kronig) pro validaci kvality EIS dat. Implementace je zalozena na metode Schonleber et al. (2014) a krome numpy nevyzaduje externi zavislosti. Pro `fit_type='real'` i `'complex'` dava stejne M, mu i rezidua jako referencni `impedance.py` (`impedance.validation.linKK`), az na odchylky popsane v sekci 3 (start hledani M) a 5 (rozsireni tau).
 
 **Reference:**
 - Schonleber, M. et al. "A Method for Improving the Robustness of linear Kramers-Kronig Validity Tests." Electrochimica Acta 131, 20-27 (2014)
@@ -16,17 +16,22 @@ Modul `eis_analysis.validation.kramers_kronig` poskytuje nativni implementaci Li
 Lin-KK test fituje impedancni data pomoci rady Voigtovych elementu s pevnymi casovymi konstantami:
 
 ```
-Z_fit(w) = R_s + sum_{k=1}^{M} R_k / (1 + jw*tau_k) + jw*L
+Z_fit(w) = R_s + sum_{k=1}^{M} R_k / (1 + jw*tau_k) + jw*L [+ 1/(jw*C)]
 ```
 
 Kde:
 - `R_s` = seriovy odpor [Ohm]
-- `R_k` = odpor k-teho Voigtova elementu [Ohm]
+- `R_k` = odpor k-teho Voigtova elementu [Ohm], muze vyjit zaporny
 - `tau_k` = casova konstanta (fixni, logaritmicky rozlozena) [s]
 - `L` = seriova induktance [H]
-- `M` = pocet elementu (optimalizovan pomoci mu metriky)
+- `C` = seriova kapacita [F], jen s `include_C=True` (CLI `--kk-series-c`)
+- `M` = pocet elementu (volen pomoci mu metriky, sekce 3)
 
-**Klicove:** Casove konstanty tau_k jsou fixni. Fitovany jsou pouze odpory R_k a seriove komponenty (R_s, L).
+**Klicove:** Casove konstanty tau_k jsou fixni. Fitovany jsou pouze odpory R_k a seriove cleny (R_s, L, pripadne C), takze fit je linearni.
+
+Kazdy clen modelu splnuje KK relace. Kdyz model data nedokaze popsat, data KK relace porusuji (drift, nestacionarita, nelinearita, artefakty pristroje).
+
+Seriova kapacita je KK-kompatibilni, ale ma nulovou realnou cast, takze ji Voigtuv retezec neumi reprezentovat. U blokujicich systemu (dvouelektrodove cely, pasivni vrstvy) bez ni rostou imaginarni rezidua k nizkym frekvencim, i kdyz data KK splnuji.
 
 ---
 
@@ -47,16 +52,18 @@ tau_k = 10^[log10(tau_min) + (k-1)/(M-1) * log10(tau_max/tau_min)]
 
 ### Rozsireni rozsahu (extend_decades)
 
-Parametr `extend_decades` umoznuje rozsirit rozsah tau o zadany pocet dekad:
+Parametr `extend_decades` rozsiruje rozsah tau **jen smerem k nizkym frekvencim** (k delsim tau):
 
 ```python
-tau_min_extended = tau_min * 10^(-extend_decades)
-tau_max_extended = tau_max * 10^(+extend_decades)
+tau_max_extended = tau_max * 10^(extend_decades)
+tau_min          = beze zmeny
 ```
 
 - `extend_decades = 0.0`: zadne rozsireni (standardni Lin-KK)
-- `extend_decades = 0.4`: rozsireni o 0.4 dekady na kazde strane
-- `extend_decades = 1.0`: rozsireni o 1 dekadu na kazde strane
+- `extend_decades = 0.4`: tau_max posunuto o 0.4 dekady vys
+- zaporne hodnoty se orezou na 0
+
+Pocet elementu M se rozsirenim nemeni, jen se zvetsi rozestup mezi tau_k. Vysokofrekvencni induktivni chvost pokryva clen L, ne rozsireni.
 
 ---
 
@@ -64,11 +71,16 @@ tau_max_extended = tau_max * 10^(+extend_decades)
 
 ### Algoritmus
 
-1. Zacni s M=3 Voigtovymi elementy
-2. Fituj pomoci pseudoinverze (povol zaporne R_k)
-3. Vypocitej mu metriku
-4. Pokud mu > threshold, zvys M a opakuj
-5. Kdyz mu <= threshold, optimalni M nalezeno
+1. Najdi `M_lower`: prvni M, u ktereho log10(pseudo chi^2) lezi do 0.3 dekady od minima pres nasledujicich 8 M (`CHI2_PLATEAU_DECADES`, `CHI2_PLATEAU_WINDOW`)
+2. Zacni s M = M_lower (puvodni Lin-KK zacina s M=3)
+3. Fituj pomoci pseudoinverze (povol zaporne R_k)
+4. Vypocitej mu metriku
+5. Pokud mu > threshold a M < max_M, zvys M o 1 a opakuj
+6. Kdyz mu <= threshold, zastav: toto M je vysledek
+
+Krok 1 je odchylka od puvodniho Lin-KK. Mu neni v M monotonni: na hrube mrizce tau se relaxace mezi dvema body mrizky fituje stridavymi znamenky R_k, mu na chvili klesne pod prah a puvodni algoritmus zastavi s nedostatecne rozlisenym modelem (3.8 % rezidua na presnem 2-RC spektru). Pseudo chi^2 ukazuje, od ktereho M je mrizka dost husta. Okno je lokalni (8 M), protoze na driftujicich datech chi^2 dal pomalu klesa, jak zaporne R_k absorbuji drift.
+
+`max_M` (vychozi 50) se omezuje poctem bodu N: fit si musi nechat aspon jeden stupen volnosti (M <= N - 2). Pod 5 body `lin_kk_native` vyhodi `ValueError`.
 
 ### Mu metrika (Schonleber 2014)
 
@@ -77,14 +89,16 @@ mu = 1 - (sum|R_k| pro R_k < 0) / (sum|R_k| pro R_k >= 0)
 ```
 
 **Interpretace:**
-- mu -> 1: Vsechny R_k kladne, dobry fit
-- mu -> 0.85: Prah pro zastaveni (vychozi hodnota)
-- mu < 0.85: Prilis mnoho zapornych R_k, overfit
+- mu = 1: zadne zaporne R_k. Model muze byt i nedostatecne rozliseny, mu samo o kvalite fitu nic nerika.
+- mu klesa pod prah (vychozi 0.85): zaporne R_k zacinaji mit vyznamnou vahu. Pridavani dalsich elementu by vedlo k preuceni.
+- Vysledne `mu` je hodnota, pri ktere hledani zastavilo, takze je obvykle pod prahem. Nad prahem je jen pri dosazeni max_M (s varovanim).
 
-**Proc zaporne R_k znamenaji overfit?**
+**Proc zaporne R_k znamenaji preuceni?**
 - Fyzikalne by mely byt vsechny R_k >= 0 (odpor nemuze byt zaporny)
 - Zaporne R_k vznikaji, kdyz model ma prilis mnoho volnosti
 - Model zacina fitovat sum misto skutecneho signalu
+
+**Mu neni kriterium kvality dat.** Kvalitu dat posuzuji rezidua (sekce 4).
 
 ---
 
@@ -104,7 +118,7 @@ kde `w_i = 1/|Z_i|^2` je Boukampova vaha.
 noise_estimate = sqrt(chi2_ps * 5000 / N) [%]
 ```
 
-kde N je pocet bodu.
+kde N je pocet bodu. Je to horni odhad: do chi^2 prispiva i nedokonalost modelu a KK poruseni. Na datech, ktera KK porusuji, proto vyjde vysoky (4.8 % u `real_gamry_example.DTA`, sekce 9) a neni to sum mereni.
 
 ### Rezidua
 
@@ -113,17 +127,31 @@ res_real = (Z'_exp - Z'_fit) / |Z_exp|
 res_imag = (Z''_exp - Z''_fit) / |Z_exp|
 ```
 
-**Interpretace:**
-- |res| < 1%: Vynikajici kvalita dat
-- |res| < 5%: Prijatelna kvalita
-- |res| >= 5%: Mozne artefakty, nelinearita, nestabilita
+Rezidua dobreho fitu jsou nahodne rozptylena kolem nuly, radove na urovni sumu mereni (u bezneho potenciostatu obvykle pod 1 %). Systematicky prubeh (hrb, trend k jednomu konci spektra) je znakem KK poruseni i pri malych hodnotach.
+
+### Kriterium platnosti (`is_valid`)
+
+Pro kazdy bod se bere vetsi slozka `max(|res_real|, |res_imag|)`. Data jsou platna, kdyz nanejvys 5 % bodu (`KK_MAX_FRACTION_ABOVE`) ma tuto hodnotu nad 5 % (`KK_RESIDUAL_THRESHOLD`). Mez 5 % odpovida teckovanym caram v grafu reziduii. Povoleny podil toleruje nekolik krajnich bodu, kde Lin-KK rezidua prirozene rostou (pri N = 72 jsou to 3 body).
+
+Obe hodnoty jsou empiricke, hrube "zjevne rozbite", ne test na urovni sumu. Prumer pres vsechny body (kriterium do v0.46.0) schoval lokalni poruseni: 10 z 70 bodu s rezidui 20 % da prumer 2.9 %.
+
+### Popisek kvality v CLI
+
+CLI k verdiktu vypisuje popisek podle `max(prumer |res_real|, prumer |res_imag|)`:
+- < 0.5 %: excellent
+- < 1 %: good
+- < 2.5 %: acceptable
+- < 5 %: marginal (check for drift/nonlinearity)
+- neplatna data (`is_valid` False): poor
+
+Rozhoduje verdikt: neplatna data jsou vzdy "poor", platna nejhure "marginal".
 
 ### Vazeni pri fittingu
 
 Pouzivame `modulus` vazeni (w = 1/|Z|) podle Schonleber (2014), nikoli `proportional` (w = 1/|Z|^2) podle Boukamp (1995):
 
 - **1/|Z|** - vyrovnane relativni vazeni pres cele spektrum
-- **1/|Z|^2** - silny duraz na vysoke frekvence (nizke |Z|), nizkofrekvencni oblast ma maly vliv
+- **1/|Z|^2** - silny duraz na body s nizkym |Z| (obvykle vysoke frekvence), nizkofrekvencni oblast ma maly vliv
 
 Pro typicka EIS data je 1/|Z| vhodnejsi, protoze nizkofrekvencni oblast casto obsahuje klicove elektrochemicke informace (prenos naboje, difuze) a bezne artefakty (drift, nestacionarita).
 
@@ -135,145 +163,107 @@ Pro typicka EIS data je 1/|Z| vhodnejsi, protoze nizkofrekvencni oblast casto ob
 
 ### Motivace
 
-Optimalni rozsah casovych konstant zavisi na datech. Prilis uzky rozsah muze vest k vysokym reziduum na okrajich frekvencniho spektra, zatimco prilis siroky rozsah zvysuje pocet parametru.
+Prilis uzky rozsah tau vede k vysokym reziduim na nizkofrekvencnim konci, kdyz relaxace pokracuje za nejnizsi merenou frekvenci (kapacitni chvost). Prilis siroky rozsah pri pevnem M zhrubne mrizku a fit muze kompenzovat stridavymi zapornymi R_k, tedy preucenim, ktere ma mu metrika zachytit.
 
 ### Implementace
 
-Funkce `find_optimal_extend_decades()` pouziva grid search:
+M se urci nejdriv bez rozsireni (sekce 3). Pak `find_optimal_extend_decades()` pri tomto M projde mrizku 11 hodnot v `search_range` (vychozi (0.0, 1.0)) a vybere tu s nejnizsim pseudo chi^2:
 
-```python
-def find_optimal_extend_decades(
-    frequencies, Z, M,
-    search_range=(-1.0, 1.0),
-    n_evaluations=11
-):
-    """
-    Hleda optimalni extend_decades minimalizaci pseudo chi^2.
-
-    Algoritmus:
-    1. Vytvor mrizku hodnot v search_range
-    2. Pro kazdy bod: spocitej fit a chi^2
-    3. Vrat hodnotu s minimalnim chi^2
-    """
-```
+- Kandidat, jehoz vlastni mu klesne pod mu, pri kterem hledani M zastavilo, se zahodi (`min_mu`). Rozsireni tedy nesmi obejit pojistku proti preuceni.
+- Mezi kandidaty do 0.1 % od minima chi^2 vyhrava nejmensi rozsireni.
+- Kdyz zadny kandidat neprojde, funkce vrati `None`, zustane nerozsirena mrizka a do `warnings` se prida varovani.
 
 ### CLI pouziti
 
+V CLI je optimalizace **zapnuta ve vychozim stavu**:
+
 ```bash
-eis data.dta --auto-extend
+eis data.DTA                           # s optimalizaci, rozsah 0 az 1 dekada
+eis data.DTA --extend-decades-max 2.0  # rozsah 0 az 2 dekady
+eis data.DTA --no-auto-extend          # bez rozsireni
 ```
 
-Vystup:
-```
-Optimizing extend_decades in range (-1.0, 1.0)...
-Optimal extend_decades: 0.400
-Lin-KK native: M=36, mu=0.8377
-  extend_decades: 0.400
-  Mean |res_real|: 0.03%
-  Mean |res_imag|: 4.81%
-  Pseudo chi^2: 3.79e-01
-  Estimated noise: 4.40%
-```
+Zvolene rozsireni je v souhrnnem radku, napr. `extend_decades=0.60` pro `example/EISPOT-test1.DTA` (sekce 9).
 
 ---
 
 ## 6. API reference
 
+Uplne signatury a popis parametru jsou v docstringech. Zde je prehled.
+
 ### KKResult dataclass
+
+Vysledek `kramers_kronig_validation()`:
 
 ```python
 @dataclass
 class KKResult:
-    M: int                           # Pocet Voigtovych elementu
-    mu: float                        # Mu metrika
-    Z_fit: NDArray[np.complex128]    # Fitovana impedance
-    residuals_real: NDArray          # Rezidua realne casti
-    residuals_imag: NDArray          # Rezidua imaginarni casti
+    M: int                           # Pocet Voigtovych elementu (0 pri chybe)
+    M_lower: int                     # Kde hledani M zacalo (plato chi^2)
+    mu: float                        # Mu, pri kterem hledani zastavilo
+    Z_fit: Optional[NDArray]         # Fitovana impedance
+    residuals_real: Optional[NDArray]  # Rezidua realne casti (podil |Z|)
+    residuals_imag: Optional[NDArray]  # Rezidua imaginarni casti (podil |Z|)
     pseudo_chisqr: float             # Pseudo chi^2 (Boukamp 1995)
-    noise_estimate: float            # Odhad sumu [%]
+    noise_estimate: float            # Horni odhad sumu [%]
     extend_decades: float            # Pouzite rozsireni tau
-    inductance: Optional[float]      # Induktance [H]
-    figure: Optional[plt.Figure]     # Vizualizace
+    inductance: Optional[float]      # Seriova induktance [H]
+    capacitance: Optional[float]     # Seriova kapacita [F] (jen s include_C)
+    figure: Optional[plt.Figure]     # Graf fitu a reziduii
+    warnings: List[str]              # Varovani (max_M, odmitnute rozsireni)
+    error: Optional[str]             # Chybova zprava, kdyz validace selhala
 
-    # Convenience properties
-    @property
-    def mean_residual_real(self) -> float: ...  # Prumer |res_real| [%]
-    @property
-    def mean_residual_imag(self) -> float: ...  # Prumer |res_imag| [%]
-    @property
-    def is_valid(self) -> bool: ...             # True pokud rezidua < 5%
+    # Odvozene vlastnosti
+    success: bool                    # Validace probehla (Z_fit existuje)
+    mean_residual_real: float        # Prumer |res_real| [%]
+    mean_residual_imag: float        # Prumer |res_imag| [%]
+    n_above_threshold: int           # Body s max(|res_real|, |res_imag|) > 5 %
+    is_valid: bool                   # Nanejvys 5 % bodu nad 5 % (sekce 4)
 ```
 
 ### kramers_kronig_validation()
 
 ```python
 def kramers_kronig_validation(
-    frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    mu_threshold: float = 0.85,
-    max_M: int = 50,
-    auto_extend_decades: bool = False
-) -> Optional[KKResult]:
-    """
-    Provede KK validaci EIS dat.
-
-    Parameters
-    ----------
-    frequencies : array
-        Merene frekvence [Hz]
-    Z : array
-        Komplexni impedance [Ohm]
-    mu_threshold : float
-        Prah pro mu metriku (default: 0.85)
-    max_M : int
-        Maximalni pocet Voigtovych elementu (default: 50)
-    auto_extend_decades : bool
-        Automaticka optimalizace extend_decades (default: False)
-
-    Returns
-    -------
-    KKResult nebo None pri chybe
-    """
+    frequencies, Z,
+    mu_threshold=0.85,
+    max_M=50,
+    auto_extend_decades=True,
+    extend_decades_range=(0.0, 1.0),
+    include_C=False
+) -> KKResult
 ```
+
+Vysokourovnova funkce: vzdy `fit_type='real'`, `weighting='modulus'` a L v modelu. Pri chybe nevyhazuje vyjimku, ale vrati `KKResult` s `error` a `success == False`.
 
 ### lin_kk_native()
 
 ```python
 def lin_kk_native(
-    frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    mu_threshold: float = 0.85,
-    max_M: int = 50,
-    include_L: bool = True,
-    fit_type: str = 'real',
-    weighting: str = 'modulus',
-    auto_extend_decades: bool = False,
-    extend_decades_range: Tuple[float, float] = (-1.0, 1.0)
-) -> Tuple[int, float, NDArray, NDArray, NDArray, Optional[float], float, float]:
-    """
-    Nativni Lin-KK implementace s plnou kontrolou parametru.
-
-    Returns
-    -------
-    M, mu, Z_fit, res_real, res_imag, L_value, chi2_ps, extend_decades
-    """
+    frequencies, Z,
+    mu_threshold=0.85,
+    max_M=50,
+    include_L=True,
+    include_C=False,
+    fit_type='real',            # 'real', 'imag' nebo 'complex'
+    weighting='modulus',        # 'uniform', 'sqrt', 'modulus', 'proportional'
+    auto_extend_decades=False,
+    extend_decades_range=(0.0, 1.0)
+) -> LinKKResult
 ```
+
+Samotny fit bez grafu, s plnou kontrolou parametru. `LinKKResult` ma stejna data jako `KKResult` (bez `figure` a `error`) a navic `elements` ([R_s, R_1, ..., R_M, L]), `tau` a `weighting`. Pod 5 body vyhodi `ValueError`.
 
 ### Pomocne funkce
 
 ```python
-def compute_pseudo_chisqr(Z_exp, Z_fit) -> float:
-    """Vypocet pseudo chi^2 (Boukamp 1995)."""
-
-def estimate_noise_percent(chi2_ps, n_points) -> float:
-    """Odhad sumu z pseudo chi^2 (Yrjana & Bobacka 2024)."""
-
-def reconstruct_impedance(frequencies, elements, tau, L_value, include_L) -> NDArray:
-    """Rekonstrukce impedance z Voigtovych elementu."""
-
-def find_optimal_extend_decades(frequencies, Z, M, ...) -> Tuple[...]:
-    """Nalezeni optimalniho extend_decades grid search."""
+compute_pseudo_chisqr(Z_exp, Z_fit) -> float
+estimate_noise_percent(chi2_ps, n_points) -> float
+reconstruct_impedance(frequencies, elements, tau, L_value, include_L=True, C_value=None) -> NDArray
+find_optimal_extend_decades(frequencies, Z, M, ...) -> Optional[Tuple[...]]
 ```
+
+Konstanty kriteria platnosti: `KK_RESIDUAL_THRESHOLD`, `KK_MAX_FRACTION_ABOVE` (v `eis_analysis.validation.kramers_kronig`).
 
 ---
 
@@ -284,87 +274,117 @@ def find_optimal_extend_decades(frequencies, Z, M, ...) -> Tuple[...]:
 ```python
 from eis_analysis.validation import kramers_kronig_validation
 
-# Zakladni validace
 result = kramers_kronig_validation(frequencies, Z)
-print(f"M = {result.M}, mu = {result.mu:.3f}")
-print(f"Pseudo chi^2: {result.pseudo_chisqr:.2e}")
-print(f"Estimated noise: {result.noise_estimate:.1f}%")
-print(f"Valid: {result.is_valid}")
+if not result.success:
+    print(f"KK validace selhala: {result.error}")
+else:
+    print(f"M = {result.M}, mu = {result.mu:.3f}, extend = {result.extend_decades:.2f}")
+    print(f"Estimated noise (upper bound): {result.noise_estimate:.2f}%")
+    print(f"Points above threshold: {result.n_above_threshold}/{len(frequencies)}")
+    print(f"Valid: {result.is_valid}")
+    for w in result.warnings:
+        print(f"Warning: {w}")
 
-# S automatickou optimalizaci extend_decades
-result = kramers_kronig_validation(
-    frequencies, Z,
-    auto_extend_decades=True
-)
-print(f"Optimal extend_decades: {result.extend_decades:.3f}")
+# Dvouelektrodova cela nebo jiny blokujici system
+result = kramers_kronig_validation(frequencies, Z, include_C=True)
+print(f"Series C: {result.capacitance:.2e} F")
 ```
 
 ### CLI
 
 ```bash
-# Zakladni KK validace
-eis data.dta --no-drt --no-fit
+# Pouze KK validace (bez DRT, fitu obvodu a Z-HIT)
+eis data.DTA --no-drt --no-fit --no-zhit
 
-# S automatickou optimalizaci extend_decades
-eis data.dta --no-drt --no-fit --auto-extend
+# Se seriovou kapacitou (blokujici chovani)
+eis data.DTA --no-drt --no-fit --no-zhit --kk-series-c
 
-# Pouze KK validace (bez vizualizace)
-eis data.dta --no-show --no-drt --no-fit --auto-extend
+# Bez zobrazeni grafu, graf ulozen do souboru
+eis data.DTA --no-drt --no-fit --no-zhit --no-show --save vysledek
 ```
 
 ---
 
 ## 8. Porovnani metod fitu
 
+`kramers_kronig_validation()` vzdy pouziva `fit_type='real'`. Ostatni typy jsou dostupne pres `lin_kk_native()`.
+
 ### fit_type = 'real' (vychozi)
 
-1. Fituje pouze Re(Z/|Z|) -> ziska [R_s, R_1, ..., R_M]
-2. Vypocita Z_fit z techto parametru
-3. Fituje residuum Im(Z - Z_fit) -> ziska L
+1. Fituje pouze realnou cast (vazenou 1/|Z|) -> ziska [R_s, R_1, ..., R_M]
+2. Z techto parametru predpovi imaginarni cast
+3. Ze zbytku Im(Z_exp - Z_fit) fituje L (a C, je-li zapnuto)
 
 **Vyhody pro validaci:**
-- Realna cast je obvykle mene zasumena
-- Imaginarni rezidua slouzi jako diagnostika KK compliance
+- Imaginarni cast je dopocitana z realne pres KK relace, takze imaginarni rezidua primo ukazuji KK nekonzistenci
 - Pokud data splnuji KK relace, imaginarni cast by mela automaticky sedet
+
+### fit_type = 'imag'
+
+Zrcadlove: fituje imaginarni cast, R_s se dopocita z realne. Realna rezidua slouzi jako diagnostika.
 
 ### fit_type = 'complex'
 
-Fituje Re(Z) a Im(Z) soucasne. **Nedoporuceno pro validaci** - muze maskovat KK nekonzistence.
+Fituje Re(Z) a Im(Z) soucasne. Poruseni se rozlozi do obou slozek, takze maximum reziduii je nizsi. Pro validaci proto neni doporuceno.
+
+Na `example/real_gamry_example.DTA`, ktery KK porusuje (sekce 9), poruseni zachyti vsechny tri typy:
+
+| fit_type | M | prumer \|res_real\| / \|res_imag\| | max bod | bodu > 5 % |
+|---|---|---|---|---|
+| real | 22 | 0.37 / 3.82 % | 20.4 % | 19 z 72 |
+| imag | 21 | 5.12 / 0.16 % | 22.4 % | 14 z 72 |
+| complex | 21 | 1.89 / 2.51 % | 11.2 % | 20 z 72 |
 
 ---
 
 ## 9. Interpretace vysledku
 
-### Priklad: Dobra data
+Priklady jsou skutecny vystup CLI (`--no-drt --no-fit --no-zhit`) na spektrech z adresare `example/`.
+
+### Priklad: Dobra data (`EISPOT-test1.DTA`)
 
 ```
-Lin-KK native: M=36, mu=0.8377
-  extend_decades: 0.400
-  Mean |res_real|: 0.03%
-  Mean |res_imag|: 4.81%
-  Pseudo chi^2: 3.79e-01
-  Estimated noise: 4.40%
-Data quality is good (residuals < 5%)
+KK: M=19 (from M=4, chi^2 plateau), mu=0.8456 (Lin-KK stop, threshold 0.85), extend_decades=0.60
+  Mean |res_real|: 0.08%
+  Mean |res_imag|: 0.41%
+  Pseudo chi^2: 1.65e-03
+  Estimated noise (upper bound): 0.34%
+Data quality: excellent (0/72 points above 5.0%, allowed 5%; max mean |res|=0.41%)
 ```
 
-- Nizke rezidua v realne casti (0.03%) - vynikajici shoda
-- Vyssi rezidua v imaginarni casti (4.81%) - prijatelne, pod prahem 5%
-- Odhadovany sum 4.40% - odpovida ocekavani pro typicka EIS data
+- Zadny bod nad 5 %, nejvetsi reziduum 1.1 %
+- Odhad sumu 0.34 % odpovida beznemu potenciostatu
 
-### Priklad: Problematicka data
+### Priklad: Blokujici system (`EISPOT-M136113-4.DTA`, ZrO2 na Zr, dvouelektrodove)
+
+Bez `--kk-series-c` data projdou (mean |res_imag| 0.59 %), ale imaginarni rezidua systematicky rostou k nejnizsim frekvencim (4.3 % v poslednim bodu 1.6 mHz). Se seriovou kapacitou:
 
 ```
-Lin-KK native: M=32, mu=0.8436
-  extend_decades: 0.400
-  Mean |res_real|: 0.18%
-  Mean |res_imag|: 13.34%
-  Pseudo chi^2: 2.44e+00
-  Estimated noise: 11.17%
-! Data may contain artifacts (residuals >= 5%)
+KK: M=41 (from M=16, chi^2 plateau), mu=0.8084 (Lin-KK stop, threshold 0.85), extend_decades=0.00
+  Mean |res_real|: 0.05%
+  Mean |res_imag|: 0.15%
+  Pseudo chi^2: 3.22e-04
+  Estimated noise (upper bound): 0.13%
+  Series C: 3.53e-05 F
+Data quality: excellent (0/89 points above 5.0%, allowed 5%; max mean |res|=0.15%)
 ```
 
-- Vysoke rezidua v imaginarni casti (13.34%) - nad prahem 5%
-- Vysoky odhadovany sum (11.17%)
+- Nizkofrekvencni trend zmizel, maximum klesne na 0.37 %: byl to chybejici seriovy clen, ne KK poruseni
+
+### Priklad: Problematicka data (`real_gamry_example.DTA`)
+
+```
+KK: M=22 (from M=8, chi^2 plateau), mu=0.8477 (Lin-KK stop, threshold 0.85), extend_decades=0.00
+  Mean |res_real|: 0.37%
+  Mean |res_imag|: 3.82%
+  Pseudo chi^2: 3.37e-01
+  Estimated noise (upper bound): 4.84%
+! Data quality: poor (19/72 points above 5.0%, allowed 5%; max mean |res|=3.82%)
+```
+
+- Imaginarni rezidua tvori hladky hrb jednoho znamenka mezi 0.03 a 4 Hz s maximem 20 % u 0.25 Hz. Realna cast sedi na +-1 %.
+- Prumer (3.82 %) je pod 5 %. Poruseni ukazuje az pocet bodu nad mezi.
+- Odhad sumu 4.84 % neni sum mereni, ale dusledek poruseni (sekce 4)
 - Mozne priciny: nestacionarita, artefakty, nelinearita
 
 ---
