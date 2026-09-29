@@ -225,6 +225,10 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
                    "Structure left after")
     logger.warning("    it means the right elements, too few of them - the residual "
                    "plot shows where.")
+    # s^2 (J^T J)^-1 assumes independent residuals from a correct model; a
+    # missing element breaks both, so every printed uncertainty is too small.
+    logger.warning("    The +/- and CIs above assume random residuals; with these "
+                   "they are too narrow.")
 
 
 def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) -> str:

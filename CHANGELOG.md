@@ -8,6 +8,12 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **Uncertainties carry a caveat when the residuals are not random.** The
+  standard errors and 95 % CIs are s^2 (J^T J)^-1, which assumes independent
+  residuals from a correct model. When the residual diagnostics flag
+  systematic structure, the CLI now ends that warning block with "The +/- and
+  CIs above assume random residuals; with these they are too narrow."
+
 - **One result class for Lin-KK.** `lin_kk_native` now returns `KKResult`,
   the same class as `kramers_kronig_validation`; `LinKKResult` remains as an
   alias of it. The two classes duplicated 14 fields and four properties, every

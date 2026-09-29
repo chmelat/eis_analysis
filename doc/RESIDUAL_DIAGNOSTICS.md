@@ -212,6 +212,7 @@ Every `--circuit` and `--voigt-chain` fit ends with:
 !     structure: amplitude 14 / 17 (power 0.73 / 0.89, noise < 0.2)
 !     A trend means an element is missing or of the wrong type. Structure left after
 !     it means the right elements, too few of them - the residual plot shows where.
+!     The +/- and CIs above assume random residuals; with these they are too narrow.
 ```
 
 The first line always prints. The indented block appears **only when the runs

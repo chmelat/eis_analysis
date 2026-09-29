@@ -436,6 +436,8 @@ few percent while its residuals march smoothly across the spectrum. Both
 !     A trend means an element is missing or of the wrong type. Structure left
 !     after it means the right elements, too few of them - the residual plot
 !     shows where.
+!     The +/- and CIs above assume random residuals; with these they are too
+!     narrow.
 ```
 
 `rho1` is the lag-1 autocorrelation, ~0 for independent residuals and near 1
