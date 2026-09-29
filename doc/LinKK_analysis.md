@@ -209,7 +209,8 @@ class KKResult:
     extend_decades: float            # Pouzite rozsireni tau
     inductance: Optional[float]      # Seriova induktance [H]
     capacitance: Optional[float]     # Seriova kapacita [F] (jen s include_C)
-    figure: Optional[plt.Figure]     # Graf fitu a reziduii
+    elements: Optional[NDArray]      # Fitovane prvky [R_s, R_1, ..., R_M, L]
+    tau: Optional[NDArray]           # Casove konstanty [s]
     warnings: List[str]              # Varovani (max_M, odmitnute rozsireni)
     error: Optional[str]             # Chybova zprava, kdyz validace selhala
 
@@ -252,7 +253,7 @@ def lin_kk_native(
 ) -> LinKKResult
 ```
 
-Samotny fit bez grafu, s plnou kontrolou parametru. `LinKKResult` ma stejna data jako `KKResult` (bez `figure` a `error`) a navic `elements` ([R_s, R_1, ..., R_M, L]), `tau` a `weighting`. Pod 5 body vyhodi `ValueError`.
+Samotny fit bez grafu, s plnou kontrolou parametru. `LinKKResult` ma stejna data jako `KKResult` (bez `error`) a navic `weighting`. Pod 5 body vyhodi `ValueError`.
 
 ### Pomocne funkce
 
@@ -264,6 +265,10 @@ find_optimal_extend_decades(frequencies, Z, M, ...) -> Optional[Tuple[...]]
 ```
 
 Konstanty kriteria platnosti: `KK_RESIDUAL_THRESHOLD`, `KK_MAX_FRACTION_ABOVE` (v `eis_analysis.validation.kramers_kronig`).
+
+### Graf
+
+Validace sama zadny graf nevytvari. Graf fitu a reziduii vykresli `eis_analysis.visualization.plot_kk_validation(frequencies, Z, result, flagged_frequencies=())`; `flagged_frequencies` oznaci body cervenymi pasy (CLI tam predava body z kontroly jednotlivych bodu).
 
 ---
 
@@ -284,6 +289,9 @@ else:
     print(f"Valid: {result.is_valid}")
     for w in result.warnings:
         print(f"Warning: {w}")
+
+    from eis_analysis.visualization import plot_kk_validation
+    fig = plot_kk_validation(frequencies, Z, result)
 
 # Dvouelektrodova cela nebo jiny blokujici system
 result = kramers_kronig_validation(frequencies, Z, include_C=True)

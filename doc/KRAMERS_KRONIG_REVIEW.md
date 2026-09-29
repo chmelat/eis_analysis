@@ -6,7 +6,11 @@ Datum: 2026-09-28, verze v0.44.1
 ve v0.46.0 (commit 77e6e35). Z bodu 1.4 je vyresena
 duplicita cisla 5 (konstanta `KK_RESIDUAL_THRESHOLD`) a prumer je nahrazen
 podilem bodu nad mezi (`KK_MAX_FRACTION_ABOVE`). Bod 1.5 je opraven (docstring,
-napoveda `--auto-extend` a README).
+napoveda `--auto-extend` a README). Bod 2.1 je vyresen i pro Z-HIT: grafy
+kresli `visualization.plot_kk_validation` / `plot_zhit_validation`, pole
+`figure` z vysledku zmizelo. Import `eis_analysis.validation` dal natahne
+pyplot, ale kvuli `eis_analysis/__init__.py`, ktery importuje `visualization`
+- to je vlastnost celeho balicku, ne tohoto modulu.
 
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,

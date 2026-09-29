@@ -84,7 +84,7 @@ window makes the result edge-sensitive. The local expansion needs neither.
    the measured phase is kept.
 5. Residuals: `residuals_mag = (|Z| - |Z_recon|) / |Z| * 100` [%];
    `residuals_real/imag = (Z - Z_fit) / |Z|` [fraction].
-6. Pseudo chi-squared, noise estimate, quality metric, figure.
+6. Pseudo chi-squared, noise estimate, quality metric.
 
 Because `Z_fit` carries the measured phase, `Z - Z_fit = (|Z| - |Z_recon|) *
 exp(j*phi)`: the real and imaginary residuals are the magnitude residual
@@ -150,9 +150,11 @@ Data quality: acceptable (mean |res_mag|=1.55%, threshold=5.0%)
 
 The data-quality line is a warning when `is_valid` is False.
 
-The figure has two panels: measured vs reconstructed |Z| (log-log), and the
-real/imag residuals in % with fixed +-5 % guide lines. It is saved as `zhit`
-with `--save`.
+The figure is drawn outside the validation, by
+`visualization.plot_zhit_validation`. It has two panels: measured vs
+reconstructed |Z| (log-log), and the real/imag residuals in % with fixed
++-5 % guide lines and the points flagged by the per-point check. It is saved
+as `zhit` with `--save`.
 
 The per-point outlier report (`validation/outliers.py`, `find_outliers`)
 reads `|residuals_mag|` from this result.

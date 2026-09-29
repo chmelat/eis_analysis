@@ -8,6 +8,28 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **KK and Z-HIT validation no longer build figures (breaking).**
+  `kramers_kronig_validation` and `zhit_validation` created a matplotlib
+  figure on every call, so a batch run leaked one open figure per spectrum.
+  Plotting moved to `eis_analysis.visualization.plot_kk_validation` and
+  `plot_zhit_validation`, and the `figure` field is gone from `KKResult` and
+  `ZHITResult`. `KKResult` gains `elements` and `tau`, which the fit curve
+  needs. In the CLI the figures are drawn after the per-point check, so the
+  flagged points are marked in one pass and each file is saved once; the
+  "Saved ..._kk.png" lines now follow that section (doc/KRAMERS_KRONIG_REVIEW.md,
+  2.1).
+
+  Migration:
+  ```python
+  # before
+  result = kramers_kronig_validation(frequencies, Z)
+  result.figure.savefig("kk.png")
+  # after
+  from eis_analysis.visualization import plot_kk_validation
+  result = kramers_kronig_validation(frequencies, Z)
+  plot_kk_validation(frequencies, Z, result).savefig("kk.png")
+  ```
+
 - **KK validity counts points above 5 % instead of averaging.**
   `is_valid` (on `KKResult` and `LinKKResult`) now passes a spectrum when at
   most 5 % of the points (`KK_MAX_FRACTION_ABOVE`) have max(|res_real|,

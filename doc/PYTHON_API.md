@@ -184,7 +184,9 @@ result.residuals_imag      # Imaginary part residuals (fraction)
 result.pseudo_chisqr       # Pseudo chi-squared (Boukamp 1995)
 result.noise_estimate      # Estimated noise [%] (Yrjana & Bobacka 2024)
 result.inductance          # Fitted inductance [H] (if include_L=True)
-result.figure              # matplotlib Figure
+result.capacitance         # Fitted series capacitance [F] (if include_C=True)
+result.elements            # Fitted elements [R_s, R_1, ..., R_M, L]
+result.tau                 # Time constants [s]
 result.warnings            # Caveats (max_M reached, extension rejected)
 
 # Convenience properties
@@ -192,6 +194,10 @@ result.mean_residual_real  # Mean |res_real| [%]
 result.mean_residual_imag  # Mean |res_imag| [%]
 result.n_above_threshold   # Points with max(|res_real|, |res_imag|) > 5%
 result.is_valid            # True if at most 5% of the points are above 5%
+
+# Figure (the validation itself builds none)
+from eis_analysis.visualization import plot_kk_validation
+fig = plot_kk_validation(frequencies, Z, result, flagged_frequencies=[])
 ```
 
 **Z-HIT validation (non-parametric):**
@@ -214,7 +220,6 @@ result.residuals_imag       # Imaginary part residuals (fraction)
 result.pseudo_chisqr        # Pseudo chi-squared
 result.noise_estimate       # Upper bound noise estimate [%]
 result.quality              # Quality metric (0-1)
-result.figure               # matplotlib Figure
 
 # Convenience properties
 result.success              # False if the reconstruction failed (empty arrays)
@@ -222,6 +227,10 @@ result.mean_residual_real   # Mean |res_real| [%]
 result.mean_residual_imag   # Mean |res_imag| [%]
 result.mean_residual_mag    # Mean |res_mag| [%]
 result.is_valid             # True if mean_residual_mag < 5%
+
+# Figure (the validation itself builds none)
+from eis_analysis.visualization import plot_zhit_validation
+fig = plot_zhit_validation(frequencies, Z, result)
 ```
 
 **Comparison: Lin-KK vs Z-HIT:**
