@@ -256,13 +256,13 @@ def test_probe_reports_full_span_when_nothing_clips():
 
 def test_probe_near_the_upper_bound_reports_the_narrowed_span():
     """
-    At lambda* = 0.5 both upward probes clip to PROBE_LAMBDA_MAX and collapse
-    into one, so 'stable' covers barely over a decade, not two. The old code
-    clipped silently.
+    At lambda* = PROBE_LAMBDA_MAX / 2 both upward probes clip to
+    PROBE_LAMBDA_MAX and collapse into one, so 'stable' covers barely over a
+    decade, not two. The old code clipped silently.
     """
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
     matrices = _build_drt_matrices(FREQUENCIES, Z, 100.0, 100)
-    lambda_star = 0.5
+    lambda_star = PROBE_LAMBDA_MAX / 2
 
     stability = probe_lambda_stability(
         matrices, lambda_star, [(1e-3, 1000.0)], Z, 100.0
@@ -277,15 +277,15 @@ def test_probe_near_the_upper_bound_reports_the_narrowed_span():
 
 def test_a_single_surviving_probe_cannot_certify_stability():
     """
-    Regression: at lambda* = 10 all four requested probes clip onto
-    PROBE_LAMBDA_MAX and dedup to one, and 'persistence == n_probes' then
+    Regression: at lambda* = 10 * PROBE_LAMBDA_MAX all four requested probes
+    clip onto PROBE_LAMBDA_MAX and dedup to one, and 'persistence == n_probes' then
     awarded STABLE off a single re-solve.
     """
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
     matrices = _build_drt_matrices(FREQUENCIES, Z, 100.0, 100)
 
     stability = probe_lambda_stability(
-        matrices, 10.0, [(1e-3, 1000.0)], Z, 100.0
+        matrices, 10 * PROBE_LAMBDA_MAX, [(1e-3, 1000.0)], Z, 100.0
     )
 
     n_successful = sum(1 for p in stability.probe_points if p.success)

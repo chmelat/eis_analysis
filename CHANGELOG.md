@@ -8,6 +8,27 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **DRT lambda is grid-independent (breaking for manual `--lambda`).** The
+  regularization matrix was a bare `[1, -2, 1]` difference, so the penalty
+  scaled with the tau step cubed and lambda meant a different smoothing for
+  every `--n-tau` and frequency range: automatic lambda went 0.036 / 0.32 /
+  3.6 for n_tau = 50 / 100 / 200, the default grid already hit the top of
+  the search range, and a fixed lambda gave 3 / 5 / 6 peaks. The objective is
+  now `(1/n) ||A gamma - b||^2 + lambda * integral (gamma'')^2 d ln tau`, so
+  lambda is dimensionless and independent of the grid, the window, the
+  number of points and the impedance scale (automatic lambda 9.4e-6 /
+  1.4e-5 / 1.4e-5 on the same spectrum; a fixed lambda gives 4 / 4 / 4
+  peaks). Results at the default grid are unchanged (same peaks, R_pol and
+  reconstruction error on the example spectra); only the number changes.
+  New constants `DRT_LAMBDA_RANGE = (1e-10, 1e-2)` and `DRT_LAMBDA_DEFAULT =
+  1e-6` (was 0.1); the lambda probe spans the range widened by a decade.
+  An old manual lambda has no single conversion factor - it depended on the
+  grid - so re-read it from an automatic run (typical values 1e-9 to 1e-3).
+  The rescale exposed a latent bug in the lambda probe: it dropped probes
+  "close to" lambda* with `np.isclose`, whose default absolute tolerance
+  (1e-8) swallowed every probe of a lambda* below ~1e-8. It now compares
+  relatively only.
+
 - **Stricter fit quality labels.** `FitResult.quality` graded excellent
   < 1 %, good < 10 %, acceptable < 20 %, so a 4 % fit with plainly
   systematic residuals was "good". A correct circuit fits to about 1.1x the

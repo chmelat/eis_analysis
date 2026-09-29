@@ -99,8 +99,12 @@ Examples:
 
     drt_group.add_argument('--lambda', '-l', dest='lambda_reg', type=float,
                            default=None,
-                           help='Manual regularization parameter for DRT. '
-                                'Without this, automatic selection (GCV + L-curve) is used.')
+                           help='Manual regularization parameter for DRT: weight of the '
+                                'roughness integral of gamma against the mean squared '
+                                'residual; independent of --n-tau and the frequency '
+                                'range. Typical values 1e-9 to 1e-3, more for noisier '
+                                'data. Without this, automatic selection (GCV + L-curve) '
+                                'is used.')
     drt_group.add_argument('--drt-weighting', type=str, default='sqrt',
                            choices=DRT_WEIGHTINGS,
                            help='Weighting of the DRT least-squares term (default: sqrt, '

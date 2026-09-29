@@ -13,6 +13,8 @@ from typing import Any, Dict, Tuple, Optional
 from numpy.typing import NDArray
 from scipy.optimize import nnls
 
+from ..fitting.config import DRT_LAMBDA_RANGE
+
 logger = logging.getLogger(__name__)
 
 # NNLS iteration budget per unknown. scipy's default 3*n gives up on weighted
@@ -36,7 +38,9 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
     - lambda_val: testovaná hodnota regularizačního parametru
     - A: matice systému [2N × N_tau]
     - b: pravá strana [2N]
-    - L: regularizační matice [(N_tau-2) × N_tau] pro druhou derivaci
+    - L: regularizační matice [(N_tau-2) × N_tau]: druhá derivace podle ln τ,
+         škálovaná tak, aby λ‖Lx‖² byl λ·∫(γ'')² d ln τ vůči průměrnému
+         čtverci rezidua (viz _build_drt_matrices)
 
     Vrací:
     - float: GCV score (menší je lepší)
@@ -224,7 +228,7 @@ def find_lcurve_corner(lambda_values: NDArray[np.float64],
 
 def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
                             L: NDArray[np.float64],
-                            lambda_range: Tuple[float, float] = (1e-5, 1.0),
+                            lambda_range: Tuple[float, float] = DRT_LAMBDA_RANGE,
                             n_search: int = 20) -> Tuple[float, float]:
     """
     Najde optimální lambda minimalizací GCV score.
@@ -296,7 +300,7 @@ def find_optimal_lambda_gcv(A: NDArray[np.float64], b: NDArray[np.float64],
 
 def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
                                 L: NDArray[np.float64],
-                                lambda_range: Tuple[float, float] = (1e-5, 1.0),
+                                lambda_range: Tuple[float, float] = DRT_LAMBDA_RANGE,
                                 n_search: int = 20,
                                 lcurve_decades: float = 1.5
                                 ) -> Tuple[float, float, dict]:

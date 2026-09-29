@@ -15,6 +15,7 @@ from scipy.optimize import nnls
 from .results import DRTMatrices, LambdaSelection, NNLSSolution
 from .gcv import find_optimal_lambda_gcv, find_optimal_lambda_hybrid, DRT_NNLS_MAXITER_FACTOR
 from ..fitting.diagnostics import compute_weights
+from ..fitting.config import DRT_LAMBDA_DEFAULT, DRT_LAMBDA_RANGE
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +106,19 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
 
     b = np.concatenate([weights * (Z.real - R_inf), weights * Z.imag])
 
-    # Regularization matrix (2nd derivative) - tridiagonal [1, -2, 1]
-    # Shape: (n_grid - 2, n_grid) for second derivative operator
+    # Regularization matrix: second derivative in ln(tau), scaled so that
+    #   ||A gamma - b||^2 + lambda ||L gamma||^2
+    #     = n * [ (1/n) ||A gamma - b||^2 + lambda * integral (gamma'')^2 d ln tau ]
+    # with n residuals. The [1, -2, 1] difference / d^2 is gamma'', sqrt(d)
+    # turns the sum of squares into the rectangle-rule integral, and sqrt(n)
+    # makes the misfit a mean. A bare [1, -2, 1] left lambda proportional to
+    # d^3 and to n: automatic lambda went 0.036 / 0.32 / 3.6 for n_tau = 50 /
+    # 100 / 200 and a fixed lambda gave 3 / 5 / 6 peaks. See DRT_LAMBDA_RANGE.
     L = np.zeros((n_grid - 2, n_grid))
     np.fill_diagonal(L, 1)           # Main diagonal at offset 0
     np.fill_diagonal(L[:, 1:], -2)   # Diagonal at offset 1
     np.fill_diagonal(L[:, 2:], 1)    # Diagonal at offset 2
+    L *= np.sqrt(len(b)) / d_ln_tau ** 1.5
 
     L_series_scale = None
     if inductance:
@@ -141,10 +149,10 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
     """
     Select regularization parameter lambda.
     """
-    # GCV search bounds. Edge detection (F3/F7): lambda landing at a bound -
-    # or the GCV guess pinning there even when L-curve corrected it - signals
-    # the optimizer wants more extreme regularization than the range allows.
-    lambda_range = (1e-5, 1.0)
+    # Edge detection (F3/F7): lambda landing at a bound - or the GCV guess
+    # pinning there even when L-curve corrected it - signals the optimizer
+    # wants more extreme regularization than the range allows.
+    lambda_range = DRT_LAMBDA_RANGE
 
     def _at_bound(lam: Optional[float]) -> bool:
         return lam is not None and (lam <= lambda_range[0] or lam >= lambda_range[1])
@@ -188,11 +196,11 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                 )
             except (np.linalg.LinAlgError, ValueError):
                 logger.debug("GCV lambda selection failed, using fallback "
-                             "lambda=0.1", exc_info=True)
-                return LambdaSelection(lambda_value=0.1, method='fallback')
+                             f"lambda={DRT_LAMBDA_DEFAULT}", exc_info=True)
+                return LambdaSelection(lambda_value=DRT_LAMBDA_DEFAULT, method='fallback')
 
     if lambda_reg is None:
-        return LambdaSelection(lambda_value=0.1, method='default')
+        return LambdaSelection(lambda_value=DRT_LAMBDA_DEFAULT, method='default')
 
     return LambdaSelection(lambda_value=lambda_reg, method='user')
 

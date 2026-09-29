@@ -137,12 +137,15 @@ Pridame pozadavek: **fyzikalni rozlozeni je hladke, ne pilovite.** Resime proto
 kompromis mezi dvema cili:
 
 ```
-  minimalizuj:   || A*gamma - b ||^2   +   lambda * || L*gamma ||^2
-                 \_________________/        \_______________/
-                  sedi to na data?           je to hladke?
+  minimalizuj:   (1/n) || A*gamma - b ||^2   +   lambda * integral (gamma'')^2 d ln tau
+                 \_______________________/        \_______________________________/
+                   sedi to na data?                       je to hladke?
 ```
 
-- `L` je operator **druhe derivace** - mala hodnota = hladka krivka.
+- `gamma''` je **druha derivace** podle ln(tau) - mala hodnota = hladka krivka.
+- Prumer rezidua (1/n) a integral misto souctu delaji `lambda` nezavislou na
+  hustote mrizky i na sirce frekvencniho okna: stejna hodnota znamena stejne
+  vyhlazeni pro jakakoli data s podobnym sumem (typicky 1e-9 az 1e-3).
 - `lambda` ridi vahu hladkosti:
 
 ```

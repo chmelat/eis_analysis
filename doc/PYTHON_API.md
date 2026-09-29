@@ -327,15 +327,13 @@ result.diagnostics.nnls               # NNLSSolution dataclass
 ```python
 from eis_analysis.drt import find_optimal_lambda_gcv, compute_gcv_score
 
-# Find optimal lambda using GCV
-lambda_opt, gcv_min, lambdas, gcv_scores = find_optimal_lambda_gcv(
-    frequencies, Z, tau,
-    lambda_range=(1e-6, 1e2),
-    n_lambdas=50
-)
+# A, b, L: the weighted DRT system that calculate_drt builds internally.
+# Searches DRT_LAMBDA_RANGE = (1e-10, 1e-2) by default; lambda is
+# dimensionless (see doc/GCV_IMPLEMENTATION.md).
+lambda_opt, gcv_min = find_optimal_lambda_gcv(A, b, L)
 
-# Compute GCV score for a specific lambda
-gcv = compute_gcv_score(frequencies, Z, tau, lambda_value)
+# GCV score for a specific lambda
+gcv = compute_gcv_score(lambda_opt, A, b, L)
 ```
 
 **GMM peak detection:**

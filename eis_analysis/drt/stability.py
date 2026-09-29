@@ -22,7 +22,7 @@ from scipy.signal import find_peaks
 from .results import DRTMatrices, LambdaProbePoint, PeakStability, StabilityDiagnostics
 from .estimation import _estimate_peak_resistance
 from .linear_system import _reconstruct, _solve_nnls
-from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD
+from ..fitting.config import DRT_LAMBDA_RANGE, DRT_PEAK_HEIGHT_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +31,11 @@ logger = logging.getLogger(__name__)
 # survive; the half-decade points detect drift before it disappears.
 PROBE_EXPONENTS = (-1.0, -0.5, 0.5, 1.0)
 
-# Absolute lambda bounds for the probe. Matches the extremes used elsewhere in
-# the package: 1e-6 is below the GCV search floor (1e-5), 1.0 is its ceiling.
-PROBE_LAMBDA_MIN = 1e-6
-PROBE_LAMBDA_MAX = 1.0
+# Absolute lambda bounds for the probe: the selection range widened by a
+# decade on each side, so the +-1 decade probes around any lambda* inside
+# DRT_LAMBDA_RANGE are never clipped.
+PROBE_LAMBDA_MIN = DRT_LAMBDA_RANGE[0] / 10
+PROBE_LAMBDA_MAX = DRT_LAMBDA_RANGE[1] * 10
 
 # Peak matching tolerance in log10(tau) decades: half the distance to the
 # nearest neighbouring reference peak, clamped to [FLOOR, CAP]. The floor
@@ -53,7 +54,7 @@ STABLE_MAX_R_VARIATION = 0.25
 
 # Minimum successful probes before 'stable' can be awarded. Clipping at the
 # probe bounds can collapse all four requested lambdas onto one value - at
-# lambda* = 10 every probe lands on PROBE_LAMBDA_MAX - and surviving a single
+# a lambda* ten times PROBE_LAMBDA_MAX every probe lands on it - and surviving a single
 # re-solve says nothing about stability. Such a peak is reported 'marginal':
 # not judged an artifact, not certified either.
 MIN_PROBES_FOR_STABLE = 2
@@ -211,10 +212,12 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
     # Deduplicate after clipping and drop values ~equal to lambda* (the main
     # solution already covers lambda*).
     unique_lambdas: List[float] = []
+    # atol=0: lambda is ~1e-10 to 1e-3, and np.isclose's default atol (1e-8)
+    # would call every probe of a small lambda* equal to it and drop them all.
     for lam in probe_lambdas:
-        if np.isclose(lam, lambda_star, rtol=1e-3):
+        if np.isclose(lam, lambda_star, rtol=1e-3, atol=0):
             continue
-        if any(np.isclose(lam, existing, rtol=1e-3) for existing in unique_lambdas):
+        if any(np.isclose(lam, existing, rtol=1e-3, atol=0) for existing in unique_lambdas):
             continue
         unique_lambdas.append(float(lam))
 

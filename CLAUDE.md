@@ -39,7 +39,7 @@ example/                   # Example data files
 python3 eis.py --help                    # Show help
 python3 eis.py                           # Demo with synthetic data
 python3 eis.py data.DTA                  # Analyze Gamry file
-python3 eis.py data.DTA --lambda 0.5     # Manual regularization
+python3 eis.py data.DTA --lambda 1e-6    # Manual regularization
 python3 eis.py data.DTA --peak-method gmm  # GMM peak detection
 
 # Testing

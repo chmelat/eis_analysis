@@ -7,6 +7,22 @@ s parametrem λ, který určuje kompromis mezi věrností datům a hladkostí v�
 distribuce γ(τ). Tato implementace volí λ **automaticky a datově řízeně**, takže
 odpadá subjektivní ruční tuning.
 
+**Škála λ.** Minimalizuje se
+
+```
+(1/n) ‖Aγ − b‖²  +  λ ∫ (d²γ / d ln τ²)² d ln τ        (n = počet reziduí)
+```
+
+Obě části jsou v Ω², takže λ je bezrozměrná a nezávisí na hustotě τ-mřížky
+(`--n-tau`), šířce frekvenčního okna, počtu bodů ani měřítku impedance - jen
+na poměru šumu a struktury dat. Matice `L` je proto druhá diference dělená Δ²
+(Δ = krok v ln τ), násobená √Δ (integrál) a √n (průměr rezidua). Holá
+diference `[1, -2, 1]` (do v0.46) dávala λ úměrnou Δ³: automatická λ pak
+rostla asi 10× s každým zdvojením mřížky. Naměřené automatické λ leží mezi
+1e-9 a 1e-3 (syntetika s šumem 0.1 / 0.5 / 2 %: 1.6e-7 / 7.7e-6 / 2.2e-4);
+rozsah hledání je `DRT_LAMBDA_RANGE = (1e-10, 1e-2)`, pevná výchozí hodnota
+`DRT_LAMBDA_DEFAULT = 1e-6` (obojí `fitting/config.py`).
+
 Automatický výběr je **výchozí chování** — spustí se vždy, když uživatel nezadá
 λ ručně přes `--lambda`. Kombinuje dvě metody:
 
@@ -45,7 +61,7 @@ Vstupní bod je `eis.py` (spouštěj `python3`).
 python3 eis.py data.DTA
 
 # Ruční λ (přebije automatiku)
-python3 eis.py data.DTA --lambda 0.05      # nebo -l 0.05
+python3 eis.py data.DTA --lambda 1e-6      # nebo -l 1e-6
 
 # Vyšší rozlišení tau gridu
 python3 eis.py data.DTA --n-tau 150        # nebo -n 150
@@ -77,7 +93,7 @@ Z = ...  # naměřená impedance (complex)
 result = calculate_drt(freq, Z, n_tau=100, auto_lambda=True)
 
 # Ruční λ
-result = calculate_drt(freq, Z, n_tau=100, lambda_reg=0.05)
+result = calculate_drt(freq, Z, n_tau=100, lambda_reg=1e-6)
 ```
 
 ## Implementační detaily
@@ -124,11 +140,11 @@ Robustní error handling: při selhání NNLS, singulární M nebo
   konvexní směrem k počátku — levotočivá (CCW) zatáčka s **kladnou** křivostí,
   proto `argmax`, ne `argmin`. Tuto konvenci hlídá `tests/test_lcurve_corner.py`.
 
-### 3. `find_optimal_lambda_gcv(A, b, L, lambda_range=(1e-5, 1.0), n_search=20)`
+### 3. `find_optimal_lambda_gcv(A, b, L, lambda_range=DRT_LAMBDA_RANGE, n_search=20)`
 
 Čistě GCV, dvoufázové prohledání (fallback hybridu):
 
-- **Fáze 1 (hrubá):** `n_search` bodů v log-prostoru `[1e-5, 1.0]`, najdi
+- **Fáze 1 (hrubá):** `n_search` bodů v log-prostoru `[1e-10, 1e-2]`, najdi
   minimum GCV.
 - **Fáze 2 (jemná):** `n_search` bodů v okolí minima. Při minimu na okraji se
   rozsah rozšíří o dekádu ven.
@@ -173,7 +189,7 @@ Když `auto_lambda=True`, volá se `find_optimal_lambda_hybrid`. Reportovaná
 GCV). `lambda_gcv` se ukládá/zobrazuje jen pro `hybrid`.
 
 Detekce okrajů (náprava F3/F7): pokud λ_opt nebo λ_gcv narazí na mez rozsahu
-`[1e-5, 1.0]`, nebo je roh na okraji okna, nastaví se `lambda_at_edge` —
+`[1e-10, 1e-2]`, nebo je roh na okraji okna, nastaví se `lambda_at_edge` —
 signál, že optimizér chce extrémnější regularizaci, než rozsah dovoluje
 (typicky problém s daty / modelem). `calculate_drt(..., auto_lambda=...)` celý
 výběr orchestruje (`drt/core.py`).
@@ -218,7 +234,7 @@ CLI vypisuje v sekci `DRT Analysis` obě fáze hledání i výsledné λ:
 
 ```
 Lambda: Hybrid GCV + L-curve
-  lambda = 2.20e-04  (GCV 3.79e-04 -> L-curve corner 2.20e-04, ratio 0.58)
+  lambda = 5.80e-10  (GCV 6.95e-10 -> L-curve corner 5.80e-10, ratio 0.83)
 ```
 
 Když `ratio` vypadne z pásma konsenzu, přibude varování — buď o korekci
@@ -230,7 +246,7 @@ průměru (`geometric_mean`). Samotný průběh hledání (Fáze 1 / Fáze 2) je
 hybridního hledání, ne shodu obou kritérií.
 
 **Klíčové indikátory:**
-- `lambda_at_edge` / „λ na mezi rozsahu" — optimum je mimo `[1e-5, 1.0]`;
+- `lambda_at_edge` / „λ na mezi rozsahu" — optimum je mimo `[1e-10, 1e-2]`;
   zkontroluj kvalitu dat (KK validace) nebo zadej λ ručně.
 - `corner_at_edge` — roh L-křivky na okraji okna; skutečný roh může ležet dál.
 - Velmi šumová data → GCV/L-curve mohou preferovat vyšší λ (over-smoothing).

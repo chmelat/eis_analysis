@@ -13,6 +13,34 @@ References
 """
 
 # =============================================================================
+# DRT Regularization
+# =============================================================================
+
+# lambda weighs roughness against misfit in
+#   (1/n) ||A gamma - b||^2 + lambda * integral (d^2 gamma / d ln tau^2)^2 d ln tau
+# (n = number of residuals; drt/linear_system.py builds L accordingly). Both
+# terms are in Ohm^2, so lambda is dimensionless and independent of the tau
+# grid, the frequency window, the number of points and the impedance scale;
+# it depends only on the noise-to-structure ratio of the data. Automatic
+# selection measured: synthetic two-ZARC spectra with 0.1 / 0.5 / 2 % noise
+# -> 1.6e-7 / 7.7e-6 / 2.2e-4; example/ spectra 9e-10 (M136113-4),
+# 7.7e-9 (EISPOT-test1), 6.4e-4 (real_gamry, KK-inconsistent).
+DRT_LAMBDA_RANGE = (1e-10, 1e-2)
+"""
+Search range of the automatic lambda selection (GCV + L-curve).
+
+Spans the measured values with about a decade to spare below and more than
+one above for noisier data. The GCV stage may step one decade past either end.
+"""
+
+DRT_LAMBDA_DEFAULT = 1e-6
+"""
+Lambda without automatic selection, and the fallback when selection fails.
+
+Mid-range of the values selected on data with 0.1-2 % noise.
+"""
+
+# =============================================================================
 # DRT Peak Detection
 # =============================================================================
 
@@ -311,6 +339,10 @@ Grid should be visible but unobtrusive.
 # =============================================================================
 
 __all__ = [
+    # DRT Regularization
+    'DRT_LAMBDA_RANGE',
+    'DRT_LAMBDA_DEFAULT',
+
     # DRT Peak Detection
     'DRT_PEAK_HEIGHT_THRESHOLD',
     'DRT_PEAK_EDGE_DECADES',

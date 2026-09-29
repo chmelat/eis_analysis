@@ -1077,7 +1077,7 @@ simple_run(
 | R_∞ | 0.1 - 100 | Ω | Závisí na systému |
 | L_0 | 10⁻⁹ - 10⁻⁶ | H | Typicky nH-μH |
 | γ(τ) | 0 - 100 | Ω | Nerestrikované |
-| λ_opt | 10⁻⁵ - 10⁻¹ | - | Z CV optimalizace |
+| λ_opt | 10⁻⁹ - 10⁻³ | - | Z CV optimalizace (bezrozměrná, viz GCV_IMPLEMENTATION.md) |
 | epsilon | 1 - 100 | - | Auto-computed |
 
 ### C. Diagnostické Grafy
