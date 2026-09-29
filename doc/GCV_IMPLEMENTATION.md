@@ -46,6 +46,15 @@ L-curve (graf log‖Ax−b‖ vs. log‖Lx‖) je vůči NNLS robustnější —
 odpovídá dobrému kompromisu nezávisle na linearitě. Je ale dražší na celém
 rozsahu, proto se používá hybrid:
 
+**Proč ne GCV nad aktivní množinou?** GCV pro NNLS se v literatuře někdy
+počítá s influence maticí jen nad kladnými složkami γ. Změřeno a zamítnuto:
+aktivní množinu určují sama data, stupně volnosti z ní vycházejí podhodnocené
+a GCV pak volí příliš malé λ. Na `real_gamry_example.DTA` spadla λ z 9.4e-6 na
+2.4e-10 a počet píků vzrostl ze 2 na 5; na syntetice se dvěma procesy a 2 %
+šumu vznikl falešný třetí pík a λ_gcv přestala růst se šumem. Trace se proto
+počítá z neomezeného řešení přes všechny sloupce - konzervativní odhad, který
+doladí L-křivka:
+
 1. **GCV** dá rychlý hrubý odhad λ_gcv.
 2. **L-curve** se prohledá jen v úzkém okolí λ_gcv (±1.5 dekády).
 3. **Rozhodnutí** podle vzájemného poměru obou odhadů (viz níže).

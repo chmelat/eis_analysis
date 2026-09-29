@@ -71,9 +71,14 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
     # K = A @ inv(A^T @ A + λ·L^T·L) @ A^T
     # trace(I - K) = n - trace(K)
     #
-    # POZNÁMKA: Pro NNLS je toto pouze aproximace, protože NNLS má nelineární
-    # constraint (γ ≥ 0). GCV je striktně definováno pro lineární LSQ.
-    # Pro přesnější výběr λ u NNLS zvažte L-curve metodu.
+    # Trace se záměrně bere z neomezeného řešení přes VŠECHNY sloupce, ačkoli
+    # reziduum je z NNLS (γ ≥ 0). "Správnější" K jen nad aktivní množinou
+    # (γ > 0) bylo změřeno a vybírá hůř: aktivní množinu určují sama data, takže
+    # stupně volnosti z ní vycházejí podhodnocené a GCV pak přeje malé λ.
+    # Naměřeno (2026-09-29): real_gamry_example λ 9.4e-6 -> 2.4e-10 a 2 -> 5
+    # píků; syntetika se 2 procesy a 2 % šumu 2 -> 3 píky; λ_gcv navíc
+    # přestala růst se šumem (0.5 % -> 6.2e-7, 2 % -> 2.3e-7). Plný trace dává
+    # konzervativní (větší) λ a hybrid ho doladí L-křivkou.
 
     try:
         # Přímý výpočet trace(K) - matematicky korektní pro LSQ
