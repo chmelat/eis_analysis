@@ -660,3 +660,24 @@ def test_validation_leaves_no_open_figures():
     for _ in range(3):
         kramers_kronig_validation(f, Z)
     assert plt.get_fignums() == []
+
+
+@pytest.mark.parametrize("include_L", [True, False])
+def test_plot_kk_validation_curve_matches_Z_fit(include_L):
+    # The dense curve must go through Z_fit at the spectrum ends; with
+    # include_L=False a hard-coded L slot dropped the last R_k.
+    from eis_analysis.visualization import plot_kk_validation
+
+    f = np.logspace(-1, 5, 60)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    r = lin_kk_native(f, Z, include_L=include_L)
+    fig = plot_kk_validation(f, Z, r)
+    try:
+        curve = fig.axes[0].lines[1]
+        x, y = curve.get_xdata(), curve.get_ydata()
+        i_min, i_max = np.argmin(f), np.argmax(f)
+        assert x[0] == pytest.approx(r.Z_fit[i_min].real, rel=1e-9)
+        assert y[0] == pytest.approx(-r.Z_fit[i_min].imag, rel=1e-9)
+        assert x[-1] == pytest.approx(r.Z_fit[i_max].real, rel=1e-9)
+    finally:
+        plt.close(fig)

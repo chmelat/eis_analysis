@@ -308,8 +308,10 @@ def plot_kk_validation(
     from ..validation.kramers_kronig import KK_RESIDUAL_THRESHOLD, reconstruct_impedance
 
     freq_plot = np.logspace(np.log10(frequencies.min()), np.log10(frequencies.max()), 300)
+    # lin_kk_native(include_L=False) leaves no L at the end of elements
     Z_fit_plot = reconstruct_impedance(freq_plot, result.elements, result.tau, result.inductance,
-                                       include_L=True, C_value=result.capacitance)
+                                       include_L=result.inductance is not None,
+                                       C_value=result.capacitance)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
