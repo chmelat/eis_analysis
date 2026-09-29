@@ -51,3 +51,17 @@ def test_offset_is_the_median_difference():
     ln_Z_exp = np.log(np.abs(Z))
     ln_Z = zhit_reconstruct_magnitude(FREQUENCIES, np.angle(Z), ln_Z_exp)
     assert np.median(ln_Z_exp - ln_Z) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_plot_zhit_validation_marks_flagged_frequencies():
+    from eis_analysis.visualization import plot_zhit_validation
+
+    Z = _r_rc(1e-2)
+    result = zhit_validation(FREQUENCIES, Z)
+    plt.close('all')
+    fig = plot_zhit_validation(FREQUENCIES, Z, result, flagged_frequencies=[FREQUENCIES[5]])
+    try:
+        assert len(fig.axes) == 2
+        assert len(fig.axes[1].lines) == 2 + 3 + 1
+    finally:
+        plt.close(fig)

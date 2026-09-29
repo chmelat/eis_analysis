@@ -92,6 +92,10 @@ class KKResult:
         Fitted series inductance [H]
     capacitance : Optional[float]
         Fitted series capacitance [F] (None unless include_C was requested)
+    elements : Optional[NDArray[np.float64]]
+        Fitted elements [R_s, R_1, ..., R_M, L]
+    tau : Optional[NDArray[np.float64]]
+        Time constants [s]
     figure : Optional[plt.Figure]
         Visualization figure
     warnings : List[str]
@@ -110,6 +114,8 @@ class KKResult:
     extend_decades: float = 0.0
     inductance: Optional[float] = None
     capacitance: Optional[float] = None
+    elements: Optional[NDArray[np.float64]] = None
+    tau: Optional[NDArray[np.float64]] = None
     figure: Optional[plt.Figure] = None
     warnings: List[str] = field(default_factory=list)
     error: Optional[str] = None
@@ -733,6 +739,8 @@ def kramers_kronig_validation(
         extend_decades=lkk.extend_decades,
         inductance=lkk.inductance,
         capacitance=lkk.capacitance,
+        elements=lkk.elements,
+        tau=lkk.tau,
         figure=fig,
         warnings=lkk.warnings
     )

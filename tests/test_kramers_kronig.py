@@ -622,3 +622,20 @@ def test_cli_label_never_poor_when_valid(caplog, monkeypatch):
     line = [rec for rec in caplog.records if 'Data quality' in rec.message][0]
     assert line.levelno == logging.INFO
     assert line.message.startswith('Data quality: marginal')
+
+
+def test_plot_kk_validation_marks_flagged_frequencies():
+    from eis_analysis.visualization import plot_kk_validation
+
+    f = np.logspace(-1, 5, 60)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    result = kramers_kronig_validation(f, Z)
+    plt.close('all')
+    fig = plot_kk_validation(f, Z, result, flagged_frequencies=[f[3], f[10]])
+    try:
+        assert len(fig.axes) == 2
+        # 2 data series on the Nyquist panel; residual panel: 2 series +
+        # 3 horizontal lines + one band per flagged frequency
+        assert len(fig.axes[1].lines) == 2 + 3 + 2
+    finally:
+        plt.close(fig)
