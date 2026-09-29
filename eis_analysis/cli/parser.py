@@ -164,7 +164,7 @@ Examples:
                                '--no-auto-extend to disable.')
     kk_group.add_argument('--extend-decades-max', type=float, default=1.0,
                           help='Maximum extend_decades for --auto-extend search range '
-                               '(searches from -max to +max, default: 1.0)')
+                               '(searches from 0 to max, default: 1.0)')
     kk_group.add_argument('--kk-series-c', action='store_true',
                           help='Include a series capacitance in the Lin-KK model '
                                '(Schonleber add_cap). Use for blocking/capacitive '
