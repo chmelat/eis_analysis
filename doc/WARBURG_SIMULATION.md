@@ -33,8 +33,13 @@ python3 generate_warburg_data.py warburg_data.csv --format csv --noise 1.5 --ppd
 
 # 2. Analyzuj pomocí eis_v2.py
 # POZNÁMKA: Pro Warburg data NEPOUŽÍVEJ --auto-lambda (viz sekce DRT Analýza níže)
-python3 eis_v2.py warburg_data.csv --lambda 1.0 --peak-method gmm -v
+python3 eis_v2.py warburg_data.csv --lambda 3e-5 --peak-method gmm -v
 ```
+
+Hodnoty λ v tomto dokumentu jsou v bezrozměrné škále od v0.47 (viz
+GCV_IMPLEMENTATION.md, „Škála λ“). Původní λ = 1.0 odpovídá na výchozí mřížce
+(`n_tau = 100`) zhruba 3e-5; přepočet 3e-5 na jednotku staré škály byl změřen
+na příkladových spektrech a platí jen přibližně.
 
 ## 📖 Parametry
 
@@ -288,7 +293,7 @@ Když použiješ `--auto-lambda` na Warburg data:
 ```
 ✗ DRT spektrum dominuje divergující ocas při dlouhých τ
 ✗ RC píky jsou potlačené nebo pod detekčním prahem
-✗ Nalezené λ je velmi malé (< 1e-4)
+✗ Nalezené λ je velmi malé (< 3e-9)
 ✗ Peak detection nachází jen 0-1 píky (nebo artefakty)
 ✗ První (správný) RC pík je jen mírně větší než druhý (artefakt)
 ```
@@ -296,16 +301,16 @@ Když použiješ `--auto-lambda` na Warburg data:
 ### ✅ Správný postup pro Warburg data
 
 ```bash
-# 1. MÍSTO auto-lambda použij manuální λ = 1.0 až 2.0
-python3 eis_v2.py warburg_data.DTA --lambda 1.0 --peak-method gmm -v
+# 1. MÍSTO auto-lambda použij manuální λ = 3e-5 až 6e-5
+python3 eis_v2.py warburg_data.DTA --lambda 3e-5 --peak-method gmm -v
 
 # 2. Zkus rozsah hodnot a vyber nejlepší vizuálně
-for lambda in 0.5 1.0 1.5 2.0; do
+for lambda in 1.5e-5 3e-5 4.5e-5 6e-5; do
     python3 eis_v2.py warburg_data.DTA --lambda $lambda --save "lambda_$lambda" --no-show
 done
 
 # 3. S GMM peak detection pro robustní detekci RC píků
-python3 eis_v2.py warburg_data.DTA --lambda 1.5 --peak-method gmm -v --plot
+python3 eis_v2.py warburg_data.DTA --lambda 4.5e-5 --peak-method gmm -v --plot
 
 # 4. Případně omeź frekvenční rozsah při generování
 python3 generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
@@ -315,11 +320,11 @@ python3 generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
 
 | Typ systému | Doporučené λ | GCV použitelnost |
 |-------------|--------------|------------------|
-| Čisté RC (Voigt) | 0.01 - 0.1 | ✅ GCV funguje dobře |
-| RC + Q | 0.1 - 0.5 | ✅ GCV použitelné |
-| **RC + Warburg (Randles)** | **0.5 - 2.0** | ⚠️ **Manuální λ doporučeno** |
-| Complex + Warburg | 1.0 - 3.0 | ⚠️ Manuální λ doporučeno |
-| Pouze Warburg | > 1.0 | ❌ GCV nepoužívat |
+| Čisté RC (Voigt) | 3e-7 - 3e-6 | ✅ GCV funguje dobře |
+| RC + Q | 3e-6 - 1.5e-5 | ✅ GCV použitelné |
+| **RC + Warburg (Randles)** | **1.5e-5 - 6e-5** | ⚠️ **Manuální λ doporučeno** |
+| Complex + Warburg | 3e-5 - 9e-5 | ⚠️ Manuální λ doporučeno |
+| Pouze Warburg | > 3e-5 | ❌ GCV nepoužívat |
 
 ### Proč je to tak?
 

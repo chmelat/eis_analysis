@@ -19,7 +19,7 @@ Features:
 Usage:
     eis                             # synthetic data demo
     eis data.DTA                    # Gamry file (auto-lambda default)
-    eis data.DTA --lambda 0.5       # manual regularization
+    eis data.DTA --lambda 1e-6      # manual regularization
     eis data.DTA --peak-method gmm  # GMM peak detection
     eis data.DTA --ri-fit -v        # robust R_inf estimation
     eis data.DTA --voigt-chain --analyze-oxide  # oxide analysis

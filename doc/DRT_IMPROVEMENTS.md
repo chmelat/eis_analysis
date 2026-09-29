@@ -305,11 +305,14 @@ else:
 
 ## Příklad Vylepšené Workflow
 
+Hodnoty λ jsou v bezrozměrné škále od v0.47 (viz GCV_IMPLEMENTATION.md, „Škála λ“);
+původní 0.1 a 0.05 odpovídají na výchozí mřížce zhruba 3e-6 a 1.5e-6.
+
 ```bash
 # Před vylepšením
-python eis_analysis.py data.DTA --lambda 0.1
+python eis_analysis.py data.DTA --lambda 3e-6
 # Kontrola grafu, ručně upravit λ...
-python eis_analysis.py data.DTA --lambda 0.05
+python eis_analysis.py data.DTA --lambda 1.5e-6
 # Opět kontrola...
 
 # Po vylepšení

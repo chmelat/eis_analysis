@@ -9,6 +9,7 @@ from eis_analysis.drt.gcv import (
     find_optimal_lambda_hybrid,
 )
 from eis_analysis.drt.linear_system import _build_drt_matrices
+from eis_analysis.fitting.config import DRT_LAMBDA_RANGE
 
 
 # =============================================================================
@@ -75,7 +76,7 @@ def test_gcv_score_finite_positive(voigt_data):
     frequencies, Z, R_inf = voigt_data
     A, b, L = _matrices(frequencies, Z, R_inf)
 
-    for lam in np.logspace(-5, 0, 12):
+    for lam in np.logspace(np.log10(DRT_LAMBDA_RANGE[0]), np.log10(DRT_LAMBDA_RANGE[1]), 12):
         score = compute_gcv_score(lam, A, b, L)
         assert np.isfinite(score), f"GCV score not finite at lambda={lam:.1e}"
         assert score > 0, f"GCV score not positive at lambda={lam:.1e}"
@@ -93,8 +94,8 @@ def test_gcv_score_has_minimum(voigt_data):
 
     lambda_gcv, _ = find_optimal_lambda_gcv(A, b, L)
     score_opt = compute_gcv_score(lambda_gcv, A, b, L)
-    score_lo = compute_gcv_score(1e-5, A, b, L)
-    score_hi = compute_gcv_score(1.0, A, b, L)
+    score_lo = compute_gcv_score(DRT_LAMBDA_RANGE[0], A, b, L)
+    score_hi = compute_gcv_score(DRT_LAMBDA_RANGE[1], A, b, L)
 
     assert score_opt <= score_lo + 1e-12, "selected lambda worse than lower edge"
     assert score_opt <= score_hi + 1e-12, "selected lambda worse than upper edge"
