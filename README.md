@@ -564,6 +564,13 @@ chosen equivalent circuit is physically consistent.
   and Z-HIT always run on the full measured spectrum: they are integral relations
   over all frequencies, so validating a truncated range produces spurious residuals.
 
+  Independently of these options, points with Re(Z) < 0 at the high-frequency end
+  are dropped on loading (`load_data`, `load_csv_data`), before validation. No passive system has
+  Re(Z) < 0; at the top of a sweep it is a lead artifact that breaks Lin-KK, the DRT
+  and the fit and makes R_inf negative. Only the contiguous run from the highest
+  frequency is removed: Re(Z) < 0 elsewhere can be a real negative resistance
+  (passivation, oscillating systems under DC bias), so it is kept with a warning.
+
 ### Circuit fitting
 
 - `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG. Repeat the option to fit several candidates on the same data and rank them by AIC/BIC - see [Comparing candidate circuits](#comparing-candidate-circuits).

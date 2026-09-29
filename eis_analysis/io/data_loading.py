@@ -10,7 +10,7 @@ import unicodedata
 import numpy as np
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Tuple
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,9 @@ MIN_FREQUENCY_RANGE = 10  # Minimum ratio f_max/f_min
 class LoadResult:
     """
     A spectrum as it came out of a file.
+
+    The only points removed are the high-frequency run with Re(Z) < 0, a lead
+    artifact; `warnings` says how many (see _drop_negative_real_hf).
 
     Caveats about the data land in `warnings` rather than on the console:
     the loader has no idea whether it runs under the CLI, in a notebook or
@@ -451,6 +454,52 @@ def expected_points(metadata: Dict[str, Any]) -> Optional[int]:
     return round(math.log10(f_init / f_final) * per_decade) + 1
 
 
+def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.complex128],
+                           warnings: List[str]) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+    """
+    Drop the high-frequency run of points with Re(Z) < 0, noting it in `warnings`.
+
+    No passive system has Re(Z) < 0. At the top of a sweep it is a lead
+    artifact (cable inductance resonating with stray capacitance) that breaks
+    Lin-KK, the DRT and the circuit fit, and turns the HF R_inf negative.
+    Only the contiguous run from the highest frequency down is removed: a
+    negative differential resistance (passivation, oscillating systems under
+    DC bias) gives Re(Z) < 0 at low frequencies as real physics, so points
+    elsewhere are kept and only noted. A run interrupted by a positive point is
+    not bridged: Re(Z) flipping sign there is within noise of zero, not a
+    clear artifact.
+
+    Raises
+    ------
+    ValueError
+        If every point has Re(Z) < 0
+    """
+    # Descending; stable, so a duplicated top frequency resolves in file order
+    order = np.argsort(-frequencies, kind='stable')
+    negative = Z.real[order] < 0
+    if negative.all():
+        raise ValueError("All points have Re(Z) < 0 - check the sign convention of the data")
+    n_hf = int(np.argmin(negative))
+
+    mask = np.ones(len(frequencies), dtype=bool)
+    mask[order[:n_hf]] = False
+
+    if n_hf:
+        dropped = frequencies[~mask]
+        warnings.append(f"Dropped {n_hf} high-frequency point(s) with Re(Z) < 0 "
+                        f"({dropped.min():.2e} - {dropped.max():.2e} Hz): not possible "
+                        f"for a passive system, typically a lead artifact")
+
+    remaining = mask & (Z.real < 0)
+    if remaining.any():
+        f_neg = frequencies[remaining]
+        warnings.append(f"{int(remaining.sum())} point(s) below the HF end have Re(Z) < 0 "
+                        f"({f_neg.min():.2e} - {f_neg.max():.2e} Hz), kept: a negative "
+                        f"resistance or a measurement problem")
+
+    return frequencies[mask], Z[mask]
+
+
 def load_data(filename: str) -> LoadResult:
     """
     Load data from Gamry .DTA file.
@@ -489,6 +538,10 @@ def load_data(filename: str) -> LoadResult:
     if np.any(~np.isfinite(frequencies)) or np.any(~np.isfinite(Z)):
         raise ValueError("Data contains NaN or Inf values")
 
+    n_measured = len(frequencies)
+    frequencies, Z = _drop_negative_real_hf(frequencies, Z, result.warnings)
+    result.frequencies, result.Z = frequencies, Z
+
     # Edge case: minimum number of points
     if len(frequencies) < MIN_DATA_POINTS:
         raise ValueError(f"Dataset must have at least {MIN_DATA_POINTS} points, got {len(frequencies)}")
@@ -510,9 +563,10 @@ def load_data(filename: str) -> LoadResult:
     # file a second time for it.
     result.metadata = parse_dta_metadata(filename)
     n_expected = expected_points(result.metadata)
-    if n_expected is not None and len(frequencies) < n_expected:
+    # Counted before the Re(Z) < 0 drop: those points were measured.
+    if n_expected is not None and n_measured < n_expected:
         result.warnings.append(
-            f"Sweep may be truncated: {len(frequencies)} points, header implies "
+            f"Sweep may be truncated: {n_measured} points, header implies "
             f"{n_expected} (lowest measured {frequencies.min():.2e} Hz, "
             f"header FREQFINAL {result.metadata['freq_final']:.2e} Hz)")
 
@@ -694,6 +748,7 @@ def load_csv_data(
 
     freq_array = np.array(frequencies, dtype=np.float64)
     Z = np.array(z_real, dtype=np.float64) + 1j * np.array(z_imag, dtype=np.float64)
+    freq_array, Z = _drop_negative_real_hf(freq_array, Z, warnings)
 
     # Validation
     if len(freq_array) < MIN_DATA_POINTS:

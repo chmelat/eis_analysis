@@ -4,6 +4,25 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **High-frequency points with Re(Z) < 0 are dropped on loading.** No
+  passive system has Re(Z) < 0; at the top of a sweep it is a lead artifact
+  (cable inductance resonating with stray capacitance) that broke Lin-KK, the
+  DRT and the circuit fit and turned the HF R_inf negative. `load_data` and
+  `load_csv_data` now drop the contiguous run of such points from the highest
+  frequency down and say how many and where in `LoadResult.warnings`, so the
+  CLI and library callers get the same spectrum. The minimum point count
+  applies to what is left; the truncated-sweep check still counts the dropped
+  points, since they were measured. Re(Z) < 0 below that run is kept with a
+  warning: a negative differential resistance (passivation,
+  electrochemical oscillators under DC bias) produces it at low frequencies as
+  real physics. Taken from EIS-pipeline's `strip_inductive()`, without its
+  removal of all points with Im(Z) > 0, which the series L of our Lin-KK and
+  DRT already model (doc/EIS_PIPELINE_COMPARISON.md).
+
 ## Version 0.47.0 (2026-09-29)
 
 ### Changed

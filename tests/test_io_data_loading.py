@@ -485,3 +485,75 @@ def test_smoke_load_example_csv():
         f, Z = _fz(load_csv_data(path))
         assert len(f) >= MIN_DATA_POINTS, name
         assert np.all(f > 0)
+
+
+# ---------------------------------------------------------------------------
+# Re(Z) < 0 at the high-frequency end (_drop_negative_real_hf)
+# ---------------------------------------------------------------------------
+
+def _with_negative_real(rows, indices):
+    """rows with Re(Z) made negative at the given row indices."""
+    return [(fr, -abs(zr) if i in indices else zr, zi) for i, (fr, zr, zi) in enumerate(rows)]
+
+
+def _load(tmp_path, fmt, rows):
+    if fmt == "dta":
+        return load_data(_write(tmp_path, "neg.DTA", _make_dta(rows)))
+    return load_csv_data(_write(tmp_path, "neg.csv", _make_csv(rows)))
+
+
+@pytest.mark.parametrize("fmt", ["dta", "csv"])
+@pytest.mark.parametrize("ascending", [False, True])
+def test_negative_real_hf_run_dropped(tmp_path, fmt, ascending):
+    """The HF run goes, a negative point below a positive one stays."""
+    rows = _with_negative_real(_rows(14), {0, 1, 3})  # rows descend: 0, 1 = top
+    if ascending:
+        rows = rows[::-1]
+    result = _load(tmp_path, fmt, rows)
+    f, Z = _fz(result)
+    assert len(f) == 12
+    assert np.isclose(f.max(), _rows(14)[2][0])
+    assert np.sum(Z.real < 0) == 1
+    assert any("Dropped 2 high-frequency" in w for w in result.warnings)
+    assert any("1 point(s) below the HF end" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("fmt", ["dta", "csv"])
+def test_negative_real_lf_kept(tmp_path, fmt):
+    """Re(Z) < 0 at low frequencies can be a real negative resistance."""
+    result = _load(tmp_path, fmt, _with_negative_real(_rows(14), {11, 12, 13}))
+    assert len(result.frequencies) == 14
+    assert not any("Dropped" in w for w in result.warnings)
+    assert any("3 point(s) below the HF end" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("fmt", ["dta", "csv"])
+def test_negative_real_all_raises(tmp_path, fmt):
+    with pytest.raises(ValueError, match="sign convention"):
+        _load(tmp_path, fmt, _with_negative_real(_rows(14), set(range(14))))
+
+
+@pytest.mark.parametrize("fmt", ["dta", "csv"])
+def test_negative_real_drop_checked_against_min_points(tmp_path, fmt):
+    """The minimum point count applies to what is left, not to the file."""
+    rows = _with_negative_real(_rows(MIN_DATA_POINTS + 2), {0, 1, 2})
+    with pytest.raises(ValueError, match="at least"):
+        _load(tmp_path, fmt, rows)
+
+
+def test_negative_real_drop_is_not_a_truncated_sweep(tmp_path):
+    """Dropped points were measured, so a full sweep stays silent."""
+    rows = _with_negative_real(_rows(31, fmin=1e2, fmax=1e5), {0, 1})
+    result = load_data(_write(tmp_path, "full.DTA", _make_dta(rows, sweep=(1e5, 1e2, 10.0))))
+    assert len(result.frequencies) == 29
+    assert not any("truncated" in w.lower() for w in result.warnings)
+
+
+@pytest.mark.parametrize("first_negative, n_kept", [(True, 13), (False, 14)])
+def test_negative_real_duplicate_top_frequency_file_order(tmp_path, first_negative, n_kept):
+    """A repeated top frequency resolves in file order, not by sort luck."""
+    rows = _rows(13)
+    fr, zr, zi = rows[0]
+    pair = [(fr, -zr, zi), (fr, zr, zi)]
+    rows = (pair if first_negative else pair[::-1]) + rows[1:]
+    assert len(load_csv_data(_write(tmp_path, "dup.csv", _make_csv(rows))).frequencies) == n_kept
