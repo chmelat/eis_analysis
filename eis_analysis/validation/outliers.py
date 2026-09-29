@@ -202,11 +202,11 @@ def find_outliers(
     zhit_result : ZHITResult, optional
         Result of Z-HIT validation. None if it did not run.
     max_residual : float, optional
-        Flagging threshold [%] (default: 5.0, the same number the validation
-        summary uses to call a spectrum invalid). Note this metric combines
-        both residual components, so it runs up to sqrt(2) larger than the
-        per-component means behind `KKResult.is_valid` - the two are not the
-        same test.
+        Flagging threshold [%] (default: 5.0, the same number as
+        KK_RESIDUAL_THRESHOLD). Note this metric combines both residual
+        components, so it runs up to sqrt(2) larger than the per-point
+        max(|res_real|, |res_imag|) that `KKResult.is_valid` counts - the two
+        are not the same test.
 
     Returns
     -------

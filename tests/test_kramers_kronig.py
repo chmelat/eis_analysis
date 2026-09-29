@@ -165,6 +165,35 @@ def test_kkresult_invalid_when_residual_exceeds_threshold():
     assert r.is_valid is False
 
 
+def test_kkresult_local_violation_fails_despite_small_mean():
+    # doc/KRAMERS_KRONIG_REVIEW.md 1.4: 10 of 70 points at 20 % give a mean
+    # of ~2.9 %, which passed the old mean criterion.
+    res_imag = np.zeros(70)
+    res_imag[30:40] = 0.20
+    r = KKResult(Z_fit=np.ones(70, dtype=complex),
+                 residuals_real=np.zeros(70), residuals_imag=res_imag)
+    assert r.mean_residual_imag < 5.0
+    assert r.n_above_threshold == 10
+    assert r.is_valid is False
+
+
+def test_kkresult_tolerates_a_few_edge_points():
+    # 3 of 72 points (4 %) above the threshold, e.g. the low-frequency end.
+    res_imag = np.zeros(72)
+    res_imag[:3] = 0.08
+    r = KKResult(Z_fit=np.ones(72, dtype=complex),
+                 residuals_real=np.zeros(72), residuals_imag=res_imag)
+    assert r.n_above_threshold == 3
+    assert r.is_valid is True
+
+
+def test_kkresult_nan_residual_counts_as_above():
+    r = KKResult(Z_fit=np.ones(2, dtype=complex),
+                 residuals_real=np.array([0.01, np.nan]),
+                 residuals_imag=np.array([0.01, 0.01]))
+    assert r.n_above_threshold == 1
+
+
 def test_kkresult_error_keeps_success_false():
     r = KKResult(error="fitting failed")
     assert r.success is False
@@ -547,3 +576,24 @@ def test_drift_shows_in_pointwise_residuals():
 
     assert peak(lin_kk_native(f, drifting_zarc(f, 0.10, 0.002, seed=1))) > 5.0
     assert peak(lin_kk_native(f, drifting_zarc(f, 0.0, 0.002, seed=1))) < 2.0
+
+
+# =============================================================================
+# Validity criterion on measured spectra (doc/KRAMERS_KRONIG_REVIEW.md 1.4)
+# =============================================================================
+
+@pytest.mark.parametrize("name, expected", [
+    ("EISPOT-M136113-4.DTA", True),     # ZrO2 on Zr, 2-electrode
+    ("EISPOT-test1.DTA", True),
+    ("real_gamry_example.DTA", False),  # imag hump to 20 % at 0.03-4 Hz
+])
+def test_kk_validity_on_measured_spectra(name, expected):
+    path = os.path.join(EXAMPLE_DIR, name)
+    if not os.path.exists(path):
+        pytest.skip(f"example/{name} missing")
+    loaded = load_data(path)
+    result = kramers_kronig_validation(loaded.frequencies, loaded.Z)
+    try:
+        assert result.is_valid is expected
+    finally:
+        plt.close('all')

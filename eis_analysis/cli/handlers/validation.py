@@ -23,7 +23,7 @@ from ...validation import (
     KKResult,
     ZHITResult,
 )
-from ...validation.kramers_kronig import KK_RESIDUAL_THRESHOLD
+from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
 
 logger = logging.getLogger(__name__)
@@ -90,9 +90,15 @@ def run_kk_validation(
         logger.warning(warning)
 
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
+    n_points = len(frequencies)
+    # The mean-based label can read "excellent" while a local violation fails
+    # is_valid; the verdict wins, as "poor" always meant invalid.
+    label = _quality_label(mean_abs_residual) if result.is_valid else "poor"
     log_fn = logger.info if result.is_valid else logger.warning
-    log_fn(f"Data quality: {_quality_label(mean_abs_residual)} "
-           f"(max mean |res|={mean_abs_residual:.2f}%, threshold={KK_RESIDUAL_THRESHOLD}%)")
+    log_fn(f"Data quality: {label} "
+           f"({result.n_above_threshold}/{n_points} points above "
+           f"{KK_RESIDUAL_THRESHOLD}%, allowed {KK_MAX_FRACTION_ABOVE:.0%}; "
+           f"max mean |res|={mean_abs_residual:.2f}%)")
 
     # Signature of a missing series term (L or C): the real part fits well
     # while imaginary residuals dominate - typical for blocking/2-electrode

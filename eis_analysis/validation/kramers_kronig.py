@@ -32,14 +32,34 @@ logger = logging.getLogger(__name__)
 CHI2_PLATEAU_DECADES = 0.3
 CHI2_PLATEAU_WINDOW = 8
 
-# is_valid passes a spectrum when the mean |residual| of both the real and
-# the imaginary part stays below this [%]. Empirical, not from literature:
-# a loose "clearly broken" bound, not a noise-level test. Measured spectra
-# that fit well sit an order of magnitude below it (mean |res_imag| 0.6 %
-# on example/EISPOT-M136113-4.DTA, ZrO2 on Zr; 0.4 % on EISPOT-test1.DTA).
-# A mean hides local violations: real_gamry_example.DTA passes with 19 of
-# 72 points above it (doc/KRAMERS_KRONIG_REVIEW.md 1.4).
+# is_valid counts the points whose larger residual component, max(|res_real|,
+# |res_imag|), exceeds KK_RESIDUAL_THRESHOLD [%] - the +-lines of the plot -
+# and passes the spectrum when at most KK_MAX_FRACTION_ABOVE of them do.
+# A mean over all points (the criterion before) hid local violations:
+# example/real_gamry_example.DTA violates KK over 0.03-4 Hz (residual hump
+# to 20 % with every fit_type) and passed with a 3.8 % mean, 19 of 72 points
+# above 5 % (doc/KRAMERS_KRONIG_REVIEW.md 1.4).
+# Both values are empirical, not from literature. 5 % is a loose "clearly
+# broken" bound, not a noise-level test: good measured spectra reach 2.6 %
+# (EISPOT-M136113-4.DTA, ZrO2 on Zr) and 0.7 % (EISPOT-test1.DTA) at the
+# 95th percentile, the failing one 18 %. The 5 % allowance tolerates a few
+# edge points, where Lin-KK residuals grow (4.3 % at the last point of
+# M136113-4): 3 points of 72. Any threshold between ~3 and ~15 % separates
+# these three spectra, so neither value is a measured optimum.
 KK_RESIDUAL_THRESHOLD = 5.0
+KK_MAX_FRACTION_ABOVE = 0.05
+
+
+def count_points_above_threshold(
+    residuals_real: NDArray[np.float64],
+    residuals_imag: NDArray[np.float64]
+) -> int:
+    """Count points whose larger |residual| component exceeds KK_RESIDUAL_THRESHOLD [%].
+
+    NaN residuals count as above: a point that could not be fitted is not a pass.
+    """
+    per_point = 100 * np.maximum(np.abs(residuals_real), np.abs(residuals_imag))
+    return int(np.sum(~(per_point <= KK_RESIDUAL_THRESHOLD)))
 
 
 @dataclass
@@ -117,12 +137,19 @@ class KKResult:
         return float(np.mean(np.abs(self.residuals_imag)) * 100)
 
     @property
+    def n_above_threshold(self) -> int:
+        """Points with max(|res_real|, |res_imag|) above KK_RESIDUAL_THRESHOLD."""
+        if self.residuals_real is None or self.residuals_imag is None:
+            return 0
+        return count_points_above_threshold(self.residuals_real, self.residuals_imag)
+
+    @property
     def is_valid(self) -> bool:
-        """Check if data passes KK validation (mean residuals < KK_RESIDUAL_THRESHOLD %)."""
-        if not self.success:
+        """Check if data passes KK validation (at most KK_MAX_FRACTION_ABOVE
+        of the points above KK_RESIDUAL_THRESHOLD %)."""
+        if not self.success or self.residuals_real is None:
             return False
-        return (self.mean_residual_real < KK_RESIDUAL_THRESHOLD
-                and self.mean_residual_imag < KK_RESIDUAL_THRESHOLD)
+        return self.n_above_threshold <= KK_MAX_FRACTION_ABOVE * len(self.residuals_real)
 
 
 @dataclass
@@ -195,10 +222,15 @@ class LinKKResult:
         return float(np.mean(np.abs(self.residuals_imag)) * 100)
 
     @property
+    def n_above_threshold(self) -> int:
+        """Points with max(|res_real|, |res_imag|) above KK_RESIDUAL_THRESHOLD."""
+        return count_points_above_threshold(self.residuals_real, self.residuals_imag)
+
+    @property
     def is_valid(self) -> bool:
-        """Check if data passes KK validation (mean residuals < KK_RESIDUAL_THRESHOLD %)."""
-        return (self.mean_residual_real < KK_RESIDUAL_THRESHOLD
-                and self.mean_residual_imag < KK_RESIDUAL_THRESHOLD)
+        """Check if data passes KK validation (at most KK_MAX_FRACTION_ABOVE
+        of the points above KK_RESIDUAL_THRESHOLD %)."""
+        return self.n_above_threshold <= KK_MAX_FRACTION_ABOVE * len(self.residuals_real)
 
 
 def compute_pseudo_chisqr(

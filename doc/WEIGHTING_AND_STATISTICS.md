@@ -267,8 +267,11 @@ graded on `max(mean|res_real|, mean|res_imag|)`:
 - < 5%: marginal (check for drift/nonlinearity)
 - >= 5%: poor - data fails validation
 
-The validity flag is the 5% line: both mean residuals must be below 5% for the
-data to count as KK-compliant.
+For KK the validity flag is pointwise, not the mean: a point is above the
+line when max(|res_real|, |res_imag|) > 5% (`KK_RESIDUAL_THRESHOLD`), and the
+data count as KK-compliant when at most 5% of the points are
+(`KK_MAX_FRACTION_ABOVE`). A mean hides a violation confined to part of the
+spectrum; when the flag fails the CLI prints "poor" whatever the mean.
 
 **Note:** In KK validation, real and imaginary parts are expected to be related by Kramers-Kronig relations. High residuals may indicate:
 - System non-stationarity during measurement
@@ -535,7 +538,7 @@ compares with what the toolkit already reported.
 |--------|-------|------|-------------|-----|
 | chi^2_ps | [0, inf) | - | < 0.1 | KK validation |
 | Noise est. | [0, inf) | % | < 3% | Data quality |
-| Mean \|res\| | [0, 100+] | % | < 1% good, < 5% valid | KK validation |
+| Mean \|res\| | [0, 100+] | % | < 1% good (valid: <= 5% of points above 5%) | KK validation |
 | Fit error rel. | [0, 100+] | % | < 10% | Fit quality |
 | Fit error abs. | [0, inf) | Ohm | contextual | Fit quality |
 | SE | [0, inf) | [param] | < 10% of param | Parameter uncertainty |

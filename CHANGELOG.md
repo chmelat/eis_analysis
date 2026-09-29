@@ -8,6 +8,17 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **KK validity counts points above 5 % instead of averaging.**
+  `is_valid` (on `KKResult` and `LinKKResult`) now passes a spectrum when at
+  most 5 % of the points (`KK_MAX_FRACTION_ABOVE`) have max(|res_real|,
+  |res_imag|) above `KK_RESIDUAL_THRESHOLD`; before, both mean residuals had
+  to be below 5 %. The mean hid local violations: `real_gamry_example.DTA`
+  violates KK over 0.03-4 Hz with residuals to 20 % and passed with a 3.8 %
+  mean, 19 of 72 points above 5 %. It now fails; the two good example
+  spectra still pass. New property `n_above_threshold`. The CLI prints the
+  count, and "poor" whenever the flag fails (doc/KRAMERS_KRONIG_REVIEW.md,
+  1.4).
+
 - **The KK validity threshold is one named constant.** The 5 % used by
   `KKResult.is_valid`, `LinKKResult.is_valid`, the CLI summary and the
   +-5 % lines of the residual plot is now `KK_RESIDUAL_THRESHOLD` in

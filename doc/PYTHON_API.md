@@ -190,7 +190,8 @@ result.warnings            # Caveats (max_M reached, extension rejected)
 # Convenience properties
 result.mean_residual_real  # Mean |res_real| [%]
 result.mean_residual_imag  # Mean |res_imag| [%]
-result.is_valid            # True if residuals < 5%
+result.n_above_threshold   # Points with max(|res_real|, |res_imag|) > 5%
+result.is_valid            # True if at most 5% of the points are above 5%
 ```
 
 **Z-HIT validation (non-parametric):**
