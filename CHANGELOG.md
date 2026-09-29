@@ -71,6 +71,12 @@ Complete change history for all project versions.
   ValueError instead of ZeroDivisionError. The extend_decades grid and tie
   tolerance are named constants with their rationale, and the 5000 in the
   noise estimate is derived in its docstring (doc/KRAMERS_KRONIG_REVIEW.md, 3).
+- **`kramers_kronig_validation` no longer hides programming errors.** It
+  caught every exception and returned it as `KKResult.error`, so passing a
+  list instead of an array read as "KK validation failed: 'list' object has
+  no attribute 'min'". It now catches only `ValueError` (invalid data, too
+  few points) and `np.linalg.LinAlgError`; anything else propagates
+  (doc/KRAMERS_KRONIG_REVIEW.md, 2.2).
 
 ## Version 0.46.0 (2026-09-28)
 

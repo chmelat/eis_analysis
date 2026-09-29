@@ -15,6 +15,7 @@ jednou tridou: `lin_kk_native` vraci `KKResult`, `LinKKResult` je jeho alias.
 Ze sekce 3 je opraven mrtvy kod, konstanty (`EXTEND_N_EVALUATIONS`,
 `EXTEND_CHI2_TIE`, odvozeni 5000), deleni nulou v `estimate_noise_percent`,
 tiche orezani v `reconstruct_impedance` (obe podbody) a docstring wrapperu.
+Bod 2.2 je opraven: wrapper chyta jen `ValueError` a `LinAlgError`.
 Otevrene zustavaji: 6-tuple z `find_optimal_extend_decades`, ochrana |Z| = 0
 v pseudo chi^2 (na nekonecnem chi^2 stavi `_chi2_lower_M` a test) a
 ulozeni L uvnitr `elements`, C mimo ne.

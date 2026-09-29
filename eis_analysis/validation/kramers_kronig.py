@@ -641,6 +641,9 @@ def kramers_kronig_validation(
             auto_extend_decades=auto_extend_decades,
             extend_decades_range=extend_decades_range
         )
-    except Exception as e:
+    # Only what bad data can cause: invalid input or too few points
+    # (ValueError) and a failed SVD in the linear fit. A TypeError or
+    # AttributeError is a caller's bug and must not pass as "KK failed".
+    except (ValueError, np.linalg.LinAlgError) as e:
         logger.debug(f"KK validation error: {e}")
         return KKResult(error=str(e))
