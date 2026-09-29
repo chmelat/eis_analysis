@@ -5,7 +5,7 @@ Covers the public API:
 - Pure helpers: compute_pseudo_chisqr, estimate_noise_percent,
   reconstruct_impedance
 - Native Lin-KK fitting: lin_kk_native
-- High-level wrapper + figure: kramers_kronig_validation
+- High-level wrapper: kramers_kronig_validation
 - Tau-range optimization: find_optimal_extend_decades
 - Result dataclasses: KKResult / LinKKResult contracts
 
@@ -19,7 +19,7 @@ import os
 import numpy as np
 import pytest
 
-# Suppress matplotlib GUI (kramers_kronig_validation builds a figure)
+# Suppress matplotlib GUI (plot_kk_validation builds a figure)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -639,3 +639,13 @@ def test_plot_kk_validation_marks_flagged_frequencies():
         assert len(fig.axes[1].lines) == 2 + 3 + 2
     finally:
         plt.close(fig)
+
+
+def test_validation_leaves_no_open_figures():
+    # doc/KRAMERS_KRONIG_REVIEW.md 2.1: every call used to leave a figure open
+    plt.close('all')
+    f = np.logspace(-1, 5, 60)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    for _ in range(3):
+        kramers_kronig_validation(f, Z)
+    assert plt.get_fignums() == []

@@ -5,11 +5,11 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 
 Provides two implementations:
 1. lin_kk_native() - Native implementation using Voigt chain (no external dependencies)
-2. kramers_kronig_validation() - High-level wrapper with visualization
+2. kramers_kronig_validation() - High-level wrapper (plot it with
+   visualization.plot_kk_validation)
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, List
@@ -96,8 +96,6 @@ class KKResult:
         Fitted elements [R_s, R_1, ..., R_M, L]
     tau : Optional[NDArray[np.float64]]
         Time constants [s]
-    figure : Optional[plt.Figure]
-        Visualization figure
     warnings : List[str]
         Warning messages
     error : Optional[str]
@@ -116,7 +114,6 @@ class KKResult:
     capacitance: Optional[float] = None
     elements: Optional[NDArray[np.float64]] = None
     tau: Optional[NDArray[np.float64]] = None
-    figure: Optional[plt.Figure] = None
     warnings: List[str] = field(default_factory=list)
     error: Optional[str] = None
 
@@ -692,41 +689,6 @@ def kramers_kronig_validation(
     if lkk.Z_fit is None:
         return KKResult(error="KK fitting failed - could not fit Voigt chain")
 
-    # Generate interpolated frequencies for smooth curve
-    f_min, f_max = frequencies.min(), frequencies.max()
-    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = reconstruct_impedance(freq_plot, lkk.elements, lkk.tau, lkk.inductance, include_L=True,
-                                       C_value=lkk.capacitance)
-
-    # Visualization
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-    # Fit comparison (Nyquist plot)
-    ax1 = axes[0]
-    ax1.plot(Z.real, -Z.imag, 'o', label='Data', markersize=4)
-    ax1.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='KK fit', linewidth=2)
-    ax1.set_xlabel("Z' [Ohm]")
-    ax1.set_ylabel("-Z'' [Ohm]")
-    ax1.set_title(f"Kramers-Kronig fit in real domain (M={lkk.M})")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    ax1.set_aspect('equal', adjustable='datalim')
-
-    # Residuals plot
-    ax2 = axes[1]
-    ax2.semilogx(frequencies, lkk.residuals_real * 100, 'o', label='Real', markersize=4)
-    ax2.semilogx(frequencies, lkk.residuals_imag * 100, 's', label='Imaginary', markersize=4)
-    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax2.axhline(y=KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
-    ax2.axhline(y=-KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
-    ax2.set_xlabel("Frequency [Hz]")
-    ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"KK residuals (stop mu={lkk.mu:.3f}, chi^2={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
     return KKResult(
         M=lkk.M,
         M_lower=lkk.M_lower,
@@ -741,6 +703,5 @@ def kramers_kronig_validation(
         capacitance=lkk.capacitance,
         elements=lkk.elements,
         tau=lkk.tau,
-        figure=fig,
         warnings=lkk.warnings
     )

@@ -501,8 +501,6 @@ def test_zhit_validation():
 
     assert result is not None, "Z-HIT should return a result"
 
-    plt.close(result.figure)
-
     print("  [OK] Z-HIT validation completed successfully")
 
 
@@ -538,9 +536,7 @@ def test_csv_input():
     print(f"  Frequency range: [{data.frequencies.min():.2e}, {data.frequencies.max():.2e}] Hz")
 
     # Run KK validation on loaded data
-    result = run_kk_validation(data.frequencies, data.Z, create_test_args(no_kk=False))
-    if result is not None:
-        plt.close(result.figure)
+    run_kk_validation(data.frequencies, data.Z, create_test_args(no_kk=False))
 
     print("  [OK] CSV file processing completed successfully")
 
@@ -676,7 +672,8 @@ def test_save_output():
     print("\n[Test 12] Save output to files")
     print("-" * 70)
 
-    from eis_analysis.cli import run_kk_validation
+    from eis_analysis.cli import run_kk_validation, plot_validation
+    from eis_analysis.validation import OutlierReport
 
     frequencies, Z = get_synthetic_data()
 
@@ -685,19 +682,12 @@ def test_save_output():
 
         args = create_test_args(no_kk=False, save=prefix, format='png')
         result = run_kk_validation(frequencies, Z, args)
+        plot_validation(frequencies, Z, result, None, OutlierReport(), args)
+        plt.close('all')
 
         expected_file = f"{prefix}_kk.png"
-
-        if result is not None:
-            plt.close(result.figure)
-
-        # Check if file was created
-        if os.path.exists(expected_file):
-            file_size = os.path.getsize(expected_file)
-            print(f"  Saved: {os.path.basename(expected_file)} ({file_size} bytes)")
-            assert file_size > 0, "Saved file should not be empty"
-        else:
-            print("  Note: File not saved (save_figure may be disabled in handler)")
+        assert os.path.getsize(expected_file) > 0, "Saved file should not be empty"
+        print(f"  Saved: {os.path.basename(expected_file)}")
 
     print("  [OK] Save output test completed")
 

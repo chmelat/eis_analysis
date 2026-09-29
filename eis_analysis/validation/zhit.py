@@ -3,7 +3,8 @@ Z-HIT (Z-Hilbert Impedance Transform) validation for EIS data quality assessment
 
 Provides non-parametric K-K validation using numerical integration:
 1. zhit_reconstruct_magnitude() - Core magnitude reconstruction from phase
-2. zhit_validation() - High-level wrapper with visualization
+2. zhit_validation() - High-level wrapper (plot it with
+   visualization.plot_zhit_validation)
 3. ZHITResult - Dataclass with validation results
 
 Implementation notes
@@ -35,10 +36,8 @@ Journal of Electroanalytical Chemistry 499, 216-225
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from numpy.typing import NDArray
 from scipy.integrate import cumulative_trapezoid
 
@@ -84,8 +83,6 @@ class ZHITResult:
         Quality metric (0-1 scale, based on magnitude residuals)
     quality_threshold : float
         Pass/fail threshold for `is_valid` and the `quality` metric [%].
-    figure : Optional[plt.Figure]
-        Visualization figure
     """
     Z_mag_reconstructed: NDArray[np.float64]
     Z_fit: NDArray[np.complex128]
@@ -96,7 +93,6 @@ class ZHITResult:
     noise_estimate: float
     quality: float
     quality_threshold: float = 5.0
-    figure: Optional[plt.Figure] = None
 
     @property
     def success(self) -> bool:
@@ -228,7 +224,6 @@ def zhit_validation(
         - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
         - noise_estimate: Estimated noise [%]
         - quality: Quality metric (0-1 scale)
-        - figure: Visualization figure
 
     Notes
     -----
@@ -283,8 +278,7 @@ def zhit_validation(
             pseudo_chisqr=0.0,
             noise_estimate=0.0,
             quality=0.0,
-            quality_threshold=quality_threshold,
-            figure=None
+            quality_threshold=quality_threshold
         )
 
     # Reconstruct complex impedance: Z_fit = |Z_recon| * exp(j*phi)
@@ -306,35 +300,6 @@ def zhit_validation(
     mean_abs_residual_mag = np.mean(np.abs(residuals_mag))
     quality = max(0.0, 1.0 - mean_abs_residual_mag / quality_threshold)
 
-    # Visualization
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-    # Left panel: Magnitude comparison (log-log)
-    ax1 = axes[0]
-    ax1.loglog(frequencies, Z_mag, 'o', label='Measured', markersize=4)
-    ax1.loglog(frequencies, Z_mag_reconstructed, '-', label='Z-HIT reconstruction',
-               linewidth=2, color='red')
-    ax1.set_xlabel("Frequency [Hz]")
-    ax1.set_ylabel("|Z| [Ohm]")
-    ax1.set_title("Z-HIT validation")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3, which='both')
-
-    # Right panel: Complex residuals
-    ax2 = axes[1]
-    ax2.semilogx(frequencies, residuals_real * 100, 'o', label='Real', markersize=4, alpha=0.7)
-    ax2.semilogx(frequencies, residuals_imag * 100, 's', label='Imag', markersize=4, alpha=0.7)
-    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5)
-    ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
-    ax2.set_xlabel("Frequency [Hz]")
-    ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"Z-HIT residuals (χ²={pseudo_chisqr:.2e}, noise≤{noise_estimate:.1f}%)")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
     # Restore the user's original frequency ordering on output arrays so they
     # pair element-wise with the input `frequencies` / `Z`.
     return ZHITResult(
@@ -346,6 +311,5 @@ def zhit_validation(
         pseudo_chisqr=pseudo_chisqr,
         noise_estimate=noise_estimate,
         quality=quality,
-        quality_threshold=quality_threshold,
-        figure=fig
+        quality_threshold=quality_threshold
     )

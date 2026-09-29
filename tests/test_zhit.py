@@ -65,3 +65,10 @@ def test_plot_zhit_validation_marks_flagged_frequencies():
         assert len(fig.axes[1].lines) == 2 + 3 + 1
     finally:
         plt.close(fig)
+
+
+def test_validation_leaves_no_open_figures():
+    plt.close('all')
+    for _ in range(3):
+        zhit_validation(FREQUENCIES, _r_rc(1e-2))
+    assert plt.get_fignums() == []

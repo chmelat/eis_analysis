@@ -359,8 +359,10 @@ def plot_zhit_validation(
 
     ax1 = axes[0]
     ax1.loglog(frequencies, np.abs(Z), 'o', label='Measured', markersize=4)
-    ax1.loglog(frequencies, result.Z_mag_reconstructed, '-', label='Z-HIT reconstruction',
-               linewidth=2, color='red')
+    # The result keeps the caller's point order; a line needs sorted frequencies
+    order = np.argsort(frequencies)
+    ax1.loglog(frequencies[order], result.Z_mag_reconstructed[order], '-',
+               label='Z-HIT reconstruction', linewidth=2, color='red')
     ax1.set_xlabel("Frequency [Hz]")
     ax1.set_ylabel("|Z| [Ohm]")
     ax1.set_title("Z-HIT validation")

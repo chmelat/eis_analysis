@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-# Suppress matplotlib GUI (the validation functions build figures)
+# Suppress matplotlib GUI (the figure-marking test draws figures)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -77,7 +77,6 @@ def test_residual_percent_matches_zhit_magnitude_residual():
     result = zhit_validation(freq, Z)
     r = residual_percent(result.residuals_real, result.residuals_imag)
     assert np.allclose(r, np.abs(result.residuals_mag), rtol=1e-9, atol=1e-9)
-    plt.close(result.figure)
 
 
 # =============================================================================
@@ -212,8 +211,7 @@ def test_empty_zhit_result_is_ignored():
     zhit = ZHITResult(
         Z_mag_reconstructed=empty, Z_fit=np.array([], dtype=complex),
         residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
-        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0,
-        figure=None
+        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0
     )
     report = find_outliers(np.logspace(-2, 5, 10), None, zhit)
     assert report.points == []
@@ -261,9 +259,6 @@ def test_injected_spike_is_the_worst_point_end_to_end():
     assert report.points[0].frequency == pytest.approx(freq[spike_index])
     assert "KK" in report.points[0].methods
 
-    plt.close(kk.figure)
-    plt.close(zhit.figure)
-
 
 def test_clean_compliant_spectrum_is_silent_end_to_end():
     freq = np.logspace(-1, 4, 50)
@@ -272,8 +267,6 @@ def test_clean_compliant_spectrum_is_silent_end_to_end():
     zhit = zhit_validation(freq, Z)
     report = find_outliers(freq, kk, zhit, max_residual=5.0)
     assert report.points == [], f"clean data flagged {len(report.points)} points"
-    plt.close(kk.figure)
-    plt.close(zhit.figure)
 
 
 # =============================================================================
