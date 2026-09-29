@@ -23,6 +23,7 @@ from ...validation import (
     KKResult,
     ZHITResult,
 )
+from ...validation.kramers_kronig import KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
 
 logger = logging.getLogger(__name__)
@@ -91,13 +92,13 @@ def run_kk_validation(
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
     log_fn = logger.info if result.is_valid else logger.warning
     log_fn(f"Data quality: {_quality_label(mean_abs_residual)} "
-           f"(max mean |res|={mean_abs_residual:.2f}%, threshold=5.0%)")
+           f"(max mean |res|={mean_abs_residual:.2f}%, threshold={KK_RESIDUAL_THRESHOLD}%)")
 
     # Signature of a missing series term (L or C): the real part fits well
     # while imaginary residuals dominate - typical for blocking/2-electrode
     # cells whose series capacitance the Voigt chain cannot represent.
     if (not result.is_valid and not args.kk_series_c
-            and result.mean_residual_imag > 5.0
+            and result.mean_residual_imag > KK_RESIDUAL_THRESHOLD
             and result.mean_residual_real < 1.0):
         logger.info("Hint: imag residuals dominate while the real fit is good - "
                     "try --kk-series-c (blocking/2-electrode behavior)")

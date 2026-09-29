@@ -4,6 +4,17 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **The KK validity threshold is one named constant.** The 5 % used by
+  `KKResult.is_valid`, `LinKKResult.is_valid`, the CLI summary and the
+  +-5 % lines of the residual plot is now `KK_RESIDUAL_THRESHOLD` in
+  `validation/kramers_kronig.py`, with the value's rationale. Same value, no
+  change in results (doc/KRAMERS_KRONIG_REVIEW.md, 1.4). Added
+  `example/EISPOT-M136113-4.DTA`, a measured ZrO2-on-Zr spectrum.
+
 ## Version 0.46.0 (2026-09-28)
 
 ### Fixed

@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 CHI2_PLATEAU_DECADES = 0.3
 CHI2_PLATEAU_WINDOW = 8
 
+# is_valid passes a spectrum when the mean |residual| of both the real and
+# the imaginary part stays below this [%]. Empirical, not from literature:
+# a loose "clearly broken" bound, not a noise-level test. Measured spectra
+# that fit well sit an order of magnitude below it (mean |res_imag| 0.6 %
+# on example/EISPOT-M136113-4.DTA, ZrO2 on Zr; 0.4 % on EISPOT-test1.DTA).
+# A mean hides local violations: real_gamry_example.DTA passes with 19 of
+# 72 points above it (doc/KRAMERS_KRONIG_REVIEW.md 1.4).
+KK_RESIDUAL_THRESHOLD = 5.0
+
 
 @dataclass
 class KKResult:
@@ -109,10 +118,11 @@ class KKResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if data passes KK validation (residuals < 5%)."""
+        """Check if data passes KK validation (mean residuals < KK_RESIDUAL_THRESHOLD %)."""
         if not self.success:
             return False
-        return self.mean_residual_real < 5 and self.mean_residual_imag < 5
+        return (self.mean_residual_real < KK_RESIDUAL_THRESHOLD
+                and self.mean_residual_imag < KK_RESIDUAL_THRESHOLD)
 
 
 @dataclass
@@ -186,8 +196,9 @@ class LinKKResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if data passes KK validation (residuals < 5%)."""
-        return self.mean_residual_real < 5 and self.mean_residual_imag < 5
+        """Check if data passes KK validation (mean residuals < KK_RESIDUAL_THRESHOLD %)."""
+        return (self.mean_residual_real < KK_RESIDUAL_THRESHOLD
+                and self.mean_residual_imag < KK_RESIDUAL_THRESHOLD)
 
 
 def compute_pseudo_chisqr(
@@ -669,8 +680,8 @@ def kramers_kronig_validation(
     ax2.semilogx(frequencies, lkk.residuals_real * 100, 'o', label='Real', markersize=4)
     ax2.semilogx(frequencies, lkk.residuals_imag * 100, 's', label='Imaginary', markersize=4)
     ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5)
-    ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
+    ax2.axhline(y=KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
+    ax2.axhline(y=-KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
     ax2.set_xlabel("Frequency [Hz]")
     ax2.set_ylabel("Residuals [%]")
     ax2.set_title(f"KK residuals (stop mu={lkk.mu:.3f}, chi^2={lkk.pseudo_chisqr:.2e}, noise~{lkk.noise_estimate:.1f}%)")
