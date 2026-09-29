@@ -111,9 +111,8 @@ def _build_drt_matrices(frequencies: NDArray, Z: NDArray,
     #     = n * [ (1/n) ||A gamma - b||^2 + lambda * integral (gamma'')^2 d ln tau ]
     # with n residuals. The [1, -2, 1] difference / d^2 is gamma'', sqrt(d)
     # turns the sum of squares into the rectangle-rule integral, and sqrt(n)
-    # makes the misfit a mean. A bare [1, -2, 1] left lambda proportional to
-    # d^3 and to n: automatic lambda went 0.036 / 0.32 / 3.6 for n_tau = 50 /
-    # 100 / 200 and a fixed lambda gave 3 / 5 / 6 peaks. See DRT_LAMBDA_RANGE.
+    # makes the misfit a mean; a bare [1, -2, 1] left lambda proportional to
+    # d^3 and to n. See DRT_LAMBDA_RANGE.
     L = np.zeros((n_grid - 2, n_grid))
     np.fill_diagonal(L, 1)           # Main diagonal at offset 0
     np.fill_diagonal(L[:, 1:], -2)   # Diagonal at offset 1
@@ -151,17 +150,14 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
     """
     # Edge detection (F3/F7): lambda landing at a bound - or the GCV guess
     # pinning there even when L-curve corrected it - signals the optimizer
-    # wants more extreme regularization than the range allows.
-    lambda_range = DRT_LAMBDA_RANGE
-
+    # wants more extreme regularization than DRT_LAMBDA_RANGE allows.
     def _at_bound(lam: Optional[float]) -> bool:
-        return lam is not None and (lam <= lambda_range[0] or lam >= lambda_range[1])
+        return lam is not None and not DRT_LAMBDA_RANGE[0] < lam < DRT_LAMBDA_RANGE[1]
 
     if auto_lambda:
         try:
             lambda_opt, gcv_score, diag = find_optimal_lambda_hybrid(
                 A, b, L,
-                lambda_range=lambda_range,
                 n_search=20,
                 lcurve_decades=1.5
             )
@@ -186,7 +182,7 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                          exc_info=True)
             try:
                 lambda_opt, gcv_score = find_optimal_lambda_gcv(
-                    A, b, L, lambda_range=lambda_range, n_search=20
+                    A, b, L, n_search=20
                 )
                 return LambdaSelection(
                     lambda_value=lambda_opt,
