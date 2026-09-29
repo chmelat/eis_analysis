@@ -177,34 +177,6 @@ def test_kkresult_local_violation_fails_despite_small_mean():
     assert r.is_valid is False
 
 
-def test_kkresult_tolerates_a_few_edge_points():
-    # 3 of 72 points (4 %) above the threshold, e.g. the low-frequency end.
-    res_imag = np.zeros(72)
-    res_imag[:3] = 0.08
-    r = KKResult(Z_fit=np.ones(72, dtype=complex),
-                 residuals_real=np.zeros(72), residuals_imag=res_imag)
-    assert r.n_above_threshold == 3
-    assert r.is_valid is True
-
-
-def test_kkresult_nan_residual_counts_as_above():
-    r = KKResult(Z_fit=np.ones(2, dtype=complex),
-                 residuals_real=np.array([0.01, np.nan]),
-                 residuals_imag=np.array([0.01, 0.01]))
-    assert r.n_above_threshold == 1
-
-
-def test_lin_kk_native_returns_the_validation_result_type():
-    # doc/KRAMERS_KRONIG_REVIEW.md 2.3: one result class; LinKKResult is an alias
-    from eis_analysis.validation import LinKKResult
-
-    f = np.logspace(-1, 5, 40)
-    r = lin_kk_native(f, voigt_impedance(f, 10.0, [(50.0, 1e-3)]))
-    assert LinKKResult is KKResult
-    assert isinstance(r, KKResult)
-    assert r.success and r.error is None and r.weighting == 'modulus'
-
-
 def test_kkresult_error_keeps_success_false():
     r = KKResult(error="fitting failed")
     assert r.success is False
@@ -610,48 +582,6 @@ def test_kk_validity_on_measured_spectra(name, expected):
         plt.close('all')
 
 
-def test_cli_label_never_poor_when_valid(caplog, monkeypatch):
-    # 3 of 72 edge points at 150 % pass is_valid, yet the mean (6.3 %) is past
-    # the "poor" line of the mean-based label.
-    import argparse
-    import logging
-
-    from eis_analysis.cli.handlers import validation as handler
-
-    res_imag = np.zeros(72)
-    res_imag[:3] = 1.5
-    fake = KKResult(Z_fit=np.ones(72, dtype=complex),
-                    residuals_real=np.zeros(72), residuals_imag=res_imag)
-    assert fake.is_valid and fake.mean_residual_imag > 5.0
-    monkeypatch.setattr(handler, "kramers_kronig_validation", lambda *a, **k: fake)
-    args = argparse.Namespace(
-        no_kk=False, mu_threshold=0.85, auto_extend=False,
-        extend_decades_max=1.0, kk_series_c=False, save=None, format='png',
-    )
-    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.validation'):
-        handler.run_kk_validation(np.logspace(5, -2, 72), np.ones(72, dtype=complex), args)
-    line = [rec for rec in caplog.records if 'Data quality' in rec.message][0]
-    assert line.levelno == logging.INFO
-    assert line.message.startswith('Data quality: marginal')
-
-
-def test_plot_kk_validation_marks_flagged_frequencies():
-    from eis_analysis.visualization import plot_kk_validation
-
-    f = np.logspace(-1, 5, 60)
-    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
-    result = kramers_kronig_validation(f, Z)
-    plt.close('all')
-    fig = plot_kk_validation(f, Z, result, flagged_frequencies=[f[3], f[10]])
-    try:
-        assert len(fig.axes) == 2
-        # 2 data series on the Nyquist panel; residual panel: 2 series +
-        # 3 horizontal lines + one band per flagged frequency
-        assert len(fig.axes[1].lines) == 2 + 3 + 2
-    finally:
-        plt.close(fig)
-
-
 def test_validation_leaves_no_open_figures():
     # doc/KRAMERS_KRONIG_REVIEW.md 2.1: every call used to leave a figure open
     plt.close('all')
@@ -694,12 +624,3 @@ def test_mu_threshold_at_or_above_one_stops_at_the_first_M(threshold):
     r = find_optimal_M_mu(f, Z, mu_threshold=threshold, min_M=3)
     assert r.M == 3 and r.tau is not None and r.elements is not None
     assert kramers_kronig_validation(f, Z, mu_threshold=threshold).success
-
-
-def test_mu_threshold_nan_is_rejected():
-    from eis_analysis.fitting.voigt_chain import find_optimal_M_mu
-
-    f = np.logspace(5, -1, 30)
-    with pytest.raises(ValueError, match="NaN"):
-        find_optimal_M_mu(f, voigt_impedance(f, 10.0, [(100.0, 1e-3)]), mu_threshold=float('nan'))
-

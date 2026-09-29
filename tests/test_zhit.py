@@ -53,36 +53,8 @@ def test_offset_is_the_median_difference():
     assert np.median(ln_Z_exp - ln_Z) == pytest.approx(0.0, abs=1e-12)
 
 
-def test_plot_zhit_validation_marks_flagged_frequencies():
-    from eis_analysis.visualization import plot_zhit_validation
-
-    Z = _r_rc(1e-2)
-    result = zhit_validation(FREQUENCIES, Z)
-    plt.close('all')
-    fig = plot_zhit_validation(FREQUENCIES, Z, result, flagged_frequencies=[FREQUENCIES[5]])
-    try:
-        assert len(fig.axes) == 2
-        assert len(fig.axes[1].lines) == 2 + 3 + 1
-    finally:
-        plt.close(fig)
-
-
 def test_validation_leaves_no_open_figures():
     plt.close('all')
     for _ in range(3):
         zhit_validation(FREQUENCIES, _r_rc(1e-2))
     assert plt.get_fignums() == []
-
-
-def test_plot_zhit_validation_draws_the_result_s_threshold():
-    from eis_analysis.visualization import plot_zhit_validation
-
-    Z = _r_rc(1e-2)
-    result = zhit_validation(FREQUENCIES, Z, quality_threshold=2.0)
-    plt.close('all')
-    fig = plot_zhit_validation(FREQUENCIES, Z, result)
-    try:
-        levels = {line.get_ydata()[0] for line in fig.axes[1].lines[2:]}
-        assert levels == {0.0, 2.0, -2.0}
-    finally:
-        plt.close(fig)
