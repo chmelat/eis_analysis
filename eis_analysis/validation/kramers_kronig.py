@@ -3,9 +3,11 @@ Kramers-Kronig validation for EIS data quality assessment.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
 
-Provides two implementations:
-1. lin_kk_native() - Native implementation using Voigt chain (no external dependencies)
-2. kramers_kronig_validation() - High-level wrapper (plot it with
+Two entry points, both returning KKResult:
+1. lin_kk_native() - Native implementation using Voigt chain (no external
+   dependencies); full control over the fit, raises on failure
+2. kramers_kronig_validation() - High-level wrapper with the validation
+   defaults; returns a failure as KKResult.error (plot it with
    visualization.plot_kk_validation)
 """
 
@@ -61,7 +63,11 @@ def count_points_above_threshold(
 
 @dataclass
 class KKResult:
-    """Result of Kramers-Kronig validation.
+    """Result of a Lin-KK fit: `lin_kk_native` and `kramers_kronig_validation`.
+
+    The two differ only in how they fail: `lin_kk_native` raises, while
+    `kramers_kronig_validation` returns a result with `error` set, empty
+    arrays (None) and `success == False`.
 
     Attributes
     ----------
@@ -93,11 +99,14 @@ class KKResult:
     capacitance : Optional[float]
         Fitted series capacitance [F] (None unless include_C was requested)
     elements : Optional[NDArray[np.float64]]
-        Fitted elements [R_s, R_1, ..., R_M, L]
+        Fitted elements [R_s, R_1, ..., R_M, L] (L only with include_L;
+        the series C is never part of it)
     tau : Optional[NDArray[np.float64]]
         Time constants [s]
+    weighting : str
+        Weighting scheme of the fit
     warnings : List[str]
-        Warning messages
+        Caveats about the fit (e.g. max_M reached, extension rejected)
     error : Optional[str]
         Error message if validation failed
     """
@@ -114,6 +123,7 @@ class KKResult:
     capacitance: Optional[float] = None
     elements: Optional[NDArray[np.float64]] = None
     tau: Optional[NDArray[np.float64]] = None
+    weighting: str = 'modulus'
     warnings: List[str] = field(default_factory=list)
     error: Optional[str] = None
 
@@ -152,85 +162,9 @@ class KKResult:
         return self.n_above_threshold <= KK_MAX_FRACTION_ABOVE * len(self.residuals_real)
 
 
-@dataclass
-class LinKKResult:
-    """Result of Lin-KK native fitting.
-
-    Attributes
-    ----------
-    M : int
-        Number of Voigt elements used
-    mu : float
-        Lin-KK stop value: mu at the first M >= M_lower where it dropped
-        below mu_threshold, so it is expected to be below the threshold on
-        normal termination. Not a data-quality metric (judge quality by
-        the residuals); mu > threshold only when max_M was reached.
-        With extend_decades > 0 the returned model's own mu is at least
-        this value: extensions that would lower it are rejected.
-    Z_fit : NDArray[np.complex128]
-        Fitted impedance
-    residuals_real : NDArray[np.float64]
-        Real part residuals (normalized by |Z|)
-    residuals_imag : NDArray[np.float64]
-        Imaginary part residuals (normalized by |Z|)
-    pseudo_chisqr : float
-        Pseudo chi-squared (Boukamp 1995)
-    noise_estimate : float
-        Estimated noise in percent
-    extend_decades : float
-        Tau range extension in decades
-    inductance : Optional[float]
-        Fitted series inductance [H]
-    elements : NDArray[np.float64]
-        Fitted elements [R_s, R_1, ..., R_M]
-    tau : NDArray[np.float64]
-        Time constants [s]
-    M_lower : int
-        First M the mu search tried: where pseudo chi^2 levels off
-    weighting : str
-        Weighting scheme used
-    capacitance : Optional[float]
-        Fitted series capacitance [F] (None unless include_C was requested;
-        not part of the elements array)
-    warnings : List[str]
-        Caveats about the fit (e.g. max_M reached, extension rejected)
-    """
-    M: int
-    mu: float
-    Z_fit: NDArray[np.complex128]
-    residuals_real: NDArray[np.float64]
-    residuals_imag: NDArray[np.float64]
-    pseudo_chisqr: float
-    noise_estimate: float
-    extend_decades: float
-    inductance: Optional[float]
-    elements: NDArray[np.float64]
-    tau: NDArray[np.float64]
-    M_lower: int
-    weighting: str = 'modulus'
-    capacitance: Optional[float] = None
-    warnings: List[str] = field(default_factory=list)
-
-    @property
-    def mean_residual_real(self) -> float:
-        """Mean absolute real residual in percent."""
-        return float(np.mean(np.abs(self.residuals_real)) * 100)
-
-    @property
-    def mean_residual_imag(self) -> float:
-        """Mean absolute imaginary residual in percent."""
-        return float(np.mean(np.abs(self.residuals_imag)) * 100)
-
-    @property
-    def n_above_threshold(self) -> int:
-        """Points with max(|res_real|, |res_imag|) above KK_RESIDUAL_THRESHOLD."""
-        return count_points_above_threshold(self.residuals_real, self.residuals_imag)
-
-    @property
-    def is_valid(self) -> bool:
-        """Check if data passes KK validation (at most KK_MAX_FRACTION_ABOVE
-        of the points above KK_RESIDUAL_THRESHOLD %)."""
-        return self.n_above_threshold <= KK_MAX_FRACTION_ABOVE * len(self.residuals_real)
+# Kept for callers of the former separate class: it duplicated every field and
+# property of KKResult (doc/KRAMERS_KRONIG_REVIEW.md 2.3).
+LinKKResult = KKResult
 
 
 def compute_pseudo_chisqr(
@@ -478,7 +412,7 @@ def lin_kk_native(
     weighting: str = 'modulus',
     auto_extend_decades: bool = False,
     extend_decades_range: Tuple[float, float] = (0.0, 1.0)
-) -> LinKKResult:
+) -> KKResult:
     """
     Native Lin-KK implementation using Voigt chain fitting.
 
@@ -518,9 +452,10 @@ def lin_kk_native(
 
     Returns
     -------
-    LinKKResult
-        Dataclass containing M, mu, Z_fit, residuals, pseudo_chisqr,
-        noise_estimate, extend_decades, inductance, elements, tau.
+    KKResult
+        M, mu, Z_fit, residuals, pseudo_chisqr, noise_estimate,
+        extend_decades, inductance, capacitance, elements, tau (never
+        with `error` set: failures raise).
         Note: the returned mu is the Lin-KK stop value and is expected
         to be below mu_threshold on normal termination — judge data
         quality by the residuals, not by mu. An extended tau grid is
@@ -604,7 +539,7 @@ def lin_kk_native(
     chi2_ps = compute_pseudo_chisqr(Z, Z_fit)
     noise_est = estimate_noise_percent(chi2_ps, len(Z))
 
-    return LinKKResult(
+    return KKResult(
         M=M,
         mu=mu,
         Z_fit=Z_fit,
@@ -671,7 +606,7 @@ def kramers_kronig_validation(
         value (expected below mu_threshold on normal termination).
     """
     try:
-        lkk = lin_kk_native(
+        return lin_kk_native(
             frequencies, Z,
             mu_threshold=mu_threshold,
             max_M=max_M,
@@ -685,23 +620,3 @@ def kramers_kronig_validation(
     except Exception as e:
         logger.debug(f"KK validation error: {e}")
         return KKResult(error=str(e))
-
-    if lkk.Z_fit is None:
-        return KKResult(error="KK fitting failed - could not fit Voigt chain")
-
-    return KKResult(
-        M=lkk.M,
-        M_lower=lkk.M_lower,
-        mu=lkk.mu,
-        Z_fit=lkk.Z_fit,
-        residuals_real=lkk.residuals_real,
-        residuals_imag=lkk.residuals_imag,
-        pseudo_chisqr=lkk.pseudo_chisqr,
-        noise_estimate=lkk.noise_estimate,
-        extend_decades=lkk.extend_decades,
-        inductance=lkk.inductance,
-        capacitance=lkk.capacitance,
-        elements=lkk.elements,
-        tau=lkk.tau,
-        warnings=lkk.warnings
-    )

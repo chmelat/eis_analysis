@@ -194,6 +194,17 @@ def test_kkresult_nan_residual_counts_as_above():
     assert r.n_above_threshold == 1
 
 
+def test_lin_kk_native_returns_the_validation_result_type():
+    # doc/KRAMERS_KRONIG_REVIEW.md 2.3: one result class; LinKKResult is an alias
+    from eis_analysis.validation import LinKKResult
+
+    f = np.logspace(-1, 5, 40)
+    r = lin_kk_native(f, voigt_impedance(f, 10.0, [(50.0, 1e-3)]))
+    assert LinKKResult is KKResult
+    assert isinstance(r, KKResult)
+    assert r.success and r.error is None and r.weighting == 'modulus'
+
+
 def test_kkresult_error_keeps_success_false():
     r = KKResult(error="fitting failed")
     assert r.success is False

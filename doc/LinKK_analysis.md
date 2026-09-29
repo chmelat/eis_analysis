@@ -211,6 +211,7 @@ class KKResult:
     capacitance: Optional[float]     # Seriova kapacita [F] (jen s include_C)
     elements: Optional[NDArray]      # Fitovane prvky [R_s, R_1, ..., R_M, L]
     tau: Optional[NDArray]           # Casove konstanty [s]
+    weighting: str                   # Vazeni fitu ('modulus')
     warnings: List[str]              # Varovani (max_M, odmitnute rozsireni)
     error: Optional[str]             # Chybova zprava, kdyz validace selhala
 
@@ -250,10 +251,10 @@ def lin_kk_native(
     weighting='modulus',        # 'uniform', 'sqrt', 'modulus', 'proportional'
     auto_extend_decades=False,
     extend_decades_range=(0.0, 1.0)
-) -> LinKKResult
+) -> KKResult
 ```
 
-Samotny fit bez grafu, s plnou kontrolou parametru. `LinKKResult` ma stejna data jako `KKResult` (bez `error`) a navic `weighting`. Pod 5 body vyhodi `ValueError`.
+Samotny fit s plnou kontrolou parametru. Vraci stejny `KKResult` jako `kramers_kronig_validation()`, jen chybu nevraci v `error`, ale vyhodi ji (pod 5 body `ValueError`). `LinKKResult` je alias `KKResult`, zachovany kvuli kompatibilite.
 
 ### Pomocne funkce
 

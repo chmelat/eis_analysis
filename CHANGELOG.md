@@ -8,6 +8,14 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **One result class for Lin-KK.** `lin_kk_native` now returns `KKResult`,
+  the same class as `kramers_kronig_validation`; `LinKKResult` remains as an
+  alias of it. The two classes duplicated 14 fields and four properties, every
+  change had to be made twice, and the copies had drifted (the `elements`
+  docstring of `LinKKResult` left out the L at its end). `KKResult` gains
+  `weighting`. Code that constructed `LinKKResult` positionally breaks;
+  attribute access is unchanged (doc/KRAMERS_KRONIG_REVIEW.md, 2.3).
+
 - **KK and Z-HIT validation no longer build figures (breaking).**
   `kramers_kronig_validation` and `zhit_validation` created a matplotlib
   figure on every call, so a batch run leaked one open figure per spectrum.

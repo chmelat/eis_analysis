@@ -10,7 +10,8 @@ napoveda `--auto-extend` a README). Bod 2.1 je vyresen i pro Z-HIT: grafy
 kresli `visualization.plot_kk_validation` / `plot_zhit_validation`, pole
 `figure` z vysledku zmizelo. Import `eis_analysis.validation` dal natahne
 pyplot, ale kvuli `eis_analysis/__init__.py`, ktery importuje `visualization`
-- to je vlastnost celeho balicku, ne tohoto modulu.
+- to je vlastnost celeho balicku, ne tohoto modulu. Bod 2.3 je vyresen
+jednou tridou: `lin_kk_native` vraci `KKResult`, `LinKKResult` je jeho alias.
 
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,
