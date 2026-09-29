@@ -34,7 +34,7 @@ from ...fitting.residual_diagnostics import (
     analyze_residuals,
 )
 from ...fitting.config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
-                               SIGNIFICANCE_NEGLIGIBLE)
+                               FIT_QUALITY_ACCEPTABLE_ERROR, SIGNIFICANCE_NEGLIGIBLE)
 from .model_comparison import score_candidates, log_comparison
 
 logger = logging.getLogger(__name__)
@@ -280,8 +280,8 @@ def _log_fit_result(result: FitResult,
     quality_thresholds = {
         'excellent': f"<{FIT_QUALITY_EXCELLENT_ERROR:.1f}%",
         'good': f"<{FIT_QUALITY_GOOD_ERROR:.1f}%",
-        'acceptable': f"<{FIT_QUALITY_GOOD_ERROR * 2:.1f}%",
-        'poor': f">={FIT_QUALITY_GOOD_ERROR * 2:.1f}%",
+        'acceptable': f"<{FIT_QUALITY_ACCEPTABLE_ERROR:.1f}%",
+        'poor': f">={FIT_QUALITY_ACCEPTABLE_ERROR:.1f}%",
     }
     threshold = quality_thresholds.get(result.quality)
     logger.info(f"  Quality: {result.quality.capitalize()}"

@@ -189,18 +189,26 @@ in data with lower SNR (signal-to-noise ratio).
 # Fit Quality Assessment
 # =============================================================================
 
-FIT_QUALITY_EXCELLENT_ERROR = 1.0
+# The label grades only the SIZE of fit_error_rel; whether the misfit is noise
+# is the residual diagnostics' job. Measured: a correct circuit on synthetic
+# data fits to ~1.1x the relative noise per component (0.1 / 0.5 / 1 / 2 %
+# noise -> 0.11 / 0.54 / 1.08 / 2.15 %), and the KK noise estimates of the
+# measured spectra in example/ are 0.3-0.7 %. The limits were 1 / 10 / 20 %,
+# which called a 4 % fit with plainly systematic residuals "good".
+FIT_QUALITY_EXCELLENT_ERROR = 0.5
 """
-Threshold for excellent fit [%].
-
-Relative error <1% indicates excellent model-data agreement.
+Threshold for excellent fit [%]: at the noise level of a good potentiostat.
 """
 
-FIT_QUALITY_GOOD_ERROR = 10.0
+FIT_QUALITY_GOOD_ERROR = 2.0
 """
-Threshold for good fit [%].
+Threshold for good fit [%]: within about 2x the noise of a noisier measurement.
+"""
 
-Relative error 1-10% is typical for good fits in real systems.
+FIT_QUALITY_ACCEPTABLE_ERROR = 5.0
+"""
+Threshold for acceptable fit [%]; at or above it the fit is poor. The same 5 %
+that KK validation treats as clearly broken (KK_RESIDUAL_THRESHOLD).
 """
 
 SIGNIFICANCE_NEGLIGIBLE = 0.01
@@ -319,6 +327,7 @@ __all__ = [
     # Fit Quality Assessment
     'FIT_QUALITY_EXCELLENT_ERROR',
     'FIT_QUALITY_GOOD_ERROR',
+    'FIT_QUALITY_ACCEPTABLE_ERROR',
     'DE_STALLED_ERROR_PCT',
     'DE_STALLED_IMPROVEMENT_FACTOR',
 

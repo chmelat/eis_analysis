@@ -428,7 +428,7 @@ few percent while its residuals march smoothly across the spectrum. Both
 
 ```
   Fit error: 4.35% (rel), 322.63 Ohm (abs)
-  Quality: Good (<10.0%)
+  Quality: Acceptable (<5.0%)
   Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
 !   Residuals are not random (Re/Im, 7.1 decade window):
 !     trend:     +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)

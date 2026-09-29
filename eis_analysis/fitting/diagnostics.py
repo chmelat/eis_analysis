@@ -11,7 +11,8 @@ import logging
 from typing import Optional, Sequence, Tuple
 from numpy.typing import NDArray
 
-from .config import FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR
+from .config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
+                     FIT_QUALITY_ACCEPTABLE_ERROR)
 from .jacobian import circuit_jacobian
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ def compute_fit_metrics(
         quality = 'excellent'
     elif fit_error_rel < FIT_QUALITY_GOOD_ERROR:
         quality = 'good'
-    elif fit_error_rel < FIT_QUALITY_GOOD_ERROR * 2:
+    elif fit_error_rel < FIT_QUALITY_ACCEPTABLE_ERROR:
         quality = 'acceptable'
     else:
         quality = 'poor'

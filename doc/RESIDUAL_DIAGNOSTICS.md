@@ -42,7 +42,7 @@ closely spaced time constants, fitted with a single branch:
 
 ```
   Fit error: 3.74% (rel)
-  Quality: Good (<10.0%)
+  Quality: Acceptable (<5.0%)
 ```
 
 **That model is wrong.** Not marginally - it is missing an entire relaxation.

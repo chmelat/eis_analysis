@@ -315,10 +315,15 @@ fit_error_abs = mean(|Z - Z_fit|)
 
 | Relative Error | Assessment | Meaning |
 |----------------|------------|---------|
-| < 1% | Excellent | Outstanding fit |
-| 1-10% | Good | Good fit |
-| 10-20% | Acceptable | Acceptable fit |
-| > 20% | Poor | Poor fit, consider different model |
+| < 0.5% | Excellent | At the noise level of a good potentiostat |
+| 0.5-2% | Good | Within about 2x the noise of a noisier measurement |
+| 2-5% | Acceptable | Clearly above the noise |
+| >= 5% | Poor | Model inadequate (the KK "clearly broken" level) |
+
+A correct circuit fits to about 1.1x the relative noise per component, so the
+label grades the size of the misfit against typical noise (0.3-0.7 % for the
+example spectra). Whether the misfit is noise at all is what the `Residuals:`
+line tests.
 
 ---
 
@@ -539,7 +544,7 @@ compares with what the toolkit already reported.
 | chi^2_ps | [0, inf) | - | < 0.1 | KK validation |
 | Noise est. | [0, inf) | % | < 3% | Data quality |
 | Mean \|res\| | [0, 100+] | % | < 1% good (valid: <= 5% of points above 5%) | KK validation |
-| Fit error rel. | [0, 100+] | % | < 10% | Fit quality |
+| Fit error rel. | [0, 100+] | % | < 2% good, < 5% acceptable | Fit quality |
 | Fit error abs. | [0, inf) | Ohm | contextual | Fit quality |
 | SE | [0, inf) | [param] | < 10% of param | Parameter uncertainty |
 | 95% CI | - | [param] | narrow | Parameter uncertainty |
@@ -553,13 +558,13 @@ compares with what the toolkit already reported.
 ### Quality Assessment Workflow
 
 1. **KK validation**
-   - Check Mean |res| < 5%
+   - Check `is_valid`: at most 5% of the points with a residual above 5%
    - Check estimated noise < 3%
    - If not satisfied, data may contain artifacts
 
 2. **Circuit fitting**
    - Use `--weighting modulus` (default)
-   - Check fit error < 10%
+   - Check fit error < 2% (good) or at least < 5% (acceptable)
    - Check the `Residuals:` line: `rho1` near 0 and runs `p` above 0.01 mean
      the residuals are noise. A warning there means the model is missing
      structure, whatever the fit error says - a 4% fit can still be wrong.

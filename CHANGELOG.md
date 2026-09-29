@@ -8,6 +8,14 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **Stricter fit quality labels.** `FitResult.quality` graded excellent
+  < 1 %, good < 10 %, acceptable < 20 %, so a 4 % fit with plainly
+  systematic residuals was "good". A correct circuit fits to about 1.1x the
+  relative noise, and measured spectra carry 0.3-0.7 %; the limits are now
+  excellent < 0.5 %, good < 2 %, acceptable < 5 % (new
+  `FIT_QUALITY_ACCEPTABLE_ERROR`, the same 5 % KK treats as clearly broken).
+  Fit results are unchanged; only the label is.
+
 - **Uncertainties carry a caveat when the residuals are not random.** The
   standard errors and 95 % CIs are s^2 (J^T J)^-1, which assumes independent
   residuals from a correct model. When the residual diagnostics flag
