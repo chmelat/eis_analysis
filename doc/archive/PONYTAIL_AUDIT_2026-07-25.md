@@ -5,7 +5,7 @@ Rozsah: celý strom projektu (61 souborů v `eis_analysis/`, `tests/`, `example/
 `eis.py`, root). Pouze složitost a over-engineering; korektnost, bezpečnost
 a výkon jsou mimo rozsah auditu.
 
-Navazuje na `doc/PONYTAIL_AUDIT.md` (2026-07-19), jehož nálezy #1-#6 byly
+Navazuje na `doc/archive/PONYTAIL_AUDIT.md` (2026-07-19), jehož nálezy #1-#6 byly
 aplikovány. Tento audit je nezávislý průchod se zaměřením na mrtvé cesty kódu,
 vlečené příznaky a vrstvy s jediným volajícím.
 

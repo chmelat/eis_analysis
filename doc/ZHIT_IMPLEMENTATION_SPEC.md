@@ -191,7 +191,7 @@ Two costs follow from the accuracy floor and the derivative:
 | Auto-optimization | No | Yes (tests all combinations) |
 
 The missing smoothing is why phase noise reaches the reconstruction
-unfiltered (open point 2 of [ZHIT_AUDIT_2026-04-26.md](ZHIT_AUDIT_2026-04-26.md)).
+unfiltered (open point 2 of [ZHIT_AUDIT_2026-04-26.md](archive/ZHIT_AUDIT_2026-04-26.md)).
 A code-level comparison is in [ZHIT_comparison_report.md](ZHIT_comparison_report.md);
 the two have not been benchmarked against each other on the same data.
 

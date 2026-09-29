@@ -8,7 +8,7 @@
 `doc/archive/CODE_REVIEW_2026.md` (2026-02-07, v0.13.3)
 
 Tento dokument je konsolidovaným pohledem na stav projektu. Pro aktuální
-audit a otevřené priority viz `doc/AUDIT_2026-04-24.md`.
+audit a otevřené priority viz `doc/archive/AUDIT_2026-04-24.md`.
 
 ---
 
@@ -180,7 +180,7 @@ přístupy opraveny. Zbývajících 110 jsou postupné cleanupy.
 
 Žádný z modulů není "god object" — všechny mají koherentní obsah, ale
 `handlers.py` a `circuit_elements.py` jsou nejočividnější kandidáti na
-rozpad. Detailní plán dekompozice viz `doc/AUDIT_2026-04-24.md`, Priorita 5.
+rozpad. Detailní plán dekompozice viz `doc/archive/AUDIT_2026-04-24.md`, Priorita 5.
 
 ### 4.3 Pozitivní aspekty
 
@@ -261,7 +261,7 @@ rozpad. Detailní plán dekompozice viz `doc/AUDIT_2026-04-24.md`, Priorita 5.
   výsledků.
 - **Z-HIT review (v0.13.6)** — externí code review odhalil 6 problémů
   (sort permutace, np.unwrap, kvalitativní stupně, magic numbers, ...);
-  5 z 6 opraveno. Detail viz `doc/ZHIT_AUDIT_2026-04-26.md`.
+  5 z 6 opraveno. Detail viz `doc/archive/ZHIT_AUDIT_2026-04-26.md`.
 
 ### Pokrytá rizika
 
@@ -310,7 +310,7 @@ neobvyklé a pozitivní). Single source of truth pravidla:
 **Otevřené:** 4 srovnávací dokumenty v `doc/` jsou stále untracked
 (`EISFITPYTHON_COMPARISON.md`, `KK_IMPLEMENTATION_COMPARISON.md`,
 `PYEIS_COMPARISON_REPORT.md`, `PYEIS_PREDEFINED_CIRCUITS.md`) — viz
-`AUDIT_2026-04-24.md`.
+`archive/AUDIT_2026-04-24.md`.
 
 ---
 
@@ -349,7 +349,7 @@ Konsolidovaný přehled významných změn z předchozích reviews:
 ## 11. Otevřené priority
 
 Aktuální seznam otevřených úkolů a jejich stav je v
-**`doc/AUDIT_2026-04-24.md`**. Stručný výtah:
+**`doc/archive/AUDIT_2026-04-24.md`**. Stručný výtah:
 
 - **Priorita 4** — konsolidace 4 review reportů ✅ **(hotovo, viz tento
   dokument)**

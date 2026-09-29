@@ -81,7 +81,7 @@ capacitive and mixed high-frequency ends alike.
 
 All points with `f >= f_max / 10**RINF_FIT_DECADES`, `RINF_FIT_DECADES = 2`.
 One decade resolves an arc just above f_max slightly better but scatters about
-ten times more under 1 % noise; see `AUDIT_ri_fit_2026-09-25.md`. The window
+ten times more under 1 % noise; see `archive/AUDIT_ri_fit_2026-09-25.md`. The window
 must hold at least `RINF_FIT_MIN_POINTS = 5` points (5 free parameters,
 10 real residuals), otherwise the fallback below is used.
 

@@ -22,7 +22,7 @@ from ..fitting import FitResult, L, Q, R, fit_equivalent_circuit
 from ..fitting.bounds import PARAMETER_BOUNDS
 
 # Fit window: f >= f_max / 10**RINF_FIT_DECADES. Two decades is the compromise
-# measured in doc/AUDIT_ri_fit_2026-09-25.md: one decade resolves an arc just
+# measured in doc/archive/AUDIT_ri_fit_2026-09-25.md: one decade resolves an arc just
 # above f_max better (-6.8 % vs -20.4 %), but scatters ~10x more under 1 %
 # noise on a flat end (+-2.1 % vs +-0.2 %).
 RINF_FIT_DECADES = 2

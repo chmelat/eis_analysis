@@ -1,7 +1,7 @@
 """
 Tests for R_inf estimation (rinf_estimation/estimate.py).
 
-Cases follow doc/AUDIT_ri_fit_2026-09-25.md, where the former three-branch
+Cases follow doc/archive/AUDIT_ri_fit_2026-09-25.md, where the former three-branch
 estimator (zero crossing / polynomial / R-L-K with fixed tau) was off by
 +10 % to +100 % on inductive spectra (C, C2, A3) and by +27 % on a strongly
 open CPE arc (D), always with fit_success=True and no warning.

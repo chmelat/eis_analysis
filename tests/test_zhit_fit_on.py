@@ -119,7 +119,7 @@ def test_reconstruction_costs_accuracy_on_noisy_stationary_data():
     """The switch is not free: on noise without drift it makes the fit worse.
 
     The second-order term differentiates the phase, so phase noise is amplified
-    rather than smoothed (open point 2 of doc/ZHIT_AUDIT_2026-04-26.md). This
+    rather than smoothed (open point 2 of doc/archive/ZHIT_AUDIT_2026-04-26.md). This
     pins the trade-off the README warns about, so it cannot quietly change.
 
     Measured over seeds 0-4 at 1% noise, max resistance error raw vs

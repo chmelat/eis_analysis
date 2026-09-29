@@ -6,8 +6,8 @@
 jako proměnné, místo externího odhadu R_inf?
 
 **Souvislosti:** hodnotí návrh `DRT_IMPROVEMENTS.md` bod 2 ("Fit R_inf jako
-parametr") a navazuje na `DRT_MATH_AUDIT_2026-06-27.md` F8 (R_inf jako medián)
-a F9 (rozsah tau-mřížky) a na `AUDIT_ri_fit_2026-09-25.md` (externí odhad
+parametr") a navazuje na `archive/DRT_MATH_AUDIT_2026-06-27.md` F8 (R_inf jako medián)
+a F9 (rozsah tau-mřížky) a na `archive/AUDIT_ri_fit_2026-09-25.md` (externí odhad
 `--ri-fit`). Produkční kód se nemění, všechna čísla pocházejí z prototypu
 mimo repozitář (popis níže).
 
@@ -103,7 +103,7 @@ nnls([W*A_ext; sqrt(lambda)*D_ext], [W*b; 0])     R_inf >= 0, L >= 0
   rekonstrukce jako `calculate_drt` (4.46 / 17.58 / 14.65 / 0.07 %).
 
 Syntetická spektra (Rs = 10 Ohm, 10 bodů/dekádu). Značení navazuje na
-`AUDIT_ri_fit_2026-09-25.md`, ale **flat a A1 jsou tu jiná spektra** než
+`archive/AUDIT_ri_fit_2026-09-25.md`, ale **flat a A1 jsou tu jiná spektra** než
 v auditu (flat má navíc ZARC a končí na 100 kHz, A1 má dva oblouky):
 
 | Případ | Model | Rozsah |
@@ -275,7 +275,7 @@ Pokud se zavede:
 (1/sqrt|Z|), ne 1/|Z|. Jak se se `sqrt` chová argument o "neviditelném" R_inf
 u EISPOT, se neměřilo. Je to relevantní jen pro D2.
 
-**D4 - Externí R_inf zlepšit podle `AUDIT_ri_fit_2026-09-25.md` N1/N2.
+**D4 - Externí R_inf zlepšit podle `archive/AUDIT_ri_fit_2026-09-25.md` N1/N2.
 [HOTOVO v 0.40.0]** R-L-(R|Q) s kontrolou identifikovatelnosti přes stderr R_s
 je hlavní cestou pro R_inf, D2 je nanejvýš diagnostika. Původní tvrzení, že
 kombinace "dobré externí R_inf + volné L" byla nejlepší ve všech určitelných
