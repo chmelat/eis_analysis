@@ -30,9 +30,10 @@ class LambdaSelection:
     # the DRT section instead of the solver streaming them mid-computation.
     lambda_gcv: Optional[float] = None     # GCV initial guess
     lambda_lcurve: Optional[float] = None  # L-curve corner near lambda_gcv
-    hybrid_stage: Optional[str] = None     # 'lcurve', 'lcurve_correction', 'geometric_mean'
+    hybrid_stage: Optional[str] = None     # 'lcurve' or 'gcv': whichever gave the larger lambda
     gcv_score: Optional[float] = None
-    corner_at_edge: bool = False   # L-curve corner landed at edge of search range (F7)
+    corner_at_edge: bool = False   # L-curve corner at edge of its window and supplied lambda (F7)
+    corner_below_gcv: bool = False  # L-curve corner more than a decade below GCV
     lambda_at_edge: bool = False   # selected lambda hit a bound of the GCV range (F3/F7)
 
 

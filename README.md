@@ -254,7 +254,7 @@ corrected, so the run warns about it. Details in
 
 ### DRT analysis
 
-Distribution of Relaxation Times - model-free method for impedance data analysis. The regularization parameter is selected automatically by a hybrid search: GCV (Generalized Cross-Validation) gives a first estimate, and an L-curve search over +-1.5 decades around it picks the final lambda - GCV assumes a linear solution, which the non-negativity constraint of the DRT violates.
+Distribution of Relaxation Times - model-free method for impedance data analysis. The regularization parameter is selected automatically by a hybrid search: GCV (Generalized Cross-Validation) gives one estimate, the corner of an L-curve searched over +-1.5 decades around it gives another, and the larger of the two is used - under the non-negativity constraint of the DRT both tend to pick too small a lambda. A corner more than a decade below GCV is reported as a warning.
 
 New to DRT? Start with the intuitive introduction: [doc/DRT_INTUITION.md](doc/DRT_INTUITION.md).
 

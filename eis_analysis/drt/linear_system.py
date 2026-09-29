@@ -175,6 +175,7 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                 hybrid_stage=diag.get('method_used'),
                 gcv_score=gcv_score,
                 corner_at_edge=corner_at_edge,
+                corner_below_gcv=diag.get('corner_below_gcv', False),
                 lambda_at_edge=at_edge
             )
         except (np.linalg.LinAlgError, ValueError):

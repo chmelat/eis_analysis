@@ -3,8 +3,8 @@ Regularization parameter selection for DRT analysis.
 
 Methods:
 - GCV (Generalized Cross-Validation) - fast initial estimate
-- L-curve - robust correction for NNLS problems
-- Hybrid (GCV + L-curve) - recommended for DRT with NNLS
+- L-curve - corner of the residual / roughness trade-off
+- Hybrid (GCV + L-curve, the larger lambda wins) - recommended for DRT with NNLS
 """
 
 import numpy as np
@@ -78,7 +78,7 @@ def compute_gcv_score(lambda_val: float, A: NDArray[np.float64],
     # Naměřeno (2026-09-29): real_gamry_example λ 9.4e-6 -> 2.4e-10 a 2 -> 5
     # píků; syntetika se 2 procesy a 2 % šumu 2 -> 3 píky; λ_gcv navíc
     # přestala růst se šumem (0.5 % -> 6.2e-7, 2 % -> 2.3e-7). Plný trace dává
-    # konzervativní (větší) λ a hybrid ho doladí L-křivkou.
+    # konzervativní (větší) λ; hybrid ho rohem L-křivky může jen zvýšit.
 
     try:
         # Přímý výpočet trace(K) - matematicky korektní pro LSQ
@@ -310,16 +310,18 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
                                 lcurve_decades: float = 1.5
                                 ) -> Tuple[float, float, dict]:
     """
-    Hybridní metoda pro výběr λ: GCV jako initial guess, L-curve jako korektor.
+    Hybridní metoda pro výběr λ: GCV a roh L-křivky, vyhrává větší λ.
 
     Strategie:
-    1. GCV pro rychlý hrubý odhad λ_gcv
-    2. L-curve prohledání v okolí λ_gcv (±lcurve_decades dekád)
-    3. Výběr λ z rohu L-křivky
+    1. λ_gcv z find_optimal_lambda_gcv (hrubé + jemné hledání)
+    2. L-curve prohledání ±lcurve_decades dekád kolem λ_gcv oříznutého do
+       lambda_range (jemné GCV může skončit dekádu za mezí)
+    3. λ = max(λ_gcv, λ_lcurve) - obě kritéria na NNLS spíš podregularizují
 
-    Toto řeší problém GCV pro NNLS: GCV předpokládá lineární řešení,
-    ale NNLS má nelineární constraint (x ≥ 0). L-curve je robustnější
-    pro NNLS problémy, ale pomalejší pro celý rozsah.
+    GCV předpokládá lineární řešení, NNLS má nelineární constraint (x ≥ 0).
+    L-křivka to nepředpokládá, ale na celém rozsahu může mít falešný roh
+    (na real_gamry_example roh u λ = 0.18, zjevně přehlazený), proto se
+    hledá jen v okně kolem λ_gcv.
 
     Parametry:
     - A: matice systému [2N × N_tau]
@@ -331,9 +333,10 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
 
     Vrací:
     - tuple: (lambda_optimal, score, diagnostics)
-      - diagnostics obsahuje: lambda_gcv, lambda_lcurve, method_used, curvature, rho, eta
+      - diagnostics obsahuje: lambda_gcv, lambda_lcurve, method_used, curvature,
+        rho, eta, corner_at_edge, corner_below_gcv
     """
-    logger.debug("Hybridní výběr λ (GCV + L-curve korekce)...")
+    logger.debug("Hybridní výběr λ (GCV a roh L-křivky, platí větší)...")
 
     diagnostics: Dict[str, Any] = {
         'lambda_gcv': None,
@@ -342,35 +345,27 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
         'curvature': None,
         'rho': None,
         'eta': None,
-        'lambda_values': None,
-        'corner_at_edge': False
+        'lambda_values': None
     }
 
-    # === Fáze 1: GCV pro initial guess ===
-    logger.debug("Fáze 1: GCV initial guess...")
-
-    lambda_values = np.logspace(np.log10(lambda_range[0]),
-                                 np.log10(lambda_range[1]),
-                                 n_search)
-
-    gcv_scores = []
-    for lam in lambda_values:
-        score = compute_gcv_score(lam, A, b, L)
-        gcv_scores.append(score)
-
-    gcv_scores_arr = np.array(gcv_scores)
-    gcv_min_idx = int(np.argmin(gcv_scores_arr))
-    lambda_gcv = lambda_values[gcv_min_idx]
+    # === Fáze 1: GCV ===
+    # Zpřesněné, ne jen z hrubé mřížky (krok 0.42 dekády): když GCV vyhraje,
+    # je λ_gcv přímo výsledkem.
+    logger.debug("Fáze 1: GCV...")
+    lambda_gcv, gcv_at_gcv = find_optimal_lambda_gcv(A, b, L, lambda_range, n_search)
 
     diagnostics['lambda_gcv'] = lambda_gcv
     logger.debug(f"  GCV minimum: λ_gcv = {lambda_gcv:.4e}")
 
     # === Fáze 2: L-curve v okolí GCV odhadu ===
-    logger.debug("Fáze 2: L-curve korekce...")
+    logger.debug("Fáze 2: roh L-křivky kolem λ_gcv...")
 
-    # Rozsah pro L-curve: ±lcurve_decades dekád kolem λ_gcv
-    lcurve_min = max(lambda_gcv / (10**lcurve_decades), lambda_range[0] / 10)
-    lcurve_max = min(lambda_gcv * (10**lcurve_decades), lambda_range[1] * 10)
+    # Rozsah pro L-curve: ±lcurve_decades dekád kolem λ_gcv. Jemné hledání GCV
+    # může skončit až dekádu za mezí rozsahu; střed se proto ořízne do rozsahu,
+    # jinak by ořezání okna níže nechalo roh jen na jedné straně GCV.
+    center = float(np.clip(lambda_gcv, lambda_range[0], lambda_range[1]))
+    lcurve_min = max(center / (10**lcurve_decades), lambda_range[0] / 10)
+    lcurve_max = min(center * (10**lcurve_decades), lambda_range[1] * 10)
 
     lambda_lcurve_range = np.logspace(np.log10(lcurve_min),
                                        np.log10(lcurve_max),
@@ -403,7 +398,6 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     # nespolehlivé a stojí za to rozsah rozšířit.
     n_lc = len(lambda_lcurve_range)
     corner_at_edge = corner_idx <= 1 or corner_idx >= n_lc - 2
-    diagnostics['corner_at_edge'] = corner_at_edge
     if corner_at_edge:
         logger.debug(
             f"  L-curve roh na okraji rozsahu (index {corner_idx}/{n_lc - 1}) "
@@ -413,31 +407,31 @@ def find_optimal_lambda_hybrid(A: NDArray[np.float64], b: NDArray[np.float64],
     logger.debug(f"  L-curve roh: λ_lcurve = {lambda_lcurve:.4e}")
 
     # === Fáze 3: Rozhodnutí ===
-    # Porovnej GCV a L-curve výsledky
-    ratio = lambda_lcurve / lambda_gcv
+    # Větší z obou λ. Obě kritéria na NNLS-DRT chybují stejným směrem - λ
+    # příliš malá: změřeno (2026-09-29) na dvou-ZARC syntetice s 0.1-0.5 %
+    # šumu je hybridní λ o 1-3 dekády pod hodnotou, která dá správný počet
+    # píků (4-5 místo 2). Kompromis (geometrický průměr) by nebyl optimem
+    # ani jednoho kritéria; skutečnou neshodu hlásí corner_below_gcv níže.
+    lambda_optimal = max(lambda_gcv, lambda_lcurve)
+    diagnostics['method_used'] = 'lcurve' if lambda_lcurve >= lambda_gcv else 'gcv'
+    logger.debug(f"  Větší z obou: {diagnostics['method_used']} "
+                 f"(ratio lcurve/gcv = {lambda_lcurve / lambda_gcv:.2f})")
 
-    if 0.1 < ratio < 10:
-        # Výsledky jsou konzistentní (v rámci 1 dekády) - použij L-curve
-        lambda_optimal = lambda_lcurve
-        diagnostics['method_used'] = 'lcurve'
-        logger.debug(f"  Konzistentní výsledky (ratio={ratio:.2f}), použita L-curve")
-    elif ratio >= 10:
-        # L-curve chce výrazně vyšší λ - pravděpodobně NNLS efekt
-        # L-curve je spolehlivější pro NNLS
-        lambda_optimal = lambda_lcurve
-        diagnostics['method_used'] = 'lcurve_correction'
-        logger.debug(f"  L-curve korekce: λ_lcurve >> λ_gcv (ratio={ratio:.1f})")
-        logger.debug("  GCV pravděpodobně underestimuje λ kvůli NNLS constraint")
-    else:
-        # L-curve chce výrazně nižší λ - neobvyklé, buď opatrný
-        # Použij geometrický průměr jako kompromis
-        lambda_optimal = np.sqrt(lambda_gcv * lambda_lcurve)
-        diagnostics['method_used'] = 'geometric_mean'
-        logger.debug(f"  Nekonzistentní výsledky (ratio={ratio:.2f})")
-        logger.debug(f"  Použit geometrický průměr: λ = {lambda_optimal:.4e}")
+    # Roh na okraji okna je nespolehlivý jen když dal λ; když vyhrálo GCV,
+    # roh se zahodil.
+    diagnostics['corner_at_edge'] = corner_at_edge and diagnostics['method_used'] == 'lcurve'
 
-    # Spočítej finální GCV score pro reporting
-    final_gcv = compute_gcv_score(lambda_optimal, A, b, L)
+    # Roh víc než dekádu pod GCV: kritéria se opravdu rozcházejí a λ z GCV
+    # nemá oporu v L-křivce. Roh nad GCV je očekávaný efekt NNLS, žádná
+    # neshoda. (Roh na spodním okraji neoříznutého okna je vždy > 1.3 dekády
+    # pod GCV; na oříznutém je GCV samo na mezi a hlásí to lambda_at_edge.)
+    diagnostics['corner_below_gcv'] = (
+        diagnostics['method_used'] == 'gcv' and lambda_lcurve * 10 < lambda_gcv
+    )
+
+    # Finální GCV score pro reporting; když vyhrálo GCV, už je spočítané
+    final_gcv = (gcv_at_gcv if diagnostics['method_used'] == 'gcv'
+                 else compute_gcv_score(lambda_optimal, A, b, L))
 
     logger.debug(f"✓ Hybridní optimum: λ = {lambda_optimal:.4e} (GCV = {final_gcv:.4e})")
 

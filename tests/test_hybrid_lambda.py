@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Test hybrid lambda selection (GCV + L-curve) for DRT analysis."""
 
+import os
+
 import numpy as np
 import pytest
 from eis_analysis.drt.gcv import (
@@ -10,6 +12,10 @@ from eis_analysis.drt.gcv import (
 )
 from eis_analysis.drt.linear_system import _build_drt_matrices
 from eis_analysis.fitting.config import DRT_LAMBDA_RANGE
+
+EXAMPLE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example"
+)
 
 
 # =============================================================================
@@ -99,3 +105,66 @@ def test_gcv_score_has_minimum(voigt_data):
 
     assert score_opt <= score_lo + 1e-12, "selected lambda worse than lower edge"
     assert score_opt <= score_hi + 1e-12, "selected lambda worse than upper edge"
+
+
+# =============================================================================
+# Decision rule: the larger of the two lambdas, disagreement reported
+# =============================================================================
+
+def _two_zarc(noise, seed=0):
+    """Two ZARCs over R_inf = 10 Ohm with proportional complex noise."""
+    f = np.logspace(5, -2, 71)
+    w = 2 * np.pi * f
+    Z = (10 + 100 / (1 + (1j * w * 1e-4) ** 0.85)
+         + 300 / (1 + (1j * w * 1e-1) ** 0.9))
+    rng = np.random.default_rng(seed)
+    return f, Z + noise * np.abs(Z) * (rng.standard_normal(71) + 1j * rng.standard_normal(71))
+
+
+@pytest.mark.parametrize("spectrum, winner", [
+    ('EISPOT-M136113-4', 'gcv'),   # corner 0.24 decades below GCV
+    ('two_zarc_0.1%', 'lcurve'),   # corner 1.2 decades above GCV
+])
+def test_larger_lambda_wins(spectrum, winner):
+    """The hybrid takes whichever of GCV and the L-curve corner is larger.
+
+    One spectrum per direction, so min() in place of max(), an always-L-curve
+    rule or swapped stage labels each fail one case.
+    """
+    from eis_analysis.drt import calculate_drt
+    from eis_analysis.io.data_loading import load_data
+
+    if spectrum == 'two_zarc_0.1%':
+        f, Z = _two_zarc(0.001)
+        r = calculate_drt(f, Z, auto_lambda=True, r_inf_preset=10.0, inductance=False)
+    else:
+        path = os.path.join(EXAMPLE_DIR, f'{spectrum}.DTA')
+        if not os.path.exists(path):
+            pytest.skip(f"example/{spectrum}.DTA missing")
+        data = load_data(path)
+        r = calculate_drt(data.frequencies, data.Z, auto_lambda=True)
+
+    lam = r.diagnostics.lambda_sel
+    assert lam.hybrid_stage == winner
+    assert lam.lambda_value == (lam.lambda_gcv if winner == 'gcv' else lam.lambda_lcurve)
+
+
+@pytest.mark.parametrize("corner_below_gcv", [True, False])
+def test_corner_below_gcv_is_warned(monkeypatch, corner_below_gcv):
+    """The search's corner_below_gcv flag reaches DRTResult.warnings.
+
+    The search is stubbed: a corner below GCV was not reached on any measured
+    spectrum.
+    """
+    import eis_analysis.drt.linear_system as ls
+    from eis_analysis.drt import calculate_drt
+
+    diag = {'lambda_gcv': 1e-5, 'lambda_lcurve': 1e-7, 'method_used': 'gcv',
+            'corner_at_edge': False, 'corner_below_gcv': corner_below_gcv}
+    monkeypatch.setattr(ls, 'find_optimal_lambda_hybrid',
+                        lambda A, b, L, **kw: (1e-5, 1.0, diag))
+
+    f, Z = _two_zarc(0.005)
+    r = calculate_drt(f, Z, auto_lambda=True, r_inf_preset=10.0, inductance=False)
+
+    assert any("L-curve corner" in w for w in r.warnings) == corner_below_gcv

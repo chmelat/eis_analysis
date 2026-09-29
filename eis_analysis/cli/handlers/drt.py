@@ -49,21 +49,11 @@ def _log_lambda_value(lambda_sel) -> None:
         return
 
     ratio = lambda_sel.lambda_lcurve / lambda_sel.lambda_gcv
-    # In the geometric-mean stage the reported lambda is neither of the two
-    # numbers, so the arrow must not stop at the L-curve corner.
-    stage = " -> geometric mean" if lambda_sel.hybrid_stage == 'geometric_mean' else ""
+    # A corner more than a decade below GCV is in the DRT warnings, printed below.
+    winner = 'L-curve' if lambda_sel.hybrid_stage == 'lcurve' else 'GCV'
     logger.info(f"  lambda = {lambda_sel.lambda_value:.2e}  "
-                f"(GCV {lambda_sel.lambda_gcv:.2e} -> L-curve corner "
-                f"{lambda_sel.lambda_lcurve:.2e}{stage}, ratio {ratio:.2f})")
-
-    # A corner within a decade of the GCV guess is the expected outcome; the
-    # other two stages mean the two criteria disagreed and are worth flagging.
-    if lambda_sel.hybrid_stage == 'lcurve_correction':
-        logger.warning(f"  L-curve raised GCV's lambda (ratio {ratio:.1f}) - GCV "
-                       f"underestimates lambda under the NNLS non-negativity constraint")
-    elif lambda_sel.hybrid_stage == 'geometric_mean':
-        logger.warning(f"  GCV and L-curve disagree (ratio {ratio:.2f}); "
-                       f"geometric mean used")
+                f"(GCV {lambda_sel.lambda_gcv:.2e}, L-curve corner "
+                f"{lambda_sel.lambda_lcurve:.2e}, ratio {ratio:.2f}; larger: {winner})")
 
 
 def _edge_marker(peak: dict) -> str:

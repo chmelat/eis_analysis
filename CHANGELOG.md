@@ -92,6 +92,33 @@ Complete change history for all project versions.
   change in results (doc/KRAMERS_KRONIG_REVIEW.md, 1.4). Added
   `example/EISPOT-M136113-4.DTA`, a measured ZrO2-on-Zr spectrum.
 
+- **Hybrid auto-lambda takes the larger of GCV and the L-curve corner.** It
+  took the corner within a decade of GCV or above it, and the geometric mean
+  of the two when the corner lay more than a decade below. Both criteria
+  under-regularize NNLS-DRT (two-ZARC synthetics with 0.1-0.5 % noise: 4-5
+  peaks instead of 2, 1-3 decades below the lambda that resolves 2), so the
+  larger one is the smaller error; the mean was the optimum of neither and
+  never triggered on 21 measured spectra. Since GCV's lambda can now be the
+  result, the hybrid takes it from `find_optimal_lambda_gcv` (coarse + fine
+  search) instead of the coarse 0.42-decade grid. A corner more than a
+  decade below GCV sets the new
+  `LambdaSelection.corner_below_gcv` and puts a warning in
+  `DRTResult.warnings` instead of only on the CLI. A corner above GCV is the
+  usual NNLS effect and is no longer warned about; `corner_at_edge` is set
+  only when the corner supplied lambda. The search-range-edge warning no
+  longer says the regularization "may be too low": GCV pinned at the top
+  of the range can now supply lambda. `LambdaSelection.hybrid_stage` is `'lcurve'` or `'gcv'` (was
+  `'lcurve'`, `'lcurve_correction'`, `'geometric_mean'`). On example/ GCV
+  now wins: lambda 9.4e-6 -> 1.3e-5 (real_gamry_example), 5.8e-10 -> 1.1e-9
+  (EISPOT-M136113-4), 5.8e-9 -> 9.4e-9 (EISPOT-test1), same peaks, R_pol
+  within 0.3 %. The 18 two-ZARC synthetics keep their peak counts. On a
+  noise-free RC + series C (blocking electrode) lambda 7.4e-9 -> 1.5e-8
+  moves the RC peak from just over to just under the 3 % detection
+  threshold (vs. the capacitive heap it is 3.1-3.3 % of max gamma for
+  lambda 1e-8..1e-5), so with auto-lambda the arc is no longer reported;
+  that result already warns that R_pol is heaped at the window edge and the
+  DRT is sparse. Its test (`test_drt_window_edges`) now uses a fixed lambda.
+
 ### Fixed
 
 - **A mu threshold of 1 or more no longer breaks KK validation and the Voigt

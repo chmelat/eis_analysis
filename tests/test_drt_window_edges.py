@@ -391,7 +391,10 @@ def test_auto_does_not_extend_a_capacitive_end():
     """
     omega = 2 * np.pi * FREQUENCIES
     Z = _voigt_impedance(FREQUENCIES, 10.0, [(1000.0, 1e-3)]) + 1 / (1j * omega * 1e-3)
-    r = calculate_drt(FREQUENCIES, Z, auto_lambda=True, tau_extend_decades='auto')
+    # Fixed lambda: against the capacitive heap the RC peak is only 3.1-3.3 %
+    # of max gamma for lambda 1e-8..1e-5, right at the 3 % detection
+    # threshold, so auto-lambda would decide the test. At 1e-9 it is 5.1 %.
+    r = calculate_drt(FREQUENCIES, Z, lambda_reg=1e-9, tau_extend_decades='auto')
 
     assert r.diagnostics.tau_extend_decades == 0.0
     assert 'capacitive' in r.diagnostics.tau_extend_note

@@ -375,7 +375,8 @@ def calculate_drt(
 
     # === Step 8c: Shape-quality diagnostics (F3) ===
     # Warn if the DRT is too sparse/spiky for peak-shape analysis, or if
-    # auto-lambda hit the search-range edge (regularization too low). Advisory
+    # auto-lambda hit the search-range edge (either end: GCV can pin at the
+    # top on very noisy data and then supplies lambda). Advisory
     # only - gamma and detected peaks are unchanged.
     n_eff = _effective_bins(gamma_physical)
     if n_eff < DRT_MIN_EFFECTIVE_BINS:
@@ -387,8 +388,20 @@ def calculate_drt(
     if lambda_sel.lambda_at_edge or lambda_sel.corner_at_edge:
         nnls_result.warnings.append(
             f"Auto-lambda at search-range edge (lambda="
-            f"{lambda_sel.lambda_value:.2e}); regularization may be too low "
-            f"for reliable DRT shape"
+            f"{lambda_sel.lambda_value:.2e}); the optimum may lie outside the "
+            f"searched range - DRT shape may be unreliable"
+        )
+    # A corner below GCV (flagged by the hybrid search) is the unusual
+    # direction: the two criteria genuinely disagree and GCV's lambda was
+    # taken without the L-curve's support. A corner above GCV is the expected
+    # NNLS effect (GCV underestimates lambda) and not warned about, although
+    # it exceeds a decade on 5 of 18 two-ZARC synthetics with 0.1-2 % noise.
+    if lambda_sel.corner_below_gcv and lambda_sel.lambda_gcv and lambda_sel.lambda_lcurve:
+        decades = np.log10(lambda_sel.lambda_gcv / lambda_sel.lambda_lcurve)
+        nnls_result.warnings.append(
+            f"L-curve corner (lambda={lambda_sel.lambda_lcurve:.2e}) lies "
+            f"{decades:.1f} decades below GCV (lambda="
+            f"{lambda_sel.lambda_gcv:.2e}); the larger (GCV) was used"
         )
 
     # === Step 8d: Lambda-probe peak stability (opt-in) ===

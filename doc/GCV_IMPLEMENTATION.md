@@ -151,7 +151,7 @@ Robustní error handling: při selhání NNLS, singulární M nebo
 
 ### 3. `find_optimal_lambda_gcv(A, b, L, lambda_range=DRT_LAMBDA_RANGE, n_search=20)`
 
-Čistě GCV, dvoufázové prohledání (fallback hybridu):
+Čistě GCV, dvoufázové prohledání (první fáze hybridu a jeho fallback):
 
 - **Fáze 1 (hrubá):** `n_search` bodů v log-prostoru `[1e-10, 1e-2]`, najdi
   minimum GCV.
@@ -162,17 +162,23 @@ Celkem 40 evaluací (2 × 20). Vrací `(λ_optimal, gcv_optimal)`.
 
 ### 4. `find_optimal_lambda_hybrid(..., lcurve_decades=1.5)` — reálně používaný
 
-1. **GCV initial guess:** minimum GCV přes `n_search` bodů → λ_gcv.
-2. **L-curve korekce:** L-křivka v rozsahu ±`lcurve_decades` (1.5) dekády kolem
-   λ_gcv; najdi roh → λ_lcurve. Pokud roh padne na okraj okna, nastaví se
-   `corner_at_edge` (varování — skutečný roh může ležet mimo úzké okno).
-3. **Rozhodnutí** podle `ratio = λ_lcurve / λ_gcv`:
+1. **GCV:** λ_gcv z `find_optimal_lambda_gcv` (hrubé + jemné hledání, ne jen
+   hrubá mřížka s krokem 0.42 dekády - když GCV vyhraje, je λ_gcv výsledkem).
+2. **Roh L-křivky:** L-křivka v rozsahu ±`lcurve_decades` (1.5) dekády kolem
+   λ_gcv (střed oříznutý do `[1e-10, 1e-2]`, jemné GCV může skončit dekádu
+   za mezí); najdi roh → λ_lcurve. Okno chrání před falešným rohem daleko od
+   GCV (na celém rozsahu našla L-křivka na `real_gamry_example` roh u 0.18).
+   Pokud roh padne na okraj okna a zároveň dal λ, nastaví se `corner_at_edge`
+   (varování — skutečný roh může ležet mimo úzké okno).
+3. **Rozhodnutí:** λ = max(λ_gcv, λ_lcurve); `method_used` je `lcurve` nebo
+   `gcv` podle toho, které kritérium dalo větší λ.
 
-   | ratio | Volba | `method_used` |
-   |-------|-------|---------------|
-   | 0.1 < ratio < 10 | λ_lcurve (konzistentní) | `lcurve` |
-   | ratio ≥ 10 | λ_lcurve (GCV podhodnotilo kvůli NNLS) | `lcurve_correction` |
-   | ratio ≤ 0.1 | √(λ_gcv·λ_lcurve) (geom. průměr, nekonzistentní) | `geometric_mean` |
+   Proč větší: obě kritéria na NNLS-DRT chybují stejným směrem, λ vychází
+   příliš malá. Změřeno (2026-09-29) na dvou-ZARC syntetice s 0.1-0.5 %
+   šumu: hybridní λ je o 1-3 dekády pod hodnotou, která dá správný počet
+   píků (4-5 místo 2; postranní laloky ~10 Ω, sondy je značí `marginal`).
+   Dřívější geometrický průměr při rohu hluboko pod GCV nebyl optimem ani
+   jednoho kritéria; na 21 měřených spektrech se nespustil ani jednou.
 
 Vrací `(λ_optimal, gcv_score, diagnostics)`; `diagnostics` obsahuje `lambda_gcv`,
 `lambda_lcurve`, `method_used`, `curvature`, `rho`, `eta`, `corner_at_edge`.
@@ -186,19 +192,21 @@ Vrací `(λ_optimal, gcv_score, diagnostics)`; `diagnostics` obsahuje `lambda_gc
 class LambdaSelection:
     lambda_value: float
     method: str            # 'user' | 'default' | 'gcv' | 'hybrid' | 'fallback'
-    lambda_gcv: Optional[float] = None   # jen při L-curve korekci
+    lambda_gcv: Optional[float] = None   # obě fáze hybridu
+    lambda_lcurve: Optional[float] = None
+    hybrid_stage: Optional[str] = None   # 'lcurve' | 'gcv' - které λ bylo větší
     gcv_score: Optional[float] = None
-    corner_at_edge: bool = False         # roh L-křivky na okraji okna (F7)
+    corner_at_edge: bool = False         # roh L-křivky na okraji okna a dal λ (F7)
+    corner_below_gcv: bool = False       # roh víc než dekádu pod GCV
     lambda_at_edge: bool = False         # zvolené λ na mezi GCV rozsahu (F3/F7)
 ```
 
-Když `auto_lambda=True`, volá se `find_optimal_lambda_hybrid`. Reportovaná
-`method` je **`hybrid`** pouze pokud L-curve výrazně korigovala
-(`method_used == 'lcurve_correction'`), jinak **`gcv`** (L-curve souhlasila s
-GCV). `lambda_gcv` se ukládá/zobrazuje jen pro `hybrid`.
+Když `auto_lambda=True`, volá se `find_optimal_lambda_hybrid` a `method` je
+vždy **`hybrid`**; které kritérium vyhrálo, říká `hybrid_stage`. **`gcv`**
+znamená jen fallback po selhání hybridního hledání.
 
 Detekce okrajů (náprava F3/F7): pokud λ_opt nebo λ_gcv narazí na mez rozsahu
-`[1e-10, 1e-2]`, nebo je roh na okraji okna, nastaví se `lambda_at_edge` —
+`[1e-10, 1e-2]`, nebo je na okraji okna roh, který dal λ, nastaví se `lambda_at_edge` —
 signál, že optimizér chce extrémnější regularizaci, než rozsah dovoluje
 (typicky problém s daty / modelem). `calculate_drt(..., auto_lambda=...)` celý
 výběr orchestruje (`drt/core.py`).
@@ -243,12 +251,14 @@ CLI vypisuje v sekci `DRT Analysis` obě fáze hledání i výsledné λ:
 
 ```
 Lambda: Hybrid GCV + L-curve
-  lambda = 5.80e-10  (GCV 6.95e-10 -> L-curve corner 5.80e-10, ratio 0.83)
+  lambda = 1.10e-09  (GCV 1.10e-09, L-curve corner 6.38e-10, ratio 0.58; larger: GCV)
 ```
 
-Když `ratio` vypadne z pásma konsenzu, přibude varování — buď o korekci
-nahoru (`lcurve_correction`, typické pro NNLS), nebo o použití geometrického
-průměru (`geometric_mean`). Samotný průběh hledání (Fáze 1 / Fáze 2) je na
+Roh L-křivky víc než dekádu **pod** GCV nastaví `corner_below_gcv` a přidá do
+`result.warnings` varování: kritéria se opravdu rozcházejí a λ z GCV nemá
+oporu v L-křivce. Roh **nad** GCV se nevaruje: je to očekávaný efekt NNLS,
+přestože dekádu přesáhne v 5 z 18 dvou-ZARC syntetik s 0.1-2 % šumu.
+Samotný průběh hledání (Fáze 1 / Fáze 2) je na
 úrovni DEBUG, tedy viditelný jen s `-v`.
 
 `Lambda: GCV (L-curve correction failed)` znamená fallback po selhání
