@@ -261,11 +261,22 @@ def plot_rinf_fit(result) -> plt.Figure:
     return fig
 
 
-def _mark_flagged(ax, flagged_frequencies) -> None:
-    """Draw a red band at each flagged frequency of a residual panel."""
+def _residual_panel(ax, frequencies, result, threshold: float, title: str,
+                    flagged_frequencies: Sequence[float]) -> None:
+    """Real/imag residuals [%] with +-threshold lines and a red band per flagged frequency."""
+    ax.semilogx(frequencies, result.residuals_real * 100, 'o', label='Real', markersize=4)
+    ax.semilogx(frequencies, result.residuals_imag * 100, 's', label='Imaginary', markersize=4)
+    ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    for y in (threshold, -threshold):
+        ax.axhline(y=y, color='r', linestyle=':', alpha=0.5)
     for i, f in enumerate(flagged_frequencies):
         ax.axvline(x=f, color='red', linestyle='-', alpha=0.25, linewidth=3, zorder=0,
                    label='Flagged point' if i == 0 else None)
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("Residuals [%]")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, alpha=PLOT_GRID_ALPHA)
 
 
 def plot_kk_validation(
@@ -312,19 +323,9 @@ def plot_kk_validation(
     ax1.grid(True, alpha=PLOT_GRID_ALPHA)
     ax1.set_aspect('equal', adjustable='datalim')
 
-    ax2 = axes[1]
-    ax2.semilogx(frequencies, result.residuals_real * 100, 'o', label='Real', markersize=4)
-    ax2.semilogx(frequencies, result.residuals_imag * 100, 's', label='Imaginary', markersize=4)
-    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax2.axhline(y=KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
-    ax2.axhline(y=-KK_RESIDUAL_THRESHOLD, color='r', linestyle=':', alpha=0.5)
-    _mark_flagged(ax2, flagged_frequencies)
-    ax2.set_xlabel("Frequency [Hz]")
-    ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"KK residuals (stop mu={result.mu:.3f}, chi^2={result.pseudo_chisqr:.2e}, "
-                  f"noise~{result.noise_estimate:.1f}%)")
-    ax2.legend()
-    ax2.grid(True, alpha=PLOT_GRID_ALPHA)
+    _residual_panel(axes[1], frequencies, result, KK_RESIDUAL_THRESHOLD,
+                    f"KK residuals (stop mu={result.mu:.3f}, chi^2={result.pseudo_chisqr:.2e}, "
+                    f"noise~{result.noise_estimate:.1f}%)", flagged_frequencies)
 
     plt.tight_layout()
     return fig
@@ -369,18 +370,9 @@ def plot_zhit_validation(
     ax1.legend()
     ax1.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
 
-    ax2 = axes[1]
-    ax2.semilogx(frequencies, result.residuals_real * 100, 'o', label='Real', markersize=4, alpha=0.7)
-    ax2.semilogx(frequencies, result.residuals_imag * 100, 's', label='Imag', markersize=4, alpha=0.7)
-    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5)
-    ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
-    _mark_flagged(ax2, flagged_frequencies)
-    ax2.set_xlabel("Frequency [Hz]")
-    ax2.set_ylabel("Residuals [%]")
-    ax2.set_title(f"Z-HIT residuals (χ²={result.pseudo_chisqr:.2e}, noise≤{result.noise_estimate:.1f}%)")
-    ax2.legend()
-    ax2.grid(True, alpha=PLOT_GRID_ALPHA)
+    _residual_panel(axes[1], frequencies, result, 5.0,
+                    f"Z-HIT residuals (χ²={result.pseudo_chisqr:.2e}, noise≤{result.noise_estimate:.1f}%)",
+                    flagged_frequencies)
 
     plt.tight_layout()
     return fig
