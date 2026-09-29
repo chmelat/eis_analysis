@@ -90,9 +90,14 @@ def run_kk_validation(
         logger.warning(warning)
 
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
-    # The mean-based label can read "excellent" while a local violation fails
-    # is_valid; the verdict wins, as "poor" always meant invalid.
-    label = _quality_label(mean_abs_residual) if result.is_valid else "poor"
+    # The label is graded on the mean, the verdict on points above the line;
+    # the verdict wins. A local violation fails with an "excellent" mean, and
+    # a few wild edge points pass with a mean past "poor", which means invalid.
+    label = _quality_label(mean_abs_residual)
+    if not result.is_valid:
+        label = "poor"
+    elif label == "poor":
+        label = "marginal (check for drift/nonlinearity)"
     log_fn = logger.info if result.is_valid else logger.warning
     log_fn(f"Data quality: {label} "
            f"({result.n_above_threshold}/{len(frequencies)} points above "
