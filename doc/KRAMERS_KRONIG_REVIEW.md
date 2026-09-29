@@ -5,7 +5,8 @@ Datum: 2026-09-28, verze v0.44.1
 **Stav:** body 1.2 a 1.3 jsou opraveny ve v0.45.0 (commit 4df6cb6), bod 1.1
 ve v0.46.0 (commit 77e6e35). Z bodu 1.4 je vyresena
 duplicita cisla 5 (konstanta `KK_RESIDUAL_THRESHOLD`) a prumer je nahrazen
-podilem bodu nad mezi (`KK_MAX_FRACTION_ABOVE`).
+podilem bodu nad mezi (`KK_MAX_FRACTION_ABOVE`). Bod 1.5 je opraven (docstring,
+napoveda `--auto-extend` a README).
 
 Rozsah: `eis_analysis/validation/kramers_kronig.py` (590 radku) a funkce,
 ktere vola: `fitting/voigt_chain/mu_optimization.py` (`find_optimal_M_mu`,

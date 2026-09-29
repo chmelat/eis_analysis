@@ -159,9 +159,11 @@ Examples:
     kk_group.add_argument('--auto-extend', action=argparse.BooleanOptionalAction,
                           default=True,
                           help='Automatically optimize extend_decades for KK validation '
-                               '(minimizes pseudo chi-squared). On by default to avoid '
-                               'tau-truncation bias on capacitive/inductive tails; use '
-                               '--no-auto-extend to disable.')
+                               '(minimizes pseudo chi-squared). Extends the tau grid '
+                               'below the lowest frequency only, against truncation '
+                               'bias on capacitive low-frequency tails; the inductive '
+                               'high-frequency tail is covered by the series L. On by '
+                               'default; use --no-auto-extend to disable.')
     kk_group.add_argument('--extend-decades-max', type=float, default=1.0,
                           help='Maximum extend_decades for --auto-extend search range '
                                '(searches from 0 to max, default: 1.0)')

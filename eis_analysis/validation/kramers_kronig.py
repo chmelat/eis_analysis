@@ -646,9 +646,11 @@ def kramers_kronig_validation(
         Maximum number of Voigt elements (default: 50)
     auto_extend_decades : bool, optional
         Automatically optimize extend_decades (default: True). Extends the
-        Voigt time-constant grid beyond the measured frequency range, which
-        avoids spurious imaginary-part residuals on data with strong
-        capacitive/inductive tails (Schönleber et al. 2014).
+        Voigt time-constant grid below the lowest measured frequency only,
+        which reduces spurious imaginary-part residuals when a relaxation
+        continues past it (capacitive low-frequency tail). The high-frequency
+        inductive tail is covered by the series L, not by the extension. A
+        purely capacitive (blocking) tail needs include_C.
     extend_decades_range : tuple of float, optional
         Search range for extend_decades optimization
     include_C : bool, optional
