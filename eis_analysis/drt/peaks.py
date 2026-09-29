@@ -287,7 +287,9 @@ def gmm_peak_detection(
 
         # Převod zpět na tau (lineární prostor)
         tau_center = 10**mu
-        tau_lower = 10**(mu - 2*sigma)  # 95% confidence interval
+        # μ ± 2σ: ~95 % hmoty komponenty, tedy šířka píku - ne interval
+        # spolehlivosti jeho polohy
+        tau_lower = 10**(mu - 2*sigma)
         tau_upper = 10**(mu + 2*sigma)
 
         f_center = 1 / (2 * np.pi * tau_center)
