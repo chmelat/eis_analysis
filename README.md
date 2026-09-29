@@ -193,6 +193,8 @@ eis data.DTA --no-kk
 eis data.DTA --mu-threshold 0.80
 ```
 
+New to KK validation? Start with the intuitive introduction: [doc/KK_INTUITION.md](doc/KK_INTUITION.md).
+
 **Detailed documentation:** [doc/LinKK_analysis.md](doc/LinKK_analysis.md)
 
 ### Z-HIT validation
