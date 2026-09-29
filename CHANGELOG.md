@@ -56,6 +56,15 @@ Complete change history for all project versions.
   change in results (doc/KRAMERS_KRONIG_REVIEW.md, 1.4). Added
   `example/EISPOT-M136113-4.DTA`, a measured ZrO2-on-Zr spectrum.
 
+### Fixed
+
+- **A mu threshold of 1 or more no longer breaks KK validation and the Voigt
+  fit.** `find_optimal_M_mu` started its search with mu = 1, and mu never
+  exceeds 1, so `--mu-threshold 1.0` (or `--voigt-mu-threshold`) skipped the
+  loop and returned no fit: KK failed with "'NoneType' object is not
+  subscriptable". Any threshold >= 1 now stops at the first M tried; NaN
+  raises ValueError. Found by mypy (tau/elements possibly None).
+
 ## Version 0.46.0 (2026-09-28)
 
 ### Fixed

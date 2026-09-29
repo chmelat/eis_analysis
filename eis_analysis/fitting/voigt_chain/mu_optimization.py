@@ -154,7 +154,8 @@ def find_optimal_M_mu(
     mu_threshold : float, optional
         Threshold for mu metric (default: 0.85, as in Lin-KK)
         Lower values -> the iteration stops later -> more elements
-        (higher overfit tolerance); higher values -> fewer elements
+        (higher overfit tolerance); higher values -> fewer elements.
+        mu never exceeds 1, so any value >= 1 stops at min_M. NaN raises.
     max_M : int, optional
         Maximum number of elements to try (default: 50)
     extend_decades : float, optional
@@ -206,6 +207,8 @@ def find_optimal_M_mu(
     if not 1 <= min_M <= max_M:
         raise ValueError(f"find_optimal_M_mu: need 1 <= min_M <= max_M, "
                          f"got min_M={min_M}, max_M={max_M}")
+    if np.isnan(mu_threshold):
+        raise ValueError("find_optimal_M_mu: mu_threshold is NaN")
 
     warnings: List[str] = []
     if not allow_negative:
@@ -215,7 +218,9 @@ def find_optimal_M_mu(
     iterations: List[MuIteration] = []
 
     M = min_M - 1  # the loop increments before fitting
-    mu = 1.0
+    # Not 1.0: mu never exceeds 1, so a threshold >= 1 skipped the loop and
+    # returned no fit at all. Every threshold >= 1 now stops at min_M.
+    mu = np.inf
     iteration = 0
     L_value = None
     C_value = None

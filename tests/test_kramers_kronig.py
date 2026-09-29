@@ -681,3 +681,24 @@ def test_plot_kk_validation_curve_matches_Z_fit(include_L):
         assert x[-1] == pytest.approx(r.Z_fit[i_max].real, rel=1e-9)
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("threshold", [1.0, 1.5])
+def test_mu_threshold_at_or_above_one_stops_at_the_first_M(threshold):
+    # mu <= 1 always, so the search stops at once; it used to skip the loop
+    # and return tau = elements = None.
+    from eis_analysis.fitting.voigt_chain import find_optimal_M_mu
+
+    f = np.logspace(5, -1, 30)
+    Z = voigt_impedance(f, 10.0, [(100.0, 1e-3)])
+    r = find_optimal_M_mu(f, Z, mu_threshold=threshold, min_M=3)
+    assert r.M == 3 and r.tau is not None and r.elements is not None
+    assert kramers_kronig_validation(f, Z, mu_threshold=threshold).success
+
+
+def test_mu_threshold_nan_is_rejected():
+    from eis_analysis.fitting.voigt_chain import find_optimal_M_mu
+
+    f = np.logspace(5, -1, 30)
+    with pytest.raises(ValueError, match="NaN"):
+        find_optimal_M_mu(f, voigt_impedance(f, 10.0, [(100.0, 1e-3)]), mu_threshold=float('nan'))
