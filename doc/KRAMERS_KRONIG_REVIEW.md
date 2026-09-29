@@ -93,7 +93,9 @@ Nyni se drift projevi lokalne a v odhadu sumu (rozsah pres 6 seedu):
 
 Prumer zustava pod 5 %, takze `is_valid` takova data prohlasi za validni.
 Drift od ~10 % zachyti per-point report (`--max-residual` 5 %), 2% drift
-jen zvyseny odhad sumu. To je nalez 1.4.
+jen zvyseny odhad sumu. To je nalez 1.4. Po jeho oprave (podil bodu nad
+5 % misto prumeru) 10% a 20% drift validaci neprojde; 2% a 5% drift
+projde, je videt jen v grafu reziduii a v odhadu sumu.
 
 ### 1.2 `auto_extend_decades` obchazi mu (overeno)
 
@@ -138,7 +140,8 @@ omezeno poctem bodu. Uloha je silne podurcena a uzivatel se to nedozvi.
 **Stav: opraveno ve v0.45.0.** Varovani jdou do `LinKKResult.warnings`,
 `KKResult.warnings` a CLI je vypisuje. Hlaska "Data may contain artifacts"
 z `KKResult.warnings` zmizela, protoze opakovala `is_valid`. Omezeni M
-poctem bodu reseno neni.
+poctem bodu je reseno ve v0.46.0 spolu s bodem 1.1 (M <= N - 2, pod 5 body
+chyba). Od opravy 2.3 je `LinKKResult` jen alias `KKResult`.
 
 ### 1.4 `is_valid` (prumer |res| < 5 %) je prilis volne a nekonzistentni
 
@@ -212,13 +215,17 @@ vyresilo chybejici tau a prvky (2.1) i zahozena varovani (1.3).
 - Seriova kapacita (`include_C`, ekvivalent `add_cap`) funguje.
 - Hranice knihovna / CLI je, az na graf, dodrzena.
 
-## 5. Doporucene poradi
+## 5. Co zbyva
 
-1. **1.2 a 1.3** - male, jasne zmeny: prepocitat mu po rozsireni gridu (a
-   odmitnout rozsireni, ktere mu shodi pod prah) a propagovat varovani.
-2. **1.1** - zmena vyberu M; nutne zmerit na realnych datech pred zmenou
-   vychoziho chovani.
-3. **1.4 a 1.5** - kriterium platnosti a docstring.
-4. **2.1-2.3** - refaktor: graf do `visualization/`, jeden result typ,
-   uzsi `except`.
-5. Sekce 3 prubezne.
+Vsechny body sekci 1 a 2 jsou opraveny (viz Stav na zacatku). Otevrene jsou
+jen drobnosti ze sekce 3, zadna nedava spatny vysledek:
+
+- `find_optimal_extend_decades` vraci 6-tuple; prevod na dataclass meni
+  verejne API.
+- Pseudo chi^2 nema ochranu |Z| = 0; `_chi2_lower_M` na nekonecnem chi^2
+  zamerne stavi (navrat k M = 3) a hlida to test.
+- L je ulozene v `elements`, C mimo nej; to je navrh API
+  `estimate_R_linear`, zmena by zasahla i fitovani obvodu.
+
+Vedecky limit, ne chyba: kriterium 1.4 je hrube, drift do ~5 % projde.
+Citlivejsi kriterium (vztazene k sumu) chce vic realnych spekter.
