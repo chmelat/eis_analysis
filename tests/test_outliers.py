@@ -353,56 +353,39 @@ def test_single_infinite_residual_does_not_disable_the_method():
 # Figure marking
 # =============================================================================
 
-def test_each_figure_is_marked_only_with_its_own_method_s_points():
+def test_each_figure_is_marked_only_with_its_own_method_s_points(tmp_path, monkeypatch):
     """A band on the KK panel at a frequency KK considers fine would
-    contradict the table's `flagged by` column."""
-    from eis_analysis.cli.handlers.validation import report_outliers
+    contradict the table's `flagged by` column. The figure is drawn once,
+    after the report, so the saved file carries the markers."""
+    from eis_analysis.cli.handlers import validation as handler
 
     freq = np.logspace(-2, 5, 30)
     rk = np.full(30, 0.5)
     rk[4] = 12.0
     rz = np.full(30, 0.5)
     rz[9] = 12.0
-
-    kk_fig, kk_axes = plt.subplots(1, 2)
-    zhit_fig, zhit_axes = plt.subplots(1, 2)
     kk = fake_result(rk)
-    kk.figure = kk_fig
     zhit = fake_result(rz)
-    zhit.figure = zhit_fig
+    kk.success = zhit.success = True
 
-    args = argparse.Namespace(max_residual=5.0, save=None, format='png')
-    report_outliers(freq, kk, zhit, args)
+    flagged = {}
 
-    # One axvline each: KK's own point on the KK panel, Z-HIT's on its own.
-    assert len(kk_axes[1].lines) == 1
-    assert len(zhit_axes[1].lines) == 1
-    assert kk_axes[1].lines[0].get_xdata()[0] == pytest.approx(freq[4])
-    assert zhit_axes[1].lines[0].get_xdata()[0] == pytest.approx(freq[9])
+    def fake_plot(name):
+        def plot(frequencies, Z, result, flagged_frequencies=()):
+            flagged[name] = list(flagged_frequencies)
+            return plt.figure()
+        return plot
 
-    plt.close(kk_fig)
-    plt.close(zhit_fig)
+    monkeypatch.setattr(handler, 'plot_kk_validation', fake_plot('KK'))
+    monkeypatch.setattr(handler, 'plot_zhit_validation', fake_plot('Z-HIT'))
 
-
-def test_saved_figure_is_rewritten_with_the_markers(tmp_path):
-    """The validation handler writes the figure before the points are known,
-    so the marked version has to land on disk afterwards."""
-    from eis_analysis.cli.handlers.validation import report_outliers
-    from eis_analysis.cli.utils import save_figure
-
-    freq = np.logspace(-2, 5, 30)
-    r = np.full(30, 0.5)
-    r[6] = 15.0
-    result = fake_result(r)
-    result.figure, _ = plt.subplots(1, 2)
-
-    # What the validation handler writes before report_outliers runs
     prefix = str(tmp_path / "out")
-    save_figure(result.figure, prefix, 'kk', 'png')
-    unmarked = (tmp_path / "out_kk.png").read_bytes()
-
     args = argparse.Namespace(max_residual=5.0, save=prefix, format='png')
-    report_outliers(freq, result, None, args)
+    report = handler.report_outliers(freq, kk, zhit, args)
+    handler.plot_validation(freq, np.ones(30, dtype=complex), kk, zhit, report, args)
+    plt.close('all')
 
-    assert (tmp_path / "out_kk.png").read_bytes() != unmarked
-    plt.close(result.figure)
+    assert flagged['KK'] == pytest.approx([freq[4]])
+    assert flagged['Z-HIT'] == pytest.approx([freq[9]])
+    assert (tmp_path / "out_kk.png").exists()
+    assert (tmp_path / "out_zhit.png").exists()

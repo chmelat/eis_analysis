@@ -5,6 +5,7 @@ Data validation handlers for the EIS CLI.
 - run_zhit_validation: Z-HIT validation
 - apply_zhit_reconstruction: --fit-on, Z-HIT reconstruction as a data correction
 - report_outliers: per-point suspicious-point report from both methods
+- plot_validation: KK and Z-HIT figures, with the flagged points marked
 """
 
 import argparse
@@ -21,8 +22,10 @@ from ...validation import (
     zhit_validation,
     find_outliers,
     KKResult,
+    OutlierReport,
     ZHITResult,
 )
+from ...visualization import plot_kk_validation, plot_zhit_validation
 from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
 
@@ -113,7 +116,6 @@ def run_kk_validation(
         logger.info("Hint: imag residuals dominate while the real fit is good - "
                     "try --kk-series-c (blocking/2-electrode behavior)")
 
-    save_figure(result.figure, args.save, 'kk', args.format)
     return result
 
 
@@ -169,7 +171,6 @@ def run_zhit_validation(
            f"(mean |res_mag|={result.mean_residual_mag:.2f}%, "
            f"threshold={result.quality_threshold:.1f}%)")
 
-    save_figure(result.figure, args.save, 'zhit', args.format)
     return result
 
 
@@ -260,12 +261,12 @@ def report_outliers(
     kk_result: Optional[KKResult],
     zhit_result: Optional[ZHITResult],
     args: argparse.Namespace
-) -> None:
+) -> OutlierReport:
     """
     Report individual points whose KK or Z-HIT residual exceeds the threshold.
 
-    Silent when nothing is flagged. Flagged points are also marked in the
-    residual panel of both validation figures.
+    Silent when nothing is flagged. The report goes back to the caller, so
+    plot_validation can mark the flagged points.
 
     Parameters
     ----------
@@ -276,14 +277,19 @@ def report_outliers(
     zhit_result : ZHITResult or None
         Result from run_zhit_validation
     args : argparse.Namespace
-        CLI arguments (uses: max_residual, save, format)
+        CLI arguments (uses: max_residual)
+
+    Returns
+    -------
+    OutlierReport
+        The flagged points, empty when there are none
     """
     report = find_outliers(
         frequencies, kk_result, zhit_result, max_residual=args.max_residual
     )
 
     if not report.skipped and not report.points:
-        return
+        return report
 
     # Own section header: the table draws on BOTH validations (see the
     # `flagged by` column), so printing it bare right after the Z-HIT block
@@ -297,7 +303,7 @@ def report_outliers(
                     f"the spectrum fails as a whole, per-point flagging skipped")
 
     if not report.points:
-        return
+        return report
 
     logger.warning(f"Suspicious points ({len(report.points)}, residual > "
                    f"{args.max_residual:.1f}%, see --max-residual):")
@@ -315,36 +321,40 @@ def report_outliers(
         logger.warning("  Note: deviations at the lowest frequencies are often "
                        "sample drift, not bad points")
 
-    _mark_outliers(kk_result, report, 'KK', 'kk', args)
-    _mark_outliers(zhit_result, report, 'Z-HIT', 'zhit', args)
+    return report
 
 
-def _mark_outliers(result, report, method: str, suffix: str,
-                   args: argparse.Namespace) -> None:
+def plot_validation(
+    frequencies: NDArray,
+    Z: NDArray,
+    kk_result: Optional[KKResult],
+    zhit_result: Optional[ZHITResult],
+    report: OutlierReport,
+    args: argparse.Namespace
+) -> None:
     """
-    Mark a method's own flagged frequencies in its residual panel.
+    Draw and save the KK and Z-HIT figures, each with its own flagged points.
 
-    Only the points THIS method flagged are drawn: a band on the KK panel at a
-    frequency where the KK residual is 0.3% would contradict the table's
-    `flagged by` column, and a method dropped by the global guard would end up
-    annotated entirely with the other one's findings.
+    Drawn after report_outliers, so the figure is written once with the
+    markers. Only the points THIS method flagged are marked: a band on the KK
+    panel at a frequency where the KK residual is 0.3% would contradict the
+    table's `flagged by` column.
 
-    Done here rather than inside kramers_kronig_validation / zhit_validation so
-    the computation core stays independent of the CLI threshold. The figure was
-    already written to disk by the validation handler, so with --save it is
-    re-saved to pick up the markers - quietly, since the path was reported
-    once already.
+    Parameters
+    ----------
+    frequencies, Z : ndarray
+        Spectrum the validations ran on
+    kk_result, zhit_result : KKResult, ZHITResult or None
+        Results of the validation handlers; failed ones are skipped
+    report : OutlierReport
+        Result of report_outliers
+    args : argparse.Namespace
+        CLI arguments (uses: save, format)
     """
-    fig = getattr(result, 'figure', None)
-    points = [p for p in report.points if method in p.methods.split('+')]
-    if fig is None or len(fig.axes) < 2 or not points:
-        return
-
-    # Both validation figures use a 1x2 layout with the residuals on the right.
-    ax = fig.axes[1]
-    for i, p in enumerate(points):
-        ax.axvline(x=p.frequency, color='red', linestyle='-', alpha=0.25,
-                   linewidth=3, zorder=0,
-                   label='Flagged point' if i == 0 else None)
-    ax.legend()
-    save_figure(fig, args.save, suffix, args.format, quiet=True)
+    for result, plot, method, suffix in ((kk_result, plot_kk_validation, 'KK', 'kk'),
+                                         (zhit_result, plot_zhit_validation, 'Z-HIT', 'zhit')):
+        if result is None or not result.success:
+            continue
+        flagged = [p.frequency for p in report.points if method in p.methods.split('+')]
+        fig = plot(frequencies, Z, result, flagged_frequencies=flagged)
+        save_figure(fig, args.save, suffix, args.format)

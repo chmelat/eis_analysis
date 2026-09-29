@@ -7,7 +7,7 @@ split across submodules by pipeline stage; this package re-exports the public
 working.
 
 - validation: run_kk_validation, run_zhit_validation,
-              apply_zhit_reconstruction, report_outliers
+              apply_zhit_reconstruction, report_outliers, plot_validation
 - rinf:       run_rinf_estimation
 - drt:        run_drt_analysis, run_voigt_analysis
 - fitting:    run_circuit_fitting
@@ -19,6 +19,7 @@ from .validation import (
     run_zhit_validation,
     apply_zhit_reconstruction,
     report_outliers,
+    plot_validation,
 )
 from .rinf import run_rinf_estimation
 from .drt import run_drt_analysis, run_voigt_analysis
@@ -30,6 +31,7 @@ __all__ = [
     'run_zhit_validation',
     'apply_zhit_reconstruction',
     'report_outliers',
+    'plot_validation',
     'run_rinf_estimation',
     'run_drt_analysis',
     'run_voigt_analysis',
