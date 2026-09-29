@@ -17,6 +17,7 @@ from copy import deepcopy
 
 from .circuit import fit_equivalent_circuit, FitResult, Circuit
 from .bounds import generate_simple_bounds
+from .diagnostics import compute_information_criteria
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +88,16 @@ def perturb_from_covariance(
     n_params = len(params)
 
     try:
-        cov_reg = cov + 1e-10 * np.eye(n_params)
-        L = np.linalg.cholesky(cov_reg)
-        z = np.random.randn(n_params)
-        perturbation = scale * L @ z
+        # Sample in the correlation matrix, then scale by the standard errors.
+        # The regularization that makes Cholesky work (fixed parameters leave
+        # zero rows) must be relative: an absolute 1e-10 added to cov swamped
+        # the variance of a capacitor (C ~ 1e-7 F -> var ~ 1e-20) and spread
+        # its perturbation ~2e4 times wider than 2*stderr, onto the bounds.
+        d = np.sqrt(np.clip(np.diag(cov), 0.0, None))  # 0 for fixed params
+        safe = np.where(d > 0, d, 1.0)
+        corr = cov / np.outer(safe, safe)
+        L = np.linalg.cholesky(corr + 1e-10 * np.eye(n_params))
+        perturbation = scale * d * (L @ np.random.randn(n_params))
         perturbed = params + perturbation
 
     except np.linalg.LinAlgError:
@@ -311,7 +318,15 @@ def fit_circuit_multistart(
     if not all_results:
         raise RuntimeError("Multi-start failed: no successful fits")
 
-    best_pos = min(range(len(all_results)), key=lambda i: all_results[i].fit_error_rel)
+    # Select on the optimized objective (weighted RSS), not fit_error_rel: every
+    # start minimizes RSS, and choosing on another metric could return a point
+    # that is not the least-squares minimum - its covariance and AIC/BIC would
+    # then describe the wrong fit (same reasoning as in diffevo.py).
+    rss = [compute_information_criteria(
+               Z, r.circuit.impedance(frequencies, list(r.params_opt)),
+               weighting, r.n_free_params)[0]
+           for r in all_results]
+    best_pos = int(np.argmin(rss))
     best_result = all_results[best_pos]
     best_error = best_result.fit_error_rel
     improvement = (initial_error - best_error) / initial_error * 100 if initial_error > 0 else 0

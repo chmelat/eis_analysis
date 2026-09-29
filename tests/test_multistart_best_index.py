@@ -18,13 +18,17 @@ from eis_analysis.fitting.circuit import FitResult
 
 
 class _FakeCircuit:
-    """Minimal circuit stub: no real parameter labels, trivial impedance."""
+    """Minimal circuit stub: no real parameter labels, and an impedance off
+    the (unit) data by the controlled error, so a start's weighted RSS - the
+    multistart selection criterion - ranks the same as its error."""
+
+    err = 0.0
 
     def get_param_labels(self):
         return None
 
     def impedance(self, freq, params):
-        return np.ones(len(freq), dtype=complex)
+        return np.full(len(freq), 1.0 + self.err, dtype=complex)
 
 
 def _install_deterministic_mocks(monkeypatch, errors, sleeps):
@@ -54,6 +58,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
             idx = int(round(initial_guess[0]))
             params = np.asarray(initial_guess, dtype=float)
             time.sleep(sleeps.get(idx, 0.0))
+        circuit.err = errors[idx]
         res = FitResult(
             circuit=circuit,
             params_opt=params,
@@ -61,6 +66,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
             fit_error_rel=errors[idx],
             cov=None,
             is_well_conditioned=False,
+            n_free_params=2,
         )
         # fit_equivalent_circuit() writes its parameters into the shared
         # circuit object; mimic that so the circuit-sync test is meaningful.

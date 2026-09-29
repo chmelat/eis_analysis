@@ -77,6 +77,20 @@ Complete change history for all project versions.
   no attribute 'min'". It now catches only `ValueError` (invalid data, too
   few points) and `np.linalg.LinAlgError`; anything else propagates
   (doc/KRAMERS_KRONIG_REVIEW.md, 2.2).
+- **Multistart perturbs capacitors around the fit, not onto the bounds.**
+  `perturb_from_covariance` added an absolute `1e-10` to the covariance to
+  make Cholesky work, which swamped the variance of small-valued parameters
+  (C ~ 1e-7 F has variance ~ 1e-20): the perturbation of C came out about
+  22 000 times wider than the intended 2 * stderr and most restarts started
+  clipped at a bound. It now samples in the correlation matrix and scales
+  by the standard errors; measured width / (2 * stderr) = 1.00, 1.01, 0.99
+  for R_s, R, C.
+- **Multistart selects the start with the lowest weighted RSS.** It picked
+  the lowest `fit_error_rel` (a weighted mean relative error), not the
+  quantity every start minimizes, so it could return a point that is not the
+  least-squares minimum - with covariance and AIC/BIC of that point. On a
+  two-arc test spectrum the two criteria chose different starts. The
+  differential-evolution path already selected on RSS.
 
 ## Version 0.46.0 (2026-09-28)
 
