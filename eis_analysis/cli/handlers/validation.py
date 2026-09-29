@@ -90,13 +90,12 @@ def run_kk_validation(
         logger.warning(warning)
 
     mean_abs_residual = max(result.mean_residual_real, result.mean_residual_imag)
-    n_points = len(frequencies)
     # The mean-based label can read "excellent" while a local violation fails
     # is_valid; the verdict wins, as "poor" always meant invalid.
     label = _quality_label(mean_abs_residual) if result.is_valid else "poor"
     log_fn = logger.info if result.is_valid else logger.warning
     log_fn(f"Data quality: {label} "
-           f"({result.n_above_threshold}/{n_points} points above "
+           f"({result.n_above_threshold}/{len(frequencies)} points above "
            f"{KK_RESIDUAL_THRESHOLD}%, allowed {KK_MAX_FRACTION_ABOVE:.0%}; "
            f"max mean |res|={mean_abs_residual:.2f}%)")
 

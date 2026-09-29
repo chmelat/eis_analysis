@@ -39,13 +39,10 @@ CHI2_PLATEAU_WINDOW = 8
 # example/real_gamry_example.DTA violates KK over 0.03-4 Hz (residual hump
 # to 20 % with every fit_type) and passed with a 3.8 % mean, 19 of 72 points
 # above 5 % (doc/KRAMERS_KRONIG_REVIEW.md 1.4).
-# Both values are empirical, not from literature. 5 % is a loose "clearly
-# broken" bound, not a noise-level test: good measured spectra reach 2.6 %
-# (EISPOT-M136113-4.DTA, ZrO2 on Zr) and 0.7 % (EISPOT-test1.DTA) at the
-# 95th percentile, the failing one 18 %. The 5 % allowance tolerates a few
-# edge points, where Lin-KK residuals grow (4.3 % at the last point of
-# M136113-4): 3 points of 72. Any threshold between ~3 and ~15 % separates
-# these three spectra, so neither value is a measured optimum.
+# Both values are empirical, a loose "clearly broken" bound, not a noise-level
+# test. The allowance tolerates a few edge points, where Lin-KK residuals grow.
+# Any threshold between ~3 and ~15 % separates the example spectra, so
+# neither value is a measured optimum.
 KK_RESIDUAL_THRESHOLD = 5.0
 KK_MAX_FRACTION_ABOVE = 0.05
 
