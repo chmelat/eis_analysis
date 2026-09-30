@@ -305,7 +305,7 @@ result.Z_reconstructed     # Impedance rebuilt from gamma, L_series, R_inf [Ohm]
 result.R_inf               # High-frequency resistance [Ohm]
 result.L_series            # Series inductance [H], 0 when not modeled
 result.R_pol               # Polarization resistance [Ohm]
-result.lambda_reg          # Regularization parameter used
+result.lambda_used         # Regularization parameter used
 result.diagnostics         # DRTDiagnostics with detailed info
 
 # DRTDiagnostics contains:
@@ -861,7 +861,7 @@ result = calculate_drt(
 # Access results
 print(f"R_inf = {result.R_inf:.2f} Ohm")
 print(f"R_pol = {result.R_pol:.2f} Ohm")
-print(f"lambda = {result.lambda_reg:.2e}")
+print(f"lambda = {result.lambda_used:.2e}")
 print(f"Found {len(result.peaks)} peaks")
 
 # Show figure
