@@ -4,11 +4,12 @@ Complete change history for all project versions.
 
 ---
 
-## Unreleased
+## Version 0.50.0 (2026-09-30)
 
 ### Fixed
 
-- **CSV columns are matched by the words of their header.** Columns were
+- **CSV columns are matched by the words of their header (breaking for
+  partial headers).** Columns were
   found by substring in both directions, so a short name matched inside an
   unrelated header and loading went on with one column read as another:
   `Z''` read from `Z'`, Re(Z) from `Freq` (`re` in it), Im(Z) from `Time`,

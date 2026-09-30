@@ -5,17 +5,18 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.49.0'
-__version_info__ = (0, 49, 0)
+__version__ = '0.50.0'
+__version_info__ = (0, 50, 0)
 __release_date__ = '2026-09-30'
 
 # Breaking changes in this version
 __breaking_changes__: list[str] = [
     "fit_equivalent_circuit, fit_circuit_multistart and fit_circuit_diffevo "
-    "return (result, Z_fit) without a figure; plot= removed "
-    "(use visualization.plot_circuit_fit(frequencies, Z, result))",
-    "plot_circuit_fit(frequencies, Z, result, title=None) takes a FitResult "
-    "(Z_fit, circuit, figsize, Z_fit_at_data removed)",
+    "need a circuit with get_param_labels/get_all_fixed_params "
+    "(no 1e-15..1e15 / all-free fallback; AttributeError otherwise)",
+    "eis_analysis.version.VERSION removed (use __version__)",
+    "load_csv_data raises ValueError on a header that names only some of "
+    "frequency, Z_real and Z_imag, or one of them twice",
 ]
 
 # Human-readable version string
