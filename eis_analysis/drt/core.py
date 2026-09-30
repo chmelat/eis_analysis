@@ -448,6 +448,7 @@ def calculate_drt(
         tau_extend_decades=tau_extend,
         tau_extend_note=tau_extend_note,
         R_pol_extrapolated_fraction=R_pol_extrapolated_fraction,
+        tau_window=tau_window,
         inductance_used=inductance_used,
         inductance_note=inductance_note
     )

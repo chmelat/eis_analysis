@@ -152,6 +152,8 @@ class DRTDiagnostics:
     # as applied; with tau_extend_decades='auto' the note says why this much.
     tau_extend_decades: float = 0.0
     tau_extend_note: Optional[str] = None
+    # Measured window [1/(2 pi f_max), 1/(2 pi f_min)] [s]; None on failure
+    tau_window: Optional[Tuple[float, float]] = None
     # Share of R_pol at tau past the measured window (extrapolated)
     R_pol_extrapolated_fraction: float = 0.0
 

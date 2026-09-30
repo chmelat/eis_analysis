@@ -35,7 +35,8 @@ def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
         two more panels: per-peak Gaussians and the BIC model selection.
     """
     diag = result.diagnostics
-    if (not result.success or diag is None or result.Z_reconstructed is None):
+    if (not result.success or diag is None or result.Z_reconstructed is None
+            or diag.tau_window is None):
         raise ValueError("plot_drt needs a successful DRTResult")
     assert result.tau is not None and result.gamma is not None  # guaranteed by success
 
@@ -44,8 +45,7 @@ def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
     lambda_reg = result.lambda_used
     normalize_rpol, peak_method = diag.normalized, diag.peak_method
     peaks_result, bic_scores = result.peaks, result.bic_scores
-    # Measured window, as in drt.linear_system._build_drt_matrices
-    tau_window = (1 / (2 * np.pi * diag.freq_max), 1 / (2 * np.pi * diag.freq_min))
+    tau_window = diag.tau_window
     # Lambda-probe curves are physical [Ohm]; match the displayed gamma
     probe_curves = None
     if diag.stability is not None:

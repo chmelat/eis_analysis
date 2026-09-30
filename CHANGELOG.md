@@ -19,6 +19,13 @@ Complete change history for all project versions.
   cap: six valid peaks printed "6 used" above a four-row table. The
   element table shows what is used; the cap has its own warning.
 
+### Changed
+
+- **`DRTDiagnostics.tau_window`**: the measured tau window the DRT used for
+  its edge flags. `plot_drt` shades the extrapolated grid from it instead of
+  recomputing the window from `freq_min`/`freq_max` with a copy of the grid
+  formula.
+
 ## Version 0.48.1 (2026-09-30)
 
 ### Changed
