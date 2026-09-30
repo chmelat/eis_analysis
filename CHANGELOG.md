@@ -6,6 +6,16 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Fixed
+
+- **Several sweeps in one file now warn.** Several sweeps in one CSV (e.g.
+  one per operating point) loaded silently as one spectrum and Z-HIT then
+  returned NaN. Both loaders now warn when the frequencies are not strictly
+  monotonic in file order, with the count of offending steps. This replaces
+  the DTA loader's exact-equality duplicate check, which missed sweeps whose
+  measured frequencies differ in the last digits. Both loaders share the
+  post-load checks, so the CSV small-range warning also gains the DRT note.
+
 ### Changed
 
 - **Fit warnings name the parameter.** "Parameter 3: undefined uncertainty"

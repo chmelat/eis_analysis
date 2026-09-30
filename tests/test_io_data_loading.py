@@ -287,6 +287,15 @@ def test_csv_comma_standard(tmp_path):
     assert np.isclose(Z[0].real, 100.0)
 
 
+def test_csv_duplicate_freq_warns(tmp_path):
+    """Two sweeps in one CSV, the second logging measured (not bit-equal) frequencies."""
+    rows = _rows(12)
+    second = [(fr * (1 + 1e-7), zr, zi) for fr, zr, zi in rows]
+    result = load_csv_data(_write(tmp_path, "dup.csv", _make_csv(rows + second)))
+    assert len(result.frequencies) == 24
+    assert any("duplicate" in w.lower() for w in result.warnings)
+
+
 def test_csv_semicolon_european(tmp_path):
     text = _make_csv(_rows(12), delimiter=";", decimal=",", headers=("freq", "Zreal", "Zimag"))
     f, Z = _fz(load_csv_data(_write(tmp_path, "eu.csv", text)))

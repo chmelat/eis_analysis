@@ -500,6 +500,36 @@ def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.compl
     return frequencies[mask], Z[mask]
 
 
+def _check_spectrum(frequencies: NDArray[np.float64], warnings: List[str]) -> None:
+    """
+    Checks every loader applies to the spectrum it read, noting caveats in `warnings`.
+
+    Raises
+    ------
+    ValueError
+        If there are fewer than MIN_DATA_POINTS points
+    """
+    if len(frequencies) < MIN_DATA_POINTS:
+        raise ValueError(f"Dataset must have at least {MIN_DATA_POINTS} points, got {len(frequencies)}")
+
+    freq_range = frequencies.max() / frequencies.min()
+    if freq_range < MIN_FREQUENCY_RANGE:
+        warnings.append(
+            f"Small frequency range: {freq_range:.1f}x "
+            f"(recommended >{MIN_FREQUENCY_RANGE}x); DRT analysis may have poor resolution")
+
+    # A sweep is strictly monotonic in file order. Several sweeps in one file
+    # break that even when the instrument logged slightly different measured
+    # frequencies, which exact-equality (np.unique) would miss; Z-HIT's
+    # derivative then divides by a (near-)zero log-frequency step.
+    steps = np.diff(frequencies)
+    n_against = int(min(np.sum(steps >= 0), np.sum(steps <= 0)))
+    if n_against:
+        warnings.append(
+            f"Dataset contains duplicate or out-of-order frequencies ({n_against} step(s) "
+            f"against the sweep direction) - several sweeps in one file?")
+
+
 def load_data(filename: str) -> LoadResult:
     """
     Load data from Gamry .DTA file.
@@ -541,21 +571,7 @@ def load_data(filename: str) -> LoadResult:
     n_measured = len(frequencies)
     frequencies, Z = _drop_negative_real_hf(frequencies, Z, result.warnings)
     result.frequencies, result.Z = frequencies, Z
-
-    # Edge case: minimum number of points
-    if len(frequencies) < MIN_DATA_POINTS:
-        raise ValueError(f"Dataset must have at least {MIN_DATA_POINTS} points, got {len(frequencies)}")
-
-    # Edge case: frequency range
-    freq_range = frequencies.max() / frequencies.min()
-    if freq_range < MIN_FREQUENCY_RANGE:
-        result.warnings.append(
-            f"Small frequency range: {freq_range:.1f}x "
-            f"(recommended >{MIN_FREQUENCY_RANGE}x); DRT analysis may have poor resolution")
-
-    # Edge case: duplicate frequencies
-    if len(np.unique(frequencies)) != len(frequencies):
-        result.warnings.append("Dataset contains duplicate frequencies")
+    _check_spectrum(frequencies, result.warnings)
 
     # Edge case: sweep stopped before reaching the requested final frequency.
     # Only a shortfall is reported - see expected_points() on the overshoot.
@@ -750,13 +766,6 @@ def load_csv_data(
     Z = np.array(z_real, dtype=np.float64) + 1j * np.array(z_imag, dtype=np.float64)
     freq_array, Z = _drop_negative_real_hf(freq_array, Z, warnings)
 
-    # Validation
-    if len(freq_array) < MIN_DATA_POINTS:
-        raise ValueError(f"Dataset must have at least {MIN_DATA_POINTS} points, got {len(freq_array)}")
-
-    freq_range = freq_array.max() / freq_array.min()
-    if freq_range < MIN_FREQUENCY_RANGE:
-        warnings.append(f"Small frequency range: {freq_range:.1f}x "
-                        f"(recommended >{MIN_FREQUENCY_RANGE}x)")
+    _check_spectrum(freq_array, warnings)
 
     return LoadResult(freq_array, Z, filename, warnings=warnings)
