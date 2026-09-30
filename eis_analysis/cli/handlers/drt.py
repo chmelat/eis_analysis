@@ -17,6 +17,7 @@ from ..utils import save_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
 from ...fitting.config import GMM_N_COMPONENTS_RANGE
+from ...visualization import plot_drt
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,8 @@ def run_drt_analysis(
     # Log diagnostics
     _log_drt_diagnostics(result)
 
-    save_figure(result.figure, args.save, 'drt', args.format)
+    if result.success:
+        save_figure(plot_drt(Z, result), args.save, 'drt', args.format)
 
     return result
 

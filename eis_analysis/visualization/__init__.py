@@ -6,6 +6,7 @@ from .plots import (
     visualize_data, plot_circuit_fit, visualize_ocv, plot_rinf_fit,
     plot_kk_validation, plot_zhit_validation,
 )
+from .drt import plot_drt
 
 __all__ = [
     'visualize_data',
@@ -14,4 +15,5 @@ __all__ = [
     'plot_rinf_fit',
     'plot_kk_validation',
     'plot_zhit_validation',
+    'plot_drt',
 ]

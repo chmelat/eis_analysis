@@ -7,31 +7,55 @@ and (for the GMM method) per-peak deconvolution and BIC model-selection panels.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional, List, Dict, Tuple
 from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
+from ..drt.results import DRTResult
 from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, GMM_N_COMPONENTS_RANGE
 
 
-def _create_visualization(tau: NDArray, gamma: NDArray,
-                          gamma_original: Optional[NDArray],
-                          Z: NDArray, Z_reconstructed: NDArray,
-                          lambda_reg: float,
-                          normalize_rpol: bool,
-                          peak_method: str,
-                          peaks_result: Optional[List[Dict]],
-                          bic_scores: Optional[List[float]],
-                          probe_curves: Optional[List[Tuple[float, NDArray]]] = None,
-                          tau_window: Optional[Tuple[float, float]] = None
-                          ) -> plt.Figure:
+def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
     """
-    Create DRT visualization figure.
+    Plot a DRT result: gamma(tau) spectrum and Nyquist reconstruction check.
 
-    probe_curves: optional (lambda, gamma) pairs from the lambda-probe
-    stability diagnostics, drawn as thin overlays on the DRT spectrum.
-    tau_window: measured window; grid past its slow end is shaded as extrapolated.
+    Parameters
+    ----------
+    Z : ndarray of complex
+        Impedance the DRT was computed from [Ohm]
+    result : DRTResult
+        Successful output of `calculate_drt`
+
+    Returns
+    -------
+    fig : Figure
+        DRT spectrum (normalized when the result is) with the lambda-probe
+        curves as thin overlays when they were computed, the tau grid past the
+        slow end of the measured window shaded as extrapolated, and data vs.
+        reconstruction in the Nyquist plane. For the GMM method with peaks,
+        two more panels: per-peak Gaussians and the BIC model selection.
     """
+    diag = result.diagnostics
+    if (not result.success or diag is None or result.Z_reconstructed is None):
+        raise ValueError("plot_drt needs a successful DRTResult")
+    assert result.tau is not None and result.gamma is not None  # guaranteed by success
+
+    tau, gamma, gamma_original = result.tau, result.gamma, result.gamma_original
+    Z_reconstructed = result.Z_reconstructed
+    lambda_reg = result.lambda_used
+    normalize_rpol, peak_method = diag.normalized, diag.peak_method
+    peaks_result, bic_scores = result.peaks, result.bic_scores
+    # Measured window, as in drt.linear_system._build_drt_matrices
+    tau_window = (1 / (2 * np.pi * diag.freq_max), 1 / (2 * np.pi * diag.freq_min))
+    # Lambda-probe curves are physical [Ohm]; match the displayed gamma
+    probe_curves = None
+    if diag.stability is not None:
+        scale = diag.R_pol_from_gamma if normalize_rpol else 1.0
+        probe_curves = [
+            (p.lambda_value, p.gamma / scale)
+            for p in diag.stability.probe_points
+            if p.success and p.gamma is not None
+        ]
+
     use_gmm = (peak_method == 'gmm' and
                peaks_result is not None and len(peaks_result) > 0)
 
@@ -50,7 +74,7 @@ def _create_visualization(tau: NDArray, gamma: NDArray,
                          label=f'lambda = {probe_lambda:.1e}')
     ax1.semilogx(tau, gamma, 'b-', linewidth=2, label='DRT gamma(tau)')
     ax1.fill_between(tau, 0, gamma, alpha=0.3)
-    if tau_window is not None and tau[-1] > tau_window[1] * (1 + 1e-9):
+    if tau[-1] > tau_window[1] * (1 + 1e-9):
         ax1.axvspan(tau_window[1], tau[-1], color='gray', alpha=0.15,
                     label='past measured window (extrapolated)')
     ax1.set_xlabel("tau [s]")

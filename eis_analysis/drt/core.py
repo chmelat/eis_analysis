@@ -6,8 +6,8 @@ CLI layer is responsible for user output.
 
 This module is the orchestrator: it keeps the public ``calculate_drt`` entry
 point and ties together the pipeline stages, which live in sibling modules
-(``results``, ``estimation``, ``linear_system``, ``extension``, ``plotting``,
-``peaks``). Those
+(``results``, ``estimation``, ``linear_system``, ``extension``, ``peaks``).
+The figure is drawn from the result by ``visualization.plot_drt``. Those
 symbols are re-exported below so they remain importable from ``drt.core``.
 """
 
@@ -39,7 +39,6 @@ from .estimation import (
     _inductance_choice,
 )
 from .linear_system import _reconstruct, _validate_frequencies
-from .plotting import _create_visualization
 from .peaks import gmm_peak_detection
 from .stability import probe_lambda_stability
 from .extension import _solve_with_extension
@@ -410,7 +409,6 @@ def calculate_drt(
     # regularization artifacts. Reference peaks and probe run on the physical
     # gamma [Ohm].
     stability = None
-    probe_curves = None
     if lambda_probe:
         if peaks_result:
             reference_peaks = [(p['tau_center'], p['R_estimate'])
@@ -421,25 +419,6 @@ def calculate_drt(
         stability = probe_lambda_stability(
             matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf
         )
-        # Overlay curves for the DRT figure; match the normalization of the
-        # displayed gamma.
-        scale = R_pol_from_gamma if normalized else 1.0
-        probe_curves = [
-            (p.lambda_value, p.gamma / scale)
-            for p in stability.probe_points
-            if p.success and p.gamma is not None
-        ]
-
-    # === Step 9: Visualization ===
-    fig = _create_visualization(
-        matrices.tau, gamma, gamma_original,
-        Z, Z_reconstructed,
-        lambda_sel.lambda_value,
-        normalized, peak_method,
-        peaks_result, bic_scores,
-        probe_curves=probe_curves,
-        tau_window=tau_window
-    )
 
     # === Build diagnostics ===
     diagnostics = DRTDiagnostics(
@@ -477,7 +456,7 @@ def calculate_drt(
         tau=matrices.tau,
         gamma=gamma,
         gamma_original=gamma_original,
-        figure=fig,
+        Z_reconstructed=Z_reconstructed,
         peaks=peaks_result,
         bic_scores=bic_scores,
         R_inf=R_inf,

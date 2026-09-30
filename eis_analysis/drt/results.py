@@ -5,7 +5,6 @@ All result containers returned by the DRT pipeline. No logic — diagnostics are
 returned as structured data, the CLI layer is responsible for user output.
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
@@ -194,9 +193,8 @@ class DRTResult:
     tau: Optional[NDArray[np.float64]] = None
     gamma: Optional[NDArray[np.float64]] = None
     gamma_original: Optional[NDArray[np.float64]] = None
-
-    # Figures
-    figure: Optional[plt.Figure] = None
+    # Impedance rebuilt from gamma, L_series and R_inf [Ohm]; for plot_drt
+    Z_reconstructed: Optional[NDArray[np.complex128]] = None
 
     # GMM peaks (if GMM method used)
     peaks: Optional[List[Dict]] = None
