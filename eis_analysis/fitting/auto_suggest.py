@@ -138,8 +138,8 @@ def analyze_voigt_elements(
 
     Examples
     --------
-    >>> tau, gamma, fig, peaks, _ = calculate_drt(freq, Z)
-    >>> suggestion = analyze_voigt_elements(tau, gamma, freq, Z, peaks)
+    >>> drt = calculate_drt(freq, Z)
+    >>> suggestion = analyze_voigt_elements(drt.tau, drt.gamma, freq, Z, drt.peaks)
     >>> print(f"Found {len(suggestion.elements)} Voigt elements")
     >>> print(f"Analysis quality: {suggestion.quality}")
 

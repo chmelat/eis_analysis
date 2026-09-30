@@ -301,7 +301,7 @@ result = calculate_drt(
 result.tau                 # Time constant axis [s]
 result.gamma               # Distribution function gamma(tau) [Ohm]
 result.peaks               # List of dicts with peak information
-result.figure              # matplotlib Figure with DRT spectrum
+result.Z_reconstructed     # Impedance rebuilt from gamma, L_series, R_inf [Ohm]
 result.R_inf               # High-frequency resistance [Ohm]
 result.L_series            # Series inductance [H], 0 when not modeled
 result.R_pol               # Polarization resistance [Ohm]
@@ -320,6 +320,10 @@ result.diagnostics.reconstruction_error_rel  # Reconstruction error [%]
 result.diagnostics.rinf               # RinfEstimate dataclass
 result.diagnostics.lambda_sel         # LambdaSelection dataclass
 result.diagnostics.nnls               # NNLSSolution dataclass
+
+# Figure (calculate_drt builds none)
+from eis_analysis.visualization import plot_drt
+fig = plot_drt(Z, result)
 ```
 
 **GCV automatic lambda selection:**
@@ -824,12 +828,24 @@ if ocv_data is not None:
     fig = visualize_ocv(ocv_data, title='OCV Curve')
 ```
 
+**DRT:**
+
+```python
+from eis_analysis.visualization import plot_drt
+
+result = calculate_drt(frequencies, Z, peak_method='gmm')
+fig = plot_drt(Z, result)
+# Plots: DRT spectrum, Nyquist reconstruction check;
+# with GMM peaks also the per-peak deconvolution and the BIC curve
+```
+
 ## Usage Examples
 
 ### Example 1: Basic DRT Analysis
 
 ```python
 from eis_analysis import load_data, calculate_drt
+from eis_analysis.visualization import plot_drt
 import matplotlib.pyplot as plt
 
 # Load data
@@ -849,6 +865,7 @@ print(f"lambda = {result.lambda_reg:.2e}")
 print(f"Found {len(result.peaks)} peaks")
 
 # Show figure
+plot_drt(Z, result)
 plt.show()
 ```
 
@@ -911,6 +928,7 @@ print(result)  # FitResult object with params_opt, params_stderr, params_ci_95
 ```python
 from pathlib import Path
 from eis_analysis import load_data, calculate_drt
+from eis_analysis.visualization import plot_drt
 import matplotlib.pyplot as plt
 
 data_dir = Path('data')
@@ -930,8 +948,9 @@ for dta_file in data_dir.glob('*.DTA'):
     )
 
     # Save figure
-    result.figure.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
-    plt.close(result.figure)
+    fig = plot_drt(Z, result)
+    fig.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
+    plt.close(fig)
 
     # Print summary
     print(f"  R_inf={result.R_inf:.1f} Ohm, {len(result.peaks)} peaks")

@@ -4,6 +4,33 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **DRT no longer builds a figure (breaking).** `calculate_drt` drew its
+  figure as the last step of the computation, with no way to turn it off and
+  no guard around it: an error in the plotting discarded the computed DRT,
+  and every call left a figure open. Plotting moved to
+  `eis_analysis.visualization.plot_drt(Z, result)` (the former
+  `drt/plotting.py`), and the `figure` field is gone from `DRTResult`.
+  `DRTResult` gains `Z_reconstructed`, which the Nyquist panel needs; the
+  lambda-probe overlay and the extrapolated-window shading are read from
+  `result.diagnostics`. `eis_analysis.drt` no longer imports matplotlib. The
+  CLI output and the saved `_drt` figures are unchanged. Same split as KK and
+  Z-HIT got in 0.47.0 (doc/EIS_DRT_SKILL_COMPARISON.md).
+
+  Migration:
+  ```python
+  # before
+  result = calculate_drt(frequencies, Z)
+  result.figure.savefig("drt.png")
+  # after
+  from eis_analysis.visualization import plot_drt
+  result = calculate_drt(frequencies, Z)
+  plot_drt(Z, result).savefig("drt.png")
+  ```
+
 ## Version 0.47.1 (2026-09-29)
 
 ### Added
