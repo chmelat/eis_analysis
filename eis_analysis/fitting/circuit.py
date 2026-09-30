@@ -228,21 +228,10 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     # would silently fit a value the caller did not ask for (DE keeps the
     # fixed value as given; validate_fixed_params() warns instead).
     clipped_params = []
-    initial_guess_clipped = []
     for i, (ig, lb, ub) in enumerate(zip(initial_guess, lower_bounds, upper_bounds)):
-        if fixed_params[i]:
-            initial_guess_clipped.append(ig)
-        elif ig < lb:
-            initial_guess_clipped.append(lb)
+        if not fixed_params[i] and (ig < lb or ig > ub):
+            initial_guess[i] = min(max(ig, lb), ub)
             clipped_params.append(i)
-        elif ig > ub:
-            initial_guess_clipped.append(ub)
-            clipped_params.append(i)
-        else:
-            initial_guess_clipped.append(ig)
-
-    if clipped_params:
-        initial_guess = initial_guess_clipped
 
     return OptimizationSetup(
         initial_guess=initial_guess,

@@ -73,8 +73,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
         )
         # fit_equivalent_circuit() writes its parameters into the shared
         # circuit object; mimic that so the circuit-sync test is meaningful.
-        if hasattr(circuit, "update_params"):
-            circuit.update_params(list(params))
+        circuit.update_params(list(params))
         Z_fit = np.ones(len(frequencies), dtype=complex)
         return res, Z_fit
 

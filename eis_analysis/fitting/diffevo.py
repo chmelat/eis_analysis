@@ -301,18 +301,7 @@ def fit_circuit_diffevo(
         full_initial_guess=initial_guess_full
     )
 
-    # Helper to reconstruct full params from free params
-    def reconstruct_params(free_params):
-        if not any(fixed_params):
-            return list(free_params)
-        full, idx = [], 0
-        for i, is_fixed in enumerate(fixed_params):
-            if is_fixed:
-                full.append(initial_guess_full[i])
-            else:
-                full.append(free_params[idx])
-                idx += 1
-        return full
+    reconstruct_params = cost_function._reconstruct_params
 
     # Residual function for least_squares
     def residual_function(params):
