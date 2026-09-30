@@ -21,10 +21,6 @@ import argparse
 import numpy as np
 import pytest
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 from eis_analysis.cli.data_handling import filter_by_frequency
 from eis_analysis.cli.handlers.validation import apply_zhit_reconstruction
 from eis_analysis.cli.utils import EISAnalysisError, LoadedData
@@ -96,7 +92,6 @@ def test_reconstruction_recovers_resistances_from_drifted_modulus():
     Z_drifted = _apply_lf_drift(Z_clean)
 
     reconstruction = zhit_validation(FREQUENCIES, Z_drifted)
-    plt.close('all')
     assert reconstruction.success
 
     err_original = _fit_max_resistance_error(Z_drifted, params_true)
@@ -134,7 +129,6 @@ def test_reconstruction_costs_accuracy_on_noisy_stationary_data():
     Z_noisy = Z_clean + rng.normal(0, sigma) + 1j * rng.normal(0, sigma)
 
     reconstruction = zhit_validation(FREQUENCIES, Z_noisy)
-    plt.close('all')
 
     err_raw = _fit_max_resistance_error(Z_noisy, params_true)
     err_reconstructed = _fit_max_resistance_error(reconstruction.Z_fit,
@@ -160,7 +154,6 @@ def test_reconstruction_is_least_accurate_at_the_hf_relaxation():
     """
     Z_clean, _ = _clean_spectrum()
     residuals = abs(zhit_validation(FREQUENCIES, Z_clean).residuals_mag)
-    plt.close('all')
 
     lowest_decade = residuals[FREQUENCIES <= 1e-2].mean()
     highest_decade = residuals[FREQUENCIES >= 1e4].mean()
@@ -175,7 +168,6 @@ def test_reconstruction_error_floor_on_undisturbed_data():
     Z_clean, params_true = _clean_spectrum()
 
     reconstruction = zhit_validation(FREQUENCIES, Z_clean)
-    plt.close('all')
 
     # Z-HIT has its own error floor (numerical integration plus the edge
     # behavior of np.gradient in the second-order term). Measured: 0.58% mean
@@ -200,7 +192,6 @@ def _loaded():
 
 def _reconstruction_of(data):
     result = zhit_validation(data.frequencies, data.Z)
-    plt.close('all')
     return result
 
 
