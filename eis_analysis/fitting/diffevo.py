@@ -237,35 +237,20 @@ def fit_circuit_diffevo(
     # Get initial guess from circuit definition
     initial_guess_full = list(circuit.get_all_params())
 
-    # Get parameter labels and bounds
-    param_labels = None
-    if hasattr(circuit, 'get_param_labels'):
-        param_labels = circuit.get_param_labels()
-        lower_bounds_full, upper_bounds_full = generate_simple_bounds(param_labels)
-    else:
-        n_params_full = len(initial_guess_full)
-        lower_bounds_full = [1e-15] * n_params_full
-        upper_bounds_full = [1e15] * n_params_full
-
-    # Get fixed parameters
-    fixed_params = None
-    fixed_param_indices = []
-    if hasattr(circuit, 'get_all_fixed_params'):
-        fixed_params = circuit.get_all_fixed_params()
-        fixed_param_indices = [i for i, f in enumerate(fixed_params) if f]
+    param_labels = circuit.get_param_labels()
+    lower_bounds_full, upper_bounds_full = generate_simple_bounds(param_labels)
+    fixed_params = circuit.get_all_fixed_params()
+    fixed_param_indices = [i for i, f in enumerate(fixed_params) if f]
 
     # Create indexed param labels
-    if param_labels is not None:
-        label_counts: Dict[str, int] = {}
-        param_labels_indexed = []
-        for label in param_labels:
-            if label in label_counts:
-                label_counts[label] += 1
-            else:
-                label_counts[label] = 0
-            param_labels_indexed.append(f"{label}{label_counts[label]}")
-    else:
-        param_labels_indexed = None
+    label_counts: Dict[str, int] = {}
+    param_labels_indexed = []
+    for label in param_labels:
+        if label in label_counts:
+            label_counts[label] += 1
+        else:
+            label_counts[label] = 0
+        param_labels_indexed.append(f"{label}{label_counts[label]}")
 
     # Raises when every parameter is fixed (empty optimization vector)
     diag_warnings.extend(validate_fixed_params(
@@ -274,12 +259,11 @@ def fit_circuit_diffevo(
     ))
 
     # Filter to free parameters only
-    if fixed_params is not None and any(fixed_params):
+    if any(fixed_params):
         initial_guess = [v for v, f in zip(initial_guess_full, fixed_params) if not f]
         lower_bounds = [lb for lb, f in zip(lower_bounds_full, fixed_params) if not f]
         upper_bounds = [ub for ub, f in zip(upper_bounds_full, fixed_params) if not f]
-        free_labels = ([lab for lab, f in zip(param_labels, fixed_params) if not f]
-                       if param_labels is not None else None)
+        free_labels = [lab for lab, f in zip(param_labels, fixed_params) if not f]
     else:
         initial_guess = initial_guess_full
         lower_bounds = lower_bounds_full
@@ -307,10 +291,9 @@ def fit_circuit_diffevo(
     log_mask = np.array(log_mask_list, dtype=bool)
     # Labels of the log-searched parameters, for the diagnostics line. The mask
     # is in free-parameter space; map it back to full-space labels.
-    free_indices = [i for i, f in enumerate(fixed_params or [False] * len(initial_guess_full))
-                    if not f]
+    free_indices = [i for i, f in enumerate(fixed_params) if not f]
     log_search_params = [
-        (param_labels_indexed[full_i] if param_labels_indexed is not None else str(full_i))
+        param_labels_indexed[full_i]
         for free_i, full_i in enumerate(free_indices) if log_mask[free_i]
     ]
 
@@ -326,7 +309,7 @@ def fit_circuit_diffevo(
 
     # Helper to reconstruct full params from free params
     def reconstruct_params(free_params):
-        if fixed_params is None or not any(fixed_params):
+        if not any(fixed_params):
             return list(free_params)
         full, idx = [], 0
         for i, is_fixed in enumerate(fixed_params):
@@ -521,12 +504,11 @@ def fit_circuit_diffevo(
         is_well_conditioned = False
 
     # Step 4: Update circuit with fitted parameters
-    if hasattr(circuit, 'update_params'):
-        circuit.update_params(list(params_opt))
+    circuit.update_params(list(params_opt))
 
     # Per-parameter bound status and derived warnings — same contract as
     # fit_equivalent_circuit (full-space indices, classify_bound_status
-    # criterion, labels when available).
+    # criterion).
     bound_status = build_bound_status(
         params_opt, lower_bounds_full, upper_bounds_full, fixed_params
     )
@@ -536,10 +518,9 @@ def fit_circuit_diffevo(
         if status not in ('lower', 'upper'):
             continue
         params_at_bounds.append(i)
-        name = param_labels_indexed[i] if param_labels_indexed is not None else str(i)
         bound_val = lower_bounds_full[i] if status == 'lower' else upper_bounds_full[i]
         bounds_warnings.append(
-            f"Parameter {name} = {params_opt[i]:.3e} near {status} "
+            f"Parameter {param_labels_indexed[i]} = {params_opt[i]:.3e} near {status} "
             f"bound {bound_val:.1e}"
         )
 

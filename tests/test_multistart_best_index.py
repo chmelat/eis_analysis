@@ -18,14 +18,17 @@ from eis_analysis.fitting.circuit import FitResult
 
 
 class _FakeCircuit:
-    """Minimal circuit stub: no real parameter labels, and an impedance off
-    the (unit) data by the controlled error, so a start's weighted RSS - the
-    multistart selection criterion - ranks the same as its error."""
+    """Minimal R|C circuit stub with an impedance off the (unit) data by the
+    controlled error, so a start's weighted RSS - the multistart selection
+    criterion - ranks the same as its error."""
 
     err = 0.0
 
     def get_param_labels(self):
-        return None
+        return ['R', 'C']
+
+    def update_params(self, params):
+        return 2
 
     def impedance(self, freq, params):
         return np.full(len(freq), 1.0 + self.err, dtype=complex)

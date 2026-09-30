@@ -55,10 +55,7 @@ class CompositeCircuit(ABC):
         """
         params = []
         for elem in self.elements:
-            if hasattr(elem, 'get_all_params'):
-                params.extend(elem.get_all_params())
-            else:
-                raise TypeError(f"Element {elem} does not have get_all_params()")
+            params.extend(elem.get_all_params())
         return params
 
     def get_all_fixed_params(self) -> List[bool]:
@@ -74,14 +71,7 @@ class CompositeCircuit(ABC):
         """
         fixed = []
         for elem in self.elements:
-            if hasattr(elem, 'get_all_fixed_params'):
-                fixed.extend(elem.get_all_fixed_params())
-            elif hasattr(elem, 'fixed_params'):
-                fixed.extend(elem.fixed_params)
-            else:
-                # Fallback: assume all params are free
-                n_params = len(elem.get_all_params())
-                fixed.extend([False] * n_params)
+            fixed.extend(elem.get_all_fixed_params())
         return fixed
 
     def get_param_labels(self) -> List[str]:
@@ -95,12 +85,7 @@ class CompositeCircuit(ABC):
         """
         labels = []
         for elem in self.elements:
-            if hasattr(elem, 'get_param_labels'):
-                labels.extend(elem.get_param_labels())
-            else:
-                # Fallback for elements without labels
-                n_params = len(elem.get_all_params())
-                labels.extend([f'p{i}' for i in range(n_params)])
+            labels.extend(elem.get_param_labels())
         return labels
 
     def update_params(self, params: List[float]) -> int:
@@ -121,13 +106,7 @@ class CompositeCircuit(ABC):
         """
         param_idx = 0
         for elem in self.elements:
-            if hasattr(elem, 'update_params'):
-                n_consumed = elem.update_params(params[param_idx:])
-                param_idx += n_consumed
-            else:
-                # Fallback: skip elements without update_params
-                n_params = len(elem.get_all_params())
-                param_idx += n_params
+            param_idx += elem.update_params(params[param_idx:])
         return param_idx
 
     def _iter_element_impedances(

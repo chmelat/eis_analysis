@@ -198,11 +198,11 @@ class FitResult:
 class OptimizationSetup:
     """Internal data structure for optimization setup."""
     initial_guess: List[float]
-    lower_bounds: Optional[List[float]]
-    upper_bounds: Optional[List[float]]
-    fixed_params: Optional[List[bool]]
-    param_labels: Optional[List[str]]
-    param_labels_indexed: Optional[List[str]]
+    lower_bounds: List[float]
+    upper_bounds: List[float]
+    fixed_params: List[bool]
+    param_labels: List[str]
+    param_labels_indexed: List[str]
     clipped_params: List[int] = field(default_factory=list)
 
 
@@ -214,51 +214,39 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     """
     initial_guess = list(circuit.get_all_params())
 
-    # Get parameter labels
-    param_labels_raw = None
-    param_labels_indexed = None
-    if hasattr(circuit, 'get_param_labels'):
-        param_labels_raw = circuit.get_param_labels()
-        label_counts: Dict[str, int] = {}
-        param_labels_indexed = []
-        for label in param_labels_raw:
-            if label in label_counts:
-                label_counts[label] += 1
-            else:
-                label_counts[label] = 0
-            param_labels_indexed.append(f"{label}{label_counts[label]}")
+    param_labels_raw = circuit.get_param_labels()
+    label_counts: Dict[str, int] = {}
+    param_labels_indexed = []
+    for label in param_labels_raw:
+        if label in label_counts:
+            label_counts[label] += 1
+        else:
+            label_counts[label] = 0
+        param_labels_indexed.append(f"{label}{label_counts[label]}")
 
-    # Get fixed parameters
-    fixed_params = None
-    if hasattr(circuit, 'get_all_fixed_params'):
-        fixed_params = circuit.get_all_fixed_params()
+    fixed_params = circuit.get_all_fixed_params()
+    lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
 
-    # Generate bounds
-    lower_bounds, upper_bounds = None, None
+    # Clip initial guess to bounds. Fixed parameters are exempt: they are
+    # never optimized, so the bounds do not apply to them and clipping
+    # would silently fit a value the caller did not ask for (DE keeps the
+    # fixed value as given; validate_fixed_params() warns instead).
     clipped_params = []
-    if param_labels_raw is not None:
-        lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
+    initial_guess_clipped = []
+    for i, (ig, lb, ub) in enumerate(zip(initial_guess, lower_bounds, upper_bounds)):
+        if fixed_params[i]:
+            initial_guess_clipped.append(ig)
+        elif ig < lb:
+            initial_guess_clipped.append(lb)
+            clipped_params.append(i)
+        elif ig > ub:
+            initial_guess_clipped.append(ub)
+            clipped_params.append(i)
+        else:
+            initial_guess_clipped.append(ig)
 
-        # Clip initial guess to bounds. Fixed parameters are exempt: they are
-        # never optimized, so the bounds do not apply to them and clipping
-        # would silently fit a value the caller did not ask for (DE keeps the
-        # fixed value as given; validate_fixed_params() warns instead).
-        fixed = fixed_params or [False] * len(initial_guess)
-        initial_guess_clipped = []
-        for i, (ig, lb, ub) in enumerate(zip(initial_guess, lower_bounds, upper_bounds)):
-            if fixed[i]:
-                initial_guess_clipped.append(ig)
-            elif ig < lb:
-                initial_guess_clipped.append(lb)
-                clipped_params.append(i)
-            elif ig > ub:
-                initial_guess_clipped.append(ub)
-                clipped_params.append(i)
-            else:
-                initial_guess_clipped.append(ig)
-
-        if clipped_params:
-            initial_guess = initial_guess_clipped
+    if clipped_params:
+        initial_guess = initial_guess_clipped
 
     return OptimizationSetup(
         initial_guess=initial_guess,
@@ -323,8 +311,7 @@ def fit_equivalent_circuit(
             )
         # Merge: use circuit values for fixed params, initial_guess for free params
         merged_guess = []
-        fixed = setup.fixed_params or [False] * len(initial_guess)
-        for i, (ig, cv, is_fixed) in enumerate(zip(initial_guess, circuit_values, fixed)):
+        for i, (ig, cv, is_fixed) in enumerate(zip(initial_guess, circuit_values, setup.fixed_params)):
             merged_guess.append(cv if is_fixed else ig)
         setup = OptimizationSetup(
             initial_guess=merged_guess,
@@ -355,15 +342,12 @@ def fit_equivalent_circuit(
     # Precompute weights
     weights = compute_weights(Z, weighting)
 
-    if fixed_params is not None and any(fixed_params):
+    if any(fixed_params):
         initial_guess_for_opt = [v for v, f in zip(initial_guess_list, fixed_params) if not f]
-        # _prepare_optimization() sets both bounds or neither; naming both
-        # here is what the body actually needs, and says so.
-        if lower_bounds is not None and upper_bounds is not None:
-            bounds_for_opt = (
-                [lb for lb, f in zip(lower_bounds, fixed_params) if not f],
-                [ub for ub, f in zip(upper_bounds, fixed_params) if not f]
-            )
+        bounds_for_opt = (
+            [lb for lb, f in zip(lower_bounds, fixed_params) if not f],
+            [ub for ub, f in zip(upper_bounds, fixed_params) if not f]
+        )
 
         def reconstruct_params(free_params):
             full, idx = [], 0
@@ -412,9 +396,8 @@ def fit_equivalent_circuit(
     # were discarded by the merge above, so there is nothing to report.
     if initial_guess is None:
         for i in setup.clipped_params:
-            name = param_labels[i] if param_labels is not None else str(i)
             msg = (
-                f"Initial guess for parameter {name} = {circuit_values[i]:.3e} "
+                f"Initial guess for parameter {param_labels[i]} = {circuit_values[i]:.3e} "
                 f"outside bounds, clipped to {initial_guess_list[i]:.3e}"
             )
             diag_warnings.append(msg)
@@ -424,14 +407,13 @@ def fit_equivalent_circuit(
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always", OptimizeWarning)
 
-            bounds_arg = bounds_for_opt if bounds_for_opt[0] is not None else (-np.inf, np.inf)
             x_scale = np.maximum(np.abs(initial_guess_for_opt), 1e-10)
 
             opt_result = least_squares(
                 residual,
                 x0=initial_guess_for_opt,
                 jac=jac_func,
-                bounds=bounds_arg,
+                bounds=bounds_for_opt,
                 max_nfev=10000,
                 x_scale=x_scale
             )
@@ -439,7 +421,7 @@ def fit_equivalent_circuit(
             params_opt_free = opt_result.x
 
             # Reconstruct full parameters
-            if fixed_params is not None and any(fixed_params):
+            if any(fixed_params):
                 params_opt = np.array(reconstruct_params(params_opt_free))
             else:
                 params_opt = params_opt_free
@@ -465,24 +447,18 @@ def fit_equivalent_circuit(
         for i, status in enumerate(bound_status):
             if status not in ('lower', 'upper'):
                 continue
-            # build_bound_status() reports 'lower'/'upper' only when both
-            # bound vectors exist, so reaching here with None is a broken
-            # invariant, not a missing value.
-            assert lower_bounds is not None and upper_bounds is not None
             params_at_bounds.append(i)
-            name = param_labels[i] if param_labels is not None else str(i)
             bound_val = lower_bounds[i] if status == 'lower' else upper_bounds[i]
             bounds_warnings.append(
-                f"Parameter {name} = {params_opt[i]:.3e} near {status} "
+                f"Parameter {param_labels[i]} = {params_opt[i]:.3e} near {status} "
                 f"bound {bound_val:.1e}"
             )
 
         # Step 5: Compute covariance matrix
-        n_params_total = len(fixed_params) if fixed_params is not None else len(params_opt)
         cov_result = compute_covariance_matrix(
             jacobian=opt_result.jac,
             residuals=opt_result.fun,
-            n_params=n_params_total,
+            n_params=len(fixed_params),
             fixed_params=fixed_params
         )
         params_stderr = cov_result.stderr
@@ -500,8 +476,7 @@ def fit_equivalent_circuit(
         fit_error_rel, fit_error_abs, quality = compute_fit_metrics(Z, Z_fit, weighting)
 
         # Step 8: Update circuit with fitted parameters
-        if hasattr(circuit, 'update_params'):
-            circuit.update_params(list(params_opt))
+        circuit.update_params(list(params_opt))
 
         # Build diagnostics
         diagnostics = FitDiagnostics(

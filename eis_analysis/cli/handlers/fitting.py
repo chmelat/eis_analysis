@@ -629,8 +629,7 @@ def _fit_voigt_chain(
     logger.info(f"  Quality:   {quality}")
 
     # Update circuit with fitted parameters
-    if hasattr(circuit, 'update_params'):
-        circuit.update_params(initial_params)
+    circuit.update_params(initial_params)
 
     # Create FitResult. The linear fit provides no uncertainty estimate, so
     # stderr is inf ("unknown", covariance.py convention), not 0 ("exact");

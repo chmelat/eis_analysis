@@ -233,16 +233,8 @@ def fit_circuit_multistart(
         raise RuntimeError(f"Multi-start failed: initial fit unsuccessful: {e}") from e
 
     # Extract bounds from circuit
-    param_labels = circuit.get_param_labels() if hasattr(circuit, 'get_param_labels') else None
-    if param_labels is not None:
-        lower_bounds, upper_bounds = generate_simple_bounds(param_labels)
-        lower_bounds = np.array(lower_bounds)
-        upper_bounds = np.array(upper_bounds)
-    else:
-        n_params = len(result0.params_opt)
-        lower_bounds = np.full(n_params, 1e-15)
-        upper_bounds = np.full(n_params, 1e15)
-    bounds = (lower_bounds, upper_bounds)
+    lower_bounds, upper_bounds = generate_simple_bounds(circuit.get_param_labels())
+    bounds = (np.array(lower_bounds), np.array(upper_bounds))
 
     # Step 2: Generate perturbations and run additional fits
     def run_single_fit(start_idx: int, initial_params: NDArray) -> Optional[FitResult]:
@@ -359,8 +351,7 @@ def fit_circuit_multistart(
     # initial guesses, so sync it to the best fit as the single-fit and DE
     # paths do - consumers that read parameters from the circuit tree
     # (e.g. oxide capacitance/permittivity extraction) rely on it.
-    if hasattr(circuit, 'update_params'):
-        circuit.update_params(list(best_result.params_opt))
+    circuit.update_params(list(best_result.params_opt))
 
     Z_fit_best = best_result.circuit.impedance(frequencies, list(best_result.params_opt))
 
