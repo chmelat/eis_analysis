@@ -4,7 +4,7 @@ Complete change history for all project versions.
 
 ---
 
-## Unreleased
+## Version 0.49.0 (2026-09-30)
 
 ### Changed
 
