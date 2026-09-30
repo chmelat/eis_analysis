@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from numpy.typing import NDArray
 
-from ..logging import log_separator, SEPARATOR_WIDTH
+from ..logging import log_separator
 from ..utils import save_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
@@ -341,130 +341,59 @@ def run_voigt_analysis(
             drt_result.tau, gamma_ohm, frequencies, Z,
             peaks_gmm=drt_result.peaks
         )
-        _print_suggestion_diagnostics(suggestion)
-        logger.info(_format_voigt_report(suggestion))
+        _log_voigt_report(suggestion)
 
     except Exception as e:
         logger.warning(f"Voigt element analysis failed: {e}")
         logger.debug(f"Traceback: {e}", exc_info=True)
 
 
-def _print_suggestion_diagnostics(suggestion: VoigtSuggestion) -> None:
-    """Print how the suggestion was arrived at, ahead of the report itself."""
+def _log_voigt_report(suggestion: VoigtSuggestion) -> None:
+    """Report the Voigt elements read off the DRT, with how they were chosen."""
     log_separator()
-    logger.info("Automatic circuit suggestion from DRT")
+    logger.info("Voigt elements (R||C) from DRT")
     log_separator()
-    logger.info(f"R_inf (from data) = {suggestion.R_inf:.2f} Ohm")
-    logger.info(f"R_pol (from data) = {suggestion.R_pol:.2f} Ohm")
-
-    if suggestion.method == 'gmm':
-        logger.info(f"Using GMM peak detection ({suggestion.n_peaks_raw} peaks)")
-    else:
-        logger.info("Using scipy.find_peaks peak detection")
-    logger.info(f"Found {suggestion.n_peaks_raw} peaks in DRT spectrum")
-
-    if suggestion.n_peaks_raw > 0:
-        logger.info(f"Valid peaks for circuit suggestion: {suggestion.n_peaks_valid}")
-        logger.info(f"Analyzing {len(suggestion.elements)} Voigt elements")
-        for elem in suggestion.elements:
-            logger.info(f"  Element {elem.id}: tau = {elem.tau:.2e} s, "
-                        f"f = {elem.freq:.2e} Hz, R = {elem.R:.1f} Ohm, "
-                        f"C = {elem.C:.2e} F")
-
+    logger.info(f"Peaks: {suggestion.n_peaks_raw} detected ({suggestion.method}), "
+                f"{suggestion.n_peaks_valid} used")
     for note in suggestion.excluded_peaks:
         logger.warning(note)
-    for warning in suggestion.warnings:
-        logger.warning(warning)
-
-
-def _format_voigt_report(suggestion: VoigtSuggestion) -> str:
-    """
-    Format the Voigt suggestion into the report block.
-
-    Moved here from fitting/auto_suggest.py: it was always terminal output.
-    """
-    lines = []
-    lines.append("=" * SEPARATOR_WIDTH)
-    lines.append("VOIGT ELEMENT ANALYSIS (R||C) FROM DRT")
-    lines.append("=" * SEPARATOR_WIDTH)
-
-    # Detection method
-    lines.append(f"Peak detection method: {suggestion.method.upper()}")
-    lines.append("")
 
     elements = suggestion.elements
     if len(elements) == 0:
-        lines.append("No Voigt elements found")
-        lines.append(f"Quality: {suggestion.quality}")
-        lines.append("=" * SEPARATOR_WIDTH)
-        return "\n".join(lines)
+        logger.info("No Voigt elements found")
+        logger.info(f"Quality: {suggestion.quality}")
+        log_separator()
+        return
 
-    lines.append(f"Found {len(elements)} Voigt elements:")
-    lines.append("")
-
-    # Element table
-    lines.append("  ID | tau [s]    | f [Hz]     | R [Ohm]   | C [F]      | Warnings")
-    lines.append("  " + "-" * 72)
-
+    logger.info("")
+    logger.info("  ID | tau [s]    | f [Hz]     | R [Ohm]   | C [F]      | Warnings")
+    logger.info("  " + "-" * 72)
     for elem in elements:
         warnings_str = ", ".join(elem.warnings) if elem.warnings else "-"
         if len(warnings_str) > 20:
             warnings_str = warnings_str[:17] + "..."
+        logger.info(f"  {elem.id:2d} | "
+                    f"{elem.tau:10.2e} | "
+                    f"{elem.freq:10.2e} | "
+                    f"{elem.R:9.1f} | "
+                    f"{elem.C:10.2e} | "
+                    f"{warnings_str}")
+    logger.info("")
 
-        lines.append(f"  {elem.id:2d} | "
-                     f"{elem.tau:10.2e} | "
-                     f"{elem.freq:10.2e} | "
-                     f"{elem.R:9.1f} | "
-                     f"{elem.C:10.2e} | "
-                     f"{warnings_str}")
-
-    lines.append("")
-
-    # R_pol validation
-    lines.append("Consistency validation:")
-    lines.append(f"  Sum R_i (from peaks): {suggestion.total_R:9.1f} Ohm")
-    lines.append(f"  R_pol (from data):    {suggestion.R_pol:9.1f} Ohm")
+    # A ratio outside 0.5-2 is already one of suggestion.warnings
+    logger.info("Consistency validation:")
+    logger.info(f"  Sum R_i (from peaks): {suggestion.total_R:9.1f} Ohm")
+    logger.info(f"  R_pol (from data):    {suggestion.R_pol:9.1f} Ohm")
     if suggestion.ratio == float('inf'):
-        lines.append("  Ratio:                INF (R_pol = 0)")
+        logger.info("  Ratio:                INF (R_pol = 0)")
     else:
-        lines.append(f"  Ratio:                {suggestion.ratio:9.2f}")
+        logger.info(f"  Ratio:                {suggestion.ratio:9.2f}")
+    logger.info("")
 
-    if suggestion.ratio < 0.5 or suggestion.ratio > 2.0:
-        lines.append("  WARNING: Large difference between sum(R_i) and R_pol!")
-
-    lines.append("")
-
-    # Quality
-    lines.append(f"Analysis quality: {suggestion.quality.upper()}")
-
-    # Global warnings
-    if suggestion.warnings:
-        lines.append("")
-        lines.append("Warnings:")
-        for warning in suggestion.warnings:
-            lines.append(f"  - {warning}")
-
-    lines.append("")
-
-    # Recommendations for manual circuit building
-    lines.append("Recommendations for manual circuit building:")
-    lines.append("  1. Start with R_inf (series resistance):")
-    lines.append("     R(R_inf)")
-
-    lines.append("  2. Add Voigt elements (R||C) for each peak:")
-    for i, _elem in enumerate(elements, 1):
-        lines.append(f"     Element {i}: (R(R{i}) | C(C{i}))")
-
-    lines.append("  3. Connect elements in series with '-' operator:")
-
-    # Example circuit (symbolic)
-    example_parts = ["R(R_inf)"]
-    for i in range(1, min(len(elements) + 1, 4)):  # Max 3 elements
-        example_parts.append(f"(R(R{i}) | C(C{i}))")
-    if len(elements) > 3:
-        example_parts.append("...")
-    lines.append(f"     Example: {' - '.join(example_parts)}")
-
-    lines.append("=" * SEPARATOR_WIDTH)
-
-    return "\n".join(lines)
+    logger.info(f"Analysis quality: {suggestion.quality.upper()}")
+    for warning in suggestion.warnings:
+        logger.warning(warning)
+    circuit = " - ".join(["R(R_inf)"] + [f"(R(R{i}) | C(C{i}))"
+                                          for i in range(1, len(elements) + 1)])
+    logger.info(f"Suggested circuit: {circuit}")
+    log_separator()

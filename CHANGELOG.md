@@ -4,6 +4,23 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **One Voigt section in the CLI output instead of two.** "Automatic
+  circuit suggestion from DRT" and "VOIGT ELEMENT ANALYSIS (R||C) FROM DRT"
+  printed the same `VoigtSuggestion` twice: the element list, the peak
+  method, R_pol and every warning appeared in both. They are merged into
+  "Voigt elements (R||C) from DRT": peak counts (detected / used) with the
+  excluded peaks, the element table, the consistency check, the quality with
+  its warnings once, and the suggested circuit as one line with all elements
+  (it was cut at three, after nine lines of the same instructions every
+  run). Dropped: "R_inf (from data)", an HF median the suggestion does not
+  use and that differed from the R_inf the DRT used, and the "Large
+  difference between sum(R_i) and R_pol" line, which repeated the
+  "Inconsistency" warning at the same thresholds. Values are unchanged.
+
 ## Version 0.48.0 (2026-09-30)
 
 ### Changed
