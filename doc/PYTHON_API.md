@@ -962,10 +962,11 @@ for dta_file in data_dir.glob('*.DTA'):
         peak_method='gmm'
     )
 
-    # Save figure
-    fig = plot_drt(Z, result)
-    fig.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
-    plt.close(fig)
+    # Save figure (plot_drt raises on a failed DRT; skip it, keep the loop)
+    if result.success:
+        fig = plot_drt(Z, result)
+        fig.savefig(output_dir / f"{dta_file.stem}_drt.png", dpi=300)
+        plt.close(fig)
 
     # Print summary
     print(f"  R_inf={result.R_inf:.1f} Ohm, {len(result.peaks)} peaks")

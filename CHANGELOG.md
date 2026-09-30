@@ -17,9 +17,11 @@ Complete change history for all project versions.
   gone. The figure is drawn by
   `eis_analysis.visualization.plot_circuit_fit(frequencies, Z, result)`, which
   takes the `FitResult` and computes the fitted curve itself (its former
-  `Z_fit`, `circuit`, `title`, `figsize` and `Z_fit_at_data` arguments are
-  gone). `eis_analysis.fitting` no longer imports matplotlib. Same split as
-  DRT (0.48.0), KK and Z-HIT (0.47.0) got.
+  `Z_fit`, `circuit`, `figsize` and `Z_fit_at_data` arguments are gone;
+  `title` stays optional). No module in `eis_analysis/fitting/` imports
+  matplotlib any more; importing the package still loads it, through
+  `eis_analysis.visualization`. Same split as DRT (0.48.0), KK and Z-HIT
+  (0.47.0) got.
 
   In the CLI a failed fit figure is now a warning, not a lost fit, and the
   saved `_fit` figures of the single, multistart and DE fits are unchanged.
@@ -92,7 +94,8 @@ Complete change history for all project versions.
   `drt/plotting.py`), and the `figure` field is gone from `DRTResult`.
   `DRTResult` gains `Z_reconstructed`, which the Nyquist panel needs; the
   lambda-probe overlay and the extrapolated-window shading are read from
-  `result.diagnostics`. `eis_analysis.drt` no longer imports matplotlib. The
+  `result.diagnostics`. No module in `eis_analysis/drt/` imports matplotlib
+  (the package still loads it, through `eis_analysis.visualization`). The
   CLI output and the saved `_drt` figures are unchanged. Same split as KK and
   Z-HIT got in 0.47.0 (doc/EIS_DRT_SKILL_COMPARISON.md).
 
