@@ -5,15 +5,12 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.48.0'
-__version_info__ = (0, 48, 0)
+__version__ = '0.48.1'
+__version_info__ = (0, 48, 1)
 __release_date__ = '2026-09-30'
 
 # Breaking changes in this version
-__breaking_changes__: list[str] = [
-    "calculate_drt returns no figure: DRTResult.figure removed "
-    "(use visualization.plot_drt(Z, result))",
-]
+__breaking_changes__: list[str] = []
 
 # Human-readable version string
 def get_version_string():
