@@ -30,11 +30,6 @@ from functools import lru_cache
 import numpy as np
 import pytest
 
-# Suppress matplotlib GUI (fit_circuit_diffevo builds a figure)
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.fitting.diffevo import fit_circuit_diffevo
 
@@ -122,8 +117,7 @@ def _fit(name, noise):
         Z = Z + rng.normal(0.0, sigma) + 1j * rng.normal(0.0, sigma)
 
     circuit = parse_circuit_expression(CIRCUITS[name][0])
-    result, _, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=0)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=0)
     return result.best_result
 
 

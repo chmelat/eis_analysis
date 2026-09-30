@@ -151,7 +151,7 @@ def test_integration_real_fit_has_finite_stderr():
     noise = 0.01 * np.abs(Z_true) * (rng.randn(len(freq)) + 1j * rng.randn(len(freq)))
     Z_noisy = Z_true + noise
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit)
 
     assert result.fit_error_rel < 5.0, \
         f"Fit itself failed (error {result.fit_error_rel:.1f}%), test is inconclusive"

@@ -50,7 +50,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
     monkeypatch.setattr(ms, "perturb_log_uniform", fake_perturb)
 
     def fake_fit(frequencies, Zdata, circuit, weighting=None,
-                 initial_guess=None, plot=False, use_analytic_jacobian=True):
+                 initial_guess=None, use_analytic_jacobian=True):
         if initial_guess is None:
             idx = 1  # the initial fit is restart #1
             params = base_params
@@ -73,7 +73,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
         if hasattr(circuit, "update_params"):
             circuit.update_params(list(params))
         Z_fit = np.ones(len(frequencies), dtype=complex)
-        return res, Z_fit, None
+        return res, Z_fit
 
     monkeypatch.setattr(ms, "fit_equivalent_circuit", fake_fit)
 
@@ -88,7 +88,7 @@ def test_best_start_index_parallel_completion_order(monkeypatch):
     sleeps = {2: 0.0, 3: 0.20, 4: 0.0}
     _install_deterministic_mocks(monkeypatch, errors, sleeps)
 
-    result, _, _ = ms.fit_circuit_multistart(
+    result, _ = ms.fit_circuit_multistart(
         _FakeCircuit(), freq, Z, n_restarts=4, parallel=True, max_workers=4
     )
 
@@ -104,7 +104,7 @@ def test_best_start_index_sequential(monkeypatch):
     errors = {1: 0.50, 2: 0.10, 3: 0.30, 4: 0.40}  # restart #2 wins
     _install_deterministic_mocks(monkeypatch, errors, sleeps={})
 
-    result, _, _ = ms.fit_circuit_multistart(
+    result, _ = ms.fit_circuit_multistart(
         _FakeCircuit(), freq, Z, n_restarts=4, parallel=False
     )
 
@@ -120,7 +120,7 @@ def test_best_start_index_initial_fit_wins(monkeypatch):
     errors = {1: 0.05, 2: 0.40, 3: 0.30, 4: 0.50}  # initial fit wins
     _install_deterministic_mocks(monkeypatch, errors, sleeps={})
 
-    result, _, _ = ms.fit_circuit_multistart(
+    result, _ = ms.fit_circuit_multistart(
         _FakeCircuit(), freq, Z, n_restarts=4, parallel=True, max_workers=4
     )
 
@@ -156,7 +156,7 @@ def test_best_result_circuit_holds_best_params(monkeypatch):
     _install_deterministic_mocks(monkeypatch, errors, sleeps={})
 
     circuit = _RecordingCircuit()
-    result, _, _ = ms.fit_circuit_multistart(
+    result, _ = ms.fit_circuit_multistart(
         circuit, freq, Z, n_restarts=4, parallel=False
     )
 
@@ -181,7 +181,7 @@ def test_parallel_restarts_do_not_share_circuit(monkeypatch):
     _install_deterministic_mocks(monkeypatch, errors, sleeps)
 
     circuit = _RecordingCircuit()
-    result, _, _ = ms.fit_circuit_multistart(
+    result, _ = ms.fit_circuit_multistart(
         circuit, freq, Z, n_restarts=4, parallel=True, max_workers=4
     )
 

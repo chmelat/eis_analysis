@@ -7,99 +7,73 @@ import matplotlib.pyplot as plt
 from typing import Optional, Sequence
 from numpy.typing import NDArray
 
+from ..fitting.circuit import FitResult
+
 PLOT_GRID_ALPHA = 0.3
+# Points of the fitted curve: the data are often sparse (~10/decade), and a
+# curve drawn only through them shows straight segments instead of arcs.
+FIT_CURVE_POINTS = 300
 
 
 def plot_circuit_fit(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
-    circuit: Optional[object] = None,
-    title: Optional[str] = None,
-    figsize: tuple = (12, 5),
-    Z_fit_at_data: Optional[NDArray[np.complex128]] = None
+    result: FitResult
 ) -> plt.Figure:
     """
-    Create Nyquist plot with measured data, circuit fit, and residuals.
+    Plot a circuit fit: Nyquist plot with the fitted curve, and residuals.
 
     Parameters
     ----------
     frequencies : ndarray of float
-        Measurement frequencies [Hz]
+        Frequencies the fit ran on [Hz]
     Z : ndarray of complex
-        Measured impedance data [Ω]
-    Z_fit : ndarray of complex
-        Fitted impedance for plotting (can be denser than data) [Ω]
-    circuit : object, optional
-        Circuit object (for title and residuals calculation)
-    title : str, optional
-        Custom plot title
-    figsize : tuple, optional
-        Figure size (default: (12, 5))
-    Z_fit_at_data : ndarray of complex, optional
-        Fitted impedance at original data frequencies [Ω].
-        If None and circuit is provided, will be calculated from circuit.
+        Impedance the fit ran on [Ohm]
+    result : FitResult
+        Output of `fit_equivalent_circuit` (or `best_result` of the
+        multistart / differential evolution fit)
 
     Returns
     -------
     fig : matplotlib.figure.Figure
         Figure with Nyquist plot and residuals
     """
-    # Calculate Z_fit at data frequencies for residuals
-    if Z_fit_at_data is None and circuit is not None:
-        if hasattr(circuit, 'impedance') and hasattr(circuit, 'get_all_params'):
-            params = circuit.get_all_params()
-            Z_fit_at_data = circuit.impedance(frequencies, params)
+    circuit = result.circuit
+    params = list(result.params_opt)
+    freq_curve = np.logspace(np.log10(frequencies.min()), np.log10(frequencies.max()),
+                             FIT_CURVE_POINTS)
+    Z_fit = circuit.impedance(freq_curve, params)
+    Z_fit_at_data = circuit.impedance(frequencies, params)
 
-    # Create figure with 2 subplots if we have data for residuals
-    if Z_fit_at_data is not None:
-        fig, axes = plt.subplots(1, 2, figsize=figsize)
-        ax1 = axes[0]
-        ax2 = axes[1]
-    else:
-        fig, ax1 = plt.subplots(figsize=(8, 6))
-        ax2 = None
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     # Nyquist plot
     ax1.plot(Z.real, -Z.imag, 'o', label='Data', markersize=5)
     ax1.plot(Z_fit.real, -Z_fit.imag, '-', label='Fit', linewidth=2)
     ax1.set_xlabel("Z' [Ω]")
     ax1.set_ylabel("-Z'' [Ω]")
-
-    if title:
-        ax1.set_title(title)
-    elif circuit is not None:
-        ax1.set_title(f"Circuit fit: {circuit}")
-    else:
-        ax1.set_title("Circuit fit")
-
+    ax1.set_title(f"Circuit fit: {circuit}")
     ax1.legend()
     ax1.grid(True, alpha=PLOT_GRID_ALPHA)
     ax1.set_aspect('equal', adjustable='datalim')
 
-    # Residuals plot
-    if ax2 is not None and Z_fit_at_data is not None:
-        # Calculate residuals normalized by |Z| (same as KK validation)
-        Z_mag = np.abs(Z)
-        Z_mag_safe = np.maximum(Z_mag, 1e-15)
+    # Residuals normalized by |Z| (same as KK validation)
+    Z_mag_safe = np.maximum(np.abs(Z), 1e-15)
+    res_real = (Z.real - Z_fit_at_data.real) / Z_mag_safe * 100  # in %
+    res_imag = (Z.imag - Z_fit_at_data.imag) / Z_mag_safe * 100  # in %
+    mean_res_real = np.mean(np.abs(res_real))
+    mean_res_imag = np.mean(np.abs(res_imag))
 
-        res_real = (Z.real - Z_fit_at_data.real) / Z_mag_safe * 100  # in %
-        res_imag = (Z.imag - Z_fit_at_data.imag) / Z_mag_safe * 100  # in %
-
-        # Calculate mean residuals for title
-        mean_res_real = np.mean(np.abs(res_real))
-        mean_res_imag = np.mean(np.abs(res_imag))
-
-        ax2.semilogx(frequencies, res_real, 'o', label='Real', markersize=4, color='#1f77b4')
-        ax2.semilogx(frequencies, res_imag, 's', label='Imaginary', markersize=4, color='#ff7f0e')
-        ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-        ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5, label='5% threshold')
-        ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
-        ax2.set_xlabel("Frequency [Hz]")
-        ax2.set_ylabel("Residuals [%]")
-        ax2.set_title(f"Fit residuals (Re: {mean_res_real:.2f}%, Im: {mean_res_imag:.2f}%)")
-        ax2.legend(loc='best')
-        ax2.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
+    ax2.semilogx(frequencies, res_real, 'o', label='Real', markersize=4, color='#1f77b4')
+    ax2.semilogx(frequencies, res_imag, 's', label='Imaginary', markersize=4, color='#ff7f0e')
+    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    ax2.axhline(y=5, color='r', linestyle=':', alpha=0.5, label='5% threshold')
+    ax2.axhline(y=-5, color='r', linestyle=':', alpha=0.5)
+    ax2.set_xlabel("Frequency [Hz]")
+    ax2.set_ylabel("Residuals [%]")
+    ax2.set_title(f"Fit residuals (Re: {mean_res_real:.2f}%, Im: {mean_res_imag:.2f}%)")
+    ax2.legend(loc='best')
+    ax2.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
 
     plt.tight_layout()
     return fig

@@ -151,7 +151,7 @@ def test_voigt_chain_as_initial_guess(two_voigt_data):
     )
     circuit = chain.circuit
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit)
 
     assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
 
@@ -169,7 +169,7 @@ def test_three_time_constants(three_voigt_data):
     )
     circuit = chain.circuit
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit)
 
     assert result.fit_error_rel < 3.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
 

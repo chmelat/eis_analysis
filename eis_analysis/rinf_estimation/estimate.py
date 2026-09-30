@@ -168,8 +168,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
         return result
 
     try:
-        fit, _, _ = fit_equivalent_circuit(f_win, Z_win, _initial_circuit(f_win, Z_win),
-                                           plot=False)
+        fit, _ = fit_equivalent_circuit(f_win, Z_win, _initial_circuit(f_win, Z_win))
     except RuntimeError as e:
         result.warnings.append(f"R-L-(R|Q) fit failed ({e}); using Re(Z) at f_max")
         return result

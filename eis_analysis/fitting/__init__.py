@@ -40,7 +40,7 @@ from eis_analysis.fitting import R, C, Q, fit_equivalent_circuit
 circuit = R(100) - (R(5000) | C(1e-6))  # Voigt element
 
 # Fit to data
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 print(result.params_opt)  # [98.5, 4823.2, 8.7e-7]
 ```
 

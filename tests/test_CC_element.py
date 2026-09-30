@@ -134,8 +134,8 @@ def test_cc_element_fitting(freq):
 
     # Deliberately offset initial guess
     circuit = R(10) - CC(1e-9, 1e-7, 5e-4, 0.15)
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit,
-                                          weighting='modulus', plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit,
+                                          weighting='modulus')
 
     assert result.fit_error_rel < 2.0, f"Fit error too high: {result.fit_error_rel}"
 

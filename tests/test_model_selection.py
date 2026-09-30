@@ -14,11 +14,6 @@ DE is stochastic by default, so every fit passes an explicit seed.
 import numpy as np
 import pytest
 
-# Suppress matplotlib GUI (the optimizers build figures)
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 from eis_analysis.cli.handlers.model_comparison import (
     score_candidates,
     log_comparison,
@@ -46,10 +41,9 @@ def _synthesize(expression, noise=0.02, seed=0):
 
 def _fit(expression, Z):
     """Fit one candidate with DE and return its FitResult."""
-    result, _, _ = fit_circuit_diffevo(
+    result, _ = fit_circuit_diffevo(
         parse_circuit_expression(expression), FREQ, Z, seed=0
     )
-    plt.close('all')
     return result.best_result
 
 
@@ -162,12 +156,11 @@ def test_n_free_params_counts_free_parameters():
         circuit = R(10) - (R(200) | Q(2e-5, 0.85))
 
         if optimizer == 'single':
-            result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
+            result = fit_equivalent_circuit(FREQ, Z, circuit)[0]
         elif optimizer == 'de':
             result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
         else:
             result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
-        plt.close('all')
 
         assert result.n_free_params == 4, optimizer
 
@@ -179,12 +172,11 @@ def test_n_free_params_excludes_fixed_parameters():
         circuit = R("10") - (R(200) | Q(2e-5, 0.85))  # string value = fixed
 
         if optimizer == 'single':
-            result = fit_equivalent_circuit(FREQ, Z, circuit, plot=False)[0]
+            result = fit_equivalent_circuit(FREQ, Z, circuit)[0]
         elif optimizer == 'de':
             result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
         else:
             result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
-        plt.close('all')
 
         assert result.n_free_params == 3, optimizer
 

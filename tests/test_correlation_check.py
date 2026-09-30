@@ -24,7 +24,7 @@ def test_voigt_low_correlation(voigt_data):
     """Test that simple Voigt circuit has low parameter correlation."""
     freq, Z, circuit = voigt_data
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
     assert result.params_stderr is not None, "Should have standard errors"
@@ -46,7 +46,7 @@ def test_overparametrized_model_fits():
     # Fit with over-parametrized model (2 RC elements instead of 1)
     circuit_overfit = R(100) - (R(2500) | C(5e-7)) - (R(2500) | C(5e-7))
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit_overfit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit_overfit)
 
     # Should still fit well (over-parametrized can fit anything)
     assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
@@ -66,7 +66,7 @@ def test_three_resistors_extreme_correlation():
     # Fit with 3 resistors - only sum matters, individual values are arbitrary
     circuit_corr = R(333) - R(333) - R(334)
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit_corr, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit_corr)
 
     # Sum of resistors should be close to 1000
     R_sum = sum(result.params_opt)

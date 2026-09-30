@@ -322,7 +322,7 @@ def analyze_oxide_layer(
 
     Examples
     --------
-    >>> result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+    >>> result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
     >>> oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
     >>> print(f"Thickness: {oxide.thickness_nm:.1f} nm")
     """
@@ -427,7 +427,7 @@ def estimate_permittivity(
 
     Examples
     --------
-    >>> result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+    >>> result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
     >>> oxide = estimate_permittivity(freq, Z, thickness_nm=20, fit_result=result)
     >>> print(f"Permittivity: {oxide.permittivity:.1f}")
     """

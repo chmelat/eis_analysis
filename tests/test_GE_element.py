@@ -73,7 +73,7 @@ def test_g_element_fitting(freq):
     Z_noisy = Z_true + noise
 
     circuit = R(12) - GE(100, 3e-4)
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, weighting='modulus', plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, weighting='modulus')
 
     assert result.fit_error_rel < 2.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
 

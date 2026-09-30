@@ -16,10 +16,6 @@ from functools import lru_cache
 import numpy as np
 import pytest
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 from eis_analysis.fitting import R, Q, CC
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
 from eis_analysis.fitting.diagnostics import compute_weights
@@ -60,10 +56,9 @@ def _fit(maxiter):
     Several tests below read different fields of the same deterministic run;
     the cache keeps it at one DE per distinct maxiter.
     """
-    result, _, _ = fit_circuit_diffevo(
+    result, _ = fit_circuit_diffevo(
         make_circuit(), FREQ, true_impedance(), seed=42, maxiter=maxiter
     )
-    plt.close('all')
     return result
 
 
@@ -134,8 +129,7 @@ def test_fixed_param_excluded_from_log_search():
     """The mask lives in free-parameter space; labels must still line up."""
     Z = true_impedance()
     circuit = R("7") - (R(1e5) | Q(1e-6, 0.9))
-    result, _, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
 
     assert result.diagnostics.log_search_params == ['R1', 'Q0']
     assert result.best_result.params_opt[0] == 7.0

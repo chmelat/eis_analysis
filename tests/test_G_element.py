@@ -134,7 +134,7 @@ def test_de_converges_with_G_like_it_does_with_R():
                                    + 1j * rng.standard_normal(len(FREQ)))
 
     start = R(1) - (G(1) | C(1e-12)) - (G(1) | C(1e-12))
-    result, _, _ = fit_circuit_diffevo(start, FREQ, Z, seed=42)
+    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=42)
 
     assert [lab for lab in result.diagnostics.log_search_params
             if lab.startswith('G')] == ['G0', 'G1']
@@ -158,7 +158,7 @@ def _blocking_coating_data():
 def test_unresolvable_parallel_resistance_reports_a_usable_interval():
     Z = _blocking_coating_data()
     circuit = R(10.0) - (G(1e-6) | Q(1e-7, 0.9))
-    result, _, _ = fit_equivalent_circuit(FREQ, Z, circuit, weighting='modulus', plot=False)
+    result, _ = fit_equivalent_circuit(FREQ, Z, circuit, weighting='modulus')
 
     idx = next(i for i, lab in enumerate(result.param_labels)
                if lab.startswith('G'))
@@ -177,10 +177,10 @@ def test_unresolvable_parallel_resistance_reports_a_usable_interval():
 def test_fit_quality_matches_the_R_parametrization():
     """Reparametrization must not change the fit, only what can be said about it."""
     Z = _blocking_coating_data()
-    fit_G, _, _ = fit_equivalent_circuit(
-        FREQ, Z, R(10.0) - (G(1e-6) | Q(1e-7, 0.9)), weighting='modulus', plot=False)
-    fit_R, _, _ = fit_equivalent_circuit(
-        FREQ, Z, R(10.0) - (R(1e6) | Q(1e-7, 0.9)), weighting='modulus', plot=False)
+    fit_G, _ = fit_equivalent_circuit(
+        FREQ, Z, R(10.0) - (G(1e-6) | Q(1e-7, 0.9)), weighting='modulus')
+    fit_R, _ = fit_equivalent_circuit(
+        FREQ, Z, R(10.0) - (R(1e6) | Q(1e-7, 0.9)), weighting='modulus')
     assert fit_G.fit_error_rel == pytest.approx(fit_R.fit_error_rel, rel=1e-3)
 
 

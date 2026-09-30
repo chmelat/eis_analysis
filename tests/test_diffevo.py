@@ -19,11 +19,6 @@ from functools import lru_cache
 import numpy as np
 import pytest
 
-# Suppress matplotlib GUI (fit_circuit_diffevo builds a figure)
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 from eis_analysis.fitting import R, C, Q
 from eis_analysis.fitting.circuit import FitResult
 from eis_analysis.fitting.diffevo import (
@@ -69,11 +64,10 @@ def standard_fit():
     deterministic under a fixed seed, so the run is done once. Roughly 1 s
     each otherwise, and there were eight of them.
     """
-    result, Z_fit, fig = fit_circuit_diffevo(
+    result, Z_fit = fit_circuit_diffevo(
         make_circuit(), FREQ, true_impedance(), seed=42, maxiter=200
     )
-    plt.close('all')
-    return result, Z_fit, fig
+    return result, Z_fit
 
 
 # =============================================================================
@@ -112,25 +106,21 @@ def test_costfunction_is_picklable():
 
 def test_recovers_parameters_on_noise_free_data():
     Z = true_impedance()
-    result, _, fig = fit_circuit_diffevo(
+    result, _ = fit_circuit_diffevo(
         make_circuit(), FREQ, Z, seed=42, maxiter=300
     )
-    try:
-        recovered = np.asarray(result.best_result.params_opt, dtype=float)
-        np.testing.assert_allclose(recovered, TRUE, rtol=0.05)
-        assert result.final_error < 1.0  # percent
-    finally:
-        plt.close('all')
+    recovered = np.asarray(result.best_result.params_opt, dtype=float)
+    np.testing.assert_allclose(recovered, TRUE, rtol=0.05)
+    assert result.final_error < 1.0  # percent
 
 
 def test_return_contract():
     """Types, shapes and the fields every caller reads are populated."""
-    result, Z_fit, fig = standard_fit()
+    result, Z_fit = standard_fit()
     assert isinstance(result, DiffEvoResult)
     assert isinstance(result.best_result, FitResult)
     assert Z_fit.shape == FREQ.shape
     assert np.all(np.isfinite(Z_fit))
-    assert isinstance(fig, plt.Figure)
 
     assert isinstance(result.improvement, float)
     assert result.n_evaluations > 0
@@ -147,9 +137,8 @@ def test_return_contract():
 
 def test_seed_makes_runs_reproducible():
     Z = true_impedance()
-    r1, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
-    r2, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
-    plt.close('all')
+    r1, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
+    r2, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
     np.testing.assert_array_equal(
         np.asarray(r1.best_result.params_opt, dtype=float),
         np.asarray(r2.best_result.params_opt, dtype=float),
@@ -162,21 +151,19 @@ def test_seed_makes_runs_reproducible():
 
 def test_strategy_reflected_in_diagnostics():
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(
+    result, _ = fit_circuit_diffevo(
         make_circuit(), FREQ, Z, seed=42, maxiter=100, strategy=2
     )
-    plt.close('all')
     assert result.strategy == 'best1bin'
     assert result.diagnostics.strategy == 'best1bin'
 
 
 def test_numeric_jacobian_path():
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(
+    result, _ = fit_circuit_diffevo(
         make_circuit(), FREQ, Z, seed=42, maxiter=200,
         use_analytic_jacobian=False
     )
-    plt.close('all')
     assert result.diagnostics.jacobian_type == 'numeric'
     assert result.final_error < 1.0  # still converges
 
@@ -190,8 +177,7 @@ def test_fixed_param_stays_constant():
     true = [10.0, 5000.0, 1e-6]
     Z = make_circuit(true).impedance(FREQ, true)
     circuit = R("10") - (R(5000) | C(1e-6))
-    result, _, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=300)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=300)
     params = np.asarray(result.best_result.params_opt, dtype=float)
     assert params[0] == pytest.approx(10.0)            # fixed, unchanged
     np.testing.assert_allclose(params[1:], true[1:], rtol=0.05)  # free recovered
@@ -200,8 +186,7 @@ def test_fixed_param_stays_constant():
 def test_fixed_param_indices_in_diagnostics():
     Z = make_circuit([10.0, 5000.0, 1e-6]).impedance(FREQ, [10.0, 5000.0, 1e-6])
     circuit = R("10") - (R(5000) | C(1e-6))
-    result, _, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
     assert result.diagnostics.n_fixed_params == 1
     assert result.diagnostics.fixed_param_indices == [0]
 
@@ -212,7 +197,7 @@ def test_fixed_param_indices_in_diagnostics():
 
 def test_refinement_never_worse_than_de():
     Z = true_impedance()
-    result, _, _ = standard_fit()
+    result, _ = standard_fit()
     # The code keeps the better of DE / least_squares on the *optimized*
     # objective (weighted SSR). The reported relative error is a different
     # metric and need not follow it, so it cannot be asserted here.
@@ -227,7 +212,7 @@ def test_refinement_never_worse_than_de():
 def test_diagnostics_expose_objective_costs():
     """de_cost matches the weighted SSR recomputed at the DE solution."""
     Z = true_impedance()
-    result, _, _ = standard_fit()
+    result, _ = standard_fit()
     d = result.diagnostics
     # No fixed params -> de_result.x (free) is the full parameter vector.
     de_cost_recomputed = weighted_ssr(result.de_result.x, Z)
@@ -238,7 +223,7 @@ def test_diagnostics_expose_objective_costs():
 def test_selection_picks_lower_objective():
     """The returned fit has the smaller weighted SSR of {DE, refined}."""
     Z = true_impedance()
-    result, _, _ = standard_fit()
+    result, _ = standard_fit()
     d = result.diagnostics
     best_cost = weighted_ssr(result.best_result.params_opt, Z)
     assert best_cost == pytest.approx(min(d.de_cost, d.refined_cost),
@@ -247,7 +232,7 @@ def test_selection_picks_lower_objective():
 
 def test_improvement_is_objective_based():
     """improvement is the relative reduction of the optimized objective (SSR)."""
-    result, _, _ = standard_fit()
+    result, _ = standard_fit()
     d = result.diagnostics
     expected = (d.de_cost - d.refined_cost) / d.de_cost * 100
     assert result.improvement == pytest.approx(expected, rel=1e-9)
@@ -265,8 +250,7 @@ def test_refinement_failure_falls_back_with_valid_covariance(monkeypatch):
 
     monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
     warns = result.diagnostics.warnings
     assert any('Refinement failed' in w for w in warns)
     # Covariance computed at the DE point -> finite standard errors.
@@ -283,8 +267,7 @@ def test_refinement_failure_reported_honestly(monkeypatch):
 
     monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
     Z = true_impedance()
-    result, _, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
-    plt.close('all')
+    result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
 
     diag = result.diagnostics
     assert diag.refinement_improved is False
@@ -301,7 +284,7 @@ def test_covariance_computed_at_returned_point():
     """Reported covariance matches s^2 (J^T J)^-1 with J and residuals both
     evaluated at the returned parameters."""
     Z = true_impedance()
-    result, _, _ = standard_fit()
+    result, _ = standard_fit()
     # No fixed params -> params_opt is the full == free vector.
     params_opt = np.asarray(result.best_result.params_opt)
     w = compute_weights(Z, 'modulus')
@@ -337,9 +320,6 @@ def test_initial_guess_outside_bounds_does_not_crash_de():
              ).impedance(freq, CPE_TRUE)
 
         circuit = R(CPE_TRUE[0]) - (R(CPE_TRUE[1]) | Q(CPE_TRUE[2], n_guess))
-        try:
-            result, _, _ = fit_circuit_diffevo(circuit, freq, Z, seed=0)
-            recovered = np.asarray(result.best_result.params_opt, dtype=float)
-            np.testing.assert_allclose(recovered, CPE_TRUE, rtol=0.01, err_msg=f'n_guess={n_guess}')
-        finally:
-            plt.close('all')
+        result, _ = fit_circuit_diffevo(circuit, freq, Z, seed=0)
+        recovered = np.asarray(result.best_result.params_opt, dtype=float)
+        np.testing.assert_allclose(recovered, CPE_TRUE, rtol=0.01, err_msg=f'n_guess={n_guess}')

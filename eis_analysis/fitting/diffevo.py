@@ -193,7 +193,7 @@ def fit_circuit_diffevo(
     weighting: str = 'modulus',
     use_analytic_jacobian: bool = True,
     seed: Optional[int] = None
-) -> Tuple[DiffEvoResult, NDArray[np.complex128], Any]:
+) -> Tuple[DiffEvoResult, NDArray[np.complex128]]:
     """
     Fit circuit using Differential Evolution global optimization.
 
@@ -229,8 +229,11 @@ def fit_circuit_diffevo(
         Differential evolution result with all diagnostics
     Z_fit : ndarray
         Best fit impedance
-    fig : matplotlib.figure.Figure
-        Nyquist plot with best fit
+
+    Notes
+    -----
+    Plot the fit with
+    `visualization.plot_circuit_fit(frequencies, Z, diffevo_result.best_result)`.
     """
     strategy_name = DE_STRATEGIES.get(strategy, 'randtobest1bin')
     diag_warnings = []
@@ -608,14 +611,6 @@ def fit_circuit_diffevo(
         warnings=diag_warnings
     )
 
-    # Step 6: Create visualization
-    from ..visualization.plots import plot_circuit_fit
-
-    f_min, f_max = frequencies.min(), frequencies.max()
-    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = circuit.impedance(freq_plot, list(params_opt))
-    fig = plot_circuit_fit(frequencies, Z, Z_fit_plot, circuit, Z_fit_at_data=Z_fit)
-
     # Create result object
     diffevo_result = DiffEvoResult(
         best_result=fit_result,
@@ -628,7 +623,7 @@ def fit_circuit_diffevo(
         diagnostics=de_diagnostics
     )
 
-    return diffevo_result, Z_fit, fig
+    return diffevo_result, Z_fit
 
 
 __all__ = [

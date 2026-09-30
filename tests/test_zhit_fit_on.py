@@ -78,10 +78,9 @@ def _apply_lf_drift(Z):
 
 def _fit_max_resistance_error(Z, params_true):
     """Fit the reference circuit to Z, return the worst relative R error [%]."""
-    result, _, _ = fit_equivalent_circuit(
+    result, _ = fit_equivalent_circuit(
         FREQUENCIES, Z, _initial_guess(), weighting='modulus'
     )
-    plt.close('all')
     params = np.array(result.params_opt, dtype=float)
     return max(abs(params[i] - params_true[i]) / params_true[i]
                for i in R_INDICES) * 100.0

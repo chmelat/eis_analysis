@@ -40,7 +40,7 @@ def test_fit_result_ci_properties():
     noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq)) + 1j * np.random.randn(len(freq)))
     Z_noisy = Z_true + noise
 
-    result, _, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_noisy, circuit)
 
     ci_low_95, ci_high_95 = result.params_ci_95
     ci_low_99, ci_high_99 = result.params_ci_99
@@ -69,7 +69,7 @@ def test_ci_dof_matches_covariance_residual_dof():
     np.random.seed(42)
     noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq))
                                      + 1j * np.random.randn(len(freq)))
-    result, _, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit)
 
     # 3 free params, 2*30 = 60 real residuals -> dof = 57.
     expected_dof = 2 * len(freq) - len(result.params_opt)
@@ -152,7 +152,7 @@ def test_fit_result_ci_log_scale_mask_from_bounds():
     np.random.seed(7)
     noise = 0.01 * np.abs(Z_true) * (np.random.randn(len(freq))
                                      + 1j * np.random.randn(len(freq)))
-    result, _, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z_true + noise, circuit)
 
     # Labels: R, R, Q, n -> mask True, True, True, False
     assert result._ci_log_scale == [True, True, True, False]
@@ -170,7 +170,7 @@ def test_mixed_stderr_per_parameter_ci():
     freq = np.logspace(4, -1, 30)
     Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     stderr_mixed = np.array(result.params_stderr, dtype=float)
     stderr_mixed[1] = np.inf
@@ -189,7 +189,7 @@ def test_invalid_stderr_returns_inf_ci():
     freq = np.logspace(4, -1, 30)
     Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     # Replace stderr with inf
     result_bad = replace(result, params_stderr=np.full_like(result.params_opt, np.inf))

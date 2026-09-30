@@ -77,7 +77,7 @@ def test_bounds_warnings_consistent_with_bound_status():
     freq = np.logspace(4, 0, 20)
     Z = np.full_like(freq, 5e-4, dtype=complex)  # pure resistor at 0.5 mOhm
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, R(1e-3), plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, R(1e-3))
 
     assert abs(result.params_opt[0] - 5e-4) / 5e-4 < 1e-3
     assert result.bound_status == ['lower']
@@ -92,7 +92,7 @@ def test_interior_fit_no_bounds_warnings():
     freq = np.logspace(5, -1, 40)
     Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     assert result.bound_status == ['', '', '']
     assert result.diagnostics.params_at_bounds == []
@@ -114,7 +114,7 @@ def test_bounds_warning_full_space_index_with_fixed_param():
     Z = 100.0 + 5000.0 / (1 + 1j * omega * 5000.0 * 1e-6)
 
     circuit = R("100") - (R(5000.0) | Q(1e-6, 0.95))
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     assert result.bound_status[0] == 'fixed'
     assert result.bound_status[3] == 'upper'
@@ -138,7 +138,7 @@ def test_clipped_initial_guess_warns():
     freq = np.logspace(5, -1, 40)
     Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     clip_warnings = [w for w in result.diagnostics.warnings if 'clipped' in w]
     assert len(clip_warnings) == 1
@@ -152,6 +152,6 @@ def test_in_bounds_guess_no_clip_warning():
     freq = np.logspace(5, -1, 40)
     Z = circuit.impedance(freq, [100.0, 5000.0, 1e-6])
 
-    result, _, _ = fit_equivalent_circuit(freq, Z, circuit, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     assert [w for w in result.diagnostics.warnings if 'clipped' in w] == []

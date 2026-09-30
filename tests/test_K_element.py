@@ -75,7 +75,7 @@ def test_k_element_fitting(freq):
 
     # Fit
     circuit = R(90) - K(900, 1.5e-4)
-    result, Z_fit, _ = fit_equivalent_circuit(freq, Z_noisy, circuit, weighting='modulus', plot=False)
+    result, Z_fit = fit_equivalent_circuit(freq, Z_noisy, circuit, weighting='modulus')
 
     assert result.fit_error_rel < 2.0, f"Fit error too high: {result.fit_error_rel:.2f}%"
 

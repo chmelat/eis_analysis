@@ -9,7 +9,7 @@ from initial fits to intelligently generate perturbations.
 
 import numpy as np
 import logging
-from typing import Tuple, Optional, List, Any
+from typing import Tuple, Optional, List
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -173,7 +173,7 @@ def fit_circuit_multistart(
     parallel: bool = False,
     max_workers: int = 4,
     use_analytic_jacobian: bool = True
-) -> Tuple[MultistartResult, NDArray[np.complex128], Any]:
+) -> Tuple[MultistartResult, NDArray[np.complex128]]:
     """
     Fit circuit using adaptive multi-start optimization.
 
@@ -204,8 +204,11 @@ def fit_circuit_multistart(
         Multi-start optimization result with all diagnostics
     Z_fit : ndarray
         Best fit impedance
-    fig : matplotlib.figure.Figure
-        Nyquist plot with best fit
+
+    Notes
+    -----
+    Plot the fit with
+    `visualization.plot_circuit_fit(frequencies, Z, multistart_result.best_result)`.
     """
     all_results: List[FitResult] = []
     all_errors: List[Optional[float]] = []
@@ -220,8 +223,8 @@ def fit_circuit_multistart(
     # Step 1: Initial fit (on a copy too, so every result owns its circuit -
     # see run_single_fit; the caller's circuit is synced to the best fit at the end)
     try:
-        result0, Z_fit0, _ = fit_equivalent_circuit(
-            frequencies, Z, deepcopy(circuit), weighting=weighting, plot=False,
+        result0, Z_fit0 = fit_equivalent_circuit(
+            frequencies, Z, deepcopy(circuit), weighting=weighting,
             use_analytic_jacobian=use_analytic_jacobian
         )
         all_results.append(result0)
@@ -253,11 +256,10 @@ def fit_circuit_multistart(
             # circuit would be overwritten by every restart in turn (and, in parallel
             # mode, concurrently by several threads at once - a data race, since
             # impedance() reads the same parameters it is being written into).
-            result, _, _ = fit_equivalent_circuit(
+            result, _ = fit_equivalent_circuit(
                 frequencies, Z, deepcopy(circuit),
                 weighting=weighting,
                 initial_guess=list(initial_params),
-                plot=False,
                 use_analytic_jacobian=use_analytic_jacobian
             )
             return result
@@ -364,15 +366,7 @@ def fit_circuit_multistart(
     if hasattr(circuit, 'update_params'):
         circuit.update_params(list(best_result.params_opt))
 
-    # Create visualization for best result
-    from ..visualization.plots import plot_circuit_fit
-
     Z_fit_best = best_result.circuit.impedance(frequencies, list(best_result.params_opt))
-
-    f_min, f_max = frequencies.min(), frequencies.max()
-    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = best_result.circuit.impedance(freq_plot, list(best_result.params_opt))
-    fig = plot_circuit_fit(frequencies, Z, Z_fit_plot, best_result.circuit, Z_fit_at_data=Z_fit_best)
 
     multistart_result = MultistartResult(
         best_result=best_result,
@@ -383,7 +377,7 @@ def fit_circuit_multistart(
         diagnostics=diagnostics
     )
 
-    return multistart_result, Z_fit_best, fig
+    return multistart_result, Z_fit_best
 
 
 __all__ = [

@@ -352,8 +352,7 @@ def test_yg_round_trip_fit_recovers_the_layer(freq, yg_params):
     Z = Z_true * (1 + 0.01 * rng.standard_normal(len(freq)))
 
     guess = R(50) - YG(3e-5, 0.15, 0.03)      # deliberately off
-    result, _, _ = fit_equivalent_circuit(freq, Z, guess, weighting='modulus',
-                                         plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, guess, weighting='modulus')
 
     assert result.fit_error_rel < 2.0
     # None when any element in the circuit lacks an analytic derivative

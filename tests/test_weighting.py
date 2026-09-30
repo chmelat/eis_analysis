@@ -31,8 +31,8 @@ def test_weighting_recovers_parameters(synthetic_voigt_data, weighting):
     R_s_true, R1_true, C1_true = true_params
     circuit = R(100) - (R(5000) | C(1e-6))
 
-    result, _, _ = fit_equivalent_circuit(
-        freq, Z, circuit, weighting=weighting, plot=False
+    result, _ = fit_equivalent_circuit(
+        freq, Z, circuit, weighting=weighting
     )
 
     assert result.fit_error_rel < 5.0, f"Fit error too high: {result.fit_error_rel:.2f}%"

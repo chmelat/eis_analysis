@@ -37,7 +37,7 @@ def _data(n_freq=30):
 def _fit(optimizer, circuit, freq, Z):
     """Run one optimizer, return its FitResult."""
     if optimizer == 'single':
-        return fit_equivalent_circuit(freq, Z, circuit, plot=False)[0]
+        return fit_equivalent_circuit(freq, Z, circuit)[0]
     if optimizer == 'de':
         return fit_circuit_diffevo(circuit, freq, Z, maxiter=30, seed=0)[0].best_result
     return fit_circuit_multistart(circuit, freq, Z, n_restarts=2)[0].best_result

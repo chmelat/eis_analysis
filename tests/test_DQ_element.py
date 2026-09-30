@@ -180,7 +180,7 @@ def test_dq_fit_runs_without_numeric_fallback(freq, dq_params):
     Z = truth.impedance(freq, truth.get_all_params())
 
     guess = R(10) - DQ(5e5, 0.5, 1e-1, 6.0)
-    result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
+    result, _ = fit_equivalent_circuit(freq, Z, guess)
 
     assert result.fit_error_rel < 0.1
     R_fit, A_fit, n_fit, tau_fit, U_fit = result.params_opt
@@ -281,7 +281,7 @@ def test_dq_round_trip_with_noise(dq_params):
         Z = Z * (1 + 0.0015 * rng.standard_normal(Z.shape))  # 0.15 %, as measured
 
         guess = R(10) - DQ(A / 3, 0.45, tau_min * 5, U_true * 0.6)
-        result, _, _ = fit_equivalent_circuit(freq, Z, guess, plot=False)
+        result, _ = fit_equivalent_circuit(freq, Z, guess)
 
         _, A_fit, n_fit, tau_fit, U_fit = result.params_opt
         assert result.fit_error_rel < 0.5

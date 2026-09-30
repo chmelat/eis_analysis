@@ -222,10 +222,10 @@ def _two_branch_data(seed=7):
 def test_correct_circuit_passes_and_under_parametrized_one_fails():
     Z = _two_branch_data()
 
-    good, Z_good, _ = fit_equivalent_circuit(
-        FREQ, Z, R(10) - (R(500) | C(1e-5)) - (R(2000) | C(1e-3)), plot=False)
-    bad, Z_bad, _ = fit_equivalent_circuit(
-        FREQ, Z, R(10) - (R(2000) | C(1e-3)), plot=False)
+    good, Z_good = fit_equivalent_circuit(
+        FREQ, Z, R(10) - (R(500) | C(1e-5)) - (R(2000) | C(1e-3)))
+    bad, Z_bad = fit_equivalent_circuit(
+        FREQ, Z, R(10) - (R(2000) | C(1e-3)))
 
     d_good = analyze_residuals(FREQ, Z, Z_good, 'modulus')
     d_bad = analyze_residuals(FREQ, Z, Z_bad, 'modulus')
@@ -242,8 +242,8 @@ def test_correct_circuit_passes_and_under_parametrized_one_fails():
 def test_n_eff_collapses_when_residuals_are_correlated():
     """The number that must NOT reach AIC/BIC - this is why."""
     Z = _two_branch_data()
-    _, Z_bad, _ = fit_equivalent_circuit(
-        FREQ, Z, R(10) - (R(2000) | C(1e-3)), plot=False)
+    _, Z_bad = fit_equivalent_circuit(
+        FREQ, Z, R(10) - (R(2000) | C(1e-3)))
     d = analyze_residuals(FREQ, Z, Z_bad, 'modulus')
 
     # rho1 ~ 0.99 drives n_eff towards 1, where ln(n_eff) = 0 would remove the

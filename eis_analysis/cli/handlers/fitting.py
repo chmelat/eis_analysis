@@ -35,6 +35,7 @@ from ...fitting.residual_diagnostics import (
 )
 from ...fitting.config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
                                FIT_QUALITY_ACCEPTABLE_ERROR, SIGNIFICANCE_NEGLIGIBLE)
+from ...visualization import plot_circuit_fit
 from .model_comparison import score_candidates, log_comparison
 
 logger = logging.getLogger(__name__)
@@ -49,15 +50,34 @@ def _mark_zhit_fit(fig: plt.Figure, args: argparse.Namespace) -> None:
     A footer rather than a suptitle: the panel titles sit at the top.
     """
     # getattr, not args.fit_on: run_circuit_fitting is exported, and a caller
-    # building the namespace by hand predates --fit-on. In _fit_standard_circuit
-    # this call sits inside the broad except, so an AttributeError there would
-    # discard a fit that had already succeeded and logged its diagnostics.
+    # building the namespace by hand predates --fit-on. This call sits inside
+    # _save_fit_figure's broad except, so an AttributeError there would
+    # silently cost the figure of a fit that had already succeeded.
     if getattr(args, 'fit_on', 'original') == 'original':
         return
     fig.text(0.5, 0.005,
              'The "Data" curve is the Z-HIT reconstruction of |Z| from the '
              'phase, not the raw measurement',
              ha='center', va='bottom', fontsize=8, style='italic', color='0.35')
+
+
+def _save_fit_figure(
+    frequencies: NDArray,
+    Z: NDArray,
+    result: FitResult,
+    args: argparse.Namespace,
+    save_suffix: str
+) -> Optional[plt.Figure]:
+    """Draw and save the fit figure; a figure error costs the figure, not the fit."""
+    try:
+        fig = plot_circuit_fit(frequencies, Z, result)
+        _mark_zhit_fit(fig, args)
+        save_figure(fig, args.save, save_suffix, args.format)
+        return fig
+    except Exception as e:
+        logger.warning(f"Fit figure failed: {e}")
+        logger.debug(f"Traceback: {e}", exc_info=True)
+        return None
 
 
 # =============================================================================
@@ -637,27 +657,7 @@ def _fit_voigt_chain(
     _log_residual_diagnostics(
         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting))
 
-    # Generate interpolated frequencies for smooth curve
-    f_min, f_max = frequencies.min(), frequencies.max()
-    freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-    Z_fit_plot = circuit.impedance(freq_plot, initial_params)
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(Z.real, -Z.imag, 'o', label='Data', markersize=6, alpha=0.7)
-    ax.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='Linear fit', linewidth=2)
-    ax.set_xlabel("Z' [Ohm]")
-    ax.set_ylabel("-Z'' [Ohm]")
-    ax.set_title(f"Voigt chain - Linear fit (error: {fit_error_rel:.2f}%)")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    ax.axis('equal')
-    plt.tight_layout()
-
-    _mark_zhit_fit(fig, args)
-    save_figure(fig, args.save, 'fit', args.format)
-
-    return result, fig
+    return result, _save_fit_figure(frequencies, Z, result, args, 'fit')
 
 
 def _fit_standard_circuit(
@@ -708,7 +708,7 @@ def _fit_standard_circuit(
     try:
         if args.optimizer == 'de':
             # Differential Evolution global optimization
-            diffevo_result, Z_fit, fig = fit_circuit_diffevo(
+            diffevo_result, Z_fit = fit_circuit_diffevo(
                 circuit,
                 frequencies, Z,
                 strategy=args.de_strategy,
@@ -728,7 +728,7 @@ def _fit_standard_circuit(
             # Multi-start optimization; parser guarantees multistart is None
             # (use default) or a positive int
             n_restarts = args.multistart if args.multistart else 16
-            multistart_result, Z_fit, fig = fit_circuit_multistart(
+            multistart_result, Z_fit = fit_circuit_multistart(
                 circuit,
                 frequencies, Z,
                 n_restarts=n_restarts,
@@ -743,7 +743,7 @@ def _fit_standard_circuit(
 
         else:
             # Single fit (args.optimizer == 'single')
-            result, Z_fit, fig = fit_equivalent_circuit(
+            result, Z_fit = fit_equivalent_circuit(
                 frequencies, Z,
                 circuit,
                 weighting=args.weighting,
@@ -754,12 +754,10 @@ def _fit_standard_circuit(
         _log_fit_result(result, _residual_diagnostics(
             frequencies, Z, Z_fit, args.weighting))
 
-        _mark_zhit_fit(fig, args)
-        save_figure(fig, args.save, save_suffix, args.format)
-        return result, fig
-
     except Exception as e:
         logger.error(f"Fitting error: {e}")
         logger.error("Try adjusting --circuit expression")
         logger.debug("Traceback:", exc_info=True)
         return None, None
+
+    return result, _save_fit_figure(frequencies, Z, result, args, save_suffix)

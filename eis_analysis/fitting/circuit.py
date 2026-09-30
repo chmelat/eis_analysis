@@ -12,11 +12,14 @@ Usage:
     circuit = R(100) - (R(5000) | C(1e-6))
 
     # Fit to data
-    result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+    result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
+
+    # Plot (optional)
+    from eis_analysis.visualization import plot_circuit_fit
+    fig = plot_circuit_fit(freq, Z, result)
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 import warnings
 from typing import Dict, Tuple, Union, List, Optional
@@ -274,9 +277,8 @@ def fit_equivalent_circuit(
     circuit: Circuit,
     weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
-    plot: bool = True,
     use_analytic_jacobian: bool = True
-) -> Tuple[FitResult, NDArray[np.complex128], Optional[plt.Figure]]:
+) -> Tuple[FitResult, NDArray[np.complex128]]:
     """
     Fit equivalent circuit to impedance data.
 
@@ -292,8 +294,6 @@ def fit_equivalent_circuit(
         Weighting type: 'uniform', 'sqrt', 'modulus' (default), 'proportional'
     initial_guess : list of float, optional
         Override initial guess for parameters
-    plot : bool, optional
-        Create visualization plot (default: True)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian (default: True)
 
@@ -303,8 +303,10 @@ def fit_equivalent_circuit(
         Fitting results with all diagnostics
     Z_fit : ndarray of complex
         Predicted impedance from fit
-    fig : matplotlib.figure.Figure or None
-        Nyquist plot (None if plot=False)
+
+    Notes
+    -----
+    Plot the fit with `visualization.plot_circuit_fit(frequencies, Z, result)`.
     """
     # Validate weighting parameter
     if weighting not in VALID_WEIGHTINGS:
@@ -545,17 +547,7 @@ def fit_equivalent_circuit(
         logger.error(f"Fit failed: {type(e).__name__}: {e}")
         raise RuntimeError(f"Circuit fitting failed: {e}") from e
 
-    # Step 10: Create visualization (only if requested)
-    fig = None
-    if plot:
-        from ..visualization.plots import plot_circuit_fit
-
-        f_min, f_max = frequencies.min(), frequencies.max()
-        freq_plot = np.logspace(np.log10(f_min), np.log10(f_max), 300)
-        Z_fit_plot = circuit.impedance(freq_plot, list(params_opt))
-        fig = plot_circuit_fit(frequencies, Z, Z_fit_plot, circuit, Z_fit_at_data=Z_fit)
-
-    return result, Z_fit, fig
+    return result, Z_fit
 
 
 __all__ = [
