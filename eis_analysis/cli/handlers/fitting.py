@@ -655,7 +655,11 @@ def _fit_voigt_chain(
     _log_residual_diagnostics(
         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting))
 
-    return result, _save_fit_figure(frequencies, Z, result, args, 'fit')
+    # The full circuit would make the title unreadable: a chain holds up to
+    # max_M K elements. What sets this fit apart is that it is linear only.
+    return result, _save_fit_figure(
+        frequencies, Z, result, args, 'fit',
+        title=f"Voigt chain - Linear fit (error: {fit_error_rel:.2f}%)")
 
 
 def _fit_standard_circuit(
