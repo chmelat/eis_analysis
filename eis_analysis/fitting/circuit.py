@@ -452,9 +452,9 @@ def fit_equivalent_circuit(
         param_warnings = []
         for i, (p, s) in enumerate(zip(params_opt, params_stderr)):
             if np.isinf(s) or np.isnan(s):
-                param_warnings.append(f"Parameter {i}: undefined uncertainty")
+                param_warnings.append(f"Parameter {param_labels[i]}: undefined uncertainty")
             elif s > abs(p) * 2:
-                param_warnings.append(f"Parameter {i}: very high relative uncertainty ({s/abs(p)*100:.0f}%)")
+                param_warnings.append(f"Parameter {param_labels[i]}: very high relative uncertainty ({s/abs(p)*100:.0f}%)")
 
         # Step 7: Compute fit metrics
         Z_fit = circuit.impedance(frequencies, list(params_opt))
