@@ -4,6 +4,41 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Circuit fitting no longer builds a figure (breaking).**
+  `fit_equivalent_circuit`, `fit_circuit_multistart` and `fit_circuit_diffevo`
+  drew their figure as the last step of the computation, DE and multistart
+  unconditionally, so every call left a figure open (batch runs, one per
+  candidate in `--circuit` model selection). They now return
+  `(result, Z_fit)`, and the `plot` parameter of `fit_equivalent_circuit` is
+  gone. The figure is drawn by
+  `eis_analysis.visualization.plot_circuit_fit(frequencies, Z, result)`, which
+  takes the `FitResult` and computes the fitted curve itself (its former
+  `Z_fit`, `circuit`, `title`, `figsize` and `Z_fit_at_data` arguments are
+  gone). `eis_analysis.fitting` no longer imports matplotlib. Same split as
+  DRT (0.48.0), KK and Z-HIT (0.47.0) got.
+
+  In the CLI a failed fit figure is now a warning, not a lost fit, and the
+  saved `_fit` figures of the single, multistart and DE fits are unchanged.
+  The `--voigt-chain` figure uses the same function, so it gains the residual
+  panel and the circuit in its title instead of the fit error.
+
+  Migration:
+  ```python
+  # before
+  result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+  ms_result, Z_fit, fig = fit_circuit_multistart(circuit, freq, Z)
+  # after
+  from eis_analysis.visualization import plot_circuit_fit
+  result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
+  fig = plot_circuit_fit(freq, Z, result)
+  ms_result, Z_fit = fit_circuit_multistart(circuit, freq, Z)
+  fig = plot_circuit_fit(freq, Z, ms_result.best_result)
+  ```
+
 ## Version 0.48.2 (2026-09-30)
 
 ### Fixed

@@ -178,7 +178,7 @@ from eis_analysis.fitting import fit_circuit_diffevo, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
 
-result, Z_fit, fig = fit_circuit_diffevo(
+result, Z_fit = fit_circuit_diffevo(
     circuit, freq, Z,
     strategy=1,      # 1=randtobest1bin, 2=best1bin, 3=rand1bin
     popsize=15,      # Populace = 15 * počet parametrů
@@ -632,7 +632,7 @@ Z = ...  # Naměřená impedance
 circuit = R(1) - (R(1000) | Q(1e-5, 0.9))
 
 # DE optimalizace
-result, Z_fit, fig = fit_circuit_diffevo(
+result, Z_fit = fit_circuit_diffevo(
     circuit, freq, Z,
     strategy=1,
     popsize=20,

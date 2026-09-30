@@ -88,10 +88,10 @@ for elem in suggestion.elements:
 circuit = R(100) - (R(926) | C(9.84e-07)) - (R(5037) | C(1.06e-05))
 
 # 6. Fitting (single-start)
-result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 
 # 6b. Or multi-start optimization (more robust)
-ms_result, Z_fit, fig = fit_circuit_multistart(
+ms_result, Z_fit = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=10,
     weighting='modulus'
@@ -397,7 +397,7 @@ from eis_analysis.fitting import (
 circuit = R(100) - (R(1000) | C(1e-6)) - (R(5000) | C(10e-6))
 
 # Fit (values in circuit serve as initial guess)
-result, Z_fit, fig = fit_equivalent_circuit(
+result, Z_fit = fit_equivalent_circuit(
     frequencies,
     Z,
     circuit,
@@ -414,7 +414,11 @@ result, Z_fit, fig = fit_equivalent_circuit(
 
 # result: FitResult dataclass
 # Z_fit: Fitted impedance
-# fig: matplotlib Figure with Nyquist and residuals
+
+# Figure: Nyquist and residuals (the fit itself builds none; for multistart
+# and DE pass .best_result)
+from eis_analysis.visualization import plot_circuit_fit
+fig = plot_circuit_fit(frequencies, Z, result)
 ```
 
 **FitResult dataclass:**
@@ -539,7 +543,7 @@ result.diagnostics.warnings            # List of general warnings
 ```python
 from eis_analysis.fitting import fit_circuit_multistart
 
-ms_result, Z_fit, fig = fit_circuit_multistart(
+ms_result, Z_fit = fit_circuit_multistart(
     circuit,
     frequencies,
     Z,
@@ -577,7 +581,7 @@ ms_result.diagnostics.all_errors          # List of all errors
 ```python
 from eis_analysis.fitting import fit_circuit_diffevo
 
-de_result, Z_fit, fig = fit_circuit_diffevo(
+de_result, Z_fit = fit_circuit_diffevo(
     circuit,
     frequencies,
     Z,
@@ -678,7 +682,7 @@ missing derivative is not reached until `least_squares` evaluates it, well
 past the guard. So the switch has to be made by hand:
 
 ```python
-result, Z_fit, fig = fit_equivalent_circuit(
+result, Z_fit = fit_equivalent_circuit(
     frequencies, Z, circuit,
     use_analytic_jacobian=False  # required for an element without a branch
 )
@@ -696,7 +700,7 @@ way to get it back.
 circuit = R(100) - (R(1000, fixed=True) | C(1e-6))
 
 # R(1000) will not change during fit
-result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 ```
 
 **Available circuit elements:**
@@ -839,6 +843,17 @@ fig = plot_drt(Z, result)
 # with GMM peaks also the per-peak deconvolution and the BIC curve
 ```
 
+**Circuit fit:**
+
+```python
+from eis_analysis.visualization import plot_circuit_fit
+
+result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
+fig = plot_circuit_fit(frequencies, Z, result)
+# Plots: Nyquist with the fitted curve, residuals vs frequency.
+# Multistart / DE: pass ms_result.best_result / de_result.best_result
+```
+
 ## Usage Examples
 
 ### Example 1: Basic DRT Analysis
@@ -917,7 +932,7 @@ for elem in suggestion.elements:
     circuit = circuit - (R(elem.R) | C(elem.C))
 
 # Fit
-result, Z_fit, fig_fit = fit_equivalent_circuit(frequencies, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 
 print("\nFitted parameters:")
 print(result)  # FitResult object with params_opt, params_stderr, params_ci_95
@@ -970,7 +985,7 @@ frequencies, Z = data.frequencies, data.Z
 circuit = R(100) - (R(500) | C(1e-6)) - (R(2000) | C(5e-6))
 
 # Fit
-fit_result, Z_fit, fig = fit_equivalent_circuit(frequencies, Z, circuit)
+fit_result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 
 # Oxide layer analysis (estimate thickness from permittivity)
 oxide = analyze_oxide_layer(
@@ -1006,7 +1021,7 @@ frequencies, Z = data.frequencies, data.Z
 circuit = R(100) - (R(500) | Q(1e-6, 0.9)) - (R(2000) | Q(1e-5, 0.85))
 
 # Differential evolution - better for global minimum
-de_result, Z_fit, fig = fit_circuit_diffevo(
+de_result, Z_fit = fit_circuit_diffevo(
     circuit,
     frequencies,
     Z,
@@ -1030,7 +1045,7 @@ print(f"Standard errors: {result.params_stderr}")
 print(f"Quality: {result.quality}")
 
 # Comparison with multi-start
-ms_result, Z_fit_ms, fig_ms = fit_circuit_multistart(
+ms_result, Z_fit_ms = fit_circuit_multistart(
     circuit, frequencies, Z,
     n_restarts=20,
     weighting='modulus'

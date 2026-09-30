@@ -228,7 +228,7 @@ Implementace podporuje **analytické derivace** (modul `jacobian.py`) s fallback
 
 **Aktivace:**
 ```python
-result, Z_fit, fig = fit_equivalent_circuit(
+result, Z_fit = fit_equivalent_circuit(
     freq, Z, circuit,
     use_analytic_jacobian=True  # Default
 )
@@ -382,7 +382,7 @@ kde W = diag(w₁, w₂, ..., wₙ).
 from eis_analysis.fitting import fit_equivalent_circuit, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 ```
 
 **Algoritmus:** scipy.optimize.least_squares (Trust Region Reflective)
@@ -395,7 +395,7 @@ result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 from eis_analysis.fitting import fit_circuit_multistart, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
-result, Z_fit, fig = fit_circuit_multistart(
+result, Z_fit = fit_circuit_multistart(
     circuit, freq, Z,
     n_restarts=10,
     scale=2.0
@@ -418,7 +418,7 @@ result, Z_fit, fig = fit_circuit_multistart(
 from eis_analysis.fitting import fit_circuit_diffevo, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
-result, Z_fit, fig = fit_circuit_diffevo(
+result, Z_fit = fit_circuit_diffevo(
     circuit, freq, Z,
     strategy=1,      # randtobest1bin
     popsize=15,

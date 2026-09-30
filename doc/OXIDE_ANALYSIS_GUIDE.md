@@ -33,7 +33,7 @@ from eis_analysis.analysis import analyze_oxide_layer, estimate_permittivity
 # Load and fit
 freq, Z = load_data('sample.DTA')
 circuit = R(100) - (R(5000) | C(1e-6))
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 # Option 1: Known permittivity -> estimate thickness
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
@@ -470,7 +470,7 @@ freq, Z = load_data('sample.DTA')
 
 # Single Voigt element
 circuit = R(100) - (R(5000) | C(1e-6))
-result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Type: {oxide.element_type}")      # 'C'
@@ -484,7 +484,7 @@ print(f"d: {oxide.thickness_nm:.1f} nm")  # ~19.5
 ```python
 # Two Voigt elements - selects one with largest R
 circuit = R(100) - (R(1000) | C(1e-6)) - (R(5000) | C(1e-5))
-result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 # Selects R=5000 element (dominant barrier)
@@ -498,7 +498,7 @@ from eis_analysis import Q
 
 # Voigt with Q instead of ideal capacitor
 circuit = R(100) - (R(5000) | Q(1e-6, 0.9))
-result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Type: {oxide.element_type}")           # 'Q'
@@ -515,7 +515,7 @@ from eis_analysis import K
 
 # Voigt with tau parametrization
 circuit = R(100) - K(5000, 5e-3)  # R=5000, tau=5ms -> C=1uF
-result, Z_fit, _ = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 oxide = analyze_oxide_layer(freq, Z, epsilon_r=22, fit_result=result)
 print(f"Type: {oxide.element_type}")  # 'K'

@@ -140,7 +140,7 @@ import numpy as np
 circuit = R(100) - K(1000, 1e-4)
 
 # Fit the data
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 # Fitted parameters
 R_s, R_fit, tau = result.params_opt
@@ -165,7 +165,7 @@ circuit = (R(100) -
 
 # Fit (the default modulus weighting is right for most data;
 # see WEIGHTING_AND_STATISTICS.md before changing it)
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 # Process analysis
 params = result.params_opt
@@ -195,7 +195,7 @@ print(circuit)
 # R(100) - K(R=500, τ=1e-05) - K(R=1000, τ=0.0001) - K(R=2000, τ=0.001)
 
 # Use it as the initial guess for fitting
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 ```
 
 ### Example 4: Randles circuit with a K element
@@ -207,7 +207,7 @@ from eis_analysis.fitting import Q, W
 # K models charge transfer, Q the non-ideal double layer, W diffusion
 circuit = R(10) - (K(100, 1e-3) | Q(1e-4, 0.85)) - W(50)
 
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 ```
 
 ### Example 5: Fixing a parameter
@@ -217,7 +217,7 @@ result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
 
 circuit = R(100) - K(1000, "1e-4")  # tau fixed (string!)
 
-result, Z_fit, fig = fit_equivalent_circuit(freq, Z, circuit)
+result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
 # Only R_s and R are optimized, but params_opt is always the FULL parameter
 # vector - the fixed tau is still in it, and its standard error is 0:
