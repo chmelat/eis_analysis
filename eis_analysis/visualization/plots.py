@@ -18,7 +18,8 @@ FIT_CURVE_POINTS = 300
 def plot_circuit_fit(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    result: FitResult
+    result: FitResult,
+    title: Optional[str] = None
 ) -> plt.Figure:
     """
     Plot a circuit fit: Nyquist plot with the fitted curve, and residuals.
@@ -32,6 +33,10 @@ def plot_circuit_fit(
     result : FitResult
         Output of `fit_equivalent_circuit` (or `best_result` of the
         multistart / differential evolution fit)
+    title : str, optional
+        Nyquist panel title. Default "Circuit fit: <circuit>"; pass a short
+        one for a long circuit (a Voigt chain), whose expression would
+        stretch the figure.
 
     Returns
     -------
@@ -52,7 +57,7 @@ def plot_circuit_fit(
     ax1.plot(Z_fit.real, -Z_fit.imag, '-', label='Fit', linewidth=2)
     ax1.set_xlabel("Z' [Ω]")
     ax1.set_ylabel("-Z'' [Ω]")
-    ax1.set_title(f"Circuit fit: {circuit}")
+    ax1.set_title(title if title is not None else f"Circuit fit: {circuit}")
     ax1.legend()
     ax1.grid(True, alpha=PLOT_GRID_ALPHA)
     ax1.set_aspect('equal', adjustable='datalim')
