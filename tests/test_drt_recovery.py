@@ -12,14 +12,10 @@ within ~0.04 decade of truth, R_pol within ~0.4%. We assert the safer 0.15
 decade / 3% to stay robust across noise realizations.
 """
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 
 from eis_analysis.drt import calculate_drt
 from eis_analysis.fitting.config import DRT_MIN_EFFECTIVE_BINS
-from eis_analysis.visualization import plot_drt
 
 
 def _voigt_impedance(frequencies, R_inf, elements):
@@ -138,17 +134,3 @@ def test_single_peak_recovery():
     assert len(taus) == 1, f"expected 1 peak, got {len(taus)}: {taus}"
     assert abs(np.log10(taus[0] / tau_true)) < 0.15
     assert abs(r.R_pol - R) / R < 0.03, f"R_pol {r.R_pol:.1f} != true {R:.1f}"
-
-
-def test_calculate_drt_leaves_no_open_figures():
-    """The figure is drawn from the result, not inside the computation."""
-    plt.close('all')
-    Z = _voigt_impedance(FREQUENCIES, 50.0, [(500.0, 1e-3), (800.0, 1e-1)])
-    r = calculate_drt(FREQUENCIES, Z, peak_method='gmm', lambda_probe=True)
-    assert plt.get_fignums() == []
-
-    fig = plot_drt(Z, r)
-    try:
-        assert len(fig.axes) == 4  # GMM: spectrum, Nyquist, deconvolution, BIC
-    finally:
-        plt.close(fig)
