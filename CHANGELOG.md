@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Fit warnings name the parameter.** "Parameter 3: undefined uncertainty"
+  and "... very high relative uncertainty" now say `Q0`, `n1`, ... like the
+  bound and clipping warnings of the same fit, instead of a bare index.
+
+- **The fitting functions need a full circuit (breaking).**
+  `fit_equivalent_circuit`, `fit_circuit_multistart` and `fit_circuit_diffevo`
+  used to fall back to 1e-15..1e15 bounds and all-free parameters for an
+  object without `get_param_labels` / `get_all_fixed_params`. Every circuit
+  built from the elements has them, so the fallbacks are gone and such an
+  object now raises `AttributeError`.
+
+### Removed
+
+- **`eis_analysis.version.VERSION` (breaking).** An alias of `__version__`
+  that nothing used; read `__version__` or `get_version_string()`.
+
 ## Version 0.49.0 (2026-09-30)
 
 ### Changed
