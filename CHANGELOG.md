@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **A failed DRT figure no longer ends the CLI run.** 0.48.0 moved the
+  plotting out of `calculate_drt`, but the CLI called `plot_drt` without a
+  guard, so a plotting error still stopped the run before the Voigt
+  analysis, the circuit fit and the oxide analysis. It is now a warning
+  ("DRT figure failed: ...") and the run goes on.
+
+- **"Peaks: N detected, M valid" in the Voigt section.** 0.48.1 labelled the
+  second count "used", but it is counted before the `MAX_VOIGT_ELEMENTS`
+  cap: six valid peaks printed "6 used" above a four-row table. The
+  element table shows what is used; the cap has its own warning.
+
 ## Version 0.48.1 (2026-09-30)
 
 ### Changed
@@ -12,14 +27,16 @@ Complete change history for all project versions.
   circuit suggestion from DRT" and "VOIGT ELEMENT ANALYSIS (R||C) FROM DRT"
   printed the same `VoigtSuggestion` twice: the element list, the peak
   method, R_pol and every warning appeared in both. They are merged into
-  "Voigt elements (R||C) from DRT": peak counts (detected / used) with the
+  "Voigt elements (R||C) from DRT": peak counts (detected / valid) with the
   excluded peaks, the element table, the consistency check, the quality with
   its warnings once, and the suggested circuit as one line with all elements
   (it was cut at three, after nine lines of the same instructions every
   run). Dropped: "R_inf (from data)", an HF median the suggestion does not
   use and that differed from the R_inf the DRT used, and the "Large
   difference between sum(R_i) and R_pol" line, which repeated the
-  "Inconsistency" warning at the same thresholds. Values are unchanged.
+  "Inconsistency" warning at the same thresholds. The one case the warning
+  does not cover, sum(R_i) <= 0 when R_pol <= 0, still shows as
+  "Ratio: INF (R_pol = 0)". Values are unchanged.
 
 ## Version 0.48.0 (2026-09-30)
 

@@ -269,7 +269,7 @@ def run_drt_analysis(
     Returns
     -------
     DRTResult
-        Container with tau, gamma, peaks, and figures
+        Container with tau, gamma, peaks and diagnostics
     """
     if args.no_drt:
         return DRTResult()
@@ -295,8 +295,14 @@ def run_drt_analysis(
     # Log diagnostics
     _log_drt_diagnostics(result)
 
+    # A plotting error must not take the computed DRT, and the stages
+    # after it, down with it.
     if result.success:
-        save_figure(plot_drt(Z, result), args.save, 'drt', args.format)
+        try:
+            save_figure(plot_drt(Z, result), args.save, 'drt', args.format)
+        except Exception as e:
+            logger.warning(f"DRT figure failed: {e}")
+            logger.debug(f"Traceback: {e}", exc_info=True)
 
     return result
 
@@ -354,17 +360,12 @@ def _log_voigt_report(suggestion: VoigtSuggestion) -> None:
     logger.info("Voigt elements (R||C) from DRT")
     log_separator()
     logger.info(f"Peaks: {suggestion.n_peaks_raw} detected ({suggestion.method}), "
-                f"{suggestion.n_peaks_valid} used")
+                f"{suggestion.n_peaks_valid} valid")
     for note in suggestion.excluded_peaks:
         logger.warning(note)
 
+    # Never empty: without DRT peaks there is one element from the -Z'' maximum
     elements = suggestion.elements
-    if len(elements) == 0:
-        logger.info("No Voigt elements found")
-        logger.info(f"Quality: {suggestion.quality}")
-        log_separator()
-        return
-
     logger.info("")
     logger.info("  ID | tau [s]    | f [Hz]     | R [Ohm]   | C [F]      | Warnings")
     logger.info("  " + "-" * 72)
