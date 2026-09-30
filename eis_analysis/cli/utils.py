@@ -4,12 +4,12 @@ Utility functions and dataclasses for EIS CLI.
 Contains:
 - Exception classes
 - Data containers (dataclasses)
-- Helper functions (save_figure, parse_circuit_expression)
+- Helper functions (save_figure, draw_figure, parse_circuit_expression)
 """
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -110,6 +110,45 @@ def save_figure(
         logger.info(f"Saved: {filepath}")
     except Exception as e:
         logger.error(f"Error saving figure: {e}")
+
+
+def draw_figure(
+    draw: Callable[[], plt.Figure],
+    label: str,
+    prefix: Optional[str],
+    suffix: str,
+    fmt: str = 'png'
+) -> Optional[plt.Figure]:
+    """
+    Draw a figure and save it; a drawing error costs the figure, not the run.
+
+    Parameters
+    ----------
+    draw : callable
+        Builds and returns the figure
+    label : str
+        What the figure shows, for the warning (e.g. 'DRT', 'Fit')
+    prefix, suffix, fmt
+        As in `save_figure`
+
+    Returns
+    -------
+    fig : Figure or None
+        The figure, or None when drawing failed
+    """
+    open_before = set(plt.get_fignums())
+    try:
+        fig = draw()
+    except Exception as e:
+        # A figure half-drawn when the error hit stays registered with pyplot,
+        # and plt.show() at the end of the run would display it.
+        for num in set(plt.get_fignums()) - open_before:
+            plt.close(num)
+        logger.warning(f"{label} figure failed: {e}")
+        logger.debug("Traceback:", exc_info=True)
+        return None
+    save_figure(fig, prefix, suffix, fmt)
+    return fig
 
 
 def parse_circuit_expression(expr: str):

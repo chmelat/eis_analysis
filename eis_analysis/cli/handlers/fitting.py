@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
 from ..logging import log_separator
-from ..utils import EISAnalysisError, save_figure, parse_circuit_expression
+from ..utils import EISAnalysisError, draw_figure, parse_circuit_expression
 from ...fitting import (
     fit_equivalent_circuit,
     fit_circuit_multistart,
@@ -51,8 +51,8 @@ def _mark_zhit_fit(fig: plt.Figure, args: argparse.Namespace) -> None:
     """
     # getattr, not args.fit_on: run_circuit_fitting is exported, and a caller
     # building the namespace by hand predates --fit-on. This call sits inside
-    # _save_fit_figure's broad except, so an AttributeError there would
-    # silently cost the figure of a fit that had already succeeded.
+    # draw_figure's broad except, so an AttributeError there would silently
+    # cost the figure of a fit that had already succeeded.
     if getattr(args, 'fit_on', 'original') == 'original':
         return
     fig.text(0.5, 0.005,
@@ -66,18 +66,16 @@ def _save_fit_figure(
     Z: NDArray,
     result: FitResult,
     args: argparse.Namespace,
-    save_suffix: str
+    save_suffix: str,
+    title: Optional[str] = None
 ) -> Optional[plt.Figure]:
     """Draw and save the fit figure; a figure error costs the figure, not the fit."""
-    try:
-        fig = plot_circuit_fit(frequencies, Z, result)
+    def draw() -> plt.Figure:
+        fig = plot_circuit_fit(frequencies, Z, result, title=title)
         _mark_zhit_fit(fig, args)
-        save_figure(fig, args.save, save_suffix, args.format)
         return fig
-    except Exception as e:
-        logger.warning(f"Fit figure failed: {e}")
-        logger.debug(f"Traceback: {e}", exc_info=True)
-        return None
+
+    return draw_figure(draw, 'Fit', args.save, save_suffix, args.format)
 
 
 # =============================================================================

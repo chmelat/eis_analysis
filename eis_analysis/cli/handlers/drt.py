@@ -13,7 +13,7 @@ from typing import List, Optional
 from numpy.typing import NDArray
 
 from ..logging import log_separator
-from ..utils import save_figure
+from ..utils import draw_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
 from ...fitting.config import GMM_N_COMPONENTS_RANGE
@@ -298,11 +298,7 @@ def run_drt_analysis(
     # A plotting error must not take the computed DRT, and the stages
     # after it, down with it.
     if result.success:
-        try:
-            save_figure(plot_drt(Z, result), args.save, 'drt', args.format)
-        except Exception as e:
-            logger.warning(f"DRT figure failed: {e}")
-            logger.debug(f"Traceback: {e}", exc_info=True)
+        draw_figure(lambda: plot_drt(Z, result), 'DRT', args.save, 'drt', args.format)
 
     return result
 
