@@ -22,6 +22,3 @@ __breaking_changes__: list[str] = [
 def get_version_string():
     """Return formatted version string."""
     return f"v{__version__} ({__release_date__})"
-
-# For compatibility
-VERSION = __version__
