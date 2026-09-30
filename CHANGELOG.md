@@ -8,6 +8,24 @@ Complete change history for all project versions.
 
 ### Fixed
 
+- **CSV columns are matched by the words of their header.** Columns were
+  found by substring in both directions, so a short name matched inside an
+  unrelated header and loading went on with one column read as another:
+  `Z''` read from `Z'`, Re(Z) from `Freq` (`re` in it), Im(Z) from `Time`,
+  anything from an empty pandas index header. A header is now split into
+  words, and a column is Re(Z) when a word outside brackets is `re`,
+  `real`, `Z'`, ... (likewise Im(Z) and frequency). Units and labels are
+  just other words (`Z' (Ohms)`, `Z Real`, ZView `Z'(a)`), while a word for
+  another quantity or a derived column anywhere rules the column out
+  (`Re(Y)`, `Z' err`, `Zreal fit`). `Z"`, the typographic minus, primes and
+  curly quotes count as `Z''`, `-`, `'`. A `-Im(Z)` or `- Z''` column
+  (EC-Lab) is negated instead of loaded with the wrong sign. The file is
+  read as `utf-8-sig`, so an Excel BOM no longer hides a leading `#`
+  comment. A header that names only some of frequency, Z_real and Z_imag,
+  or one of them twice, now raises (listing how each column was read)
+  instead of guessing; with no recognised name at all the columns are still
+  taken in order with a warning.
+
 - **Several sweeps in one file now warn.** Several sweeps in one CSV (e.g.
   one per operating point) loaded silently as one spectrum and Z-HIT then
   returned NaN. Both loaders now warn when the frequencies are not strictly

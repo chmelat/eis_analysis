@@ -6,6 +6,7 @@ Native Gamry DTA parser - no external dependencies.
 """
 
 import math
+import re
 import unicodedata
 import numpy as np
 import logging
@@ -599,31 +600,96 @@ def _detect_delimiter(header_line: str) -> str:
     return max(',', '\t', ';', key=header_line.count)
 
 
-def _find_column_index(headers: List[str], patterns: List[str]) -> Optional[int]:
-    """
-    Find column index matching any of the patterns (case-insensitive).
+# Header words per quantity. A header is split into words (_header_words), so
+# 're' in 'freq' or 'im' in 'time' never count, and units or labels such as
+# 'ohms', 'hz' in brackets or ZView's '(a)'/'(b)' are simply other words.
+_FREQ_WORDS = {'freq', 'frequency', 'hz'}  # plus 'f' as the first word, see below
+_ZREAL_WORDS = {'re', 'real', 'zreal', 'zre', 'zr', 'rez', "z'"}
+_ZIMAG_WORDS = {'im', 'imag', 'imaginary', 'zimag', 'zim', 'zi', 'imz', "z''"}
+# A word naming another quantity or a derived column rules the header out:
+# Re(Y) is admittance, Re(M) modulus, Re(C) capacitance, "Z' err" an error
+# bar, "Zreal fit" a model curve next to the data.
+_OTHER_WORDS = {'y', 'm', 'c', 'admittance', 'modulus', 'capacitance', 'permittivity',
+                'conductivity', 'eps', 'epsilon', 'sigma', 'err', 'error', 'std', 'stdev',
+                'fit', 'fitted', 'sim', 'calc', 'model'}
+# Typographic minus, primes and curly quotes (Origin, Word) as ASCII; Z" for Z''
+_TYPED = (('−', '-'), ('″', "''"), ('′', "'"), ('”', "''"),
+          ('“', "''"), ('’', "'"), ('‘', "'"), ('"', "''"))
 
-    Parameters
-    ----------
-    headers : list of str
-        Column header names
-    patterns : list of str
-        Patterns to match (case-insensitive)
+
+def _header_words(header: str) -> Tuple[List[str], List[str], bool]:
+    """
+    Words of a column header, outside brackets and in all, and a leading minus.
+
+    "-Im(Z)/Ohm" -> (['im', 'ohm'], ['im', 'z', 'ohm'], True). Words keep
+    trailing primes, so Z' and Z'' stay apart.
+    """
+    name = header.strip().lower()
+    if len(name) >= 2 and name[0] == name[-1] == '"':  # "freq" quoted; Z" is not
+        name = name[1:-1]
+    for typed, plain in _TYPED:
+        name = name.replace(typed, plain)
+    name = name.strip()
+    negated = name.startswith('-')
+    name = name.lstrip('- ')
+    words = r"[^\W_]+'*"
+    outside = re.sub(r'\([^)]*\)|\[[^\]]*\]', ' ', name)
+    return re.findall(words, outside), re.findall(words, name), negated
+
+
+def _classify_header(header: str) -> Tuple[Optional[str], bool]:
+    """
+    Quantity a column header names ('frequency', 'Z_real', 'Z_imag' or None)
+    and whether it holds the negative (-Im(Z), EC-Lab).
+
+    Only words outside brackets name the quantity: 'Re(Z)' is Re, 'C (F)' is
+    not a frequency. Words anywhere rule it out: 'Re(Y)' is not Re(Z).
+    A lone 'f' counts only as the first word ('f_Hz'), not as a unit ('Cs_F').
+    """
+    outside, every, negated = _header_words(header)
+    if not outside or _OTHER_WORDS.intersection(every):
+        return None, False
+    words = set(outside)
+    hits = [q for q, names in (('frequency', _FREQ_WORDS), ('Z_real', _ZREAL_WORDS),
+                               ('Z_imag', _ZIMAG_WORDS)) if words & names]
+    if outside[0] == 'f' and 'frequency' not in hits:
+        hits.append('frequency')
+    # Only -Im(Z) is a convention; a negated frequency or Re(Z) is not
+    if len(hits) != 1 or (negated and hits[0] != 'Z_imag'):
+        return None, False
+    return hits[0], negated
+
+
+def _detect_columns(headers: List[str], filename: str) -> Optional[Tuple[int, int, int, float]]:
+    """
+    Columns of frequency, Re(Z) and Im(Z), and the sign that turns the third into Im(Z).
 
     Returns
     -------
-    int or None
-        Column index if found, None otherwise
+    tuple or None
+        (freq_col, zreal_col, zimag_col, imag_sign); None when no header is
+        recognised (unknown names or no header), leaving column order to the caller
+
+    Raises
+    ------
+    ValueError
+        If only some quantities are recognised, or one is named by several
+        columns: guessing the rest would load one column as another.
     """
-    headers_lower = [h.lower().strip() for h in headers]
-
-    for pattern in patterns:
-        pattern_lower = pattern.lower()
-        for i, header in enumerate(headers_lower):
-            if pattern_lower in header or header in pattern_lower:
-                return i
-
-    return None
+    classes = [_classify_header(h) for h in headers]
+    found: Dict[str, List[int]] = {'frequency': [], 'Z_real': [], 'Z_imag': []}
+    for i, (quantity, _) in enumerate(classes):
+        if quantity is not None:
+            found[quantity].append(i)
+    if not any(found.values()):
+        return None
+    if any(len(cols) != 1 for cols in found.values()):
+        read_as = ', '.join(f"{h.strip()!r} -> {q or '-'}" for h, (q, _) in zip(headers, classes))
+        raise ValueError(
+            f"CSV header of {filename} must name frequency, Z_real and Z_imag once each; "
+            f"columns read as: {read_as}. Rename them, e.g. frequency, Z_real, Z_imag")
+    (freq_col,), (zreal_col,), (zimag_col,) = found.values()
+    return freq_col, zreal_col, zimag_col, -1.0 if classes[zimag_col][1] else 1.0
 
 
 def load_csv_data(
@@ -638,10 +704,19 @@ def load_csv_data(
     - Columns: frequency, Z_real, Z_imag by header names
     - Comments: lines starting with '#' are ignored
 
-    Supported column names (case-insensitive):
-    - Frequency: 'freq', 'frequency', 'f', 'hz'
-    - Z real: 'zreal', 'z_real', 'z\'', 're', 'real', 'z.real'
-    - Z imag: 'zimag', 'z_imag', 'z\'\'', 'im', 'imag', 'z.imag'
+    Column names (case-insensitive) are split into words at spaces,
+    punctuation and brackets; units and labels are just other words, so
+    'Frequency (Hz)', "Z' (Ohms)", 'Z Real', "Z'(a)" (ZView) all work:
+    - Frequency: a word freq, frequency or hz, or f as the first word
+    - Z real: a word re, real, zreal, zre, zr, rez or z'
+    - Z imag: a word im, imag, imaginary, zimag, zim, zi, imz or z'' (or z");
+      with a leading minus (-Im(Z), - Z'', EC-Lab) the column holds -Im(Z)
+      and is negated
+    Words inside brackets only rule a column out: a word for another
+    quantity or a derived column (y, m, c, admittance, modulus, err, std,
+    fit, ...) anywhere means it is not Z, so Re(Y) is not read as Re(Z).
+    Typographic minus, primes and curly quotes count as - ' ''.
+    Without any recognised name the columns are taken in order (0, 1, 2).
 
     Parameters
     ----------
@@ -659,7 +734,8 @@ def load_csv_data(
     Raises
     ------
     ValueError
-        If file cannot be parsed or required columns not found
+        If file cannot be parsed, or the header names only some of the
+        three quantities or one of them twice
 
     Examples
     --------
@@ -685,7 +761,7 @@ def load_csv_data(
     """
     # Read file
     try:
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, 'r', encoding='utf-8-sig') as f:  # -sig: Excel "CSV UTF-8" BOM
             lines = f.readlines()
     except UnicodeDecodeError:
         with open(filename, 'r', encoding='ISO-8859-1') as f:
@@ -713,22 +789,15 @@ def load_csv_data(
     headers = header_line.split(delimiter)
     logger.debug(f"CSV headers: {headers}")
 
-    # Find column indices
-    freq_patterns = ['freq', 'frequency', 'f', 'hz']
-    zreal_patterns = ['zreal', 'z_real', "z'", 're(z)', 'real', 'z.real', 're']
-    zimag_patterns = ['zimag', 'z_imag', "z''", 'im(z)', 'imag', 'z.imag', 'im']
-
-    freq_col = _find_column_index(headers, freq_patterns)
-    zreal_col = _find_column_index(headers, zreal_patterns)
-    zimag_col = _find_column_index(headers, zimag_patterns)
-
-    # Fallback to positional if headers not found
     warnings: List[str] = []
-    if freq_col is None or zreal_col is None or zimag_col is None:
+    columns = _detect_columns(headers, filename)
+    if columns is None:
         warnings.append("Could not detect columns from headers, using positional (0, 1, 2)")
-        freq_col, zreal_col, zimag_col = 0, 1, 2
+        columns = (0, 1, 2, 1.0)
+    freq_col, zreal_col, zimag_col, imag_sign = columns
 
-    logger.debug(f"Column indices: freq={freq_col}, zreal={zreal_col}, zimag={zimag_col}")
+    logger.debug(f"Column indices: freq={freq_col}, zreal={zreal_col}, zimag={zimag_col} "
+                 f"(sign {imag_sign:+.0f})")
 
     # Parse data rows
     frequencies: List[float] = []
@@ -749,7 +818,7 @@ def load_csv_data(
         try:
             freq = float(parts[freq_col].replace(',', '.'))
             zr = float(parts[zreal_col].replace(',', '.'))
-            zi = float(parts[zimag_col].replace(',', '.'))
+            zi = imag_sign * float(parts[zimag_col].replace(',', '.'))
 
             if freq > 0 and np.isfinite(freq) and np.isfinite(zr) and np.isfinite(zi):
                 frequencies.append(freq)
@@ -765,7 +834,6 @@ def load_csv_data(
     freq_array = np.array(frequencies, dtype=np.float64)
     Z = np.array(z_real, dtype=np.float64) + 1j * np.array(z_imag, dtype=np.float64)
     freq_array, Z = _drop_negative_real_hf(freq_array, Z, warnings)
-
     _check_spectrum(freq_array, warnings)
 
     return LoadResult(freq_array, Z, filename, warnings=warnings)

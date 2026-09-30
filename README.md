@@ -16,12 +16,19 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 
 - **Gamry DTA** - native format (automatic metadata parsing, ZCURVE block)
 - **CSV** - three columns with a header row, e.g. `frequency`, `Z_real`, `Z_imag`
-  - Column names are matched case-insensitively against: frequency -
-    `freq`, `frequency`, `f`, `hz`; real part - `zreal`, `z_real`, `z'`,
-    `re(z)`, `real`, `z.real`, `re`; imaginary part - `zimag`, `z_imag`,
-    `z''`, `im(z)`, `imag`, `z.imag`, `im`
+  - Column names are split into words (case-insensitive), so units and
+    labels do not matter: `Frequency (Hz)`, `Z' (Ohms)`, `Z Real`, `Re(Z)/Ohm`,
+    `Z'(a)` (ZView). Frequency - a word `freq`, `frequency`, `hz` or a
+    leading `f`; real part - `re`, `real`, `zreal`, `zr`, `Z'`, ...;
+    imaginary part - `im`, `imag`, `imaginary`, `zimag`, `zi`, `Z''`, ...
+    A word for another quantity or a derived column (`Re(Y)`, `Z' err`,
+    `Zreal fit`) rules a column out (full rules in the `load_csv_data`
+    docstring)
+  - A column named with a leading minus (`-Im(Z)`, `-Z''`, EC-Lab) holds
+    -Im(Z) and is negated
   - If no name matches, the first three columns are used positionally
-    (with a warning)
+    (with a warning); a header that names only some of the three, or one
+    of them twice, is rejected
   - Delimiter: comma, semicolon, or tab (auto-detection)
   - Decimal format: US (dot) and European (comma for semicolon-delimited)
   - Comments: lines starting with `#` are ignored

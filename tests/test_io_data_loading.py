@@ -296,6 +296,58 @@ def test_csv_duplicate_freq_warns(tmp_path):
     assert any("duplicate" in w.lower() for w in result.warnings)
 
 
+# Column roles: f frequency, r Re(Z), i Im(Z), n -Im(Z), x something else
+@pytest.mark.parametrize("headers, roles", [
+    (("freq", "Z'", "Z''"), "fri"),                    # Z' is a substring of Z''
+    (("freq", "Z''", "Z'"), "fir"),
+    (("freq", "Z'' (Ohm)", "Z' (Ohm)"), "fir"),
+    (("freq", "Z_re", "Z_im"), "fri"),                 # 're' is a substring of 'freq'
+    (("Time (s)", "Freq (Hz)", "Re (Ohm)", "Im (Ohm)"), "xfri"),  # 'im' in 'time'
+    (("Frequency", "Re Z", "Im Z"), "fri"),
+    (("freq", "Zi", "Zr"), "fir"),
+    (("freq/Hz", "Re(Z)/Ohm", "-Im(Z)/Ohm"), "frn"),   # EC-Lab
+    (('"freq"', '"Re"', '"Im"'), "fri"),               # quoted (Excel)
+    (("﻿# exported\nTime", "freq", "Zreal", "Zimag"), "xfri"),  # BOM before a comment
+    (("freq/Hz", "Re(Z)/Ohm", "-Im(Z)/Ohm", "|Z|/Ohm", "Re(Y)/Ohm-1", "Im(Y)/Ohm-1"),
+     "frnxxx"),                                        # full EC-Lab export: Re(Y) is not Re
+    (("freq", "Z'", 'Z"'), "fri"),                     # Z" for Z''
+    (("Frequency (Hz)", "Z' (Ohm)", "−Z″ (Ohm)"), "frn"),  # typographic minus, prime
+    (("Frequency (Hz)", "Z' (Ohms)", "Z'' (Ohms)"), "fri"),          # any unit is just a word
+    (("Freq(Hz)", "Ampl", "Bias", "Time(Sec)", "Z'(a)", "Z''(b)", "GD", "Err", "Range"),
+     "fxxxrixxx"),                                                   # ZView
+    (("Frequency (Hz)", "Z Real (Ohm)", "Z Imag (Ohm)"), "fri"),
+    (("freq", "Real", "Imaginary"), "fri"),
+    (("freq", "Z’", "Z”"), "fri"),          # Word curly quotes
+    (("freq [1/s]", "Z'", "- Z''"), "frn"),           # slash in a bracket, spaced minus
+    (("Pt", "Time", "Freq", "Zreal", "Zimag", "Zsig", "Zmod", "Zphz", "Idc"), "xxfrixxxx"),
+    (("freq/Hz", "Re(Z)/Ohm", "-Im(Z)/Ohm", "Phase(Z)/deg", "Cs/µF", "Re(Y)/Ohm-1"),
+     "frnxxx"),                                        # EC-Lab: Cs/µF is no frequency
+    (("f", "Zreal", "Zimag", "Zreal fit", "Zimag fit"), "frixx"),
+    (("", "freq", "zreal", "zimag"), "xfri"),          # pandas index column
+    (("f_Hz", "Zreal_Ohm", "Zimag_Ohm"), "fri"),
+])
+def test_csv_header_names(tmp_path, headers, roles):
+    """Whole names after dropping units, never substrings of another header."""
+    rows = _rows(12)
+    value = {"x": lambda k, r: str(k), "f": lambda k, r: repr(r[0]), "r": lambda k, r: repr(r[1]),
+             "i": lambda k, r: repr(r[2]), "n": lambda k, r: repr(-r[2])}
+    text = ",".join(headers) + "\n" + "".join(
+        ",".join(value[c](k, r) for c in roles) + "\n" for k, r in enumerate(rows))
+    f, Z = _fz(load_csv_data(_write(tmp_path, "h.csv", text)))
+    assert np.allclose(f, [r[0] for r in rows])
+    assert np.allclose(Z, [complex(r[1], r[2]) for r in rows])
+
+
+@pytest.mark.parametrize("headers", [
+    ("freq", "Re", "Zreal"),       # Z_real named twice, Z_imag not at all
+    ("frequency", "Zmod", "Zphz"),  # only frequency recognised: order would be a guess
+])
+def test_csv_unresolved_header_raises(tmp_path, headers):
+    text = _make_csv(_rows(12), headers=headers)
+    with pytest.raises(ValueError, match="once each"):
+        load_csv_data(_write(tmp_path, "amb.csv", text))
+
+
 def test_csv_semicolon_european(tmp_path):
     text = _make_csv(_rows(12), delimiter=";", decimal=",", headers=("freq", "Zreal", "Zimag"))
     f, Z = _fz(load_csv_data(_write(tmp_path, "eu.csv", text)))
