@@ -227,13 +227,9 @@ def fit_circuit_diffevo(
     -------
     diffevo_result : DiffEvoResult
         Differential evolution result with all diagnostics
+        (plot: `plot_circuit_fit(frequencies, Z, diffevo_result.best_result)`)
     Z_fit : ndarray
         Best fit impedance
-
-    Notes
-    -----
-    Plot the fit with
-    `visualization.plot_circuit_fit(frequencies, Z, diffevo_result.best_result)`.
     """
     strategy_name = DE_STRATEGIES.get(strategy, 'randtobest1bin')
     diag_warnings = []

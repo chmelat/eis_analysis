@@ -202,13 +202,9 @@ def fit_circuit_multistart(
     -------
     multistart_result : MultistartResult
         Multi-start optimization result with all diagnostics
+        (plot: `plot_circuit_fit(frequencies, Z, multistart_result.best_result)`)
     Z_fit : ndarray
         Best fit impedance
-
-    Notes
-    -----
-    Plot the fit with
-    `visualization.plot_circuit_fit(frequencies, Z, multistart_result.best_result)`.
     """
     all_results: List[FitResult] = []
     all_errors: List[Optional[float]] = []
@@ -223,7 +219,7 @@ def fit_circuit_multistart(
     # Step 1: Initial fit (on a copy too, so every result owns its circuit -
     # see run_single_fit; the caller's circuit is synced to the best fit at the end)
     try:
-        result0, Z_fit0 = fit_equivalent_circuit(
+        result0, _ = fit_equivalent_circuit(
             frequencies, Z, deepcopy(circuit), weighting=weighting,
             use_analytic_jacobian=use_analytic_jacobian
         )

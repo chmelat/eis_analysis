@@ -117,7 +117,7 @@ def draw_figure(
     label: str,
     prefix: Optional[str],
     suffix: str,
-    fmt: str = 'png'
+    fmt: str
 ) -> Optional[plt.Figure]:
     """
     Draw a figure and save it; a drawing error costs the figure, not the run.

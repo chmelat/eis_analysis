@@ -303,10 +303,6 @@ def fit_equivalent_circuit(
         Fitting results with all diagnostics
     Z_fit : ndarray of complex
         Predicted impedance from fit
-
-    Notes
-    -----
-    Plot the fit with `visualization.plot_circuit_fit(frequencies, Z, result)`.
     """
     # Validate weighting parameter
     if weighting not in VALID_WEIGHTINGS:
