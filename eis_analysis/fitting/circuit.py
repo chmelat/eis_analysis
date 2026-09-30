@@ -22,7 +22,7 @@ Usage:
 import numpy as np
 import logging
 import warnings
-from typing import Dict, Tuple, Union, List, Optional
+from typing import Tuple, Union, List, Optional
 from numpy.typing import NDArray
 from scipy.optimize import least_squares, OptimizeWarning
 from dataclasses import dataclass, field
@@ -215,14 +215,10 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
     initial_guess = list(circuit.get_all_params())
 
     param_labels_raw = circuit.get_param_labels()
-    label_counts: Dict[str, int] = {}
-    param_labels_indexed = []
-    for label in param_labels_raw:
-        if label in label_counts:
-            label_counts[label] += 1
-        else:
-            label_counts[label] = 0
-        param_labels_indexed.append(f"{label}{label_counts[label]}")
+    # ponytail: O(n^2) in the parameter count, fine below ~1000 parameters;
+    # a running Counter if a circuit ever gets that large.
+    param_labels_indexed = [f"{label}{param_labels_raw[:i].count(label)}"
+                            for i, label in enumerate(param_labels_raw)]
 
     fixed_params = circuit.get_all_fixed_params()
     lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)

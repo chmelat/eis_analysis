@@ -12,7 +12,7 @@ Strategy options:
 import numpy as np
 import logging
 import warnings
-from typing import Dict, Tuple, List, Optional, Any
+from typing import Tuple, List, Optional, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
@@ -242,15 +242,9 @@ def fit_circuit_diffevo(
     fixed_params = circuit.get_all_fixed_params()
     fixed_param_indices = [i for i, f in enumerate(fixed_params) if f]
 
-    # Create indexed param labels
-    label_counts: Dict[str, int] = {}
-    param_labels_indexed = []
-    for label in param_labels:
-        if label in label_counts:
-            label_counts[label] += 1
-        else:
-            label_counts[label] = 0
-        param_labels_indexed.append(f"{label}{label_counts[label]}")
+    # Indexed labels R0, R1, Q0, ... (same as _prepare_optimization)
+    param_labels_indexed = [f"{label}{param_labels[:i].count(label)}"
+                            for i, label in enumerate(param_labels)]
 
     # Raises when every parameter is fixed (empty optimization vector)
     diag_warnings.extend(validate_fixed_params(
