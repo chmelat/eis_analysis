@@ -255,11 +255,12 @@ from eis_analysis.rinf_estimation import estimate_rinf, hf_median
 est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite point
 
 # est: RinfResult dataclass
-est.R_inf          # value to use [Ohm]: fitted R_s, or Re(Z) at f_max
+est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound
 est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
 est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
-est.R_inf_hf       # Re(Z) at f_max, the fallback upper bound [Ohm]
+est.R_inf_hf       # fallback upper bound: Re(Z) at the highest f with Im(Z) <= 0 [Ohm]
+est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult, params_opt = [R_s, L, R_k, Q, n]; None if no fit ran
 est.f_window, est.Z_window  # data of the fit window
 est.warnings       # why the fallback was used, dropped non-finite points

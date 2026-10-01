@@ -118,11 +118,12 @@ the data (e.g. two overlapping CPE arcs) it understates the real error: on
 `example/example_eis_data.csv` it reports 23 % while the fitted R_s is off by
 +153 %.
 
-### Fallback: Re(Z) at f_max
+### Fallback: HF upper bound
 
 When the fit does not determine R_inf, `R_inf = Re(Z)` at the highest
-frequency (`method='hf_bound'`, value also in `R_inf_hf`). Every passive
-element adds Re >= 0 to R_s, so this is an upper bound of R_inf, and the
+frequency with Im(Z) <= 0 (`method='hf_bound'`, value in `R_inf_hf`, its
+frequency in `f_hf`). Every passive element adds Re >= 0 to R_s, so any
+point is an upper bound of R_inf. On a capacitive top this is f_max, the
 tightest one the data give: on an open arc Re(Z) still falls towards R_s as
 the frequency rises. The 5-point HF median used before 0.41 reaches back
 into the arc and overestimates more. Measured with 1 % noise:
@@ -137,6 +138,25 @@ into the arc and overestimates more. Measured with 1 % noise:
 The last row is the price: one noisy point instead of a median of five. On
 these ends the fit is flagged only occasionally (4-10 of 20 noise seeds).
 `min(median, Re(Z) at f_max)` gave the same numbers as Re(Z) at f_max alone.
+
+**Inductive top.** Above the Im(Z) = 0 crossing the bound skips to the first
+capacitive point. There a series L contributes nothing to Re(Z), but lead
+artifacts (mutual inductance, stray capacitance of the cabling) can pull
+Re(Z) below R_s, even below zero, which no passive model allows. On a
+redoxED flow-cell sweep (`cell_EIS_1`, cycle 1, |Z| ~ 0.5 Ohm) Re(Z) falls
+from 0.168 Ohm at the 89 kHz crossing to 0.003 Ohm at 446 kHz and -0.064 Ohm
+at 500 kHz. Re(Z) at f_max handed the DRT 0.003 Ohm, and 32 % of R_pol piled
+up at the fast end of the tau grid; the crossing gives 0.168 Ohm, R_pol
+0.39 instead of 0.55 Ohm, and KK flags every point above it. This is the HFR
+of the fuel-cell and flow-cell literature.
+
+The price is a looser bound on a clean inductive spectrum the fit cannot
+settle: open CPE arc D with L = 10 uH, 1 % noise, gives 2.22 Ohm at 40 kHz
+instead of 1.29 Ohm at f_max (R_s = 0.05 Ohm, both off by thousands of
+percent). With the arc far below the crossing the two differ by ~1e-4 Ohm.
+Telling an artifact from a genuine arc above the crossing would need the
+points the loader already drops for Re(Z) < 0. A spectrum inductive down to
+its lowest frequency falls back to f_max.
 
 ### What `--ri-fit` cannot do
 
@@ -169,7 +189,7 @@ and the upper bound, and hands the chosen one to `calculate_drt()` as
 ```
 R-L-(R|Q) fit, 506-3.99e+04 Hz (20 points): R_inf = 1.082 +- 0.011 Ohm (1 %)
   L = 326 nH, fit error 1.1 %
-Re(Z) at f_max (upper bound): 1.355 Ohm
+HF upper bound: Re(Z) = 1.355 Ohm at 3.99e+04 Hz
 Using R_inf = 1.082 Ohm (fit)
 ```
 
@@ -191,7 +211,8 @@ est.R_inf          # value to use [Ohm]
 est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit)
 est.R_inf_stderr   # its standard error [Ohm]
-est.R_inf_hf       # Re(Z) at f_max, the fallback upper bound [Ohm]
+est.R_inf_hf       # fallback upper bound: Re(Z) at the highest f with Im(Z) <= 0 [Ohm]
+est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult of R-L-(R|Q): params_opt = [R_s, L, R_k, Q, n]
 est.f_window, est.Z_window  # data of the fit window
 est.warnings

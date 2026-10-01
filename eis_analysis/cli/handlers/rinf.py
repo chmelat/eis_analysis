@@ -39,8 +39,8 @@ def run_rinf_estimation(
     Returns
     -------
     R_inf : float or None
-        R_inf to hand to the DRT: the fitted R_s, or Re(Z) at f_max (an
-        upper bound) when the fit does not determine it. None if --ri-fit is
+        R_inf to hand to the DRT: the fitted R_s, or the HF upper bound
+        when the fit does not determine it. None if --ri-fit is
         off or the data are unusable.
     fig : Figure or None
         R_inf fit figure
@@ -67,7 +67,7 @@ def run_rinf_estimation(
                     f"({100 * stderr / R_fit:.2g} %)")
         logger.info(f"  L = {fit.params_opt[1] * 1e9:.3g} nH, "
                     f"fit error {fit.fit_error_rel:.2g} %")
-    logger.info(f"Re(Z) at f_max (upper bound): {est.R_inf_hf:.4g} Ohm")
+    logger.info(f"HF upper bound: Re(Z) = {est.R_inf_hf:.4g} Ohm at {est.f_hf:.3g} Hz")
     used = 'fit' if est.method == 'rlq_fit' else 'upper bound'
     logger.info(f"Using R_inf = {est.R_inf:.4g} Ohm ({used})")
 

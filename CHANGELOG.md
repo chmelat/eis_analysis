@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **`--ri-fit` fallback skips an inductive top.** When the R-L-(R|Q) fit
+  does not determine R_inf, the upper bound handed on is now Re(Z) at the
+  highest frequency with Im(Z) <= 0, not at f_max. Above the Im = 0 crossing
+  lead artifacts can pull Re(Z) below R_s: on a flow-cell sweep the old
+  bound was 0.003 Ohm (-0.064 Ohm through the Python API, where the loader's
+  Re(Z) < 0 filter does not run) against 0.168 Ohm at the crossing, and the
+  DRT piled 32 % of R_pol at the fast end of the grid. Capacitive tops are
+  unchanged. A clean inductive spectrum the fit cannot settle gets a looser
+  bound (`doc/RINF_ESTIMATION.md`). New field `RinfResult.f_hf`.
+
+---
+
 ## Version 0.50.0 (2026-09-30)
 
 ### Fixed

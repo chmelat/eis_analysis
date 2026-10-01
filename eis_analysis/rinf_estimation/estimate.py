@@ -6,8 +6,10 @@ Model: Z(omega) = R_s + j*omega*L + R_k / (1 + R_k*Q*(j*omega)^n)
 One nonlinear fit covers inductive, capacitive and mixed high-frequency ends
 alike; R_inf = R_s. The standard error of R_s decides whether the window
 determines R_inf at all. When it does not, or when the fit cannot run, the
-result falls back to Re(Z) at f_max, the tightest upper bound the data give
-(every passive term adds Re >= 0 to R_s), and says why in `warnings`.
+result falls back to Re(Z) at the highest frequency with Im(Z) <= 0, an upper
+bound (every passive term adds Re >= 0 to R_s, and at Im = 0 a series L
+contributes nothing), and says why in `warnings`. An inductive top is skipped:
+above Im = 0 lead artifacts can pull Re(Z) below R_s, even below zero.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
 """
@@ -55,12 +57,13 @@ class RinfResult:
     """R_inf estimate with the fit and the fallback it was chosen from.
 
     `R_inf` is the value to use: the fitted R_s when the window determines
-    it (`method == 'rlq_fit'`), otherwise Re(Z) at f_max
+    it (`method == 'rlq_fit'`), otherwise the HF upper bound `R_inf_hf`
     (`method == 'hf_bound'`) with the reason in `warnings`.
     """
     R_inf: float  # [Ohm]
     method: str  # 'rlq_fit' | 'hf_bound'
-    R_inf_hf: float  # Re(Z) at f_max, an upper bound of R_inf [Ohm]
+    R_inf_hf: float  # HF upper bound of R_inf, see _hf_bound [Ohm]
+    f_hf: float  # frequency of R_inf_hf; below f_max if the top is inductive [Hz]
     f_window: NDArray[np.float64]  # frequencies of the fit window [Hz]
     Z_window: NDArray[np.complex128]  # impedance of the fit window [Ohm]
     fit: Optional[FitResult] = None  # None if the fit did not run
@@ -88,6 +91,21 @@ def hf_median(frequencies: NDArray, Z: NDArray) -> Tuple[float, int]:
     n = min(HF_MEDIAN_MAX_POINTS, max(1, len(frequencies) // 10))
     idx = np.argsort(frequencies)[-n:]
     return float(np.median(Z.real[idx])), n
+
+
+def _hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float]:
+    """Re(Z) at the highest frequency with Im(Z) <= 0, f_max if there is none.
+
+    Returns ``(R, f)``. Every point of the R-L-(R|Q) model is an upper bound
+    of R_s; this one is the first below an inductive top, where lead
+    artifacts can pull Re(Z) below R_s (redoxED flow cell: 0.168 Ohm at the
+    Im = 0 crossing, 0.003 and -0.064 Ohm above it). On a capacitive top it
+    is f_max, the tightest bound.
+    """
+    order = np.argsort(frequencies)[::-1]
+    capacitive = np.flatnonzero(Z.imag[order] <= 0)
+    i = order[capacitive[0]] if capacitive.size else order[0]
+    return float(Z.real[i]), float(frequencies[i])
 
 
 def _clip(value: float, label: str) -> float:
@@ -127,7 +145,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     -------
     RinfResult
         `R_inf` is the fitted R_s if its relative stderr is at most
-        RINF_REL_STDERR_MAX, otherwise Re(Z) at f_max (reason in `warnings`).
+        RINF_REL_STDERR_MAX, otherwise the HF upper bound of `_hf_bound`
+        (reason in `warnings`).
 
     Raises
     ------
@@ -137,8 +156,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     Notes
     -----
     No data-only method can tell an arc lying entirely above f_max from a
-    flat high-frequency end; such spectra end with the upper bound Re(Z) at
-    f_max. Measured against the 5-point HF median it replaces (audit cases,
+    flat high-frequency end; such spectra end with the HF upper bound.
+    Measured against the 5-point HF median it replaces (audit cases,
     1 % noise): open CPE arc +2483 % instead of +3295 %,
     real_gamry_example.DTA 826 instead of 1402 Ohm; flat ends where the fit
     is flagged -0.7 % instead of ~0 %.
@@ -156,21 +175,24 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     window = frequencies >= frequencies.max() / 10**RINF_FIT_DECADES
     f_win, Z_win = frequencies[window], Z[window]
 
-    R_hf = float(Z.real[np.argmax(frequencies)])
-    result = RinfResult(R_inf=R_hf, method='hf_bound', R_inf_hf=R_hf,
+    R_hf, f_hf = _hf_bound(frequencies, Z)
+    result = RinfResult(R_inf=R_hf, method='hf_bound', R_inf_hf=R_hf, f_hf=f_hf,
                         f_window=f_win, Z_window=Z_win)
     if not finite.all():
         result.warnings.append(f"Ignored {int((~finite).sum())} non-finite point(s)")
+    fallback = f"using the HF upper bound Re(Z) = {R_hf:.4g} Ohm at {f_hf:.3g} Hz"
+    if f_hf < frequencies.max():
+        fallback += " (inductive top above Im(Z) = 0 skipped)"
     if len(f_win) < RINF_FIT_MIN_POINTS:
         result.warnings.append(
             f"Only {len(f_win)} point(s) in the top {RINF_FIT_DECADES} decades "
-            f"(need >= {RINF_FIT_MIN_POINTS}); using Re(Z) at f_max")
+            f"(need >= {RINF_FIT_MIN_POINTS}); {fallback}")
         return result
 
     try:
         fit, _ = fit_equivalent_circuit(f_win, Z_win, _initial_circuit(f_win, Z_win))
     except RuntimeError as e:
-        result.warnings.append(f"R-L-(R|Q) fit failed ({e}); using Re(Z) at f_max")
+        result.warnings.append(f"R-L-(R|Q) fit failed ({e}); {fallback}")
         return result
     result.fit = fit
 
@@ -182,7 +204,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
             f"R_inf is not determined by the top {RINF_FIT_DECADES} decades: "
             f"fit gives {R_fit:.4g} +- {stderr:.2g} Ohm "
             f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %); "
-            f"using Re(Z) at f_max = {R_hf:.4g} Ohm, an upper bound")
+            f"{fallback}")
         return result
 
     result.R_inf, result.method = R_fit, 'rlq_fit'

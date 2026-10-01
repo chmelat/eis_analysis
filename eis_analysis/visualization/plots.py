@@ -195,7 +195,7 @@ def plot_rinf_fit(result) -> plt.Figure:
     -------
     fig : Figure
         Nyquist, Re(Z) and Im(Z) of the window with the R-L-(R|Q) fit (if it
-        ran), the fitted R_s and the fallback Re(Z) at f_max.
+        ran), the fitted R_s and the fallback HF upper bound.
     """
     f, Z = result.f_window, result.Z_window
     Z_fit = None
@@ -203,7 +203,8 @@ def plot_rinf_fit(result) -> plt.Figure:
         f_dense = np.logspace(np.log10(f.min()), np.log10(f.max()), 200)
         Z_fit = result.fit.circuit.impedance(f_dense, list(result.fit.params_opt))
 
-    lines = [(result.R_inf_hf, 'gray', f'Re(Z) at f_max = {result.R_inf_hf:.4g} Ohm')]
+    lines = [(result.R_inf_hf, 'gray',
+              f'HF bound Re(Z) = {result.R_inf_hf:.4g} Ohm at {result.f_hf:.3g} Hz')]
     if result.R_inf_fit is not None:
         lines.append((result.R_inf_fit, 'green',
                       f'fit R_s = {result.R_inf_fit:.4g} +- {result.R_inf_stderr:.2g} Ohm'))
