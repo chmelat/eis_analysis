@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.52.0 (2026-10-02)
+
+### Added
+
+- **THD report for Gamry data recorded with the THD option.** The loader
+  reads the `Ithd`/`Vthd` columns into `LoadResult.current_thd` /
+  `voltage_thd` (a fraction: it equals sqrt(sum |H_2..10|^2) / |H_1| of the
+  harmonic columns exactly, although the header gives only `#`). The CLI
+  prints a "THD" section after Z-HIT with the median and maximum per channel
+  and warns about points above 1 %: for a cubic nonlinearity the error of
+  the fundamental is 3x the 3rd-harmonic ratio, so 1 % THD bounds the |Z|
+  error to ~3 %. A figure of THD [%] against frequency for both channels,
+  with the threshold line, is shown and saved under `--save` as `*_thd`.
+  Files without the columns print and draw nothing. On
+  `example/EISPOT-test1.DTA`: current THD median 0.16 %, 3/72 points above
+  1 % at 3-8 mHz. New `validation.thd_check` / `THDResult`,
+  `visualization.plot_thd`.
+
+---
+
 ## Version 0.51.1 (2026-10-02)
 
 ### Fixed
