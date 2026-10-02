@@ -79,7 +79,7 @@ Examples:
                           help='Maximum frequency [Hz] - data above will be cut off')
 
     io_group.add_argument('--save', '-s', type=str, default=None,
-                          help='Save plots to files with this prefix')
+                          help='Save plots and fit results (JSON, CSV) with this prefix')
     io_group.add_argument('--format', '-f', type=str, default='png',
                           choices=['png', 'pdf', 'svg', 'eps'],
                           help='Output format for saved plots (default: png). '

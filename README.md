@@ -181,6 +181,12 @@ for f in *.DTA; do
 done
 ```
 
+With `--circuit` or `--voigt-chain`, each run also writes `<name>_fit.json`: the fitted
+parameters with their uncertainties, so a batch over a series gives the
+parameter trend without reading the console output. Several `--circuit`
+candidates write `<name>_fit_1.json`, `<name>_fit_2.json`, ... instead, one per
+candidate in command-line order.
+
 ---
 
 ## Main features
@@ -683,7 +689,7 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`) and `results_ocv` (`--ocv`), each with the extension given by `--format`. Only the plots actually produced by the run are written.
+- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`) and `results_ocv` (`--ocv`), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ...
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

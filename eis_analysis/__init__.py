@@ -28,6 +28,8 @@ from .io import (
     parse_ocv_curve,
     LoadResult,
     generate_synthetic_data,
+    fit_result_record,
+    save_fit_result,
 )
 
 # Validation
@@ -96,6 +98,8 @@ __all__ = [
     'parse_ocv_curve',
     'LoadResult',
     'generate_synthetic_data',
+    'fit_result_record',
+    'save_fit_result',
     # Validation
     'kramers_kronig_validation',
     'zhit_validation',

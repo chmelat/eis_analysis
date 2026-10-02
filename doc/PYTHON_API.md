@@ -156,6 +156,49 @@ frequencies, Z = generate_synthetic_data(
 )
 ```
 
+**Fit result export:**
+
+```python
+from eis_analysis.io import fit_result_record, save_fit_result
+
+expr = 'R(10) - (R(1000) | Q(1e-5, 0.9))'
+result, Z_fit = fit_equivalent_circuit(frequencies, Z, parse_circuit_expression(expr))
+
+# The record is a plain dict; context is stored as given (input file, ...)
+record = fit_result_record(frequencies, Z, Z_fit, result, weighting='modulus',
+                           context={'input': 'data.DTA'})
+
+# Writes results_fit.csv, then results_fit.json; returns both paths.
+# A record that does not serialize raises before anything is written.
+json_path, csv_path = save_fit_result('results_fit', record, frequencies, Z, Z_fit)
+```
+
+The record holds the fitted circuit (`str(result.circuit)`), every parameter (`value`, `stderr`,
+`ci95`, `significance`, `status`), the metrics including dof and AIC/BIC,
+the covariance matrix and the warnings. Values without meaning are `null`:
+the uncertainty of a fixed or at-bound parameter, dof and AIC/BIC of the
+linear Voigt chain (no free-parameter count), and any inf or NaN, so the
+file is strict JSON. The CSV has `freq_Hz, Z_real_Ohm, Z_imag_Ohm,
+Z_fit_real_Ohm, Z_fit_imag_Ohm` and loads back with `load_csv_data` (the
+fit columns are skipped).
+
+The circuit parses back with `parse_circuit_expression`, fixed values
+included exactly; free values are rounded to 4 digits there, so take them
+from `parameters`.
+The fitted model is that expression with the stored values:
+
+```python
+import json
+record = json.load(open('results_fit.json'))
+circuit = parse_circuit_expression(record['circuit'])
+values = [p['value'] for p in record['parameters']]
+Z_model = circuit.impedance(frequencies, values)        # the fitted curve
+result2, _ = fit_equivalent_circuit(f2, Z2, circuit,    # or a start for
+                                    initial_guess=values)  # the next spectrum
+```
+
+`parse_circuit_expression` lives in `eis_analysis.cli.utils`.
+
 ### eis_analysis.validation
 
 **Kramers-Kronig validation (Lin-KK):**

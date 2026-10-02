@@ -12,6 +12,7 @@ from .data_loading import (
     LoadResult,
 )
 from .synthetic import generate_synthetic_data
+from .export import fit_result_record, save_fit_result
 
 __all__ = [
     'load_data',
@@ -22,4 +23,6 @@ __all__ = [
     'expected_points',
     'LoadResult',
     'generate_synthetic_data',
+    'fit_result_record',
+    'save_fit_result',
 ]

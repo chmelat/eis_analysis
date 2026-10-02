@@ -35,6 +35,7 @@ from ...fitting.residual_diagnostics import (
 )
 from ...fitting.config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
                                FIT_QUALITY_ACCEPTABLE_ERROR, SIGNIFICANCE_NEGLIGIBLE)
+from ...io import fit_result_record, save_fit_result
 from ...visualization import plot_circuit_fit
 from .model_comparison import score_candidates, log_comparison
 
@@ -76,6 +77,38 @@ def _save_fit_figure(
         return fig
 
     return draw_figure(draw, 'Fit', args.save, save_suffix, args.format)
+
+
+def _save_fit_data(
+    frequencies: NDArray,
+    Z: NDArray,
+    Z_fit: NDArray,
+    result: FitResult,
+    args: argparse.Namespace,
+    save_suffix: str
+) -> None:
+    """Write the fit as JSON and CSV under --save; an export error costs the files, not the fit."""
+    if args.save is None:
+        return
+    try:
+        # getattr: a caller building the namespace by hand need not have
+        # these options, and a missing one must not cost the fit
+        context = {
+            'input': args.input,
+            'optimizer': 'linear' if args.voigt_chain else args.optimizer,
+            'fit_on': getattr(args, 'fit_on', 'original'),
+            'f_min': getattr(args, 'f_min', None),
+            'f_max': getattr(args, 'f_max', None),
+        }
+        record = fit_result_record(frequencies, Z, Z_fit, result, args.weighting, context)
+        paths = save_fit_result(f"{args.save}_{save_suffix}", record,
+                                frequencies, Z, Z_fit)
+    except Exception as e:
+        logger.warning(f"Fit result export failed: {e}")
+        logger.debug("Traceback:", exc_info=True)
+        return
+    for path in paths:
+        logger.info(f"Saved: {path}")
 
 
 # =============================================================================
@@ -341,7 +374,8 @@ def run_circuit_fitting(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_fit, input, circuit, voigt_chain, weighting,
-                       optimizer, multistart, de_*, fit_on, save, format)
+                       optimizer, multistart, de_*, fit_on, save, format;
+                       optional: f_min, f_max)
 
     Returns
     -------
@@ -641,6 +675,10 @@ def _fit_voigt_chain(
         fit_error_rel=fit_error_rel,
         fit_error_abs=fit_error_abs,
         quality=quality,
+        # No Jacobian, so no conditioning: NaN, not the 1.0 default, and
+        # not well conditioned - there is no covariance to trust
+        condition_number=np.nan,
+        is_well_conditioned=False,
         _dof=max(2 * len(frequencies) - len(initial_params), 1),
         # The linear fit gives no uncertainty, but significance needs none -
         # it is a property of the model at its parameters, not of the fit.
@@ -653,6 +691,8 @@ def _fit_voigt_chain(
     # --voigt-auto-M or a larger --voigt-n-per-decade is the fix.
     _log_residual_diagnostics(
         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting))
+
+    _save_fit_data(frequencies, Z, Z_fit, result, args, 'fit')
 
     # The full circuit would make the title unreadable: a chain holds up to
     # max_M K elements. What sets this fit apart is that it is linear only.
@@ -761,4 +801,5 @@ def _fit_standard_circuit(
         logger.debug("Traceback:", exc_info=True)
         return None, None
 
+    _save_fit_data(frequencies, Z, Z_fit, result, args, save_suffix)
     return result, _save_fit_figure(frequencies, Z, result, args, save_suffix)
