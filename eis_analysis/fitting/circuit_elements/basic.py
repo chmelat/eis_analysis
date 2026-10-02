@@ -43,11 +43,6 @@ class R(CircuitElement):
     def get_param_labels(self) -> List[str]:
         return ['R']
 
-    def __repr__(self) -> str:
-        if self.fixed_params[0]:
-            return f'R("{self.R:.4g}")'
-        return f"R({self.R:.4g})"
-
 
 class C(CircuitElement):
     """
@@ -82,11 +77,6 @@ class C(CircuitElement):
     def get_param_labels(self) -> List[str]:
         return ['C']
 
-    def __repr__(self) -> str:
-        if self.fixed_params[0]:
-            return f'C("{self.C:.4g}")'
-        return f"C({self.C:.4g})"
-
 
 class L(CircuitElement):
     """
@@ -120,11 +110,6 @@ class L(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['L']
-
-    def __repr__(self) -> str:
-        if self.fixed_params[0]:
-            return f'L("{self.L:.4g}")'
-        return f"L({self.L:.4g})"
 
 
 class G(CircuitElement):
@@ -179,8 +164,3 @@ class G(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['G']
-
-    def __repr__(self) -> str:
-        if self.fixed_params[0]:
-            return f'G("{self.G:.4g}")'
-        return f"G({self.G:.4g})"

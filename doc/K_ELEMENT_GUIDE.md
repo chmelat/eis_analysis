@@ -192,7 +192,7 @@ for peak in drt_peaks:
     circuit = circuit - K(peak['R'], peak['tau'])
 
 print(circuit)
-# R(100) - K(R=500, τ=1e-05) - K(R=1000, τ=0.0001) - K(R=2000, τ=0.001)
+# R(100) - K(500, 1e-05) - K(1000, 0.0001) - K(2000, 0.001)
 
 # Use it as the initial guess for fitting
 result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)

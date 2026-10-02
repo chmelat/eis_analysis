@@ -53,11 +53,6 @@ class Q(CircuitElement):
     def get_param_labels(self) -> List[str]:
         return ['Q', 'n']
 
-    def __repr__(self) -> str:
-        Q_str = f'"{self.Q:.4g}"' if self.fixed_params[0] else f"{self.Q:.4g}"
-        n_str = f'"{self.n:.4g}"' if self.fixed_params[1] else f"{self.n:.4g}"
-        return f"Q({Q_str}, {n_str})"
-
 
 class W(CircuitElement):
     """
@@ -91,10 +86,6 @@ class W(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['σ']
-
-    def __repr__(self) -> str:
-        sigma_str = f'"{self.sigma:.4g}"' if self.fixed_params[0] else f"{self.sigma:.4g}"
-        return f"W(σ={sigma_str})"
 
 
 class Wo(CircuitElement):
@@ -135,11 +126,6 @@ class Wo(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['R_W', 'τ_W']
-
-    def __repr__(self) -> str:
-        R_W_str = f'"{self.R_W:.4g}"' if self.fixed_params[0] else f"{self.R_W:.4g}"
-        tau_W_str = f'"{self.tau_W:.4g}"' if self.fixed_params[1] else f"{self.tau_W:.4g}"
-        return f"Wo(R={R_W_str}, τ={tau_W_str})"
 
 
 class CC(CircuitElement):
@@ -225,13 +211,6 @@ class CC(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['C_inf', 'ΔC', 'τ_CC', 'α_CC']
-
-    def __repr__(self) -> str:
-        C_inf_str = f'"{self.C_inf:.4g}"' if self.fixed_params[0] else f"{self.C_inf:.4g}"
-        dC_str = f'"{self.dC:.4g}"' if self.fixed_params[1] else f"{self.dC:.4g}"
-        tau_str = f'"{self.tau:.4g}"' if self.fixed_params[2] else f"{self.tau:.4g}"
-        alpha_str = f'"{self.alpha:.4g}"' if self.fixed_params[3] else f"{self.alpha:.4g}"
-        return f"CC(C_inf={C_inf_str}, ΔC={dC_str}, τ={tau_str}, α={alpha_str})"
 
     @property
     def C_static(self) -> float:
@@ -371,13 +350,6 @@ class DQ(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['A_DQ', 'n_DQ', 'τ_DQ', 'U_DQ']
-
-    def __repr__(self) -> str:
-        A_str = f'"{self.A:.4g}"' if self.fixed_params[0] else f"{self.A:.4g}"
-        n_str = f'"{self.n:.4g}"' if self.fixed_params[1] else f"{self.n:.4g}"
-        tau_str = f'"{self.tau_min:.4g}"' if self.fixed_params[2] else f"{self.tau_min:.4g}"
-        U_str = f'"{self.U:.4g}"' if self.fixed_params[3] else f"{self.U:.4g}"
-        return f"DQ(A={A_str}, n={n_str}, τ_min={tau_str}, U={U_str})"
 
     @property
     def tau_max(self) -> float:

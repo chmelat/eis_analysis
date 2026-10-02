@@ -78,10 +78,21 @@ class CircuitElement(ABC):
         """
         pass
 
-    @abstractmethod
     def __repr__(self) -> str:
-        """String representation"""
-        pass
+        """
+        Circuit expression of the element, e.g. ``Q(1e-05, "0.9")``.
+
+        Positional and with fixed values quoted, so it parses back with
+        parse_circuit_expression. Free values are rounded to 4 digits for
+        display - pasted back they are only a starting point. Fixed values are
+        printed exactly: they are never refitted, so rounding them would
+        change the model.
+        """
+        # float(): after a fit the values are np.float64, whose repr is
+        # 'np.float64(1000.0)' on numpy >= 2
+        values = [f'"{float(v)!r}"' if fixed else f"{v:.4g}"
+                  for v, fixed in zip(self.params, self.fixed_params)]
+        return f"{type(self).__name__}({', '.join(values)})"
 
     # Operator overloading for circuit building
     def __sub__(self, other: Union['CircuitElement', 'Circuit']) -> 'Circuit':

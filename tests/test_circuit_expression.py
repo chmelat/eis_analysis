@@ -82,3 +82,40 @@ def test_builtins_are_not_reachable():
     """eval() runs with no builtins, so the namespace is elements only."""
     with pytest.raises(ValueError):
         parse_circuit_expression("__import__('os').getcwd()")
+
+
+@pytest.mark.parametrize("expr", DOCUMENTED_ELEMENTS + [
+    'G(1e-9)', 'DQ(1e-3, 0.6, 1e-6, 10)', 'YG(1e-6, 0.1, 1e-3)',
+    'R(10) - (R("1000") | Q(1e-5, "0.9")) - YG("1e-6", 0.1, 1e-3)',
+    'R("1234.56") - Q(1.23456789e-5, "0.87654321")',
+])
+def test_repr_parses_back(expr):
+    """repr(circuit) is a circuit expression: same elements, values and fixes.
+
+    The fit export stores str(circuit) for the Voigt chain; named arguments
+    such as K(R=..., τ=...) used to make that unparseable.
+    """
+    circuit = parse_circuit_expression(expr)
+    again = parse_circuit_expression(repr(circuit))
+    assert again.get_all_fixed_params() == circuit.get_all_fixed_params()
+    fixed = circuit.get_all_fixed_params()
+    for value, original, is_fixed in zip(again.get_all_params(),
+                                         circuit.get_all_params(), fixed):
+        if is_fixed:
+            # Never refitted, so it must come back exactly
+            assert value == original
+        else:
+            # Only a starting point; repr rounds it to 4 digits
+            assert value == pytest.approx(original, rel=1e-3)
+
+
+def test_repr_of_fixed_numpy_value_parses_back():
+    """After a fit the values are np.float64; numpy >= 2 reprs those as
+    'np.float64(1000.0)', which must not leak into the expression."""
+    class Float64Like(float):
+        def __repr__(self):
+            return f"np.float64({float(self)!r})"
+
+    circuit = parse_circuit_expression('R("1000")')
+    circuit.update_params([Float64Like(1000.0)])
+    assert repr(circuit) == 'R("1000.0")'

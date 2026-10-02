@@ -86,11 +86,6 @@ class K(CircuitElement):
     def get_param_labels(self) -> List[str]:
         return ['R', 'τ']
 
-    def __repr__(self) -> str:
-        R_str = f'"{self.R:.4g}"' if self.fixed_params[0] else f"{self.R:.4g}"
-        tau_str = f'"{self.tau:.4g}"' if self.fixed_params[1] else f"{self.tau:.4g}"
-        return f"K(R={R_str}, τ={tau_str})"
-
     def to_RC(self) -> 'Circuit':
         """
         Convert K element to equivalent (R || C) circuit.
@@ -190,11 +185,6 @@ class GE(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['σ_GE', 'τ_GE']
-
-    def __repr__(self) -> str:
-        sigma_str = f'"{self.sigma:.4g}"' if self.fixed_params[0] else f"{self.sigma:.4g}"
-        tau_str = f'"{self.tau:.4g}"' if self.fixed_params[1] else f"{self.tau:.4g}"
-        return f"GE(σ={sigma_str}, τ={tau_str})"
 
     @property
     def characteristic_freq(self) -> float:
@@ -355,12 +345,6 @@ class YG(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['C_YG', 'p_YG', 'τ_YG']
-
-    def __repr__(self) -> str:
-        C_str = f'"{self.C:.4g}"' if self.fixed_params[0] else f"{self.C:.4g}"
-        p_str = f'"{self.p:.4g}"' if self.fixed_params[1] else f"{self.p:.4g}"
-        tau_str = f'"{self.tau:.4g}"' if self.fixed_params[2] else f"{self.tau:.4g}"
-        return f"YG(C={C_str}, p={p_str}, τ={tau_str})"
 
     @property
     def R_dc(self) -> float:
