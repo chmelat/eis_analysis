@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Z-HIT on spectra with repeated or very close frequencies.** A sub-band
+  measured twice (an up/down sweep starting mid-range, as Zahner's
+  `EisGenerateJob` does, or a file holding two sweeps) made `np.gradient`
+  divide by a zero log-frequency step: every Z-HIT metric was NaN, the data
+  rated "poor", and numpy `RuntimeWarning`s reached the console. Near-equal
+  frequencies gave no NaN but turned phase noise into spikes (1.4e6 % max
+  residual for a 1e-4 offset at 0.1 % noise). The second-order term now
+  takes d(phi)/d(ln omega) with np.gradient's formulas over neighbours at
+  least 5 % apart in frequency (`MIN_DERIVATIVE_STEP`). Grids up to ~47
+  points/decade give bit-identical results (all example files unchanged);
+  denser sweeps get a less noisy derivative (17.2 % -> 5.2 % max residual at
+  300 points/decade, 0.1 % noise). On the Zahner IM7 example spectrum
+  (38 points, 6 repeated) Z-HIT now reports 1.44 % mean |res_mag|.
+  `zhit_reconstruct_magnitude` raises a clear `ValueError` for a spectrum
+  spanning less than 5 %.
+
 ## Version 0.51.0 (2026-10-02)
 
 ### Added

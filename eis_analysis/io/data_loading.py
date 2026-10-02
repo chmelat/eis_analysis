@@ -521,8 +521,10 @@ def _check_spectrum(frequencies: NDArray[np.float64], warnings: List[str]) -> No
 
     # A sweep is strictly monotonic in file order. Several sweeps in one file
     # break that even when the instrument logged slightly different measured
-    # frequencies, which exact-equality (np.unique) would miss; Z-HIT's
-    # derivative then divides by a (near-)zero log-frequency step.
+    # frequencies, which exact-equality (np.unique) would miss. Z-HIT takes
+    # its phase derivative over a minimum step (MIN_DERIVATIVE_STEP), so such
+    # points no longer break it; repeated sweeps that disagree show up as its
+    # residuals.
     steps = np.diff(frequencies)
     n_against = int(min(np.sum(steps >= 0), np.sum(steps <= 0)))
     if n_against:

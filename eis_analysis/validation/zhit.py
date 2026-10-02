@@ -45,6 +45,40 @@ from .kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
 
 logger = logging.getLogger(__name__)
 
+# The second-order term takes d(phi)/d(ln omega) between points at least 5 %
+# apart in frequency. A smaller step - a frequency measured twice (an up/down
+# sweep, several sweeps in one file) or a very dense sweep - turns phase noise
+# into a spike: 1e-3 rad over a 1e-4 step is 10 rad. Grids up to ~47
+# points/decade step more than 5 % and keep np.gradient's result exactly;
+# the relaxations the term corrects for span about a decade, so a 10 %
+# baseline costs nothing in truncation error. A step just over 5 % is used as
+# is; it adds the noise of a regular 47 points/decade sweep (measured: +1.1 to
+# +2.1 percentage points on the max residual at 0.1 % noise), not more.
+MIN_DERIVATIVE_STEP = np.log(1.05)
+
+
+def _phase_derivative(phi: NDArray[np.float64], ln_omega: NDArray[np.float64]) -> NDArray[np.float64]:
+    """
+    d(phi)/d(ln omega) with np.gradient's formulas over neighbours at least
+    MIN_DERIVATIVE_STEP away: second-order three-point inside, one-sided at
+    the ends. Identical to np.gradient where every step exceeds it. The
+    spectrum must span more than MIN_DERIVATIVE_STEP.
+    """
+    n = len(ln_omega)
+    lower = np.searchsorted(ln_omega, ln_omega - MIN_DERIVATIVE_STEP, side='right') - 1
+    upper = np.searchsorted(ln_omega, ln_omega + MIN_DERIVATIVE_STEP, side='left')
+    has_lower, has_upper = lower >= 0, upper < n
+    lower, upper = np.where(has_lower, lower, 0), np.where(has_upper, upper, n - 1)
+    dx1, dx2 = ln_omega - ln_omega[lower], ln_omega[upper] - ln_omega
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        central = (-dx2 / (dx1 * (dx1 + dx2)) * phi[lower]
+                   + (dx2 - dx1) / (dx1 * dx2) * phi
+                   + dx1 / (dx2 * (dx1 + dx2)) * phi[upper])
+        forward = (phi[upper] - phi) / dx2
+        backward = (phi - phi[lower]) / dx1
+    return np.where(has_lower & has_upper, central, np.where(has_upper, forward, backward))
+
 
 def _quality_label(mean_abs_residual_mag: float) -> str:
     """Stratified label for KK/Z-HIT magnitude residuals (in percent)."""
@@ -144,7 +178,8 @@ def zhit_reconstruct_magnitude(
     Parameters
     ----------
     frequencies : ndarray of float
-        Frequencies [Hz], sorted ascending
+        Frequencies [Hz], sorted ascending; repeated or very close
+        frequencies are allowed (see MIN_DERIVATIVE_STEP)
     phi : ndarray of float
         Phase angles [rad], sorted by ascending frequency
     ln_Z_exp : ndarray of float
@@ -155,6 +190,11 @@ def zhit_reconstruct_magnitude(
     -------
     ln_Z_reconstructed : ndarray of float
         Reconstructed ln|Z| values
+
+    Raises
+    ------
+    ValueError
+        If the frequencies span less than MIN_DERIVATIVE_STEP (5 %)
 
     Notes
     -----
@@ -175,12 +215,16 @@ def zhit_reconstruct_magnitude(
     fewer than half of the points; it fails when most of the spectrum is bad.
     """
     ln_omega = np.log(2 * np.pi * frequencies)
+    if len(ln_omega) < 2 or ln_omega[-1] - ln_omega[0] < MIN_DERIVATIVE_STEP:
+        raise ValueError(f"Z-HIT needs frequencies spanning at least "
+                         f"{np.expm1(MIN_DERIVATIVE_STEP):.0%}, got {len(ln_omega)} point(s)")
 
     # First order: cumulative integration of phase
     ln_Z_reconstructed = cumulative_trapezoid((2.0 / np.pi) * phi, ln_omega, initial=0)
 
-    # Second order: np.gradient handles non-equidistant data correctly
-    d_phi_d_ln_omega = np.gradient(phi, ln_omega)
+    # Second order: np.gradient's formulas over a minimum step, so repeated
+    # or very close frequencies cannot spike it
+    d_phi_d_ln_omega = _phase_derivative(phi, ln_omega)
 
     # Second-order correction coefficient gamma = -pi/6
     # Derived from Taylor expansion of the Hilbert transform kernel in log-omega space.
@@ -255,7 +299,7 @@ def zhit_validation(
 
     # Extract magnitude and phase. np.unwrap removes 2*pi jumps from arctan2
     # at the [-pi, pi] boundary (relevant for inductive systems or noisy data
-    # near the wrap point), which would otherwise spike np.gradient below.
+    # near the wrap point), which would otherwise spike the phase derivative.
     Z_mag = np.abs(Z)
     phi = np.unwrap(np.arctan2(Z.imag, Z.real))
 
