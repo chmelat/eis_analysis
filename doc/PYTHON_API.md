@@ -128,6 +128,11 @@ frequencies, Z = result.frequencies, result.Z
 for w in result.warnings:
     print(w)
 
+# Gamry files recorded with the THD option also carry per-point THD
+# (fraction, aligned with frequencies; None when the columns are absent,
+# always None for CSV)
+result.current_thd, result.voltage_thd
+
 # Explicit CSV loading
 result = load_csv_data('data.csv')
 
@@ -274,6 +279,26 @@ result.is_valid             # True if mean_residual_mag < 5%
 # Figure (the validation itself builds none)
 from eis_analysis.visualization import plot_zhit_validation
 fig = plot_zhit_validation(frequencies, Z, result)
+```
+
+**Harmonic distortion (Gamry THD option):**
+
+```python
+from eis_analysis.validation import thd_check, THD_THRESHOLD
+
+result = load_data('data.DTA')
+thd = thd_check(result.frequencies, result.current_thd, result.voltage_thd)
+# None when the file has no THD columns; otherwise THDResult:
+thd.current.median, thd.current.maximum, thd.current.f_at_max   # fractions, Hz
+thd.current.n_above                     # points above THD_THRESHOLD (0.01)
+thd.current.n_valid                     # ... out of this many points with a value
+thd.current.f_above_min, thd.current.f_above_max
+thd.voltage                             # same for the voltage (or None)
+thd.warnings                            # e.g. a column present but empty
+
+# Figure: THD [%] vs frequency, both channels, threshold line
+from eis_analysis.visualization import plot_thd
+fig = plot_thd(result.frequencies, result.current_thd, result.voltage_thd, THD_THRESHOLD)
 ```
 
 **Comparison: Lin-KK vs Z-HIT:**

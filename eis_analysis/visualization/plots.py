@@ -359,3 +359,53 @@ def plot_zhit_validation(
 
     plt.tight_layout()
     return fig
+
+
+def plot_thd(
+    frequencies: NDArray[np.float64],
+    current_thd: Optional[NDArray[np.float64]],
+    voltage_thd: Optional[NDArray[np.float64]],
+    threshold: float
+) -> plt.Figure:
+    """
+    Plot the per-point THD the instrument recorded against frequency.
+
+    Parameters
+    ----------
+    frequencies : ndarray of float
+        Frequencies [Hz]
+    current_thd, voltage_thd : ndarray of float or None
+        THD per point as a fraction (see `LoadResult`); a None channel, or
+        one without any value > 0, is left out
+    threshold : float
+        Linearity threshold drawn as a line (fraction)
+
+    Returns
+    -------
+    fig : Figure
+        THD [%] of each channel on a log-log axis with the threshold line.
+    """
+    fig, ax = plt.subplots(figsize=(10, 5))
+    frequencies = np.asarray(frequencies, dtype=np.float64)
+    # The data keep the file's point order; a line needs sorted frequencies
+    order = np.argsort(frequencies)
+    for thd, label, marker in ((current_thd, 'Current', 'o'), (voltage_thd, 'Voltage', 's')):
+        if thd is None:
+            continue
+        # Missing values (NaN, or <= 0 as thd_check treats them) leave a gap;
+        # a channel without any value gets no legend entry
+        thd = np.asarray(thd, dtype=np.float64)
+        percent = np.where(np.isfinite(thd) & (thd > 0), thd * 100, np.nan)[order]
+        if np.isnan(percent).all():
+            continue
+        ax.loglog(frequencies[order], percent, marker=marker, linestyle='-',
+                  linewidth=1, markersize=4, label=label)
+    ax.axhline(y=threshold * 100, color='r', linestyle=':', alpha=0.5,
+               label=f'Threshold {threshold * 100:.2g} %')
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("THD [%]")
+    ax.set_title("Total harmonic distortion (instrument)")
+    ax.legend()
+    ax.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
+    plt.tight_layout()
+    return fig

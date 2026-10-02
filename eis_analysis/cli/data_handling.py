@@ -152,6 +152,7 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
     """
     metadata = None
     ocv_data = None
+    current_thd = voltage_thd = None
 
     if args.input is None:
         # Synthetic data
@@ -169,6 +170,7 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
                 loaded = load_data(args.input)
                 frequencies, Z = loaded.frequencies, loaded.Z
                 metadata = loaded.metadata
+                current_thd, voltage_thd = loaded.current_thd, loaded.voltage_thd
                 _print_load_summary(loaded)
                 if metadata is not None:
                     print_metadata(metadata)
@@ -203,7 +205,9 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
         Z=Z,
         title=title,
         metadata=metadata,
-        ocv_data=ocv_data
+        ocv_data=ocv_data,
+        current_thd=current_thd,
+        voltage_thd=voltage_thd
     )
 
 
@@ -267,6 +271,8 @@ def filter_by_frequency(
     # element-wise with Z, so it has to survive the same mask - otherwise the
     # fit would pair reconstructed points with the wrong frequencies.
     Z_zhit = data.Z_zhit[mask] if data.Z_zhit is not None else None
+    current_thd = data.current_thd[mask] if data.current_thd is not None else None
+    voltage_thd = data.voltage_thd[mask] if data.voltage_thd is not None else None
 
     filtered_count = len(frequencies)
     removed_count = original_count - filtered_count
@@ -287,5 +293,7 @@ def filter_by_frequency(
         title=data.title,
         metadata=data.metadata,
         ocv_data=data.ocv_data,
-        Z_zhit=Z_zhit
+        Z_zhit=Z_zhit,
+        current_thd=current_thd,
+        voltage_thd=voltage_thd
     )

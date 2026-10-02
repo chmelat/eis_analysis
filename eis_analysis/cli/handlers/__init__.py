@@ -6,7 +6,7 @@ split across submodules by pipeline stage; this package re-exports the public
 ``run_*`` functions so ``from eis_analysis.cli.handlers import run_*`` keeps
 working.
 
-- validation: run_kk_validation, run_zhit_validation,
+- validation: run_kk_validation, run_zhit_validation, report_thd,
               apply_zhit_reconstruction, report_outliers, plot_validation
 - rinf:       run_rinf_estimation
 - drt:        run_drt_analysis, run_voigt_analysis
@@ -17,6 +17,7 @@ working.
 from .validation import (
     run_kk_validation,
     run_zhit_validation,
+    report_thd,
     apply_zhit_reconstruction,
     report_outliers,
     plot_validation,
@@ -29,6 +30,7 @@ from .oxide import run_oxide_analysis
 __all__ = [
     'run_kk_validation',
     'run_zhit_validation',
+    'report_thd',
     'apply_zhit_reconstruction',
     'report_outliers',
     'plot_validation',

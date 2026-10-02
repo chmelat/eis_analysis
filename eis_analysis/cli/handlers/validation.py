@@ -3,6 +3,7 @@ Data validation handlers for the EIS CLI.
 
 - run_kk_validation: Kramers-Kronig validation
 - run_zhit_validation: Z-HIT validation
+- report_thd: linearity from the THD the instrument recorded (Gamry THD option)
 - apply_zhit_reconstruction: --fit-on, Z-HIT reconstruction as a data correction
 - report_outliers: per-point suspicious-point report from both methods
 - plot_validation: KK and Z-HIT figures, with the flagged points marked
@@ -21,13 +22,16 @@ from ...validation import (
     kramers_kronig_validation,
     zhit_validation,
     find_outliers,
+    thd_check,
     KKResult,
     OutlierReport,
+    THDResult,
     ZHITResult,
 )
-from ...visualization import plot_kk_validation, plot_zhit_validation
+from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
 from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
+from ...validation.thd import THD_TO_Z_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +175,66 @@ def run_zhit_validation(
            f"(mean |res_mag|={result.mean_residual_mag:.2f}%, "
            f"threshold={result.quality_threshold:.1f}%)")
 
+    return result
+
+
+# =============================================================================
+# THD recorded by the instrument
+# =============================================================================
+
+def report_thd(data: LoadedData, args: argparse.Namespace) -> Optional[THDResult]:
+    """
+    Summarize the per-point THD the instrument recorded and plot it against
+    frequency.
+
+    Silent when the data carries no THD (CSV, Gamry without the THD option).
+
+    Parameters
+    ----------
+    data : LoadedData
+        Full spectrum, with `current_thd` / `voltage_thd` from the loader
+    args : argparse.Namespace
+        CLI arguments (uses: save, format)
+
+    Returns
+    -------
+    THDResult or None
+        None when there is no THD to report
+    """
+    result = thd_check(data.frequencies, data.current_thd, data.voltage_thd)
+    if result is None:
+        return None
+
+    log_separator()
+    logger.info("THD (Gamry harmonic analysis)")
+    log_separator()
+
+    for warning in result.warnings:
+        logger.warning(warning)
+
+    limit = result.threshold * 100
+    present = [(label, ch) for label, ch in (('Current', result.current), ('Voltage', result.voltage))
+               if ch is not None]
+    if not present:
+        return result  # nothing was measured: no verdict, no empty figure
+
+    # Channel-neutral cause: which channel is the sample's response depends on
+    # the control mode (potentiostatic: current; galvanostatic: voltage), the
+    # other one measures the purity of the excitation.
+    for label, ch in present:
+        logger.info(f"  {label}: median {ch.median * 100:.2f} %, "
+                    f"max {ch.maximum * 100:.2f} % at {ch.f_at_max:.2e} Hz")
+    for label, ch in present:
+        if ch.n_above:
+            logger.warning(f"{label} THD above {limit:.2g} % at {ch.n_above}/{ch.n_valid} "
+                           f"points ({ch.f_above_min:.2e} - {ch.f_above_max:.2e} Hz): "
+                           f"nonlinear response, distorted excitation, or noise at low signal")
+    if not any(ch.n_above for _, ch in present):
+        logger.info(f"All points with a THD value below {limit:.2g} % (|Z| error from "
+                    f"nonlinearity below ~{limit * THD_TO_Z_ERROR:.2g} %)")
+
+    fig = plot_thd(data.frequencies, data.current_thd, data.voltage_thd, result.threshold)
+    save_figure(fig, args.save, 'thd', args.format)
     return result
 
 

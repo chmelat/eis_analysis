@@ -49,6 +49,7 @@ from eis_analysis.cli import (
     run_zhit_validation,
     apply_zhit_reconstruction,
     report_outliers,
+    report_thd,
     plot_validation,
     run_rinf_estimation,
     run_drt_analysis,
@@ -88,6 +89,7 @@ def _run_analysis(args) -> None:
     # analysis stages below (R_inf, DRT, circuit fit).
     kk_result = run_kk_validation(data.frequencies, data.Z, args)
     zhit_result = run_zhit_validation(data.frequencies, data.Z, args)
+    report_thd(data, args)
 
     report = report_outliers(data.frequencies, kk_result, zhit_result, args)
     plot_validation(data.frequencies, data.Z, kk_result, zhit_result, report, args)

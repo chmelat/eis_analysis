@@ -48,12 +48,34 @@ class LoadResult:
         DTA header metadata; None for formats that carry none (CSV)
     warnings : list of str
         Caveats about the data, in the order they were found
+    current_thd, voltage_thd : ndarray of float or None
+        Total harmonic distortion of the current and voltage per point, from
+        the Gamry ``Ithd``/``Vthd`` columns (written when the THD option is
+        on), aligned with `frequencies`; NaN where a cell is empty. None when
+        the file has no such column. A fraction, not percent: it equals
+        sqrt(sum_{n=2..10} |H_n|^2) / |H_1| of the harmonic columns exactly
+        (checked on example/EISPOT-test1.DTA), although the header gives
+        only '#' as the unit.
     """
     frequencies: NDArray[np.float64]
     Z: NDArray[np.complex128]
     filename: str
     metadata: Optional[Dict[str, Any]] = None
     warnings: List[str] = field(default_factory=list)
+    current_thd: Optional[NDArray[np.float64]] = None
+    voltage_thd: Optional[NDArray[np.float64]] = None
+
+    def keep_points(self, mask: NDArray[np.bool_]) -> None:
+        """Keep only the points where `mask` is True, in every per-point field.
+
+        The one place that knows which fields are per point, so a column
+        added later cannot be left misaligned with `frequencies`.
+        """
+        self.frequencies, self.Z = self.frequencies[mask], self.Z[mask]
+        if self.current_thd is not None:
+            self.current_thd = self.current_thd[mask]
+        if self.voltage_thd is not None:
+            self.voltage_thd = self.voltage_thd[mask]
 
 
 def _read_dta_lines(filename: str) -> List[str]:
@@ -122,6 +144,7 @@ def read_gamry_native(filename: str) -> LoadResult:
     frequencies: List[float] = []
     z_real: List[float] = []
     z_imag: List[float] = []
+    thd: Dict[str, List[float]] = {'Ithd': [], 'Vthd': []}
 
     # Read entire file (needed to detect EXPERIMENTABORTED)
     try:
@@ -163,7 +186,9 @@ def read_gamry_native(filename: str) -> LoadResult:
         col_freq, col_zreal, col_zimag = 3, 4, 5
 
     # A row must be long enough to hold the rightmost column we actually read.
+    # THD is optional per row: a short or empty cell gives NaN, not a lost point.
     min_columns = max(col_freq, col_zreal, col_zimag) + 1
+    col_thd = {name: header.index(name) for name in thd if name in header}
 
     # Extract data lines (skip ZCURVE header + column names + units = 3 lines)
     if end_line is not None:
@@ -192,6 +217,8 @@ def read_gamry_native(filename: str) -> LoadResult:
                 frequencies.append(freq)
                 z_real.append(zr)
                 z_imag.append(zi)
+                for name, col in col_thd.items():
+                    thd[name].append(_float_or_nan(parts, col))
         except (ValueError, IndexError):
             # Skip malformed lines
             continue
@@ -206,7 +233,19 @@ def read_gamry_native(filename: str) -> LoadResult:
 
     logger.debug(f"Parsed {len(freq_array)} data points from {filename}")
 
-    return LoadResult(freq_array, Z, filename, warnings=warnings)
+    current_thd, voltage_thd = (np.array(thd[name], dtype=np.float64) if name in col_thd else None
+                                for name in ('Ithd', 'Vthd'))
+    return LoadResult(freq_array, Z, filename, warnings=warnings,
+                      current_thd=current_thd, voltage_thd=voltage_thd)
+
+
+def _float_or_nan(parts: List[str], col: int) -> float:
+    """Cell `col` as a finite float, NaN if it is missing, empty or not finite."""
+    try:
+        value = float(parts[col])
+    except (ValueError, IndexError):
+        return math.nan
+    return value if math.isfinite(value) else math.nan
 
 
 def parse_ocv_curve(filename: str) -> Optional[Dict[str, NDArray]]:
@@ -456,9 +495,11 @@ def expected_points(metadata: Dict[str, Any]) -> Optional[int]:
 
 
 def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.complex128],
-                           warnings: List[str]) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+                           warnings: List[str]) -> NDArray[np.bool_]:
     """
-    Drop the high-frequency run of points with Re(Z) < 0, noting it in `warnings`.
+    Mask of the points to keep: all but the high-frequency run with Re(Z) < 0,
+    which is noted in `warnings`. A mask rather than the trimmed arrays, so
+    `LoadResult.keep_points` trims every per-point column the same way.
 
     No passive system has Re(Z) < 0. At the top of a sweep it is a lead
     artifact (cable inductance resonating with stray capacitance) that breaks
@@ -498,7 +539,7 @@ def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.compl
                         f"({f_neg.min():.2e} - {f_neg.max():.2e} Hz), kept: a negative "
                         f"resistance or a measurement problem")
 
-    return frequencies[mask], Z[mask]
+    return mask
 
 
 def _check_spectrum(frequencies: NDArray[np.float64], warnings: List[str]) -> None:
@@ -572,8 +613,8 @@ def load_data(filename: str) -> LoadResult:
         raise ValueError("Data contains NaN or Inf values")
 
     n_measured = len(frequencies)
-    frequencies, Z = _drop_negative_real_hf(frequencies, Z, result.warnings)
-    result.frequencies, result.Z = frequencies, Z
+    result.keep_points(_drop_negative_real_hf(frequencies, Z, result.warnings))
+    frequencies = result.frequencies
     _check_spectrum(frequencies, result.warnings)
 
     # Edge case: sweep stopped before reaching the requested final frequency.
@@ -835,7 +876,7 @@ def load_csv_data(
 
     freq_array = np.array(frequencies, dtype=np.float64)
     Z = np.array(z_real, dtype=np.float64) + 1j * np.array(z_imag, dtype=np.float64)
-    freq_array, Z = _drop_negative_real_hf(freq_array, Z, warnings)
-    _check_spectrum(freq_array, warnings)
-
-    return LoadResult(freq_array, Z, filename, warnings=warnings)
+    result = LoadResult(freq_array, Z, filename, warnings=warnings)
+    result.keep_points(_drop_negative_real_hf(freq_array, Z, warnings))
+    _check_spectrum(result.frequencies, warnings)
+    return result

@@ -17,6 +17,12 @@ from .zhit import (
     zhit_reconstruct_magnitude,
     ZHITResult,
 )
+from .thd import (
+    thd_check,
+    THDChannel,
+    THDResult,
+    THD_THRESHOLD,
+)
 from .outliers import (
     find_outliers,
     OutlierPoint,
@@ -35,6 +41,10 @@ __all__ = [
     'zhit_validation',
     'zhit_reconstruct_magnitude',
     'ZHITResult',
+    'thd_check',
+    'THDChannel',
+    'THDResult',
+    'THD_THRESHOLD',
     'find_outliers',
     'OutlierPoint',
     'OutlierReport',

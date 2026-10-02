@@ -549,6 +549,37 @@ def test_smoke_load_example_csv():
 
 
 # ---------------------------------------------------------------------------
+# THD columns (Gamry THD option)
+# ---------------------------------------------------------------------------
+
+def test_thd_read_from_real_file():
+    """EISPOT-test1.DTA was recorded with THD on; values aligned with the points."""
+    result = load_data(REAL_DTA)
+    assert len(result.current_thd) == len(result.voltage_thd) == len(result.frequencies)
+    assert result.current_thd[0] == 0.0004036 and result.voltage_thd[0] == 0.0004845
+
+
+def test_thd_none_without_columns(tmp_path):
+    result = load_data(_write(tmp_path, "plain.DTA", _make_dta(_rows(12))))
+    assert result.current_thd is None and result.voltage_thd is None
+
+
+def test_thd_follows_dropped_points(tmp_path):
+    """THD is trimmed with the HF Re(Z) < 0 run; an empty cell is NaN, the point kept."""
+    rows = _with_negative_real(_rows(12), {0})
+    lines = ["TAG\tEISPOT", "ZCURVE\tTABLE",
+             "\tPt\tTime\tFreq\tZreal\tZimag\tIthd\tVthd", "\t#\ts\tHz\tohm\tohm\t#\t#"]
+    for i, (fr, zr, zi) in enumerate(rows):
+        vthd = "" if i == 5 else _fmt(i / 1e4, ",")
+        lines.append(f"\t{i}\t{i}\t{_fmt(fr, ',')}\t{_fmt(zr, ',')}\t{_fmt(zi, ',')}"
+                     f"\t{_fmt(i / 1e3, ',')}\t{vthd}")
+    result = load_data(_write(tmp_path, "thd.DTA", "\n".join(lines) + "\n"))
+    assert len(result.frequencies) == 11
+    np.testing.assert_allclose(result.current_thd, np.arange(1, 12) / 1e3)
+    assert np.isnan(result.voltage_thd[4]) and result.voltage_thd[0] == 1e-4
+
+
+# ---------------------------------------------------------------------------
 # Re(Z) < 0 at the high-frequency end (_drop_negative_real_hf)
 # ---------------------------------------------------------------------------
 

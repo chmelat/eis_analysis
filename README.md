@@ -265,6 +265,39 @@ corrected, so the run warns about it. Details in
 
 **Detailed documentation:** [doc/ZHIT_IMPLEMENTATION_SPEC.md](doc/ZHIT_IMPLEMENTATION_SPEC.md)
 
+### Harmonic distortion (Gamry THD option)
+
+When a Gamry file was recorded with the THD option on, its `ZCURVE` carries
+the total harmonic distortion of current and voltage per point, and the run
+prints a "THD" section right after Z-HIT and draws THD [%] against frequency
+for both channels with the threshold line (saved as `<prefix>_thd` under
+`--save`). Nothing to switch on; files without the columns print and draw
+nothing.
+
+```
+THD (Gamry harmonic analysis)
+  Current: median 0.16 %, max 2.17 % at 7.94e-03 Hz
+  Voltage: median 0.04 %, max 0.11 % at 1.99e+01 Hz
+! Current THD above 1 % at 3/72 points (3.16e-03 - 7.94e-03 Hz): ...
+```
+
+THD is the only direct instrument diagnostic of linearity; KK and Z-HIT see a
+nonlinear response only indirectly. In potentiostatic EIS the current THD is
+the sample's response, the voltage THD the purity of the excitation. The 1 %
+threshold bounds the |Z| error from nonlinearity: for a cubic nonlinearity
+the fundamental is off by 3x the 3rd-harmonic ratio, so ~3 % at most, below
+the 5 % residual threshold of the validations. A point above it in the
+response channel is a nonlinear response (excitation amplitude too large) or
+noise where the signal is small - typically the lowest frequencies at nA
+currents; in the excitation channel it is distorted excitation. The report
+does not try to tell which, nor which channel is the response (that depends
+on the control mode). Points without a THD value are left out of the counts
+and reported as missing. Gamry stores THD as a fraction although its header
+gives no unit; the report shows percent.
+
+Leaving the THD option on permanently costs nothing measurable (same
+time per point with it on and off on a Reference 620).
+
 ### DRT analysis
 
 Distribution of Relaxation Times - model-free method for impedance data analysis. The regularization parameter is selected automatically by a hybrid search: GCV (Generalized Cross-Validation) gives one estimate, the corner of an L-curve searched over +-1.5 decades around it gives another, and the larger of the two is used - under the non-negativity constraint of the DRT both tend to pick too small a lambda. A corner more than a decade below GCV is reported as a warning.
@@ -689,7 +722,7 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`) and `results_ocv` (`--ocv`), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ...
+- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ...
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

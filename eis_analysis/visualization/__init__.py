@@ -4,7 +4,7 @@ Visualization module for EIS analysis.
 
 from .plots import (
     visualize_data, plot_circuit_fit, visualize_ocv, plot_rinf_fit,
-    plot_kk_validation, plot_zhit_validation,
+    plot_kk_validation, plot_zhit_validation, plot_thd,
 )
 from .drt import plot_drt
 
@@ -15,5 +15,6 @@ __all__ = [
     'plot_rinf_fit',
     'plot_kk_validation',
     'plot_zhit_validation',
+    'plot_thd',
     'plot_drt',
 ]

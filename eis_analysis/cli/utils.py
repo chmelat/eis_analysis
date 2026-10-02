@@ -53,6 +53,8 @@ class LoadedData:
     Z_zhit : ndarray or None
         Z-HIT reconstruction aligned element-wise with `Z`, attached by
         `apply_zhit_reconstruction` under `--fit-on zhit`. None otherwise.
+    current_thd, voltage_thd : ndarray or None
+        Per-point THD (fraction) aligned with `Z`, see `LoadResult`.
     """
     frequencies: NDArray[np.float64]
     Z: NDArray[np.complex128]
@@ -60,6 +62,8 @@ class LoadedData:
     metadata: Optional[dict]
     ocv_data: Optional[dict] = None
     Z_zhit: Optional[NDArray[np.complex128]] = None
+    current_thd: Optional[NDArray[np.float64]] = None
+    voltage_thd: Optional[NDArray[np.float64]] = None
 
     @property
     def Z_for_fit(self) -> NDArray[np.complex128]:
