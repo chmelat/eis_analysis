@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.51.0 (2026-10-02)
+
+### Added
+
+- **`--save` writes the fit result as JSON and CSV.** Next to
+  `<prefix>_fit.png` a circuit fit now writes `<prefix>_fit.json` and
+  `<prefix>_fit.csv` (`_fit_1`, `_fit_2`, ... per candidate in a
+  comparison run). The JSON holds the fitted circuit expression, each parameter
+  with stderr, 95% CI, significance and bound status, the fit metrics with
+  AIC/BIC, the covariance matrix, the warnings and the run context (input,
+  optimizer, `--fit-on`, frequency limits); uncertainties without meaning
+  and every inf/NaN are `null`, so the file is strict JSON. The CSV holds
+  the fitted data and the model curve and loads back as input. Until now
+  the numbers of a fit existed only in the console, so a batch over a
+  series of spectra gave no parameter table. Library functions:
+  `eis_analysis.io.fit_result_record` (the record as a dict) and
+  `eis_analysis.io.save_fit_result` (writes both files).
+
+### Fixed
+
+- **`repr` of a circuit parses back for every element.** W, Wo, K, GE, CC,
+  DQ and YG printed named arguments (`K(R=100, τ=0.001)`) that
+  `parse_circuit_expression` rejects, so the printed Voigt chain or any
+  circuit holding these elements could not be pasted back as `--circuit`.
+  All elements now share one positional `repr` (`K(100, 0.001)`, fixed
+  values quoted), which also replaces eleven copies of the same method.
+  Fixed values are printed exactly instead of to 4 digits: pasted back,
+  `R("1234.56")` printed as `R("1235")` fixed a different value.
+
+---
+
 ## Version 0.50.1 (2026-10-01)
 
 ### Fixed
