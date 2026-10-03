@@ -5,12 +5,14 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.52.0'
-__version_info__ = (0, 52, 0)
-__release_date__ = '2026-10-02'
+__version__ = '0.53.0'
+__version_info__ = (0, 53, 0)
+__release_date__ = '2026-10-03'
 
 # Breaking changes in this version
-__breaking_changes__: list[str] = []
+__breaking_changes__: list[str] = [
+    "Wo is now the finite-space Warburg (coth); the former tanh Wo is Ws",
+]
 
 # Human-readable version string
 def get_version_string():

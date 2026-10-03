@@ -4,6 +4,43 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.53.0 (2026-10-03)
+
+### Changed (breaking)
+
+- **`Wo` is now the finite-space Warburg (coth); the old tanh form is `Ws`.**
+  `Wo` computed `R_W*tanh(u)/u` under the docstring "Warburg open" - but
+  that is the finite-length ("short") Warburg, diffusion to a boundary at
+  constant concentration, which returns to the real axis at R_W. "Open" in
+  ZView and impedance.py is the coth form: diffusion against a zero-flux
+  boundary, capacitive at low frequency (Z -> R_W/3 + R_W/(jw*tau)). The
+  tanh form is now `Ws`, and `Wo` computes `R_W*coth(u)/u` with an analytic
+  Jacobian. A circuit written for an older version with `Wo` - including
+  one saved in a `*_fit.json` - must be changed to `Ws` to fit the same
+  model; same parameters, same bounds.
+
+### Changed
+
+- **DE uses `rand1bin` by default (`--de-strategy 3`).** `randtobest1bin`
+  pulls the population toward the current best member; when an early leader
+  sits in a degenerate basin (an arc collapsed to R -> 0, a Wo whose tau runs
+  past the window and acts as W), DE stopped after ~45 generations and the
+  refinement could not leave it. On 140 benchmark fits (the four ZScope
+  circuits plus three diffusion circuits, noise-free and 1 %, 10 seeds) it
+  ended in a wrong minimum 7 times - the ZScope two-time-constant circuit 4
+  times in 20, at 5-11 % error - rand1bin never, for about twice the DE
+  time. `--de-strategy 1` keeps the old behaviour.
+
+### Added
+
+- **Synthetic diffusion spectra in `example/`.** `diffusion_{W,Ws,Wo}.csv`
+  (Rs plus a semi-infinite, finite-length or finite-space Warburg) and
+  `diffusion_Rp{W,Ws,Wo}.csv` (the same behind a parallel Rp), 1 mHz -
+  100 kHz at 16 points/decade, each noise-free and with 1 % noise. The
+  header of each file states the model and its parameters.
+
+---
+
 ## Version 0.52.0 (2026-10-02)
 
 ### Added
