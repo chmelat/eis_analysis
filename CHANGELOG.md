@@ -4,6 +4,26 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.54.1 (2026-10-03)
+
+### Fixed
+
+- **Warburg and Gerischer scale bounds span what R spans.** R_W (Ws, Wo)
+  and sigma_GE now share R's 1e-4 - 1e10 Ohm (was 1e-2 - 1e8), sigma (W)
+  1e-6 - 1e10 Ohm*s^-1/2 (was 1e-2 - 1e5): it reaches its impedance only at
+  low frequency (|Z_W| ~ 18 sigma at 1 mHz), so its lower end sits two
+  decades below R's, or a converged battery sigma of 9e-4 would be flagged
+  "near lower bound". A Zr-oxide
+  spectrum (`EISPOT-M136113-4`, |Z| up to 3e7 Ohm) fitted R-(Q|(R-W)) at
+  23.5 % with sigma pinned on 1e5, and at 11.3 % with sigma = 2.4e6 once
+  free; its converged Ws/Wo fits (R_W 3-7e7) were flagged "near upper
+  bound". A mOhm battery spectrum failed at the low end: sigma = 1e-3 pinned
+  on 1e-2 gave 92 % error, a 3 mOhm Ws fitted tau = 343 s instead of 20 s.
+  The wider search costs DE nothing measurable (36 benchmark fits: 0
+  failures either way, 346 vs 360 generations, same time).
+
+---
+
 ## Version 0.54.0 (2026-10-03)
 
 ### Added
