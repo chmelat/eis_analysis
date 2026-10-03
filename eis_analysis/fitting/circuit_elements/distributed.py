@@ -1,6 +1,7 @@
 """
 Distributed circuit elements: constant phase element (Q), Warburg
-diffusion (semi-infinite W, finite/open Wo), Cole-Cole relaxation (CC)
+diffusion (semi-infinite W, finite-length Ws, finite-space Wo), Cole-Cole
+relaxation (CC)
 and the bounded power-law distribution (DQ).
 """
 from __future__ import annotations
@@ -88,27 +89,35 @@ class W(CircuitElement):
         return ['σ']
 
 
-class Wo(CircuitElement):
+class Ws(CircuitElement):
     """
-    Warburg open (bounded) diffusion element.
+    Finite-length Warburg ("short" terminus): diffusion through a layer of
+    finite thickness to a boundary held at constant concentration
+    (transmissive boundary).
 
-    Z_Wo = R_W * tanh(√(jωτ_W)) / √(jωτ_W)
+    Z_Ws = R_W * tanh(u) / u,  u = sqrt(jωτ_W)
+
+    Semi-infinite Warburg at high frequency; returns to the real axis at low
+    frequency, Z -> R_W (a diffusion resistance in series).
 
     Parameters
     ----------
     R_W : float or str, optional
-        Warburg resistance [Ω] (default: 100.0)
+        Diffusion resistance [Ω], the DC limit (default: 100.0)
         If passed as string, the parameter is fixed during fitting.
     tau_W : float or str, optional
-        Diffusion time constant [s] (default: 1.0)
+        Diffusion time constant L^2/D [s] (default: 1.0)
         If passed as string, the parameter is fixed during fitting.
+
+    Notes
+    -----
+    Same as `Ws` in ZView and impedance.py. At high frequency it equals
+    W(sigma) with sigma = R_W / sqrt(2*tau_W).
 
     Examples
     --------
-    >>> wo = Wo(100, 1.0)      # Both parameters free
-    >>> wo = Wo()              # default values (both free)
-    >>> wo = Wo("100", 1.0)    # R_W fixed, tau_W free
-    >>> wo = Wo("100", "1.0")  # Both parameters fixed
+    >>> ws = Ws(100, 1.0)      # Both parameters free
+    >>> ws = Ws("100", 1.0)    # R_W fixed, tau_W free
     """
 
     R_W = param_property(0)
@@ -126,6 +135,33 @@ class Wo(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['R_W', 'τ_W']
+
+
+class Wo(Ws):
+    """
+    Finite-space Warburg ("open" terminus): diffusion into a layer of finite
+    thickness closed by a boundary with zero flux (reflective boundary), as
+    in a thin-film or intercalation electrode.
+
+    Z_Wo = R_W * coth(u) / u,  u = sqrt(jωτ_W)
+
+    Semi-infinite Warburg at high frequency; capacitive at low frequency,
+    Z -> R_W/3 + R_W/(jωτ_W): a vertical line in the Nyquist plot at
+    Re = R_W/3, with the limiting capacitance tau_W/R_W.
+
+    Same parameters as `Ws`, of which it is a subclass only to share them:
+    test for `Wo` before `Ws` in an isinstance chain. Same as `Wo` in ZView
+    and impedance.py.
+    """
+
+    def impedance(self, freq: NDArray[np.float64],
+                  params: List[float]) -> NDArray[np.complex128]:
+        R_W_val, tau_W_val = params[0], params[1]
+        omega = 2 * np.pi * freq
+        arg = np.sqrt(1j * omega * tau_W_val)
+        # coth(u)/u as 1/(u*tanh(u)): numpy has no coth, and tanh saturates
+        # to 1 at large |u| instead of overflowing
+        return R_W_val / (arg * np.tanh(arg))
 
 
 class CC(CircuitElement):

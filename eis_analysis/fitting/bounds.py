@@ -145,7 +145,7 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - n (Q/CPE exponent): 0.3 - 1.0
     - sigma (Warburg): 0.01 - 100000 Ohm*s^(-1/2)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
-    - R_W, tau_W (Warburg bounded): similar to R, tau
+    - R_W, tau_W (finite Warburg Ws, Wo): similar to R, tau
     - sigma_GE, tau_GE (Gerischer): similar to sigma, tau
     - C_inf, dC (Cole-Cole capacitances): similar to C
     - tau_CC (Cole-Cole relaxation time): similar to tau

@@ -13,7 +13,7 @@ read-only views of params, so they cannot fall out of step.
 
 import numpy as np
 import pytest
-from eis_analysis.fitting import R, C, L, Q, W, Wo, K, GE, CC
+from eis_analysis.fitting import R, C, L, Q, W, Ws, Wo, K, GE, CC
 
 
 # factory, attribute names in parameter order, fitted values to push in.
@@ -25,6 +25,7 @@ ELEMENTS = {
     "L": (lambda: L(1e-6), ["L"], [7.5e-6]),
     "Q": (lambda: Q(1e-4, 0.8), ["Q", "n"], [3e-4, 0.65]),
     "W": (lambda: W(50), ["sigma"], [125.0]),
+    "Ws": (lambda: Ws(100, 1.0), ["R_W", "tau_W"], [250.0, 2.5]),
     "Wo": (lambda: Wo(100, 1.0), ["R_W", "tau_W"], [250.0, 2.5]),
     "K": (lambda: K(1000, 1e-4), ["R", "tau"], [2000.0, 5e-4]),
     "GE": (lambda: GE(100, 1e-3), ["sigma", "tau"], [200.0, 5e-3]),

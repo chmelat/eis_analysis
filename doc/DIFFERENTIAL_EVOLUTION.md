@@ -314,7 +314,8 @@ Analytický Jacobián je použit pouze pro least_squares refinement (krok 2), ne
 - G (vodivost, Y = G)
 - Q (Constant Phase Element)
 - W (Warburg)
-- Wo (Warburg open/bounded)
+- Ws (Warburg finite-length, tanh)
+- Wo (Warburg finite-space, coth)
 - K (Voigt element)
 - GE (Gerischer element)
 

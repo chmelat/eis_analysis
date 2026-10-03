@@ -16,7 +16,7 @@ eis_analysis/fitting/
   circuit_elements/      # Element definitions (package)
     base.py              #   CircuitElement, operators, fixed parameters
     basic.py             #   R, C, L
-    distributed.py       #   Q, W, Wo, CC
+    distributed.py       #   Q, W, Ws, Wo, CC
     composite.py         #   K, G
   circuit_builder.py     # Combinators (Series, Parallel)
   circuit.py             # Fitting functions
@@ -45,7 +45,7 @@ Circuit strings are parsed by `parse_circuit_expression()` in
 def parse_circuit_expression(expr: str):
     safe_namespace = {
         'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
-        'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
+        'Ws': Ws, 'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -242,19 +242,40 @@ Z_W = sigma / sqrt(omega) * (1 - j)
 W(50)       # sigma = 50
 ```
 
-### Wo - Warburg Open (bounded)
+### Ws - Warburg finite-length (short)
+
+Diffusion through a layer to a boundary held at constant concentration
+(transmissive). Semi-infinite Warburg at high frequency, back on the real axis
+at low frequency: Z -> R_W.
 
 ```python
-Z_Wo = R_W * tanh(sqrt(j*omega*tau)) / sqrt(j*omega*tau)
+u = sqrt(j*omega*tau_W)
+Z_Ws = R_W * tanh(u) / u
 ```
 
-| Parameter | Unit | Default | Description              |
-|-----------|------|---------|--------------------------|
-| R_W       | Ohm  | 100     | Warburg resistance       |
-| tau_W     | s    | 1.0     | Diffusion time constant  |
+### Wo - Warburg finite-space (open)
+
+Diffusion into a layer closed by a zero-flux boundary (reflective: thin film,
+intercalation electrode). Semi-infinite Warburg at high frequency, capacitive
+at low frequency: Z -> R_W/3 + R_W/(j*omega*tau_W), a vertical Nyquist line
+at Re = R_W/3.
 
 ```python
-Wo(100, 1.0)    # R_W=100, tau=1s
+Z_Wo = R_W * coth(u) / u
+```
+
+Both take the same parameters; at high frequency both equal
+`W(R_W / sqrt(2*tau_W))`. The names follow ZView and impedance.py. Up to
+and including v0.52.0 the tanh form was called `Wo`.
+
+| Parameter | Unit | Default | Description                     |
+|-----------|------|---------|---------------------------------|
+| R_W       | Ohm  | 100     | Diffusion resistance            |
+| tau_W     | s    | 1.0     | Diffusion time constant L^2/D   |
+
+```python
+Ws(100, 1.0)    # R_W=100, tau=1s, constant concentration
+Wo(100, 1.0)    # R_W=100, tau=1s, zero flux
 ```
 
 ### K - Voigt element (R||C with tau parametrization)
@@ -634,7 +655,7 @@ circuit.update_params(fitted_params)
 
 **Note:** the labels are the symbols the fit output prints, not the argument
 names used in this document's parameter tables. They are Greek where the
-symbol is: `W` -> `σ`, `Wo` -> `R_W`, `τ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
+symbol is: `W` -> `σ`, `Ws`/`Wo` -> `R_W`, `τ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
 `G` -> `σ_G`, `τ_G`, `CC` -> `C_inf`, `ΔC`, `τ_CC`, `α_CC`. `bounds.py` keys
 its default bounds on these labels.
 

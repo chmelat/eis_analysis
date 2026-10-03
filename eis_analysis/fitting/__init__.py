@@ -19,7 +19,8 @@ Circuit Elements:
 - Q: Constant Phase Element (CPE)
 - L: Inductor
 - W: Warburg semi-infinite diffusion
-- Wo: Warburg bounded diffusion
+- Ws: Warburg finite-length diffusion (tanh, constant concentration)
+- Wo: Warburg finite-space diffusion (coth, zero flux)
 - K: Voigt element with tau parametrization (R, tau)
 - G: Conductance, Y = G (parallel R reparametrized so G = 0 is reachable)
 - GE: Gerischer element for reaction-diffusion (sigma, tau)
@@ -67,7 +68,7 @@ The new approach is:
 """
 
 # Import circuit elements
-from .circuit_elements import R, C, Q, L, G, W, Wo, K, GE, CC, DQ, YG, CircuitElement
+from .circuit_elements import R, C, Q, L, G, W, Ws, Wo, K, GE, CC, DQ, YG, CircuitElement
 
 # Import circuit builders
 from .circuit_builder import Series, Parallel, Circuit
@@ -122,6 +123,7 @@ __all__ = [
     'Q',
     'L',
     'W',
+    'Ws',
     'Wo',
     'K',
     'G',

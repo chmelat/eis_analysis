@@ -223,7 +223,8 @@ Implementace podporuje **analytické derivace** (modul `jacobian.py`) s fallback
 - R, C, L (základní elementy)
 - Q (Constant Phase Element) - derivace podle Q a n
 - W (Warburg)
-- Wo (Warburg open/bounded)
+- Ws (Warburg finite-length, tanh)
+- Wo (Warburg finite-space, coth)
 - K (Voigt element) - derivace podle R a τ
 
 **Aktivace:**

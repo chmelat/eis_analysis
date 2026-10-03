@@ -190,21 +190,25 @@ Dokument uvádí i CPE aproximaci fáze Young-Göhra:
 
 což je použitelné jako sanity check při implementaci.
 
-## 3. Chybějící difuzní element: blokující terminace (coth)
+## 3. Chybějící difuzní element: blokující terminace (coth) - DOPLNĚNO
 
-Zahner rozlišuje čtyři difuzní případy, projekt má tři:
+**Stav:** doplněno po v0.52.0 - nový `Wo` počítá coth, dřívější tanh `Wo`
+se jmenuje `Ws` (názvy jako ZView a impedance.py). Tabulka níže je
+aktualizovaná.
+
+Zahner rozlišuje čtyři difuzní případy, projekt měl tři:
 
 | Zahner | vzorec | v projektu |
 |--------|--------|------------|
 | Warburg | W/sqrt(jω) | `W` |
-| Nernst (konečná délka, konstantní koncentrace) | W/sqrt(jω) * tanh sqrt(jω/k) | `Wo` (identické, τ = 1/k) |
-| **Finite diffusion (blokující)** | W/sqrt(jω) * **coth** sqrt(jω/k) | **chybí** |
+| Nernst (konečná délka, konstantní koncentrace) | W/sqrt(jω) * tanh sqrt(jω/k) | `Ws` (identické, τ = 1/k; do v0.52.0 včetně se jmenoval `Wo`) |
+| Finite diffusion (blokující) | W/sqrt(jω) * coth sqrt(jω/k) | `Wo` (identické, τ = 1/k) |
 | Spherical diffusion | W/sqrt(jω + k) | `GE` |
 | Homogeneous reaction (Gerischer) | W*/sqrt(k + jω) | `GE` |
 
 Blokující varianta se pro ω→0 chová jako **kondenzátor** (ne rezistor jako Nernst) -
 standardní model interkalační elektrody a blokujícího rozhraní obecně.
-Implementačně ~30 řádků zrcadlících `Wo`, včetně analytické derivace.
+Implementováno jako `Wo` vedle `Ws`, včetně analytické derivace.
 
 **Zjištění zdarma:** spherical diffusion a Gerischer jsou **matematicky týž element**:
 
@@ -215,10 +219,10 @@ Z_R = W/sqrt(jω + k) = (W/sqrt(k)) / sqrt(1 + jω/k)      s τ = 1/k
 `GE` tedy už umí i mikroelektrody, mikroelektrodová pole a bodovou korozi -
 jen to nikde nestojí. Řádek do docstringu.
 
-Ověření ekvivalence `Wo` = Zahnerův Nernst:
+Ověření ekvivalence `Ws` = Zahnerův Nernst:
 
 ```
-Wo  = R_W * tanh(sqrt(jωτ)) / sqrt(jωτ)
+Ws  = R_W * tanh(sqrt(jωτ)) / sqrt(jωτ)
 Z_N = W/sqrt(jω) * tanh(sqrt(jω/k_N))
 ```
 

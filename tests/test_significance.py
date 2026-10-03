@@ -14,7 +14,7 @@ Two things are worth pinning down, and they are not the same thing:
 import numpy as np
 import pytest
 
-from eis_analysis.fitting import R, C, K, Q, W, Wo
+from eis_analysis.fitting import R, C, K, Q, W, Ws, Wo
 from eis_analysis.fitting.config import SIGNIFICANCE_NEGLIGIBLE
 from eis_analysis.fitting.diagnostics import compute_significance
 
@@ -152,6 +152,7 @@ def test_zero_prefactor_scores_zero(freq):
         (R(10) - (R(1000) | C(1e-6)) - R(0.0), 1),        # dZ/dR is a constant
         (R(10) - K(0.0, 1e-3) - K(500, 1e-2), 2),         # both K columns divide by R
         (R(10) - (R(1000) | C(1e-6)) - W(0.0), 1),
+        (R(10) - (R(1000) | C(1e-6)) - Ws(0.0, 1.0), 2),
         (R(10) - (R(1000) | C(1e-6)) - Wo(0.0, 1.0), 2),
     ]:
         S = compute_significance(circuit, freq, circuit.get_all_params())

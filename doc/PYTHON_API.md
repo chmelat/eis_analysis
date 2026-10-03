@@ -52,7 +52,7 @@ from eis_analysis import (
     # Oxide analysis
     analyze_oxide_layer,
     # Circuit elements for manual building
-    R, C, Q, L, W, Wo, K, CC, DQ, YG,
+    R, C, Q, L, W, Ws, Wo, K, CC, DQ, YG,
 )
 
 # 1. Load data
@@ -447,7 +447,7 @@ result = calculate_drt(
 ```python
 from eis_analysis.fitting import (
     # Circuit elements
-    R, C, Q, L, W, Wo, K, CC, DQ, YG,
+    R, C, Q, L, W, Ws, Wo, K, CC, DQ, YG,
     # Main functions
     fit_equivalent_circuit,
     fit_circuit_multistart,
@@ -736,7 +736,7 @@ circuit, params = chain.circuit, chain.initial_params
 
 All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, default), which is faster and more accurate than numerical approximation.
 
-Every built-in element supplies one: R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG.
+Every built-in element supplies one: R, C, L, G, Q, W, Ws, Wo, K, GE, CC, DQ, YG.
 
 A custom element that does not is **not** silently downgraded - the fit raises:
 
@@ -782,7 +782,8 @@ result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 | L(value) | L [H] | Z = j*omega*L |
 | Q(Q, n) | Q, n | Z = 1/(Q*(j*omega)^n) |
 | W(sigma) | sigma [Ohm*s^(-1/2)] | Z = sigma*(1-j)/sqrt(omega) |
-| Wo(R, tau) | R [Ohm], tau [s] | Warburg bounded |
+| Ws(R, tau) | R [Ohm], tau [s] | Z = R*tanh(u)/u, u = sqrt(j*omega*tau) (finite-length, constant concentration) |
+| Wo(R, tau) | R [Ohm], tau [s] | Z = R*coth(u)/u (finite-space, zero flux) |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
 | GE(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
 | CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |

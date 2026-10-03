@@ -340,11 +340,11 @@ def _branch_resistance(node, across: bool = True) -> float:
             R_dc = _parallel_combination(
                 [_branch_resistance(e) for e in node.elements])
         return R_dc if across or R_dc == np.inf else 0.0
-    # ponytail: every other element (W, Wo, L, ...) counts as a short. Exact
-    # for L; for a Warburg it keeps R_ct in the Randles branch R_ct - W, where
-    # the DC-exact infinity would hide the arc. Ceiling: an element that
-    # blocks DC or adds resistance and is not listed above is misread - add
-    # it above if that matters.
+    # ponytail: every other element counts as a short. Exact for L; W, Ws, Wo
+    # are the semi-infinite W at the arc's frequency, so R_ct - W keeps R_ct
+    # (their DC limits, inf or R_W, belong to the slower diffusion). Ceiling:
+    # an element that blocks DC or adds resistance at the arc's frequency and
+    # is not listed above is misread - add it above if that matters.
     return 0.0
 
 

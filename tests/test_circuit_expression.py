@@ -25,12 +25,13 @@ DOCUMENTED_ELEMENTS = [
     "L(1e-6)",
     "Q(1e-4, 0.8)",
     "W(50)",
+    "Ws(100, 1.0)",
     "Wo(100, 1.0)",
     "K(1000, 1e-4)",
     "GE(100, 1e-3)",
     "CC(1e-8, 1e-7, 1e-3, 0.2)",
 ]
-NAMES = ["R", "C", "L", "Q", "W", "Wo", "K", "GE", "CC"]
+NAMES = ["R", "C", "L", "Q", "W", "Ws", "Wo", "K", "GE", "CC"]
 
 
 def test_all_documented_elements_parse():

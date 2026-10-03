@@ -26,7 +26,8 @@ C:   Z = 1/(jwC)     -> dZ/dC = -Z/C
 L:   Z = jwL         -> dZ/dL = jw
 Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
 W:   Z = s(1-j)/sqrt(w) -> dZ/ds = (1-j)/sqrt(w)
-Wo:  Z = Rw*tanh(u)/u   -> dZ/dRw = tanh(u)/u, dZ/dtau = complex formula
+Ws:  Z = Rw*tanh(u)/u   -> dZ/dRw = tanh(u)/u, dZ/dtau = complex formula
+Wo:  Z = Rw/(u*tanh(u)) -> dZ/dRw = 1/(u*tanh(u)), dZ/dtau = complex formula
 K:   Z = R/(1+jwt)   -> dZ/dR = 1/(1+jwt), dZ/dtau = -jw*R/(1+jwt)^2
 GE:  Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
 CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
@@ -58,7 +59,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, G, Q, W, Wo, K, GE, CC, DQ, YG, CircuitElement
+from .circuit_elements import R, C, L, G, Q, W, Ws, Wo, K, GE, CC, DQ, YG, CircuitElement
 from .circuit_elements.distributed import dq_quadrature, _GL_W
 from .circuit_elements.composite import _yg_log_terms, YG_P_DEGENERATE
 from .circuit_builder import Series, Parallel, CompositeCircuit
@@ -75,7 +76,7 @@ def element_jacobian(
     Parameters
     ----------
     element : CircuitElement
-        Circuit element (R, C, L, G, Q, W, Wo, K, GE)
+        Circuit element (R, C, L, G, Q, W, Ws, Wo, K, GE, CC, DQ, YG)
     freq : ndarray of float
         Frequencies [Hz]
     params : list of float
@@ -150,8 +151,27 @@ def element_jacobian(
         dZ_dsigma = (1 - 1j) / np.sqrt(omega)
         return Z, dZ_dsigma.reshape(-1, 1)
 
-    # Warburg open: Z = Rw * tanh(u) / u, where u = sqrt(jw*tau)
+    # Warburg finite-space: Z = Rw * coth(u) / u = Rw / (u*tanh(u)).
+    # Before Ws: Wo subclasses it, so isinstance(element, Ws) is true for both.
     if isinstance(element, Wo):
+        Rw_val, tau_val = params[0], params[1]
+        u = np.sqrt(1j * omega * tau_val)
+        tanh_u = np.tanh(u)
+        g = 1 / (u * tanh_u)
+        Z = Rw_val * g
+
+        # dZ/dRw = g, written out for Rw = 0 like the other elements.
+        # d/du[1/(u*tanh(u))] = -(tanh(u) + u*sech^2(u)) / (u*tanh(u))^2
+        #                     = -g^2 * (tanh(u) + u*sech^2(u))
+        sech2_u = 1 - tanh_u**2
+        du_dtau = 1j * omega / (2 * u)
+        dZ_dtau = -Rw_val * g**2 * (tanh_u + u * sech2_u) * du_dtau
+
+        dZ = np.column_stack([g, dZ_dtau])
+        return Z, dZ
+
+    # Warburg finite-length: Z = Rw * tanh(u) / u, where u = sqrt(jw*tau)
+    if isinstance(element, Ws):
         Rw_val, tau_val = params[0], params[1]
         u = np.sqrt(1j * omega * tau_val)
         tanh_u = np.tanh(u)
@@ -282,7 +302,7 @@ def element_jacobian(
         fE = 1.0 / (1.0 + np.exp(-1.0 / p_val) / a)
 
         # Written out rather than as -Z/C: C = 0 is 0/0 there, the same trap
-        # W, Wo and K avoid.
+        # W, Ws, Wo and K avoid.
         dZ_dC = -p_val * L_log / (1j * omega * C_val ** 2)
         # dL/dp = -a*E/(p^2*(1 + a*E)), and Z contributes its own factor of p
         dZ_dp = L_log / (1j * omega * C_val) - fE / (1j * omega * C_val * p_val)

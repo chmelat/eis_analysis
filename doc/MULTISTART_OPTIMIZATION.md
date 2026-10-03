@@ -407,7 +407,8 @@ Vážení ovlivňuje jak fit, tak kovarianci (a tedy perturbace).
 - R, C, L (základní elementy)
 - Q (Constant Phase Element)
 - W (Warburg)
-- Wo (Warburg open/bounded)
+- Ws (Warburg finite-length, tanh)
+- Wo (Warburg finite-space, coth)
 - K (Voigt element)
 
 Pro nepodporované elementy systém automaticky přepne na numerický Jacobián.
