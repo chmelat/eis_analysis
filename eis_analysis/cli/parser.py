@@ -15,6 +15,7 @@ import argparse
 import math
 from ..version import get_version_string
 from ..drt.core import DRT_WEIGHTINGS
+from ..fitting.diffevo import DEFAULT_DE_STRATEGY
 
 
 
@@ -239,8 +240,9 @@ Examples:
                            help='Perturbation scaling in sigma units (default: 2.0)')
 
     # Differential Evolution options
-    fit_group.add_argument('--de-strategy', type=int, default=1, choices=[1, 2, 3],
-                           help='DE strategy: 1=randtobest1bin (default), 2=best1bin, 3=rand1bin')
+    fit_group.add_argument('--de-strategy', type=int, default=DEFAULT_DE_STRATEGY, choices=[1, 2, 3],
+                           help='DE strategy: 1=randtobest1bin, 2=best1bin, 3=rand1bin (default; '
+                                'the two others converge faster but get trapped in local minima)')
     fit_group.add_argument('--de-popsize', type=int, default=15,
                            help='DE population size multiplier (default: 15)')
     fit_group.add_argument('--de-maxiter', type=int, default=1000,

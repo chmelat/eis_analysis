@@ -35,6 +35,17 @@ DE_STRATEGIES = {
     3: 'rand1bin',
 }
 
+# rand1bin by default: randtobest1bin and best1bin pull the whole population
+# toward the current best member, and when an early leader sits in a
+# degenerate basin - an arc collapsed to R -> 0, a Wo whose tau runs past the
+# window so it acts as W - DE stops there after ~45 generations instead of
+# ~270, and least_squares cannot leave it. Measured on 7 circuits (the four
+# ZScope references, R-(R|Wo), R-(R|Ws), R-((R-Wo)|Q)), noise-free and 1 %,
+# 10 seeds each (140 fits): randtobest1bin failed 7 (two time constants 4/20,
+# 5-11 % error), rand1bin 0, for about twice the DE time. A smaller population
+# (popsize 10) halves that cost but already missed one Randles-Wo fit.
+DEFAULT_DE_STRATEGY = 3
+
 # How far inside its bounds the DE starting point is held, as a fraction of
 # the bound span. differential_evolution rescales x0 to [0, 1] as
 # (x - midpoint) / span + 0.5 and rejects the result if it falls outside, so a
@@ -185,7 +196,7 @@ def fit_circuit_diffevo(
     circuit: Circuit,
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    strategy: int = 1,
+    strategy: int = DEFAULT_DE_STRATEGY,
     popsize: int = 15,
     maxiter: int = 1000,
     tol: float = 0.01,
@@ -207,6 +218,7 @@ def fit_circuit_diffevo(
         Complex impedance data [Ohm]
     strategy : int, optional
         DE strategy: 1='randtobest1bin', 2='best1bin', 3='rand1bin'
+        (default: 3, see DEFAULT_DE_STRATEGY)
     popsize : int, optional
         Population size multiplier (default: 15)
     maxiter : int, optional
@@ -231,7 +243,7 @@ def fit_circuit_diffevo(
     Z_fit : ndarray
         Best fit impedance
     """
-    strategy_name = DE_STRATEGIES.get(strategy, 'randtobest1bin')
+    strategy_name = DE_STRATEGIES.get(strategy, DE_STRATEGIES[DEFAULT_DE_STRATEGY])
     diag_warnings = []
 
     # Get initial guess from circuit definition

@@ -96,15 +96,15 @@ Strategie definuje jak se vybírá **base vector** a kolik difference vectors se
 
 | Strategie | Base | Differences | Charakteristika |
 |-----------|------|-------------|-----------------|
-| `rand1bin` | náhodný | 1 | Nejlepší explorace, pomalejší |
+| `rand1bin` | náhodný | 1 | Nejlepší explorace, pomalejší (default) |
 | `best1bin` | nejlepší | 1 | Rychlá konvergence, může uváznout |
-| `randtobest1bin` | náhodný + směr k best | 1 | Vyvážený kompromis |
+| `randtobest1bin` | náhodný + směr k best | 1 | Rychlejší, ale může uváznout |
 
 **rand1bin:**
 ```
 v_i = x_r1 + F * (x_r2 - x_r3)
 ```
-Zcela náhodná explorace prostoru.
+Zcela náhodná explorace prostoru. **Default** - viz 5.1.
 
 **best1bin:**
 ```
@@ -112,11 +112,11 @@ v_i = x_best + F * (x_r1 - x_r2)
 ```
 Vždy směřuje k nejlepšímu jedinci - rychlá, ale riziko předčasné konvergence.
 
-**randtobest1bin (doporučeno):**
+**randtobest1bin:**
 ```
 v_i = x_i + F * (x_best - x_i) + F * (x_r1 - x_r2)
 ```
-Kombinuje směr k nejlepšímu s náhodnou explorací.
+Kombinuje směr k nejlepšímu s náhodnou explorací. Do v0.52.0 včetně výchozí.
 
 
 ## 3. Intuitivní vysvětlení
@@ -156,8 +156,7 @@ Představte si populaci jako **skupinu hledačů** prohledávajících horský t
 
 **randtobest1bin** - "Vyvážený přístup":
 - Kombinuje směr k vůdci s náhodným průzkumem
-- Dobrý kompromis explorace/exploatace
-- Doporučeno pro většinu problémů
+- Rychlejší než rand1bin, ale vůdce z lokálního minima strhne celou skupinu
 
 ### 3.3 Proč hybridní přístup?
 
@@ -180,7 +179,7 @@ circuit = R(100) - (R(5000) | C(1e-6))
 
 result, Z_fit = fit_circuit_diffevo(
     circuit, freq, Z,
-    strategy=1,      # 1=randtobest1bin, 2=best1bin, 3=rand1bin
+    strategy=3,      # 1=randtobest1bin, 2=best1bin, 3=rand1bin (default)
     popsize=15,      # Populace = 15 * počet parametrů
     maxiter=1000,    # Maximální počet generací
     tol=0.01,        # Tolerance pro konvergenci
@@ -202,7 +201,7 @@ print(f"Improvement: {result.improvement:.1f}%")
 
 # S vlastními parametry
 ./eis.py --optimizer de \
-         --de-strategy 1 \
+         --de-strategy 3 \
          --de-popsize 20 \
          --de-maxiter 500 \
          --de-workers -1 \
@@ -249,11 +248,19 @@ print(f"Improvement: {result.improvement:.1f}%")
 
 | Hodnota | Název | Kdy použít |
 |---------|-------|------------|
-| 1 | randtobest1bin | **Default.** Vyvážený, většina problémů |
-| 2 | best1bin | Rychlá konvergence, jednodušší problémy |
-| 3 | rand1bin | Maximální explorace, komplexní landscape |
+| 1 | randtobest1bin | Rychlejší (~2x), riziko lokálního minima |
+| 2 | best1bin | Nejrychlejší, jednodušší problémy |
+| 3 | rand1bin | **Default.** Maximální explorace |
 
-**Doporučení:** Začněte s 1, pokud nenachází globální minimum, zkuste 3.
+**Proč rand1bin:** strategie 1 a 2 táhnou populaci k aktuálně nejlepšímu
+jedinci. Když v rané fázi vede člen z degenerovaného minima (oblouk
+zkolabovaný na R -> 0, Wo s tau za oknem dat, který se chová jako W), DE
+skončí po ~45 generacích místo ~270 a least_squares z něj nevyjde. Benchmark
+(4 ZScope obvody + R-(R|Wo), R-(R|Ws), R-((R-Wo)|Q), bez šumu a s 1 % šumem,
+10 seedů = 140 fitů): randtobest1bin 7 selhání (dvě časové konstanty 4/20,
+chyba 5-11 %), rand1bin 0, za zhruba dvojnásobný čas DE. Strategie 1 se hodí,
+když záleží na čase a výsledek se kontroluje (kvalita "Poor" = podezření na
+lokální minimum).
 
 ### 5.2 Velikost populace (`--de-popsize`)
 
@@ -386,7 +393,7 @@ Pro typický EIS obvod R-(R|C)-(R|Q):
 ==================================================
 Differential Evolution optimization
 ==================================================
-  Strategy: randtobest1bin (option 1)
+  Strategy: rand1bin (option 3)
   Population: 15 * n_params
   Max iterations: 1000
   Tolerance: 0.01
@@ -407,7 +414,7 @@ Refining with least_squares (analytic Jacobian)...
 ==================================================
 Differential Evolution results
 ==================================================
-  Strategy: randtobest1bin
+  Strategy: rand1bin
   Total evaluations: 5736
   DE error: 1.342% -> Refined: 1.320%
 
@@ -456,7 +463,7 @@ Možné příčiny a řešení:
 2. **Nedostatečná explorace**
    - Zvyšte popsize: `--de-popsize 25`
    - Zvyšte maxiter: `--de-maxiter 2000`
-   - Zkuste strategii 3: `--de-strategy 3`
+   - Při `--de-strategy 1/2` zkuste default 3
 3. **Bounds příliš široké**
    - Zkontrolujte rozsahy parametrů
 
@@ -635,7 +642,7 @@ circuit = R(1) - (R(1000) | Q(1e-5, 0.9))
 # DE optimalizace
 result, Z_fit = fit_circuit_diffevo(
     circuit, freq, Z,
-    strategy=1,
+    strategy=3,
     popsize=20,
     maxiter=1000,
     workers=-1

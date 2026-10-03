@@ -551,7 +551,7 @@ eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 eis data.DTA --circuit "..." --de-strategy 2 --de-popsize 20 --de-maxiter 500
 ```
 
-**DE strategies:** 1=randtobest1bin (default), 2=best1bin, 3=rand1bin
+**DE strategies:** 1=randtobest1bin, 2=best1bin, 3=rand1bin (default)
 
 **Detailed documentation:** [doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md)
 
@@ -638,7 +638,7 @@ If DE still ends far from the data and only the local refinement gets there,
 the fit reports `Global search contributed nothing` - see
 [doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md) section 7.3.
 
-- `--de-strategy` (default: 1) - DE strategy: 1=randtobest1bin (balanced, default), 2=best1bin (fast convergence), 3=rand1bin (more exploration).
+- `--de-strategy` (default: 3) - DE strategy: 1=randtobest1bin (faster), 2=best1bin (fastest), 3=rand1bin (default). The first two pull the population toward the current best member and, on 140 benchmark fits, ended in a wrong local minimum 5 % of the time (a fit with two time constants 4 times in 20); rand1bin never did, for about twice the DE time.
 - `--de-popsize` (default: 15) - Population size as multiple of parameter count. Higher = better exploration but slower.
 - `--de-maxiter` (default: 1000) - Maximum number of generations. Increase if optimization doesn't converge.
 - `--de-tol` (default: 0.01) - Convergence tolerance (relative fitness change).

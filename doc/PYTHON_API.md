@@ -654,7 +654,7 @@ de_result, Z_fit = fit_circuit_diffevo(
     circuit,
     frequencies,
     Z,
-    strategy=1,                  # 1=randtobest1bin, 2=best1bin, 3=rand1bin
+    strategy=3,                  # 1=randtobest1bin, 2=best1bin, 3=rand1bin (default)
     popsize=15,                  # Population = popsize * number of parameters
     maxiter=1000,                # Max generations
     tol=0.01,                    # Convergence tolerance
@@ -1096,7 +1096,7 @@ de_result, Z_fit = fit_circuit_diffevo(
     circuit,
     frequencies,
     Z,
-    strategy=1,                  # randtobest1bin (balanced)
+    strategy=3,                  # rand1bin (default)
     popsize=15,                  # Population size multiplier
     maxiter=1000,                # Max generations
     workers=-1,                  # Use all CPUs
@@ -1126,7 +1126,7 @@ print(f"\nMulti-start error: {ms_result.best_result.fit_error_rel:.3f}%")
 print(f"DE error: {de_result.final_error:.3f}%")
 
 # Strategy selection:
-# strategy=1: randtobest1bin - balanced (default)
+# strategy=1: randtobest1bin - faster, can get trapped in a local minimum
 # strategy=2: best1bin - faster, may miss global
 # strategy=3: rand1bin - thorough, slower
 ```
