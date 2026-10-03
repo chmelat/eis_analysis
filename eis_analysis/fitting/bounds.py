@@ -11,10 +11,13 @@ import numpy as np
 from typing import List, Tuple, Optional
 from numpy.typing import NDArray
 
+# Resistance range, 0.1 mOhm - 10 GOhm: batteries to coatings. Shared by every
+# parameter that is a resistance (R, R_W, sigma_GE), so they cannot drift apart.
+RESISTANCE_RANGE = (1e-4, 1e10)
+
 # Physically reasonable ranges for electrochemical systems
 PARAMETER_BOUNDS = {
-    # Resistance: 0.1 mOhm - 10 TOhm
-    'R': (1e-4, 1e10),
+    'R': RESISTANCE_RANGE,
 
     # Conductance: 0 - 10 kS (the upper bound mirrors R's lower one, so G and
     # R cover the same domain). The lower bound is exactly 0.0 so that
@@ -34,20 +37,31 @@ PARAMETER_BOUNDS = {
     # Q exponent: 0.3 (strongly inhomogeneous) to 1.0 (ideal C)
     'n': (0.3, 1.0),
 
-    # Warburg coefficient: 0.01 - 100000 Ohm*s^(-1/2)
-    'σ': (1e-2, 1e5),
+    # Warburg coefficient, Ohm*s^(-1/2): an impedance scale, |Z_W| =
+    # sigma*sqrt(2/omega), so it spans what R spans (batteries to coatings) -
+    # but reaches that impedance only at low frequency: at 1 mHz |Z_W| is
+    # ~18 sigma. The lower end therefore sits two decades below R's, or a
+    # converged battery sigma of 9e-4 would be reported "near lower bound"
+    # (classify_bound_status flags one decade). The former 1e-2..1e5 pinned
+    # sigma at both ends: a Zr-oxide spectrum (EISPOT-M136113-4, |Z| up to
+    # 3e7 Ohm) fitted R-(Q|(R-W)) at 23.5 % with sigma on 1e5 and at 11.3 %
+    # with sigma = 2.4e6 once free; a mOhm battery (sigma = 1e-3) failed at 92 %.
+    'σ': (1e-6, 1e10),
 
     # Time constant: 1 ns - 10000 s
     'τ': (1e-9, 1e4),
 
-    # Warburg bounded - resistance
-    'R_W': (1e-2, 1e8),
+    # Finite Warburg (Ws, Wo) - diffusion resistance: same range as R, for
+    # the same reason as sigma. At 1e-2..1e8 a 3 mOhm battery Ws was pinned
+    # (tau 343 s instead of 20 s) and converged Zr-oxide fits at 3-7e7 were
+    # flagged "near upper bound".
+    'R_W': RESISTANCE_RANGE,
 
     # Warburg bounded - diffusion time
     'τ_W': (1e-6, 1e4),
 
-    # Gerischer element - pre-factor (similar to Warburg)
-    'σ_GE': (1e-2, 1e8),
+    # Gerischer element - pre-factor, Ohm (its low-frequency resistance).
+    'σ_GE': RESISTANCE_RANGE,
 
     # Gerischer element - reaction time constant
     'τ_GE': (1e-9, 1e4),
@@ -143,10 +157,10 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - L (inductance): 1 pH - 100 uH (parasitic, cabling)
     - Q (CPE coefficient): 1 pF*s^(n-1) - 100 mF*s^(n-1)
     - n (Q/CPE exponent): 0.3 - 1.0
-    - sigma (Warburg): 0.01 - 100000 Ohm*s^(-1/2)
+    - sigma (Warburg): 1e-6 - 1e10 Ohm*s^(-1/2) (R's range, reached at low frequency)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
-    - R_W, tau_W (finite Warburg Ws, Wo): similar to R, tau
-    - sigma_GE, tau_GE (Gerischer): similar to sigma, tau
+    - R_W, tau_W (finite Warburg Ws, Wo): as R, tau
+    - sigma_GE, tau_GE (Gerischer): as R, tau
     - C_inf, dC (Cole-Cole capacitances): similar to C
     - tau_CC (Cole-Cole relaxation time): similar to tau
     - alpha_CC (Cole-Cole broadening exponent): 0.0 - 0.9

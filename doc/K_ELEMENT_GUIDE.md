@@ -351,7 +351,7 @@ Bounds cannot be given in the circuit syntax; the fitter uses defaults keyed
 on the parameter label (`fitting/bounds.py`):
 
 ```
-R    : 1e-4  - 1e10 Ohm   (0.1 mOhm - 10 TOhm)
+R    : 1e-4  - 1e10 Ohm   (0.1 mOhm - 10 GOhm)
 tau  : 1e-9  - 1e4  s     (1 ns - 10000 s, ~13 decades of frequency)
 ```
 

@@ -142,21 +142,10 @@ Některé impedanční funkce mají **singularity**:
 
 ### 2.4 Bounds a constraints
 
-**Fyzikální omezení (`bounds.py`):**
-
-```python
-PARAMETER_BOUNDS = {
-    'R': (1e-4, 1e10),    # 0.1 mOhm - 10 GOhm
-    'C': (1e-15, 1e-1),   # 1 fF - 100 mF
-    'L': (1e-12, 1e-4),   # 1 pH - 100 uH (parasitní)
-    'Q': (1e-12, 1e-1),   # Q koeficient
-    'n': (0.4, 1.0),      # Q exponent
-    'σ': (1e-2, 1e5),     # Warburg
-    'τ': (1e-9, 1e4),     # 1 ns - 10000 s
-    'R_W': (1e-2, 1e8),   # Warburg bounded - odpor
-    'τ_W': (1e-6, 1e4),   # Warburg bounded - difuzní čas
-}
-```
+**Fyzikální omezení:** `PARAMETER_BOUNDS` v `eis_analysis/fitting/bounds.py`
+- jediný zdroj hodnot; komentář u každé meze vysvětluje její rozsah (např.
+odpory 0.1 mOhm - 10 GOhm, kapacity 1 fF - 100 mF, časové konstanty 1 ns -
+10000 s).
 
 **Výhody tight bounds:**
 - Prevence konvergence k nefyzikálním hodnotám

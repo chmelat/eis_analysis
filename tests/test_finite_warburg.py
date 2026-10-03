@@ -60,3 +60,22 @@ def test_Wo_survives_large_argument():
     """1/(u*tanh u) must stay finite where coth's cosh/sinh would overflow."""
     Z = Wo(R_W, 1e4).impedance(np.array([1e6]), [R_W, 1e4])
     assert np.all(np.isfinite(Z))
+
+
+# Bounds of sigma and R_W span what R spans: a mOhm battery and a
+# high-impedance oxide both fit without coming within the one decade
+# classify_bound_status flags. (C stays a decade below its own 0.1 F bound,
+# a separate limit.)
+@pytest.mark.parametrize("truth, start", [
+    ("R(0.002)-(R(0.005)|C(0.005))-W(0.0003)", "R(0.001)-(R(0.001)|C(0.001))-W(0.01)"),
+    ("R(10)-(R(1e6)|C(1e-9))-W(1e6)", "R(5)-(R(1e5)|C(1e-8))-W(1e5)"),
+    ("R(0.002)-(R(0.005)|C(0.002))-Ws(0.003,20)", "R(0.001)-(R(0.001)|C(0.001))-Ws(0.01,5)"),
+    ("R(10)-(R(1e6)|C(1e-9))-Ws(3e8,20)", "R(5)-(R(1e5)|C(1e-8))-Ws(1e8,5)"),
+])
+def test_warburg_scale_covers_batteries_and_coatings(truth, start):
+    tc = parse_circuit_expression(truth)
+    f = np.logspace(5, -3, 81)
+    Z = tc.impedance(f, tc.get_all_params())
+    result, _ = fit_equivalent_circuit(f, Z, parse_circuit_expression(start))
+    assert result.params_opt == pytest.approx(tc.get_all_params(), rel=1e-4)
+    assert not any(result.bound_status)

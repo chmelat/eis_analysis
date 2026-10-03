@@ -129,12 +129,19 @@ def test_archive_alone_when_the_refinement_from_de_failed():
 FREQ = np.logspace(5, -3, 129)
 
 
-def test_trapped_run_is_repaired_and_reported():
-    """randtobest1bin with seed 1 stops after ~46 generations in the W-like basin of Wo."""
+def test_trapped_run_is_repaired_and_reported(monkeypatch):
+    """randtobest1bin with seed 3 stops after ~49 generations in the W-like basin of Wo.
+
+    The bounds are pinned: the trajectory of a seeded DE run depends on them,
+    and a later change of PARAMETER_BOUNDS must not decide whether DE is trapped.
+    """
+    from eis_analysis.fitting import bounds
+    for label, rng in {'R': (1e-4, 1e10), 'R_W': (1e-4, 1e10), 'τ_W': (1e-6, 1e4)}.items():
+        monkeypatch.setitem(bounds.PARAMETER_BOUNDS, label, rng)
     truth = parse_circuit_expression("R(10)-(R(100)|Wo(100,1))")
     Z = truth.impedance(FREQ, truth.get_all_params())
     start = parse_circuit_expression("R(5)-(R(50)|Wo(50,0.3))")
-    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=1, strategy=1)
+    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=3, strategy=1)
     assert result.diagnostics.de_error > 1.0              # DE itself was trapped
     assert result.diagnostics.archive_used
     assert result.best_result.params_opt == pytest.approx([10, 100, 100, 1], rel=1e-6)
