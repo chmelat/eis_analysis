@@ -4,6 +4,34 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.54.0 (2026-10-03)
+
+### Added
+
+- **DE archive check against local minima.** DE keeps only its best point;
+  when its population collapsed into a wrong basin, the right one - visited
+  in the early generations - was lost. The cost function now records every
+  evaluation, and after DE the best distinct point (a decade apart, 0.15 in
+  a CPE exponent) of each of 30 windows over the first half of the run is
+  refined like the DE result. The best refined point wins, reported as `DE
+  ended in a local minimum ...` when it is another model; a refined point
+  with a different spectrum that fits statistically as well (delta-chi2 <
+  10 s^2, separated by more than 10 s^2) is reported as `Ambiguous model
+  ...` with its parameters, for fits below 5 % error only (a model that
+  does not fit leaves systematic residuals and the test turns lenient). On
+  200 fits (five 6-10 parameter circuits,
+  noise-free and 1 %, 20 seeds) it repaired 39 of the 40 DE got wrong -
+  R-ZARC-ZARC-Ws had failed 39 times in 40 with any population size - with
+  no false warning, for ~1 s of refinement against 10-45 s of DE. Taking
+  the lowest-cost points instead, by parameter distance, by spectrum or with
+  interchangeable blocks sorted, repaired 1. Works with any `--de-workers`
+  (the parent records through DE's map); `--no-archive-check` /
+  `archive_check=False` switches it off.
+  New module `fitting.de_archive`; `DiffEvoDiagnostics.archive_candidates`
+  and `archive_used`.
+
+---
+
 ## Version 0.53.0 (2026-10-03)
 
 ### Changed (breaking)
