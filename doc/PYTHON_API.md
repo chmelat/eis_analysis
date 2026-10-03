@@ -688,6 +688,10 @@ de_result.diagnostics.de_error           # Error after DE [%]
 de_result.diagnostics.refined_error      # Error after refinement [%]
 de_result.diagnostics.refinement_improved # True if refinement helped
 de_result.diagnostics.total_evaluations  # Total evaluations
+de_result.diagnostics.archive_checked    # False with archive_check=False
+de_result.diagnostics.archive_candidates # Early-generation candidates refined
+de_result.diagnostics.archive_used       # True if one of them is the result
+# Repairs and ambiguous models are reported in de_result.diagnostics.warnings
 ```
 
 **Voigt chain linear fitting:**

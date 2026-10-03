@@ -11,6 +11,7 @@ Strategy options:
 
 import numpy as np
 import logging
+import multiprocessing
 import warnings
 from typing import Tuple, List, Optional, Any
 from numpy.typing import NDArray
@@ -23,6 +24,7 @@ from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_ma
                      validate_fixed_params)
 from .covariance import compute_covariance_matrix
 from .diagnostics import compute_weights, compute_fit_metrics, compute_significance
+from .de_archive import Refinement, choose, select_archive_candidates, selection_warnings
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
 
@@ -70,6 +72,10 @@ class _DECostFunction:
         self.weights = weights
         self.fixed_params = fixed_params
         self.full_initial_guess = full_initial_guess
+        # A list to record every (cost, params) evaluation into, or None. Only
+        # set for workers == 1: with more, DE calls pickled copies in worker
+        # processes, and the map in fit_circuit_diffevo records in the parent.
+        self.archive: Optional[List[Tuple[float, NDArray[np.float64]]]] = None
 
     def _reconstruct_params(self, free_params):
         if self.fixed_params is None or not any(self.fixed_params):
@@ -88,7 +94,10 @@ class _DECostFunction:
         Z_pred = self.circuit.impedance(self.frequencies, full_params)
         residuals_real = (self.Z.real - Z_pred.real) * self.weights
         residuals_imag = (self.Z.imag - Z_pred.imag) * self.weights
-        return np.sum(residuals_real**2 + residuals_imag**2)
+        cost = np.sum(residuals_real**2 + residuals_imag**2)
+        if self.archive is not None:
+            self.archive.append((float(cost), np.array(params, dtype=float)))
+        return cost
 
 
 def _to_linear(x, log_mask: NDArray[np.bool_]) -> NDArray[np.float64]:
@@ -140,6 +149,13 @@ class DiffEvoDiagnostics:
     # are the human-readable weighted mean relative error (%) used for display.
     de_cost: float = 0.0
     refined_cost: float = 0.0
+
+    # Archive check (fitting/de_archive.py): whether it ran (archive_check),
+    # how many early-generation candidates refined, and whether the result is
+    # one of them.
+    archive_checked: bool = False
+    archive_candidates: int = 0
+    archive_used: bool = False
 
     # Fixed params info
     n_fixed_params: int = 0
@@ -203,7 +219,8 @@ def fit_circuit_diffevo(
     workers: int = 1,
     weighting: str = 'modulus',
     use_analytic_jacobian: bool = True,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    archive_check: bool = True
 ) -> Tuple[DiffEvoResult, NDArray[np.complex128]]:
     """
     Fit circuit using Differential Evolution global optimization.
@@ -234,6 +251,10 @@ def fit_circuit_diffevo(
     seed : int, optional
         Seed for differential_evolution's random generator. Default None
         (non-deterministic). Set an int for reproducible runs (e.g. tests).
+    archive_check : bool, optional
+        Refine early-generation candidates from DE's evaluation archive
+        against local minima and ambiguous models (default True; ~30 extra
+        least_squares runs, see fitting/de_archive.py).
 
     Returns
     -------
@@ -342,6 +363,24 @@ def fit_circuit_diffevo(
     de_x0 = np.clip(np.where(log_mask, np.log10(x0_positive), initial_guess),
                     de_lower_arr + x0_margin, de_upper_arr - x0_margin)
 
+    archive: Optional[list] = [] if archive_check else None
+    pool = None
+    de_workers: Any = workers
+    if archive is not None:
+        if workers == 1:
+            cost_function.archive = archive
+        else:
+            map_func: Any = workers
+            if not callable(workers):
+                pool = multiprocessing.Pool(None if workers == -1 else workers)
+                map_func = pool.map
+
+            def de_workers(func, xs):
+                # Worker processes keep their own archives; record in the parent
+                xs = [np.asarray(x, dtype=float) for x in xs]
+                costs = list(map_func(func, xs))
+                archive.extend((float(c), _to_linear(x, log_mask)) for c, x in zip(costs, xs))
+                return costs
     try:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
@@ -353,7 +392,7 @@ def fit_circuit_diffevo(
                 popsize=popsize,
                 maxiter=maxiter,
                 tol=tol,
-                workers=workers,
+                workers=de_workers,
                 polish=False,
                 seed=seed,
                 disp=False,
@@ -361,6 +400,12 @@ def fit_circuit_diffevo(
             )
     except Exception as e:
         raise RuntimeError(f"DE optimization failed: {e}") from e
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
+    # Stop recording: the cost evaluations below are not part of the search.
+    cost_function.archive = None
 
     # Back to physical parameters right away: everything below (refinement
     # start, cost comparison, diagnostics, DiffEvoResult.de_result) works in
@@ -389,94 +434,115 @@ def fit_circuit_diffevo(
         jac_func = '2-point'
         jacobian_type = 'numeric'
 
-    refinement_ran = True
-    try:
+    # One least_squares setup for every start - DE's point and the archive
+    # candidates - so their costs compare like for like.
+    lb_arr, ub_arr = np.asarray(lower_bounds, float), np.asarray(upper_bounds, float)
+
+    def refine(x0):
+        x0 = np.clip(np.asarray(x0, dtype=float), lb_arr, ub_arr)
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always", OptimizeWarning)
-
-            x_scale = np.maximum(np.abs(de_result.x), 1e-10)
-            ls_result = least_squares(
-                residual_function,
-                de_result.x,
-                jac=jac_func,
-                bounds=(lower_bounds, upper_bounds),
-                method='trf',
-                x_scale=x_scale,
-                ftol=1e-10,
-                xtol=1e-10,
-                gtol=1e-10,
-                max_nfev=5000,
+            return least_squares(
+                residual_function, x0, jac=jac_func,
+                bounds=(lower_bounds, upper_bounds), method='trf',
+                x_scale=np.maximum(np.abs(x0), 1e-10),
+                ftol=1e-10, xtol=1e-10, gtol=1e-10, max_nfev=5000,
             )
+
+    def spectrum(x_free):
+        full = list(reconstruct_params(x_free))
+        return full, circuit.impedance(frequencies, full)
+
+    refine_error = None
+    try:
+        r = refine(de_result.x)
+        full, Z_r = spectrum(r.x)
+        from_de: Optional[Refinement] = Refinement(float(np.sum(r.fun ** 2)), Z_r, full, r)
     except Exception as e:
-        refinement_ran = False
-        diag_warnings.append(f"Refinement failed: {e}, using DE result")
-        ls_result = de_result
+        from_de, refine_error = None, e
 
-    # Reconstruct full params
-    ls_params_free = np.array(ls_result.x)
-    ls_params_full = np.array(reconstruct_params(ls_params_free))
-
-    # Compute refined fit error
-    Z_fit_ls = circuit.impedance(frequencies, list(ls_params_full))
-    ls_metrics = compute_fit_metrics(Z, Z_fit_ls, weighting)
-    ls_error_rel = ls_metrics[0]
+    # Step 2b: second look through the evaluation archive (see de_archive.py):
+    # the best distinct point of each early window of generations is refined
+    # the same way. A failed refinement must not masquerade as a successful
+    # one, so a start that raises simply contributes nothing.
+    from_archive: List[Refinement] = []
+    if archive:
+        arch_costs = np.array([c for c, _ in archive])
+        arch_params = np.array([x for _, x in archive])
+        archive = None                       # the arrays above are all that is needed
+        n_pop = max(5, popsize * len(free_labels))   # scipy's population size
+        candidates = select_archive_candidates(arch_costs, arch_params, n_pop, ~log_mask)[1:]  # [0] = DE's best
+        for i in candidates:
+            try:
+                r = refine(arch_params[i])
+            except Exception:
+                continue
+            full, Z_r = spectrum(r.x)
+            from_archive.append(Refinement(float(np.sum(r.fun ** 2)), Z_r, full, r))
+    archive_nfev = sum(r.result.nfev for r in from_archive)
 
     # Selection and improvement use the *optimized* objective (weighted SSR,
     # S = sum w^2 |dZ|^2), not the weighted mean relative error: DE and
     # least_squares both minimize S, so choosing on a different metric could
-    # discard a genuinely better refined fit. cost_function returns S directly.
+    # discard a genuinely better refined fit. One decision among all of them,
+    # before anything derived from the choice is computed.
     de_cost = float(cost_function(de_result.x))
-    ls_cost = float(cost_function(ls_result.x))
+    sel = choose(de_cost, from_de, from_archive, weights, len(free_labels))
+    best = sel.best_refined
+    best_metrics = compute_fit_metrics(Z, best.Z, weighting) if best is not None else de_metrics
+    ls_error_rel = best_metrics[0]
+    refined_cost = best.cost if best is not None else de_cost
+    improvement = (de_cost - refined_cost) / de_cost * 100 if de_cost > 0 else 0
 
-    improvement = (de_cost - ls_cost) / de_cost * 100 if de_cost > 0 else 0
-
-    # Choose better result. A failed refinement must not masquerade as a
-    # successful one: ls_result then aliases de_result (equal costs), so gate
-    # on refinement_ran as well (audit 2026-07-02 finding 2.3).
-    if refinement_ran and ls_cost <= de_cost:
-        params_opt_free = ls_params_free
-        params_opt = ls_params_full
-        Z_fit = Z_fit_ls
-        fit_metrics = ls_metrics
-        used_refinement = True
+    chosen = sel.chosen
+    final_ls = chosen.result if chosen is not None else None
+    used_refinement = chosen is not None
+    archive_used = chosen is not None and chosen is not from_de
+    if chosen is not None:
+        params_opt_free = np.array(chosen.result.x)
+        params_opt = np.array(chosen.params)
+        Z_fit = chosen.Z
+        fit_metrics = best_metrics          # the chosen refinement is the best one
     else:
         params_opt_free = np.array(de_result.x)
         params_opt = np.array(de_params_full)
         Z_fit = Z_fit_de
         fit_metrics = de_metrics
-        used_refinement = False
-        if refinement_ran:
-            diag_warnings.append("Refinement worsened fit, using DE result")
 
-    # The chosen point is always one of the two evaluated above, so its
-    # metrics are already computed - no third pass over the spectrum.
+    if refine_error is not None:
+        diag_warnings.append(f"Refinement failed: {refine_error}, using DE result" if not used_refinement
+                             else f"Refinement from the DE result failed: {refine_error}")
+    elif not used_refinement:
+        diag_warnings.append("Refinement worsened fit, using DE result")
     fit_error_rel, fit_error_abs, quality = fit_metrics
+    diag_warnings.extend(selection_warnings(sel, fit_error_rel, param_labels_indexed))
 
     # The global stage is only useful if it actually explored. When it ends far
-    # from the data and the local refinement then improves by an order of
-    # magnitude, the reported fit came from that single local run, not from DE.
-    if (used_refinement and de_error_rel > DE_STALLED_ERROR_PCT
-            and ls_error_rel * DE_STALLED_IMPROVEMENT_FACTOR < de_error_rel):
+    # from the data and a local refinement then improves by an order of
+    # magnitude, the reported fit came from that local run, not from DE. (An
+    # archive repair into another model has its own warning above.)
+    if (used_refinement and not sel.local_minimum and de_error_rel > DE_STALLED_ERROR_PCT
+            and fit_error_rel * DE_STALLED_IMPROVEMENT_FACTOR < de_error_rel):
         diag_warnings.append(
             f"Global search contributed nothing: DE stopped after "
             f"{de_result.nit} iteration(s) at {de_error_rel:.1f}% error and the "
-            f"local refinement reached {ls_error_rel:.1f}% on its own. The fit "
+            f"local refinement reached {fit_error_rel:.1f}% on its own. The fit "
             "rests on that single local run. Check that the circuit suits the "
             "data, then raise --de-maxiter or lower --de-tol"
         )
 
     # Step 3: Compute covariance
     # Both the residuals and the Jacobian must be evaluated at the *chosen*
-    # point (params_opt_free). When the DE result is kept, ls_result.jac is the
+    # point (params_opt_free). When the DE result is kept, the refinement's jac is the
     # Jacobian at the LS point, not the chosen one, so it must not be reused.
     final_residuals = residual_function(params_opt_free)
     n_params_full = len(params_opt)
 
     if jacobian_type == 'analytic':
         jac_at_opt = jac_func(params_opt_free)
-    elif used_refinement and getattr(ls_result, 'jac', None) is not None:
+    elif final_ls is not None and getattr(final_ls, 'jac', None) is not None:
         # Numeric Jacobian; LS point coincides with the chosen point.
-        jac_at_opt = ls_result.jac
+        jac_at_opt = final_ls.jac
     else:
         jac_at_opt = None
 
@@ -520,14 +586,16 @@ def fit_circuit_diffevo(
         )
 
     # Build FitDiagnostics
-    # Optimizer metadata belongs to least_squares only when it actually ran;
-    # on failure ls_result aliases de_result, whose message/nfev would be
-    # misattributed (and DE evaluations double-counted).
+    # Optimizer metadata belongs to the least_squares run that produced the
+    # result, or to the one from DE's point when DE's own point is kept; with
+    # no refinement at all it would be misattributed.
+    ls_meta = final_ls if final_ls is not None else (from_de.result if from_de is not None else None)
+    ls_nfev = (from_de.result.nfev if from_de is not None else 0) + archive_nfev
     fit_diagnostics = FitDiagnostics(
-        optimizer_status=ls_result.status if refinement_ran else -1,
-        optimizer_message=ls_result.message if refinement_ran else 'DE only (refinement failed)',
-        optimizer_success=ls_result.success if refinement_ran else de_result.success,
-        n_function_evals=de_result.nfev + (ls_result.nfev if refinement_ran else 0),
+        optimizer_status=ls_meta.status if ls_meta is not None else -1,
+        optimizer_message=ls_meta.message if ls_meta is not None else 'DE only (refinement failed)',
+        optimizer_success=ls_meta.success if ls_meta is not None else de_result.success,
+        n_function_evals=de_result.nfev + ls_nfev,
         jacobian_type=jacobian_type,
         condition_number=condition_number,
         covariance_rank=cov_result.rank if cov_result else 0,
@@ -573,9 +641,12 @@ def fit_circuit_diffevo(
         de_error=de_error_rel,
         refined_error=ls_error_rel,
         de_cost=de_cost,
-        refined_cost=ls_cost,
+        refined_cost=refined_cost,
         refinement_improved=used_refinement,
-        total_evaluations=de_result.nfev + (ls_result.nfev if refinement_ran else 0),
+        total_evaluations=de_result.nfev + ls_nfev,
+        archive_checked=archive_check,
+        archive_candidates=len(from_archive),
+        archive_used=archive_used,
         n_fixed_params=len(fixed_param_indices),
         log_search_params=log_search_params,
         fixed_param_indices=fixed_param_indices,

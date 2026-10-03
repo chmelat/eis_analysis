@@ -230,6 +230,12 @@ print(f"Improvement: {result.improvement:.1f}%")
    - Přesná konvergence ke skutečnému minimu
    - Výpočet Jacobiánu pro kovarianci
 
+3b. Kontrola archivu (de_archive.py, viz 7.4)
+   - cost function během DE zaznamenala všechna vyhodnocení
+   - z 30 oken první poloviny generací nejlepší vzdálený bod -> refinement
+   - nejlepší refinovaný bod vyhrává; jiné spektrum se stejně dobrým fitem
+     -> varování o nejednoznačném modelu
+
 4. Výpočet kovariance
    - SVD-based robustní výpočet z Jacobiánu
    - Standard errors, confidence intervals
@@ -410,6 +416,7 @@ Running differential evolution...
 Refining with least_squares (analytic Jacobian)...
   Refined error: 1.320%
   Improvement (SSR): +1.632%
+  Archive check: 30 candidates from early generations refined, none fitted better
 
 ==================================================
 Differential Evolution results
@@ -498,6 +505,51 @@ To je problém modelu, ne DE. Možné příčiny:
 2. Korelované parametry
 3. Nedostatečný frekvenční rozsah dat
 
+
+### 7.4 Kontrola archivu (lokální minima)
+
+DE si pamatuje jen nejlepší bod. Když populace zkolabuje do špatného údolí,
+správné údolí obvykle navštívila v raných generacích, kdy byla ještě
+rozprostřená - a zapomněla ho. Proto cost function během DE zaznamenává
+všechna vyhodnocení (bod a cenu, v pořadí). Po DE:
+
+1. Prvních 50 % generací běhu (jeho skutečné délky, ne maxiter) se rozdělí
+   na 30 stejných oken podle čísla generace (generace = pořadí / velikost
+   populace).
+2. Z každého okna se vezme nejlepší bod, který je od všech dříve vybraných
+   vzdálený aspoň o dekádu v některém parametru (log10; exponent CPE: 0.15).
+   Prvním vybraným je nejlepší bod celé DE.
+3. Každý kandidát (nejvýš 30) projde stejným refinementem jako výsledek DE;
+   nejlepší vyhrává. Pokud je to jiný model (spektrum se liší o více než
+   1 %), fit hlásí `DE ended in a local minimum ...`.
+4. Refinovaný kandidát s jiným spektrem a statisticky stejně dobrým fitem
+   (Δχ² < 10 s², s² = SSR / (N - p)), který se od nejlepšího fitu liší víc
+   než šum (Σ w²|ΔZ|² > 10 s²), dává varování `Ambiguous model ...` s
+   alternativními parametry: data dva modely nerozliší. Jen u fitu s
+   přijatelnou kvalitou (chyba < 5 %): u modelu, který nesedí, nejsou
+   rezidua šum, s² je nadhodnocené a test by byl příliš shovívavý.
+
+Malé rozdíly na úrovni zaokrouhlení (pod 1e-6 |Z|) se ignorují, jinak by
+fit dat bez šumu (SSR ~ 1e-29) hlásil "lepší" kandidáty, kteří jsou tentýž
+bod.
+
+**Benchmark** (5 obvodů s 6-10 parametry, bez šumu a s 1 % šumem, 20 seedů =
+200 fitů, z toho 40 chybných z DE):
+
+| Kandidáti | Opraveno | Varováno | Falešná varování |
+|-----------|----------|----------|------------------|
+| nejnižší cena celkově (nezávisle na míře vzdálenosti) | 1/40 | 9/40 | 0/160 |
+| 4 okna (10/20/40/70 %) | 7/40 | 21/40 | 0/160 |
+| 15 oken, první polovina | 24/40 | 33/40 | 0/160 |
+| **30 oken, první polovina** | **39/40** | **40/40** | **0/160** |
+| 50 oken | 39/40 | 40/40 | 0/160 |
+
+Rozhoduje, *kdy* bod vznikl, ne jak se měří vzdálenost: výběr podle ceny
+bere body z konce běhu, kdy populace už sedí v jednom údolí. Cena: ~1 s
+refinementu proti 10-45 s DE u 6-10 parametrů. S `--de-workers > 1` volá DE
+kopie cost function v jiných procesech; vyhodnocení se proto zaznamenávají v
+hlavním procesu přes map, který DE dostane. Vypnutí: `--no-archive-check`
+(`archive_check=False`).
 
 ## 8. Matematické detaily
 

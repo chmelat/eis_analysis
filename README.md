@@ -553,6 +553,18 @@ eis data.DTA --circuit "..." --de-strategy 2 --de-popsize 20 --de-maxiter 500
 
 **DE strategies:** 1=randtobest1bin, 2=best1bin, 3=rand1bin (default)
 
+**Archive check:** DE keeps only its best point, so when its population
+collapses into a wrong basin the right one - visited in the early
+generations - is lost. Every evaluation is therefore recorded; after DE the
+best distinct point of each of 30 windows over the first half of the run is
+refined like the DE result, and the best refined point wins (`DE ended in a
+local minimum ...` when that is another model). A refined point with a
+different spectrum that fits statistically as well gives `Ambiguous model
+...` with its parameters (only for a fit below 5 % error: when the model
+does not fit, its residuals are not noise and the test turns lenient). On 200 benchmark fits this repaired 39 of the 40
+that DE got wrong, with no false warning, for ~1 s against 10-45 s of DE.
+Works with any `--de-workers`; `--no-archive-check` switches it off.
+
 **Detailed documentation:** [doc/DIFFERENTIAL_EVOLUTION.md](doc/DIFFERENTIAL_EVOLUTION.md)
 
 #### Multi-start optimization
@@ -643,6 +655,7 @@ the fit reports `Global search contributed nothing` - see
 - `--de-maxiter` (default: 1000) - Maximum number of generations. Increase if optimization doesn't converge.
 - `--de-tol` (default: 0.01) - Convergence tolerance (relative fitness change).
 - `--de-workers` (default: 1) - Number of parallel workers. -1 = all CPU cores.
+- `--no-archive-check` - Skip the DE archive check (refining early-generation candidates against local minima and ambiguous models, ~1 s per fit).
 
 ### Multi-start optimization
 

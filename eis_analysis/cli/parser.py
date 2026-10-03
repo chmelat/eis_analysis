@@ -251,6 +251,9 @@ Examples:
                            help='DE convergence tolerance (default: 0.01)')
     fit_group.add_argument('--de-workers', type=int, default=1,
                            help='DE parallel workers (default: 1, use -1 for all CPUs)')
+    fit_group.add_argument('--no-archive-check', action='store_true',
+                           help='Skip the DE archive check (refining early-generation candidates '
+                                'against local minima, ~1 s per fit)')
 
     # ==========================================================================
     # Voigt Chain Group

@@ -166,6 +166,12 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     # relative error and can move the other way; reporting it as "improvement"
     # would contradict the choice the optimizer actually made.
     logger.info(f"  Improvement (SSR): {diffevo_result.improvement:+.3f}%")
+    if not diag.archive_checked:
+        logger.info("  Archive check: off (--no-archive-check)")
+    else:
+        outcome = "the result is one of them" if diag.archive_used else "none fitted better"
+        logger.info(f"  Archive check: {diag.archive_candidates} candidate(s) from early "
+                    f"generations refined, {outcome}")
     logger.info("")
 
     # Summary
@@ -758,6 +764,7 @@ def _fit_standard_circuit(
                 tol=args.de_tol,
                 workers=args.de_workers,
                 weighting=args.weighting,
+                archive_check=not args.no_archive_check,
                 use_analytic_jacobian=not args.numeric_jacobian
             )
             result = diffevo_result.best_result
