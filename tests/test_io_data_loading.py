@@ -287,13 +287,13 @@ def test_csv_comma_standard(tmp_path):
     assert np.isclose(Z[0].real, 100.0)
 
 
-def test_csv_duplicate_freq_warns(tmp_path):
-    """Two sweeps in one CSV, the second logging measured (not bit-equal) frequencies."""
+def test_csv_several_sweeps_raise(tmp_path):
+    """Two sweeps in one CSV, the second logging measured (not bit-equal)
+    frequencies: read as one spectrum they would corrupt every analysis."""
     rows = _rows(12)
     second = [(fr * (1 + 1e-7), zr, zi) for fr, zr, zi in rows]
-    result = load_csv_data(_write(tmp_path, "dup.csv", _make_csv(rows + second)))
-    assert len(result.frequencies) == 24
-    assert any("duplicate" in w.lower() for w in result.warnings)
+    with pytest.raises(ValueError, match=r"2 sweeps \(lines 2-13, 14-25\)"):
+        load_csv_data(_write(tmp_path, "dup.csv", _make_csv(rows + second)))
 
 
 # Column roles: f frequency, r Re(Z), i Im(Z), n -Im(Z), x something else
@@ -325,12 +325,14 @@ def test_csv_duplicate_freq_warns(tmp_path):
     (("f", "Zreal", "Zimag", "Zreal fit", "Zimag fit"), "frixx"),
     (("", "freq", "zreal", "zimag"), "xfri"),          # pandas index column
     (("f_Hz", "Zreal_Ohm", "Zimag_Ohm"), "fri"),
+    (("f", "-Z'", "-Z''"), "fmn"),                     # both negated (pyimpspec test data)
 ])
 def test_csv_header_names(tmp_path, headers, roles):
     """Whole names after dropping units, never substrings of another header."""
     rows = _rows(12)
     value = {"x": lambda k, r: str(k), "f": lambda k, r: repr(r[0]), "r": lambda k, r: repr(r[1]),
-             "i": lambda k, r: repr(r[2]), "n": lambda k, r: repr(-r[2])}
+             "i": lambda k, r: repr(r[2]), "n": lambda k, r: repr(-r[2]),
+             "m": lambda k, r: repr(-r[1])}
     text = ",".join(headers) + "\n" + "".join(
         ",".join(value[c](k, r) for c in roles) + "\n" for k, r in enumerate(rows))
     f, Z = _fz(load_csv_data(_write(tmp_path, "h.csv", text)))
@@ -340,7 +342,7 @@ def test_csv_header_names(tmp_path, headers, roles):
 
 @pytest.mark.parametrize("headers", [
     ("freq", "Re", "Zreal"),       # Z_real named twice, Z_imag not at all
-    ("frequency", "Zmod", "Zphz"),  # only frequency recognised: order would be a guess
+    ("freq", "Re", "Zphz"),         # Re without Im, a phase without |Z|
 ])
 def test_csv_unresolved_header_raises(tmp_path, headers):
     text = _make_csv(_rows(12), headers=headers)
@@ -355,10 +357,25 @@ def test_csv_semicolon_european(tmp_path):
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
-def test_csv_tab_delimited(tmp_path):
-    text = _make_csv(_rows(12), delimiter="\t", headers=("f", "Re(Z)", "Im(Z)"))
+@pytest.mark.parametrize("delimiter", ["\t", " "])
+def test_csv_tab_or_space_delimited(tmp_path, delimiter):
+    text = _make_csv(_rows(12), delimiter=delimiter, headers=("f", "Re(Z)", "Im(Z)"))
     f, Z = _fz(load_csv_data(_write(tmp_path, "t.csv", text)))
     assert len(f) == 12
+    assert np.isclose(Z[0], 100.0 - 10.0j)
+
+
+@pytest.mark.parametrize("headers, phase_sign, scale", [
+    (("frequency", "|Z|", "-phase"), -1.0, 180 / np.pi),   # pyimpspec test data
+    (("Freq", "Zmod", "Zphz (rad)"), 1.0, 1.0),
+])
+def test_csv_polar(tmp_path, headers, phase_sign, scale):
+    """|Z| and phase (degrees unless 'rad') when Re/Im are not named."""
+    rows = _rows(12)
+    polar = [(fr, abs(complex(zr, zi)), phase_sign * np.angle(complex(zr, zi)) * scale)
+             for fr, zr, zi in rows]
+    f, Z = _fz(load_csv_data(_write(tmp_path, "p.csv", _make_csv(polar, headers=headers))))
+    assert np.allclose(Z, [complex(zr, zi) for _, zr, zi in rows])
 
 
 def test_csv_comment_lines_skipped(tmp_path):

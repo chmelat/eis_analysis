@@ -633,14 +633,35 @@ def load_data(filename: str) -> LoadResult:
     return result
 
 
+def _sweep_segments(frequencies: NDArray[np.float64]) -> List[Tuple[int, int]]:
+    """
+    Half-open [start, stop) runs of the points between steps strictly against
+    the sweep direction (the direction most steps take; equal frequencies
+    are no step). One run for a single sweep; a second sweep starts with a
+    step back to the first sweep's start frequency.
+    """
+    steps = np.diff(frequencies)
+    direction = 1.0 if np.sum(steps > 0) >= np.sum(steps < 0) else -1.0
+    bounds = [0] + [int(i) + 1 for i in np.flatnonzero(direction * steps < 0)] + [len(frequencies)]
+    return list(zip(bounds[:-1], bounds[1:]))
+
+
 def _detect_delimiter(header_line: str) -> str:
     """
     Auto-detect CSV delimiter from header line.
 
-    Returns whichever of comma, tab, semicolon occurs most often. Comma is
-    listed first so it wins the all-zero case (single-column header).
+    Returns whichever of comma, tab, semicolon occurs most often, or ' ' (runs
+    of whitespace, see _split) when the header has none of them but a space.
+    Comma is listed first so it wins a single-column header.
     """
+    if not any(d in header_line for d in ',\t;') and ' ' in header_line.strip():
+        return ' '
     return max(',', '\t', ';', key=header_line.count)
+
+
+def _split(line: str, delimiter: str) -> List[str]:
+    """Fields of a line; ' ' splits at runs of whitespace (aligned columns)."""
+    return line.split() if delimiter == ' ' else line.split(delimiter)
 
 
 # Header words per quantity. A header is split into words (_header_words), so
@@ -649,6 +670,10 @@ def _detect_delimiter(header_line: str) -> str:
 _FREQ_WORDS = {'freq', 'frequency', 'hz'}  # plus 'f' as the first word, see below
 _ZREAL_WORDS = {'re', 'real', 'zreal', 'zre', 'zr', 'rez', "z'"}
 _ZIMAG_WORDS = {'im', 'imag', 'imaginary', 'zimag', 'zim', 'zi', 'imz', "z''"}
+# Polar form: |Z| (written |Z| or abs(Z); 'modulus' stays the electric modulus
+# M below) and its phase, in degrees unless a word 'rad' is in the header.
+_ZMOD_WORDS = {'zmod', 'mod', 'magnitude', 'abs'}
+_ZPHASE_WORDS = {'phase', 'phz', 'zphz', 'phi', 'theta', 'arg', 'angle'}
 # A word naming another quantity or a derived column rules the header out:
 # Re(Y) is admittance, Re(M) modulus, Re(C) capacitance, "Z' err" an error
 # bar, "Zreal fit" a model curve next to the data.
@@ -672,7 +697,7 @@ def _header_words(header: str) -> Tuple[List[str], List[str], bool]:
         name = name[1:-1]
     for typed, plain in _TYPED:
         name = name.replace(typed, plain)
-    name = name.strip()
+    name = name.replace('|z|', 'zmod').strip()  # '|' is no word character
     negated = name.startswith('-')
     name = name.lstrip('- ')
     words = r"[^\W_]+'*"
@@ -682,8 +707,9 @@ def _header_words(header: str) -> Tuple[List[str], List[str], bool]:
 
 def _classify_header(header: str) -> Tuple[Optional[str], bool]:
     """
-    Quantity a column header names ('frequency', 'Z_real', 'Z_imag' or None)
-    and whether it holds the negative (-Im(Z), EC-Lab).
+    Quantity a column header names ('frequency', 'Z_real', 'Z_imag', 'Z_mod',
+    'Z_phase' or None) and whether it holds the negative (-Im(Z), EC-Lab;
+    -phase; -Z').
 
     Only words outside brackets name the quantity: 'Re(Z)' is Re, 'C (F)' is
     not a frequency. Words anywhere rule it out: 'Re(Y)' is not Re(Z).
@@ -694,45 +720,67 @@ def _classify_header(header: str) -> Tuple[Optional[str], bool]:
         return None, False
     words = set(outside)
     hits = [q for q, names in (('frequency', _FREQ_WORDS), ('Z_real', _ZREAL_WORDS),
-                               ('Z_imag', _ZIMAG_WORDS)) if words & names]
+                               ('Z_imag', _ZIMAG_WORDS), ('Z_mod', _ZMOD_WORDS),
+                               ('Z_phase', _ZPHASE_WORDS)) if words & names]
     if outside[0] == 'f' and 'frequency' not in hits:
         hits.append('frequency')
-    # Only -Im(Z) is a convention; a negated frequency or Re(Z) is not
-    if len(hits) != 1 or (negated and hits[0] != 'Z_imag'):
+    # A component or the phase can be stored negated (-Im(Z), -phase, -Z');
+    # a negative frequency or |Z| cannot
+    if len(hits) != 1 or (negated and hits[0] in ('frequency', 'Z_mod')):
         return None, False
     return hits[0], negated
 
 
-def _detect_columns(headers: List[str], filename: str) -> Optional[Tuple[int, int, int, float]]:
+def _detect_columns(headers: List[str], filename: str
+                    ) -> Optional[Tuple[int, int, int, float, float, Optional[float]]]:
     """
-    Columns of frequency, Re(Z) and Im(Z), and the sign that turns the third into Im(Z).
+    Columns of frequency and the two impedance components, with their signs.
 
     Returns
     -------
     tuple or None
-        (freq_col, zreal_col, zimag_col, imag_sign); None when no header is
-        recognised (unknown names or no header), leaving column order to the caller
+        (freq_col, a_col, b_col, sign_a, sign_b, phase_scale): a, b are Re(Z)
+        and Im(Z) with phase_scale None, or |Z| and the phase with
+        phase_scale the factor to radians (pi/180 for degrees, 1 for a header
+        with the word 'rad'). The signs turn a stored -Im(Z), -Z' or -phase
+        back. None when no header is recognised (unknown names or no
+        header), leaving column order to the caller.
 
     Raises
     ------
     ValueError
-        If only some quantities are recognised, or one is named by several
-        columns: guessing the rest would load one column as another.
+        If neither frequency, Re(Z), Im(Z) nor frequency, |Z|, phase are
+        named once each: guessing the rest would load one column as another.
+        Re/Im take precedence, so the |Z| and phase columns many exports
+        carry next to them are ignored.
     """
     classes = [_classify_header(h) for h in headers]
-    found: Dict[str, List[int]] = {'frequency': [], 'Z_real': [], 'Z_imag': []}
+    found: Dict[str, List[int]] = {q: [] for q in
+                                   ('frequency', 'Z_real', 'Z_imag', 'Z_mod', 'Z_phase')}
     for i, (quantity, _) in enumerate(classes):
         if quantity is not None:
             found[quantity].append(i)
     if not any(found.values()):
         return None
-    if any(len(cols) != 1 for cols in found.values()):
-        read_as = ', '.join(f"{h.strip()!r} -> {q or '-'}" for h, (q, _) in zip(headers, classes))
-        raise ValueError(
-            f"CSV header of {filename} must name frequency, Z_real and Z_imag once each; "
-            f"columns read as: {read_as}. Rename them, e.g. frequency, Z_real, Z_imag")
-    (freq_col,), (zreal_col,), (zimag_col,) = found.values()
-    return freq_col, zreal_col, zimag_col, -1.0 if classes[zimag_col][1] else 1.0
+
+    def once(*quantities: str) -> bool:
+        return all(len(found[q]) == 1 for q in quantities)
+
+    def sign(col: int) -> float:
+        return -1.0 if classes[col][1] else 1.0
+
+    if once('frequency', 'Z_real', 'Z_imag'):
+        (f_col,), (a_col,), (b_col,) = found['frequency'], found['Z_real'], found['Z_imag']
+        return f_col, a_col, b_col, sign(a_col), sign(b_col), None
+    if once('frequency', 'Z_mod', 'Z_phase') and not (found['Z_real'] or found['Z_imag']):
+        (f_col,), (a_col,), (b_col,) = found['frequency'], found['Z_mod'], found['Z_phase']
+        radians = 'rad' in _header_words(headers[b_col])[1]
+        return f_col, a_col, b_col, 1.0, sign(b_col), 1.0 if radians else np.pi / 180
+    read_as = ', '.join(f"{h.strip()!r} -> {q or '-'}" for h, (q, _) in zip(headers, classes))
+    raise ValueError(
+        f"CSV header of {filename} must name frequency, Z_real and Z_imag (or frequency, "
+        f"|Z| and phase) once each; columns read as: {read_as}. "
+        f"Rename them, e.g. frequency, Z_real, Z_imag")
 
 
 def load_csv_data(
@@ -743,8 +791,10 @@ def load_csv_data(
     Load EIS data from CSV file with auto-detection of columns and delimiter.
 
     Automatically detects:
-    - Delimiter: comma, semicolon, or tab
-    - Columns: frequency, Z_real, Z_imag by header names
+    - Delimiter: comma, semicolon, or tab; whitespace when the header has
+      none of them (aligned columns - their names then must not contain spaces)
+    - Columns: frequency, Z_real, Z_imag by header names, or frequency, |Z|
+      and phase (polar form)
     - Comments: lines starting with '#' are ignored
 
     Column names (case-insensitive) are split into words at spaces,
@@ -754,7 +804,11 @@ def load_csv_data(
     - Z real: a word re, real, zreal, zre, zr, rez or z'
     - Z imag: a word im, imag, imaginary, zimag, zim, zi, imz or z'' (or z");
       with a leading minus (-Im(Z), - Z'', EC-Lab) the column holds -Im(Z)
-      and is negated
+      and is negated; likewise -Z' for Re(Z)
+    - |Z|: |Z|, a word zmod, mod, magnitude or abs; phase: a word phase, phz,
+      zphz, phi, theta, arg or angle, in degrees unless its header has the
+      word rad, negated with a leading minus. Only used when Re(Z) and Im(Z)
+      are not both named (exports often carry |Z| and phase next to them).
     Words inside brackets only rule a column out: a word for another
     quantity or a derived column (y, m, c, admittance, modulus, err, std,
     fit, ...) anywhere means it is not Z, so Re(Y) is not read as Re(Z).
@@ -777,8 +831,10 @@ def load_csv_data(
     Raises
     ------
     ValueError
-        If file cannot be parsed, or the header names only some of the
-        three quantities or one of them twice
+        If file cannot be parsed, the header names only some of the three
+        quantities or one of them twice, or the file holds several sweeps
+        (runs of at least MIN_DATA_POINTS separated by a step back against
+        the sweep direction): they would be read as one spectrum
 
     Examples
     --------
@@ -829,23 +885,24 @@ def load_csv_data(
     logger.debug(f"CSV delimiter: '{repr(delimiter)}'")
 
     # Parse header
-    headers = header_line.split(delimiter)
+    headers = _split(header_line, delimiter)
     logger.debug(f"CSV headers: {headers}")
 
     warnings: List[str] = []
     columns = _detect_columns(headers, filename)
     if columns is None:
         warnings.append("Could not detect columns from headers, using positional (0, 1, 2)")
-        columns = (0, 1, 2, 1.0)
-    freq_col, zreal_col, zimag_col, imag_sign = columns
+        columns = (0, 1, 2, 1.0, 1.0, None)
+    freq_col, a_col, b_col, sign_a, sign_b, phase_scale = columns
 
-    logger.debug(f"Column indices: freq={freq_col}, zreal={zreal_col}, zimag={zimag_col} "
-                 f"(sign {imag_sign:+.0f})")
+    logger.debug(f"Column indices: freq={freq_col}, a={a_col}, b={b_col} "
+                 f"(signs {sign_a:+.0f} {sign_b:+.0f}, "
+                 f"{'polar' if phase_scale is not None else 'Re/Im'})")
 
     # Parse data rows
     frequencies: List[float] = []
-    z_real: List[float] = []
-    z_imag: List[float] = []
+    impedances: List[complex] = []
+    line_nums: List[int] = []
 
     for line_num, line in enumerate(lines[header_idx + 1:], start=header_idx + 2):
         line = line.strip()
@@ -856,17 +913,18 @@ def load_csv_data(
         if delimiter == ';':
             line = line.replace(',', '.')
 
-        parts = line.split(delimiter)
+        parts = _split(line, delimiter)
 
         try:
             freq = float(parts[freq_col].replace(',', '.'))
-            zr = float(parts[zreal_col].replace(',', '.'))
-            zi = imag_sign * float(parts[zimag_col].replace(',', '.'))
+            a = sign_a * float(parts[a_col].replace(',', '.'))
+            b = sign_b * float(parts[b_col].replace(',', '.'))
 
-            if freq > 0 and np.isfinite(freq) and np.isfinite(zr) and np.isfinite(zi):
+            if freq > 0 and np.isfinite(freq) and np.isfinite(a) and np.isfinite(b):
                 frequencies.append(freq)
-                z_real.append(zr)
-                z_imag.append(zi)
+                impedances.append(complex(a, b) if phase_scale is None
+                                  else a * np.exp(1j * b * phase_scale))
+                line_nums.append(line_num)
         except (ValueError, IndexError) as e:
             logger.debug(f"Skipping line {line_num}: {e}")
             continue
@@ -875,7 +933,13 @@ def load_csv_data(
         raise ValueError(f"No valid data found in {filename}")
 
     freq_array = np.array(frequencies, dtype=np.float64)
-    Z = np.array(z_real, dtype=np.float64) + 1j * np.array(z_imag, dtype=np.float64)
+    sweeps = [(start, stop) for start, stop in _sweep_segments(freq_array)
+              if stop - start >= MIN_DATA_POINTS]
+    if len(sweeps) > 1:
+        lines_str = ', '.join(f"{line_nums[a]}-{line_nums[b - 1]}" for a, b in sweeps)
+        raise ValueError(f"{filename} holds {len(sweeps)} sweeps (lines {lines_str}); "
+                         f"split the file and load one sweep at a time")
+    Z = np.array(impedances, dtype=np.complex128)
     result = LoadResult(freq_array, Z, filename, warnings=warnings)
     result.keep_points(_drop_negative_real_hf(freq_array, Z, warnings))
     _check_spectrum(result.frequencies, warnings)

@@ -24,12 +24,20 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
     A word for another quantity or a derived column (`Re(Y)`, `Z' err`,
     `Zreal fit`) rules a column out (full rules in the `load_csv_data`
     docstring)
-  - A column named with a leading minus (`-Im(Z)`, `-Z''`, EC-Lab) holds
-    -Im(Z) and is negated
+  - A column named with a leading minus (`-Im(Z)`, `-Z''`, EC-Lab; also
+    `-Z'`) holds the negative and is negated
+  - Polar form: `|Z|` (or `Zmod`, `mod`, `magnitude`, `abs`) and a phase
+    (`phase`, `Zphz`, `theta`, `phi`, `arg`, ...; degrees unless the header
+    says `rad`, `-phase` negated). Used only when Re(Z) and Im(Z) are not
+    both named, so exports carrying both forms read the Re/Im columns
   - If no name matches, the first three columns are used positionally
     (with a warning); a header that names only some of the three, or one
     of them twice, is rejected
-  - Delimiter: comma, semicolon, or tab (auto-detection)
+  - Delimiter: comma, semicolon, or tab (auto-detection); whitespace when the
+    header has none of them (aligned columns, names without spaces)
+  - Several sweeps in one file (the frequency steps back to the start) are
+    rejected with the line range of each: read as one spectrum they would
+    corrupt every analysis. Split the file and load one sweep at a time
   - Decimal format: US (dot) and European (comma for semicolon-delimited)
   - Comments: lines starting with `#` are ignored
   - Examples: [example/example_eis_data.csv](example/example_eis_data.csv)
