@@ -391,18 +391,21 @@ def test_csv_header_autodetect(tmp_path):
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
-@pytest.mark.parametrize("headers, warning", [
-    (("alpha", "beta", "gamma"), "positional"),   # unknown names -> columns 0, 1, 2
-    (None, "no header"),                          # no header row: the first line is data
+@pytest.mark.parametrize("headers, warning, delimiter, decimal", [
+    (("alpha", "beta", "gamma"), "positional", ",", "."),  # unknown names -> columns 0, 1, 2
+    (None, "no header", ",", "."),                # no header row: the first line is data
+    (None, "no header", ";", ","),                # European, more decimal commas than ';'
+    (None, "no header", "\t", ","),               # tab with decimal comma
 ])
-def test_csv_positional_fallback(tmp_path, headers, warning):
+def test_csv_positional_fallback(tmp_path, headers, warning, delimiter, decimal):
     rows = _rows(12)
-    text = _make_csv(rows, headers=headers or ("x", "y", "z"))
+    text = _make_csv(rows, headers=headers or ("x", "y", "z"), delimiter=delimiter, decimal=decimal)
     if headers is None:
         text = text.split("\n", 1)[1]            # drop the header line
     result = load_csv_data(_write(tmp_path, "pos.csv", text))
     f, Z = _fz(result)
     assert np.allclose(f, [r[0] for r in rows])   # no point taken for a header
+    assert np.allclose(Z, [complex(r[1], r[2]) for r in rows])
     assert any(warning in w.lower() for w in result.warnings)
 
 

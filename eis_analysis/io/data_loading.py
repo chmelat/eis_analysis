@@ -650,10 +650,17 @@ def _detect_delimiter(header_line: str) -> str:
     """
     Auto-detect CSV delimiter from header line.
 
-    Returns whichever of comma, tab, semicolon occurs most often, or ' ' (runs
-    of whitespace, see _split) when the header has none of them but a space.
-    Comma is listed first so it wins a single-column header.
+    A line of numbers (a file without a header) takes the first of semicolon,
+    tab, comma and whitespace that splits it into at least three numbers:
+    counting characters would pick the decimal commas of "0,1;2,5;-0,3".
+    A header line returns whichever of comma, tab, semicolon occurs most
+    often, or ' ' (runs of whitespace, see _split) when it has none of them
+    but a space. Comma is listed first so it wins a single-column header.
     """
+    for candidate in (';', '\t', ',', ' '):
+        fields = _split(header_line, candidate)
+        if len(fields) >= 3 and all(_is_number(x) for x in fields):
+            return candidate
     if not any(d in header_line for d in ',\t;') and ' ' in header_line.strip():
         return ' '
     return max(',', '\t', ';', key=header_line.count)
