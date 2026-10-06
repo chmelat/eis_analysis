@@ -130,19 +130,31 @@ FREQ = np.logspace(5, -3, 129)
 
 
 def test_trapped_run_is_repaired_and_reported(monkeypatch):
-    """randtobest1bin with seed 3 stops after ~49 generations in the W-like basin of Wo.
+    """A randtobest1bin run that stops in the W-like basin of Wo is repaired.
 
-    The bounds are pinned: the trajectory of a seeded DE run depends on them,
-    and a later change of PARAMETER_BOUNDS must not decide whether DE is trapped.
+    Which seed gets trapped is not portable. The trajectory of a seeded DE
+    run depends on the bounds, on scipy's differential_evolution and on
+    numpy's random generator: seed 1 was trapped when this test was written,
+    seed 3 after the bounds widened in v0.54.1, and with numpy 2.4.4 /
+    scipy 1.17.1 only seeds 4 and 5 of 0-9 are (seed 3 converges to
+    3e-14). A fixed seed therefore broke on another machine without any code
+    change. The test takes the first trapped seed of 0-9 instead and skips,
+    not fails, when none is - the property under test is the repair of a
+    trapped run, not one trajectory. The bounds stay pinned all the same: a
+    later change of PARAMETER_BOUNDS must not decide which seeds get trapped.
     """
     from eis_analysis.fitting import bounds
     for label, rng in {'R': (1e-4, 1e10), 'R_W': (1e-4, 1e10), 'τ_W': (1e-6, 1e4)}.items():
         monkeypatch.setitem(bounds.PARAMETER_BOUNDS, label, rng)
     truth = parse_circuit_expression("R(10)-(R(100)|Wo(100,1))")
     Z = truth.impedance(FREQ, truth.get_all_params())
-    start = parse_circuit_expression("R(5)-(R(50)|Wo(50,0.3))")
-    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=3, strategy=1)
-    assert result.diagnostics.de_error > 1.0              # DE itself was trapped
+    for seed in range(10):
+        start = parse_circuit_expression("R(5)-(R(50)|Wo(50,0.3))")
+        result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=seed, strategy=1)
+        if result.diagnostics.de_error > 1.0:             # DE itself was trapped
+            break
+    else:
+        pytest.skip("no seed in 0-9 traps DE with this scipy/numpy; nothing to repair")
     assert result.diagnostics.archive_used
     assert result.best_result.params_opt == pytest.approx([10, 100, 100, 1], rel=1e-6)
     warnings = result.diagnostics.warnings
