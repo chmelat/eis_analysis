@@ -4,6 +4,74 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.0 (2026-10-06)
+
+### Changed (breaking)
+
+- **A DRT maximum is a peak only when the data need it.** Before, any local
+  maximum of gamma above 3 % of the tallest counted. That threshold failed
+  both ways: a resolved process three orders smaller in R (100 Ohm next to
+  100 kOhm, 0.15 % of the gamma maximum) was dropped, and the lobes
+  regularization splits one broad process into (1x ZARC n = 0.8: 2-3
+  peaks) were kept. Each maximum is now tested against the hypothesis that
+  it is only a shoulder of the nearest taller peak (`drt/significance.py`):
+  the DRT is refitted with gamma monotone from that peak's apex through the
+  candidate, and the rise of pseudo chi^2, in units of the DRT's own
+  residual, must reach `DRT_PEAK_DCHI2_MIN = 16` (about chi^2 with 3 degrees
+  of freedom at p = 0.001). Calibration on 248 synthetic spectra (0-3 %
+  noise): 0 spurious peaks (3 % threshold: 114), 41 missed (97), 31 of
+  them two ZARCs half a decade apart that the DRT draws as one maximum.
+  Calibrated for `sqrt` (default) and `modulus` DRT weighting. Peak counts
+  change on real data: the example spectra with a response heaped against
+  the slow end of the window (`example_eis_data.csv`,
+  `EISPOT-M136113-4.DTA`) go from 5 and 3 peaks to 1, because their other
+  maxima are explained as a shoulder of that heap. The CLI "Peak detection"
+  section prints the noise used, Delta chi^2 of every peak and the rejected
+  maxima; the lambda probe and the plot use the same peaks.
+- **`analyze_voigt_elements` takes the DRT's peaks** instead of detecting its
+  own: pass `peak_indices=[p['index'] for p in drt.diagnostics.scipy_peaks]`
+  (or `peaks_gmm`); with neither it raises `ValueError`. Its R_i is the
+  valley-partition area, the same `R_estimate` the peak list prints on the
+  scipy path (it used to walk out to 10 % of the peak height, which climbed
+  into a taller neighbour across a shallow valley), and the fallback to
+  R_pol / n applies only to R <= 0, not R < 1 Ohm (a 0.5 Ohm arc became
+  495 Ohm). The "low height" warning is gone.
+- **Removed constants** from `fitting.config`: `DRT_PEAK_HEIGHT_THRESHOLD`,
+  `DRT_PEAK_PROMINENCE_THRESHOLD`, `GMM_PEAK_HEIGHT_FACTOR`,
+  `PEAK_INTEGRATION_TOLERANCE`. New: `DRT_PEAK_DCHI2_MIN`.
+
+### Fixed
+
+- **DRT peak tau lies between grid nodes, not on them.** tau[idx] was off by
+  up to half a step (n_tau = 100 over 10 decades: +-12 %); all three peaks
+  of an exact 3-RC spectrum sat +7..+12 % off, and C = tau/R with them.
+  A parabola through ln(gamma) locates a smooth peak; a peak NNLS put into
+  two bins uses the gamma-weighted centroid, as a parabola cannot work with
+  a zero neighbour. Errors: at most 4 % on exact and 0.5-1 % noise data
+  (0.1-0.3 % exact); C of the 3-RC example 22.2 nF / 47.9 nF / 1.01 uF for
+  22 / 48 / 1000 nF. GMM centres in the Voigt suggestion are no longer
+  snapped to a node.
+- **Lin-KK no longer stops on a single-M chi^2 dip.** The M search started at
+  the first M within 0.3 decades of the next 8 M's chi^2 minimum; on a
+  coarse tau grid one M could land in a dip (M = 12 on an exact 3-RC
+  spectrum, whose chi^2 then fell 6 more decades), so mu stopped at M = 21
+  and Lin-KK estimated 1 % noise on 0.1 % data. The condition must now hold
+  for 3 consecutive M (`CHI2_PLATEAU_RUN`): 0.1 % noise estimated at
+  0.10-0.13 % (was 0.97-0.99), the example DTA files and drift spectra
+  unchanged.
+- **The Lin-KK warning on reaching max_M said the opposite of what it
+  means.** "model may still be overfit": mu above the threshold at max_M
+  means no overfit (negative R_i) ever appeared. It now reads "mu criterion
+  never triggered, M is the cap, not a mu choice".
+
+### Changed
+
+- `test_de_archive`: the trapped-DE test finds a trapped seed in 0-9
+  instead of relying on seed 3, whose trajectory differs across scipy /
+  numpy versions (it failed with scipy 1.17.1 since v0.54.1).
+
+---
+
 ## Version 0.55.0 (2026-10-06)
 
 ### Changed (breaking)
