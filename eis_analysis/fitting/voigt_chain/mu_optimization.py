@@ -263,7 +263,7 @@ def find_optimal_M_mu(
     reached_max_M = mu > mu_threshold
     if reached_max_M:
         warnings.append(f"Reached max_M = {max_M}, mu = {mu:.4f} > {mu_threshold}; "
-                        f"model may still be overfit")
+                        f"mu criterion never triggered, M is the cap, not a mu choice")
 
     return MuOptimization(
         M=M, mu=mu, tau=tau, elements=elements,
