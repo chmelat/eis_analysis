@@ -848,6 +848,7 @@ print("H eigenvalues:", np.linalg.eigvals(H)[:5])
 2. **Over-smoothing:** Příliš velké λ → sloučení separátních procesů
 3. **Under-smoothing:** Příliš malé λ → rozpad jednoho procesu na více peaků
 4. **Pseudo-peaky:** Numerické artefakty vypadající jako fyzikální procesy
+   (jak je eis_analysis odfiltruje: viz 13.3.1)
 
 ---
 
@@ -941,6 +942,74 @@ R_pol = np.trapz(gamma, np.log(tau))
 print(f"R_pol = {R_pol:.2f} Ω")
 print(f"R_total = R_inf + R_pol = {result.R_inf + R_pol:.2f} Ω")
 ```
+
+### 13.3.1 Výběr peaků v eis_analysis: test významnosti
+
+Práh výšky vztažený k nejvyššímu peaku (výše 5 %, v eis_analysis dříve 3 %)
+je strukturální kritérium a selhává oběma směry:
+
+- **Zahodí rozlišený malý proces.** Oblouk 100 Ω vedle 100 kΩ má v DRT
+  lokální maximum ve správném τ, ale jen 0.15 % výšky hlavního peaku.
+- **Ponechá laloky jednoho širokého procesu.** Regularizace rozloží např.
+  ZARC s n = 0.8 na hlavní peak a boční laloky vysoké 3-9 %.
+
+Od verze následující po 0.55.0 rozhoduje o peaku to, zda ho data potřebují
+(`eis_analysis/drt/significance.py`):
+
+1. **Kandidáti:** všechna lokální maxima γ(τ), bez výškového prahu. NNLS dává
+   přesné nuly, takže maxima jsou skutečné hrboly.
+2. **Šum:** σ = sqrt(χ²_ps / 2N), vlastní reziduum DRT (relativní, na
+   složku). Šum, kterého DRT nedosáhne, nelze po peaku požadovat. Odhad šumu
+   z Lin-KK se záměrně nepoužívá: je odvozen z pseudo χ², takže pohltí
+   i skutečný nesoulad (drift na měřeném spektru dal 29 %), a počítá se na
+   celém spektru před ořezem `--f-min/--f-max`.
+3. **Nulová hypotéza - rameno:** kandidát je jen rameno nejbližšího vyššího
+   peaku (z obou stran ten za vyšším sedlem, jako u topografické prominence).
+   DRT se přepočítá se stejným λ, R_∞ a L, ale γ musí na úseku od vrcholu
+   vyššího peaku přes celé povodí kandidáta monotónně klesat. Menší peaky
+   mezi nimi jsou ve stejném monotónním úseku. Monotónní nezáporná
+   posloupnost je kumulativní součet nezáporných přírůstků
+   (γ_k = Σ_{i>=k} e_i, e_i >= 0), takže substituce sloupců matice A
+   i regularizační matice zachová úlohu jako jedno NNLS.
+4. **Test:** Δχ² = (χ²_ps(rameno) - χ²_ps(plný fit)) / σ², kde χ²_ps je
+   pseudo χ² s vahami 1/|Z|² (Boukamp). Peak je významný při
+   Δχ² >= 16 (`DRT_PEAK_DCHI2_MIN`; zhruba χ² se 3 stupni volnosti při
+   p = 0.001, peak přidává přibližně R, τ a šířku). Nejvyšší peak se
+   netestuje.
+
+**Proč rameno, a ne vynulování povodí.** Lalok širokého procesu nese
+skutečnou hmotu γ. Po jeho vynulování nemá kam jít a fit se zhorší
+(Δχ² 46-1746 na ZARC n = 0.8), takže by prošel. Rameno hmotu ponechá
+a zakáže jen samostatné maximum: lalok dostane Δχ² <= 2, skutečný oddělený
+proces stovky až tisíce.
+
+**Kalibrace** (248 syntetických spekter: 2xRC, 2xZARC 0.5 a 1 dekádu od
+sebe, poměry R 1:10 / 1:100 / 1:1000, 1xZARC n = 0.8, 1xRC; šum 0-3 %,
+10 seedů; vážení sqrt):
+
+| Metoda | chybějící peaky | falešné peaky |
+|---|---|---|
+| práh 3 % výšky | 97 | 114 |
+| Δχ² >= 9 | 40 | 0 |
+| Δχ² >= 16 | 41 | 0 |
+| Δχ² >= 25 | 46 | 0 |
+
+Nejvyšší Δχ² falešného kandidáta bylo 5.5. Z 41 chybějících je 31 dvojic
+ZARC vzdálených 0.5 dekády, které DRT vykreslí jako jediné maximum, zbytek
+při 3 % šumu.
+
+**Meze:**
+
+- Test nerozliší, co nerozliší samo DRT (blízké procesy, jedno maximum).
+- Široký proces na úbočí hromady γ na okraji okna (proces pomalejší než
+  f_min) se vysvětlí jako její rameno a jako samostatný peak se nehlásí.
+- Kalibrováno pro vážení datového členu `sqrt` (výchozí) a `modulus`, které
+  mají blízko k vahám 1/|Z|² v χ²_ps. Při `uniform` a `proportional` řeší
+  NNLS jinou úlohu, než jakou test měří, a je méně spolehlivý (1 % šum:
+  falešné Δχ² až 33 u `uniform`).
+
+Stejný test používá sonda stability λ (`--lambda-probe`, se šumem z hlavního
+běhu) i návrh Voigtových prvků, takže všechny výstupy hlásí tytéž peaky.
 
 ### 13.4 Validace Výsledků
 

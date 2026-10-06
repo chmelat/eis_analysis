@@ -93,15 +93,14 @@ def test_uniform_is_the_unweighted_system():
 # End-to-end effect
 # =============================================================================
 
-def test_sqrt_resolves_small_fast_arc_that_uniform_misses():
-    """At the default lambda=0.1, uniform merges the 50 Ohm arc; sqrt recovers all three.
+def test_sqrt_resolves_small_fast_arc():
+    """At the default lambda=0.1, sqrt recovers all three arcs.
 
-    Measured (noise-free): uniform finds 2 peaks, sqrt finds 3 with tau errors
-    <= 0.02 decade and R errors 1.6 / 3.4 / 1.2 %.
+    Measured (noise-free): tau errors <= 0.02 decade and R errors
+    1.6 / 3.4 / 1.2 %. Uniform used to "miss" the 50 Ohm arc only because
+    its maximum fell under the 3 % height threshold; the significance test
+    keeps it (0.03 decade, 6 % R off), so the contrast is gone.
     """
-    uniform = calculate_drt(FREQUENCIES, Z_CLEAN, weighting='uniform')
-    assert None in _matched_peaks(uniform), "uniform unexpectedly resolved the fast arc"
-
     sqrt = calculate_drt(FREQUENCIES, Z_CLEAN)  # default weighting
     assert sqrt.diagnostics.weighting == 'sqrt'
     for match, (R, tau) in zip(_matched_peaks(sqrt), ELEMENTS):

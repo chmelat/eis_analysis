@@ -44,19 +44,26 @@ Mid-range of the values selected on data with 0.1-2 % noise.
 # DRT Peak Detection
 # =============================================================================
 
-DRT_PEAK_HEIGHT_THRESHOLD = 0.03
+DRT_PEAK_DCHI2_MIN = 16.0
 """
-Minimum relative peak height for detection as a separate process.
+Minimum Delta chi^2 (in units of the noise variance) for a DRT local maximum
+to count as a separate process (drt.significance).
 
-A peak must be at least 3% of maximum DRT height to be considered
-a separate relaxation process. Lower values capture weak processes
-but increase risk of false detections (noise, artifacts).
+The null hypothesis is that the maximum is only a shoulder of its taller
+neighbour; Delta chi^2 is how much worse that constrained refit reproduces
+the data. 16 is roughly the chi^2 with 3 degrees of freedom at p = 0.001
+(a peak adds about R, tau and a width).
 
-Reference
----------
-Typical threshold 5-15% for process separation [2].
-Value 3% is a very sensitive setting for detecting very weak processes.
-WARNING: May capture noise in lower quality data.
+Calibration (default sqrt weighting, noise = the DRT's own residual, 248
+runs: 2xRC, 2xZARC 0.5 and 1 decade apart, R ratios 1:10 / 1:100 / 1:1000,
+1xZARC n = 0.8, 1xRC; noise 0 / 0.1 / 1 / 3 %, 10 seeds): the largest Delta
+chi^2 of a spurious candidate was 5.5, so 9, 16 and 25 all gave 0 false
+peaks (the old 3 % height threshold: 114). Missed peaks: 40 / 41 / 46 - 31
+of them 2xZARC 0.5 decade apart, which the DRT renders as a single maximum,
+so no test can see two; the rest at 3 % noise. 25 lost a true peak at 1 %
+noise (2xZARC 1 decade, Delta chi^2 down to 23). 16 costs one miss against
+9 and keeps three times the margin over the largest spurious value, for real
+data with drift or an imperfect R_inf.
 """
 
 GMM_N_COMPONENTS_RANGE = (1, 6)
@@ -193,25 +200,7 @@ A threshold of 7 cleanly separates the two. Advisory only (emits a
 warning; does not alter gamma or detected peaks).
 """
 
-DRT_PEAK_PROMINENCE_THRESHOLD = 0.015
-"""
-Minimum peak prominence as fraction of maximum (1.5%).
 
-Prominence measures how much a peak stands out from its surroundings.
-Prevents detection of small bumps as separate peaks.
-Value 1.5% is a very sensitive setting for very subtle peaks.
-WARNING: Small fluctuations in data may be detected as peaks.
-"""
-
-GMM_PEAK_HEIGHT_FACTOR = 0.05
-"""
-Minimum GMM peak height as fraction of maximum (5%).
-
-GMM (Gaussian Mixture Model) peak detection is more sensitive than scipy.
-Value 5% is a very sensitive setting for very weak relaxation processes.
-WARNING: High sensitivity - may detect noise as separate peaks
-in data with lower SNR (signal-to-noise ratio).
-"""
 
 # =============================================================================
 # Fit Quality Assessment
@@ -297,14 +286,6 @@ Recommendations per [1]:
 - >4 elements: likely overfit, consider DRT analysis
 """
 
-PEAK_INTEGRATION_TOLERANCE = 0.1
-"""
-Tolerance for peak integration in DRT (+/-10%).
-
-When computing R_i from peak integral, include the region
-where gamma(tau) > peak_height * 0.1.
-"""
-
 RPOL_RATIO_WARNING_THRESHOLD_LOW = 0.5
 """
 Lower threshold for R_pol ratio warning (50%).
@@ -344,7 +325,7 @@ __all__ = [
     'DRT_LAMBDA_DEFAULT',
 
     # DRT Peak Detection
-    'DRT_PEAK_HEIGHT_THRESHOLD',
+    'DRT_PEAK_DCHI2_MIN',
     'DRT_PEAK_EDGE_DECADES',
     'DRT_EDGE_BIN_RPOL_FRACTION',
     'DRT_EXTRAPOLATED_RPOL_FRACTION',
@@ -352,8 +333,6 @@ __all__ = [
     'DRT_LF_RC_RATIO_MIN',
     'DRT_INDUCTANCE_DECADES',
     'DRT_MIN_EFFECTIVE_BINS',
-    'DRT_PEAK_PROMINENCE_THRESHOLD',
-    'GMM_PEAK_HEIGHT_FACTOR',
     'GMM_N_COMPONENTS_RANGE',
 
     # Fit Quality Assessment
@@ -365,7 +344,6 @@ __all__ = [
 
     # Automatic Circuit Suggestion
     'MAX_VOIGT_ELEMENTS',
-    'PEAK_INTEGRATION_TOLERANCE',
     'RPOL_RATIO_WARNING_THRESHOLD_LOW',
     'RPOL_RATIO_WARNING_THRESHOLD_HIGH',
 

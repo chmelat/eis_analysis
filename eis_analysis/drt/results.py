@@ -128,6 +128,11 @@ class DRTDiagnostics:
     peak_method: str
     n_peaks: int
     scipy_peaks: Optional[List[Dict]] = None  # For scipy method
+    # Peak significance (drt.significance): relative noise per component the
+    # Delta chi^2 of each scipy peak is measured in (the DRT's own residual),
+    # and the local maxima that failed the test, as {'tau', 'delta_chi2'}.
+    noise_sigma_used: Optional[float] = None
+    rejected_peaks: List[Dict] = field(default_factory=list)
 
     # Shape diagnostics (F3): effective number of gamma bins (participation ratio)
     n_effective_bins: Optional[float] = None

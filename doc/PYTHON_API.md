@@ -75,10 +75,12 @@ drt_result = calculate_drt(
 )
 tau, gamma = drt_result.tau, drt_result.gamma
 peaks_gmm = drt_result.peaks
+# Significant DRT maxima (scipy path); the fallback when GMM finds nothing
+peak_indices = [p['index'] for p in drt_result.diagnostics.scipy_peaks]
 
 # 4. Voigt element analysis
 suggestion = analyze_voigt_elements(
-    tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm
+    tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm, peak_indices=peak_indices
 )
 for elem in suggestion.elements:
     print(f"tau={elem.tau:.2e} s, R={elem.R:.1f} Ohm, C={elem.C:.2e} F")
@@ -804,8 +806,16 @@ suggestion = analyze_voigt_elements(
     gamma,                # From calculate_drt()
     frequencies,
     Z,
-    peaks_gmm=None        # GMM peaks from calculate_drt() (optional)
+    peaks_gmm=None,       # GMM peaks from calculate_drt() (drt_result.peaks)
+    peak_indices=None     # [p['index'] for p in drt_result.diagnostics.scipy_peaks]
 )
+# One of peaks_gmm / peak_indices is required (ValueError otherwise); GMM
+# peaks win when non-empty. The scipy peaks are the local maxima of gamma that
+# pass calculate_drt's significance test (Delta chi^2 >= DRT_PEAK_DCHI2_MIN
+# against a shoulder of the nearest taller peak), so the suggestion is built
+# from exactly the peaks the DRT reports. R_i is each peak's valley-to-valley
+# area: on the scipy path the same as its R_estimate (a GMM component's
+# R_estimate is R_pol * weight instead).
 
 # suggestion is a VoigtSuggestion:
 #   .elements       list of VoigtElement (.id, .tau, .freq, .R, .C, .warnings)
@@ -996,7 +1006,8 @@ drt_result = calculate_drt(
 # Voigt analysis
 suggestion = analyze_voigt_elements(
     drt_result.tau, drt_result.gamma, frequencies, Z,
-    peaks_gmm=drt_result.peaks
+    peaks_gmm=drt_result.peaks,
+    peak_indices=[p['index'] for p in drt_result.diagnostics.scipy_peaks]
 )
 
 # Build circuit manually based on analysis

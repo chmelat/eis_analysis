@@ -186,10 +186,49 @@ jako v jadru, aby to bylo konzistentni):
 
 "Pik" se nehleda okem. Kod nabizi dve metody:
 
-- **scipy** - klasicke hledani lokalnich maxim (rychle, jednoduche).
+- **scipy** (vychozi) - lokalni maxima gamma, z nichz zustanou jen ta, ktera
+  data opravdu potrebuji (viz nize).
 - **GMM** - prolozeni smesi Gaussianu v log(tau) prostoru, pricemz pocet piku
   urci Bayesovsky (BIC). Robustnejsi vuci sumu a prekryvum.
   Viz [GMM_BAYESIAN_INTUITION.md](GMM_BAYESIAN_INTUITION.md).
+
+**Ktery hrbol je pik?** Ne kazde lokalni maximum je proces. Regularizace
+rozlozi jeden siroky proces na hlavni pik a boky ("laloky"), a naopak maly
+skutecny proces vedle velkeho muze mit jen promile vysky. Prah "aspon 3 %
+nejvyssiho piku" proto chybuje obema smery: laloky necha, maly proces zahodi.
+
+Kod se misto toho pta dat. Pro kazdy hrbol zkusi, jestli by data stejne dobre
+vysvetlila verze, kde hrbol neni samostatny - jen **rameno** sousedniho
+vyssiho piku (gamma od vyssiho piku jen klesa, zadne udoli, zadny druhy
+vrchol):
+
+```
+   volny fit:              _/\_/--\_        lalok + udoli + hlavni pik
+   "jen rameno":           _/-----\_        lalok "prelity" do boku piku
+
+   lalok:          fit se skoro nezmeni   ->  neni pik
+   oddeleny proces: rameno by muselo drzet gamma vysoko pres dekady
+                    mezi nimi, data to nedovoli  ->  je pik
+```
+
+O kolik se fit zhorsi, se meri v nasobcich sumu dat (Delta chi^2; za sum se
+bere to, jak presne DRT data vubec dokaze popsat). Hrbol je pik,
+kdyz zhorseni prekroci 16 - u ciste nahody by se to stalo zhruba jednou za
+tisic. Nejvyssi pik se netestuje, ten je vzdy.
+
+Co z toho plyne pro cteni vysledku:
+
+- Na 248 syntetickych spektrech test nenahlasil zadny falesny pik
+  (stary 3% prah 114) a nasel i proces 1000x mensi v R.
+- **Co nerozlisi DRT, nerozlisi ani test.** Dva procesy pul dekady od sebe
+  dava DRT jako jeden hrbol, takze i test hlasi jeden pik.
+- **Siroky proces na boku obri "hromady" na okraji okna** (proces pomalejsi
+  nez nejnizsi frekvence) se vysvetli jako jeji rameno a samostatne se
+  nehlasi. CLI na hromadu upozorni.
+- Vystup "Peak detection" ukaze pouzity sum, Delta chi^2 u kazdeho piku
+  i zamitnute hrboly - je videt, jak tesne co proslo.
+
+Detaily a kalibrace: [DRT_METHOD_ANALYSIS.md](DRT_METHOD_ANALYSIS.md), 13.3.1.
 
 ---
 

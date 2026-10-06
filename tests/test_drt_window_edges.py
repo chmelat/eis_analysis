@@ -25,6 +25,7 @@ import pytest
 
 from eis_analysis.drt import calculate_drt
 from eis_analysis.drt.core import _detect_peaks
+from eis_analysis.drt.significance import PeakSignificanceResult
 from eis_analysis.drt.estimation import (
     _edge_pile_up,
     _flag_boundary_peaks,
@@ -93,9 +94,15 @@ def test_peak_is_flagged_by_distance_to_the_window_edge():
 def test_detect_peaks_annotates_both_paths():
     """Every peak dict leaving _detect_peaks carries the flag."""
     gamma = np.exp(-0.5 * ((np.log10(TAU_GRID) + 3.0) / 0.3) ** 2) * 100.0
+    # A single maximum is never tested (delta_chi2 = inf), so it is significant
+    peak = np.array([int(np.argmax(gamma))])
+    significance = PeakSignificanceResult(
+        candidates=peak, delta_chi2=np.array([np.inf]), significant=peak,
+        noise_sigma=0.01, threshold=16.0)
 
     gmm_peaks, _, scipy_peaks = _detect_peaks(
-        TAU_GRID, gamma, 'gmm', n_data=len(FREQUENCIES), tau_window=TAU_WINDOW
+        TAU_GRID, gamma, 'gmm', n_data=len(FREQUENCIES), tau_window=TAU_WINDOW,
+        significance=significance
     )
 
     assert scipy_peaks

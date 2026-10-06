@@ -9,6 +9,8 @@ from typing import Tuple, List, Dict, Optional
 from numpy.typing import NDArray
 from scipy.special import logsumexp
 
+from .estimation import _estimate_peak_resistance, _flag_boundary_peaks, refine_peak_tau
+from .significance import PeakSignificanceResult
 from ..fitting.config import GMM_N_COMPONENTS_RANGE
 
 logger = logging.getLogger(__name__)
@@ -317,3 +319,63 @@ def gmm_peak_detection(
                      f"váha = {peak['weight']:.3f}, R ~ {peak['R_estimate']:.2f} Ω")
 
     return peaks, best_gmm, bic_scores
+
+
+# =============================================================================
+# Peak Detection
+# =============================================================================
+
+def _detect_peaks(tau: NDArray, gamma: NDArray,
+                  peak_method: str,
+                  gmm_bic_threshold: float = 10.0,
+                  n_data: Optional[int] = None,
+                  *, tau_window: Tuple[float, float],
+                  significance: PeakSignificanceResult
+                  ) -> Tuple[Optional[List[Dict]], Optional[List[float]], Optional[List[Dict]]]:
+    """
+    Detect peaks in DRT spectrum.
+
+    n_data: počet skutečných měření (frekvencí) pro penalizaci BIC v GMM.
+    tau_window: měřené okno pro okrajové příznaky píků.
+    significance: test of every local maximum (drt.significance); the scipy
+    peaks are its significant candidates.
+
+    Returns:
+        (gmm_peaks, bic_scores, scipy_peaks)
+    """
+    use_gmm = (peak_method == 'gmm')
+
+    # Always calculate scipy peaks for diagnostics
+    peaks_idx = significance.significant
+    delta_chi2 = dict(zip(significance.candidates.tolist(), significance.delta_chi2.tolist()))
+    peak_resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
+
+    scipy_peaks = []
+    for i, idx in enumerate(peaks_idx):
+        R_peak = peak_resistances[i] if i < len(peak_resistances) else 0.0
+        tau_peak = refine_peak_tau(tau, gamma, idx)
+        scipy_peaks.append({
+            'index': int(idx),
+            'tau': tau_peak,
+            'frequency': float(1/(2 * np.pi * tau_peak)),
+            'R_estimate': float(R_peak),
+            'delta_chi2': float(delta_chi2[int(idx)])
+        })
+
+    _flag_boundary_peaks(tau_window, scipy_peaks, 'tau')
+
+    if use_gmm:
+        peaks_result, gmm_model, bic_scores = gmm_peak_detection(
+            tau, gamma, n_components_range=GMM_N_COMPONENTS_RANGE,
+            bic_threshold=gmm_bic_threshold, n_data=n_data
+        )
+
+        if len(peaks_result) == 0 or gmm_model is None:
+            # GMM failed, scipy_peaks available as fallback
+            return None, None, scipy_peaks
+
+        _flag_boundary_peaks(tau_window, peaks_result, 'tau_center')
+
+        return peaks_result, bic_scores, scipy_peaks
+
+    return None, None, scipy_peaks

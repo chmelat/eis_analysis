@@ -7,7 +7,7 @@ DRT analysis handlers for the EIS CLI.
 
 import argparse
 import logging
-from math import isfinite
+from math import isfinite, isinf, isnan
 from typing import List, Optional
 
 from numpy.typing import NDArray
@@ -16,7 +16,7 @@ from ..logging import log_separator
 from ..utils import draw_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
-from ...fitting.config import GMM_N_COMPONENTS_RANGE
+from ...fitting.config import DRT_PEAK_DCHI2_MIN, GMM_N_COMPONENTS_RANGE
 from ...visualization import plot_drt
 
 logger = logging.getLogger(__name__)
@@ -180,8 +180,20 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     log_separator()
     logger.info("Peak detection in DRT spectrum")
     log_separator()
-    method_str = "GMM" if diag.peak_method == 'gmm' else "scipy.signal.find_peaks"
+    # GMM that found no components falls back to the scipy peaks listed below
+    gmm_used = diag.peak_method == 'gmm' and bool(result.peaks)
+    scipy_str = ("local maxima, kept if Delta chi^2 >= "
+                 f"{DRT_PEAK_DCHI2_MIN:g} against a shoulder of the nearest taller peak")
+    if gmm_used:
+        method_str = "GMM"
+    elif diag.peak_method == 'gmm':
+        method_str = f"GMM found no components; fallback: {scipy_str}"
+    else:
+        method_str = scipy_str
     logger.info(f"Method: {method_str}")
+    if not gmm_used and diag.noise_sigma_used is not None:
+        logger.info(f"Noise for the test: {diag.noise_sigma_used*100:.3f}% "
+                    f"(DRT residual)")
     if result.bic_scores:
         _log_gmm_selection(result.bic_scores, diag.n_peaks)
     logger.info(f"Found {diag.n_peaks} peaks")
@@ -200,8 +212,14 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     elif diag.scipy_peaks:
         for i, peak in enumerate(diag.scipy_peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
-                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm"
+                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm, "
+                        f"{_delta_chi2_str(peak['delta_chi2'])}"
                         f"{_edge_marker(peak)}")
+        if diag.rejected_peaks:
+            rejected = ", ".join(f"{p['tau']:.2e} s ({p['delta_chi2']:.1f})"
+                                 for p in diag.rejected_peaks)
+            logger.info(f"  Rejected {len(diag.rejected_peaks)} local maxima "
+                        f"(tau, Delta chi^2): {rejected}")
 
     # Lambda-probe peak stability
     if diag.stability is not None:
@@ -239,6 +257,15 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
             logger.warning(f"  {warning}")
 
     log_separator()
+
+
+def _delta_chi2_str(delta_chi2: float) -> str:
+    """Delta chi^2 of a reported peak; inf marks a peak with no taller one to merge into."""
+    if isinf(delta_chi2):
+        return "Delta chi^2 = - (no taller peak)"
+    if isnan(delta_chi2):
+        return "Delta chi^2 = n/a (refit failed)"
+    return f"Delta chi^2 = {delta_chi2:.0f}"
 
 
 def run_drt_analysis(
@@ -329,7 +356,7 @@ def run_voigt_analysis(
     """
     if args.no_drt or args.no_voigt_info:
         return
-    if drt_result.tau is None or drt_result.gamma is None:
+    if drt_result.tau is None or drt_result.gamma is None or drt_result.diagnostics is None:
         return
 
     # With --normalize-rpol, drt_result.gamma is gamma/R_pol; the R and C
@@ -341,7 +368,8 @@ def run_voigt_analysis(
     try:
         suggestion = analyze_voigt_elements(
             drt_result.tau, gamma_ohm, frequencies, Z,
-            peaks_gmm=drt_result.peaks
+            peaks_gmm=drt_result.peaks,
+            peak_indices=[p['index'] for p in (drt_result.diagnostics.scipy_peaks or [])]
         )
         _log_voigt_report(suggestion)
 

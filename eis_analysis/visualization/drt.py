@@ -8,10 +8,9 @@ and (for the GMM method) per-peak deconvolution and BIC model-selection panels.
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
-from scipy.signal import find_peaks
 
 from ..drt.results import DRTResult
-from ..fitting.config import DRT_PEAK_HEIGHT_THRESHOLD, GMM_N_COMPONENTS_RANGE
+from ..fitting.config import GMM_N_COMPONENTS_RANGE
 
 
 def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
@@ -88,13 +87,13 @@ def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
 
     ax1.grid(True, alpha=0.3, which='both')
 
-    # Mark peaks for scipy method
-    if not use_gmm:
-        peaks_idx, _ = find_peaks(gamma, height=np.max(gamma) * DRT_PEAK_HEIGHT_THRESHOLD)
-        if len(peaks_idx) > 0:
-            ax1.plot(tau[peaks_idx], gamma[peaks_idx], 'ro', markersize=8,
-                    label=f'{len(peaks_idx)} peaks', zorder=5)
-            ax1.legend()
+    # Mark the peaks the run reported (scipy method), at their refined tau and
+    # on the drawn curve (linear between nodes on the log tau axis)
+    if not use_gmm and diag.scipy_peaks:
+        peak_tau = np.array([p['tau'] for p in diag.scipy_peaks])
+        ax1.plot(peak_tau, np.interp(np.log(peak_tau), np.log(tau), gamma), 'ro',
+                 markersize=8, label=f'{len(diag.scipy_peaks)} peaks', zorder=5)
+        ax1.legend()
 
     if probe_curves:
         ax1.legend(fontsize=8)

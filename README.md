@@ -367,6 +367,26 @@ By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
 f_max. Use `--ri-fit` when it has not.
 
+A local maximum of gamma counts as a peak only if the data need it. The DRT is
+refitted with gamma forced to fall monotonically from the nearest taller peak
+through the candidate, i.e. with the candidate as a mere shoulder of that peak,
+and the loss of fit (pseudo chi^2, in units of the noise variance) must reach
+16 (`DRT_PEAK_DCHI2_MIN`, about chi^2 with 3 degrees of freedom at
+p = 0.001). The noise is the DRT's own residual (not the Lin-KK noise
+estimate, which absorbs genuine misfit such as drift and is computed before
+`--f-min`/`--f-max`); the "Peak detection" section prints it, Delta chi^2
+for every peak and the rejected maxima. Unlike the former 3 % height
+threshold, this keeps a resolved process three orders smaller in R next to a
+large one and drops the lobes regularization splits one broad process into:
+on 248 synthetic spectra (0-3 % noise) no spurious peak, against 114 with the
+threshold. What it cannot do is separate what the DRT does not: two ZARCs
+half a decade apart give one maximum, and a broad process on the flank of a
+response heaped against the slow end of the window is reported as part of
+it. The test is calibrated for `--drt-weighting sqrt` (default) and
+`modulus`; under `uniform` and `proportional` the solved problem departs from
+the chi^2 it measures and it is less reliable. The suggested Voigt elements
+are built from exactly these peaks.
+
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md), [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)
 
 ### Circuit fitting
@@ -670,7 +690,7 @@ the fit reports `Global search contributed nothing` - see
 - `--tau-extend` (default: 0) - Extend the tau grid this many decades past the slow end of the measured window, or `auto` to extend only when that resolves a slow-end pile-up and the low-frequency end is not capacitive. Peaks past the window are marked as extrapolated and the share of R_pol past the window is reported.
 - `--n-tau`, `-n` (default: 100) - Number of points on the tau time constant axis across the measured window (an extension adds points at the same spacing). Higher values give finer DRT resolution but increase computational cost.
 - `--normalize-rpol` - Normalize gamma(tau) by polarization resistance so that integral = 1. Useful for comparing samples with different R_pol.
-- `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (fast, scipy.signal.find_peaks) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
+- `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (local maxima kept by the Delta chi^2 significance test, see DRT analysis) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.
 - `--lambda-probe` - Peak stability diagnostics: re-solves the DRT at lambda*10^(+-0.5) and lambda*10^(+-1) around the selected lambda and tracks each detected peak across the solutions. Reports per-peak persistence, position drift (decades of tau), R variation, and a verdict (STABLE / MARGINAL / ARTIFACT). A peak that appears only in a narrow lambda window is likely a regularization artifact rather than a real relaxation process. The probe solutions are also drawn as thin overlay curves in the DRT plot. Probe lambdas are clipped to [1e-11, 1e-1] (the selection range widened by a decade), so a lambda close to a bound yields a sweep narrower than the nominal two decades; the reported span says how much ground a verdict actually covers. Example: `eis data.DTA --lambda-probe`.
 - `--ri-fit` - Estimate R_inf by fitting `R_s - L - (R|Q)` to the top two frequency decades (`f >= f_max/100`) instead of taking the default median of the (up to 5) highest-frequency points. The inductance absorbs a cabling tail, the (R|Q) element the start of an unclosed (also depressed) arc. The fitted R_s is used only if its standard error is at most 5 %; otherwise R_inf cannot be determined from the data (e.g. an arc lying above f_max) and Re(Z) at f_max, an upper bound, is used with a warning. The CLI prints both values; the chosen one goes to the DRT. See [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md).

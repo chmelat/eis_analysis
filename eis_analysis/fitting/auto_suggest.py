@@ -9,23 +9,13 @@ Does NOT generate circuit strings - provides information for manual circuit buil
 import numpy as np
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Sequence
 from numpy.typing import NDArray
-from scipy.signal import find_peaks
 
-try:
-    from numpy import trapezoid as np_trapz
-except ImportError:  # NumPy < 2.0
-    from numpy import trapz as np_trapz  # type: ignore[attr-defined,no-redef]
-
-from ..drt.estimation import refine_peak_tau
+from ..drt.estimation import _estimate_peak_resistance, refine_peak_tau
 from ..utils.impedance import calculate_rpol
 from .config import (
-    DRT_PEAK_HEIGHT_THRESHOLD,
-    DRT_PEAK_PROMINENCE_THRESHOLD,
-    GMM_PEAK_HEIGHT_FACTOR,
     MAX_VOIGT_ELEMENTS,
-    PEAK_INTEGRATION_TOLERANCE,
     RPOL_RATIO_WARNING_THRESHOLD_LOW,
     RPOL_RATIO_WARNING_THRESHOLD_HIGH,
 )
@@ -94,7 +84,8 @@ def analyze_voigt_elements(
     gamma: NDArray[np.float64],
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complex128],
-    peaks_gmm: Optional[List[Dict]] = None
+    peaks_gmm: Optional[List[Dict]] = None,
+    peak_indices: Optional[Sequence[int]] = None
 ) -> VoigtSuggestion:
     """
     Analyze Voigt elements (R||C) from DRT spectrum.
@@ -106,7 +97,8 @@ def analyze_voigt_elements(
     It only reports estimated parameters for individual elements.
 
     Parameter estimates based on:
-    - R_i: peak area (integral of gamma over peak, or R_estimate from GMM)
+    - R_i: area of gamma over the peak's valley-to-valley segment (on the
+      scipy path the DRT R_estimate; GMM's R_estimate is R_pol * weight)
     - tau_i: peak position
     - C_i = tau_i / R_i
 
@@ -121,8 +113,14 @@ def analyze_voigt_elements(
     Z : ndarray of complex
         Original impedance [Ohm] (N points)
     peaks_gmm : list of dict, optional
-        GMM peaks from gmm_peak_detection()
-        If provided, used instead of scipy.find_peaks
+        GMM peaks from gmm_peak_detection(). If provided (and non-empty),
+        used instead of peak_indices.
+    peak_indices : sequence of int, optional
+        Grid indices of the DRT's significant maxima,
+        ``[p['index'] for p in drt.diagnostics.scipy_peaks]``. The peaks are
+        decided once, by calculate_drt's significance test, so the suggestion
+        cannot differ from the peaks it reports. One of peaks_gmm and
+        peak_indices is required.
 
     Returns
     -------
@@ -140,14 +138,16 @@ def analyze_voigt_elements(
     Examples
     --------
     >>> drt = calculate_drt(freq, Z)
-    >>> suggestion = analyze_voigt_elements(drt.tau, drt.gamma, freq, Z, drt.peaks)
+    >>> suggestion = analyze_voigt_elements(
+    ...     drt.tau, drt.gamma, freq, Z,
+    ...     peak_indices=[p['index'] for p in drt.diagnostics.scipy_peaks])
     >>> print(f"Found {len(suggestion.elements)} Voigt elements")
     >>> print(f"Analysis quality: {suggestion.quality}")
 
     See Also
     --------
     config.MAX_VOIGT_ELEMENTS : Maximum number of parallel RC elements
-    config.DRT_PEAK_HEIGHT_THRESHOLD : Minimum peak height (10% of maximum)
+    drt.significance : how calculate_drt decides which maxima are peaks
     """
     warnings: List[str] = []
     excluded_peaks: List[str] = []
@@ -165,23 +165,18 @@ def analyze_voigt_elements(
     if peaks_gmm is not None and len(peaks_gmm) > 0:
         # Convert GMM peaks to format compatible with rest of function
         # Find nearest index in tau for each GMM peak
-        peak_indices = []
+        gmm_indices = []
         for peak_gmm in peaks_gmm:
             tau_center = peak_gmm['tau_center']
             idx = int(np.argmin(np.abs(tau - tau_center)))
-            peak_indices.append(idx)
+            gmm_indices.append(idx)
             peak_tau[idx] = float(tau_center)
-        peaks = np.array(peak_indices)
-        properties = {}  # GMM doesn't need properties from find_peaks
+        peaks = np.array(gmm_indices)
+    elif peak_indices is not None:
+        peaks = np.asarray(peak_indices, dtype=int)
     else:
-        # Use scipy.find_peaks (original method)
-        min_distance = max(3, len(tau) // 20)  # At least 5% of spectrum width
-        peaks, properties = find_peaks(
-            gamma,
-            height=np.max(gamma) * DRT_PEAK_HEIGHT_THRESHOLD,
-            distance=min_distance,
-            prominence=np.max(gamma) * DRT_PEAK_PROMINENCE_THRESHOLD
-        )
+        raise ValueError("analyze_voigt_elements needs peaks_gmm or peak_indices "
+                         "(the DRT's scipy_peaks indices)")
 
     n_peaks_raw = len(peaks)
 
@@ -234,11 +229,6 @@ def analyze_voigt_elements(
             peak_info['warnings'].append('near right edge (low f)')
             peak_info['valid'] = False
 
-        # Height check (very small peaks may be noise)
-        if gamma[peak] < np.max(gamma) * GMM_PEAK_HEIGHT_FACTOR:
-            peak_info['warnings'].append(f'low height (<{GMM_PEAK_HEIGHT_FACTOR*100:.0f}% of max)')
-            # Don't mark as invalid, just warn
-
         if peak_info['valid']:
             valid_peaks.append(peak)
         else:
@@ -277,7 +267,11 @@ def analyze_voigt_elements(
     # Calculate Voigt elements from peaks
     n_voigt = len(valid_peaks)
 
-    ln_tau = np.log(tau)
+    # R_i over the valley partition of all detected peaks: the R_estimate the
+    # DRT peak list prints. Walking out to a fraction of the peak height
+    # instead climbed across a shallow valley into a taller neighbour.
+    ordered = np.sort(peaks)
+    peak_R = dict(zip(ordered.tolist(), _estimate_peak_resistance(tau, gamma, ordered)))
     total_R_from_peaks = 0
     elements = []
 
@@ -285,29 +279,15 @@ def analyze_voigt_elements(
         tau_i = peak_tau[peak]
         f_i = 1 / (2 * np.pi * tau_i)
 
-        # Estimate R_i from peak area
-        # Find peak boundaries (where gamma drops to PEAK_INTEGRATION_TOLERANCE of peak height)
-        peak_height = gamma[peak]
-        threshold = peak_height * PEAK_INTEGRATION_TOLERANCE
-
-        # Left boundary
-        left = peak
-        while left > 0 and gamma[left] > threshold:
-            left -= 1
-
-        # Right boundary
-        right = peak
-        while right < len(gamma) - 1 and gamma[right] > threshold:
-            right += 1
-
-        # Integral over peak (trapezoidal method)
-        R_i = np_trapz(gamma[left:right+1], ln_tau[left:right+1])
+        R_i = peak_R[int(peak)]
 
         # Element warnings
         elem_warnings = []
 
-        # Fallback if R_i is too small or negative
-        if R_i < 1:
+        # Fallback only if the segment holds no mass at all. Not a floor in
+        # Ohm: the significance test keeps small resolved peaks, and a fixed
+        # 1 Ohm turned a 0.5 Ohm arc into R_pol / n (and mOhm cells always).
+        if R_i <= 0:
             R_i = R_pol_data / n_voigt
             elem_warnings.append('heuristic R estimate (integration failed)')
             warnings.append(f"Peak {i+1}: used heuristic R estimate")

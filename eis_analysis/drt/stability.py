@@ -7,22 +7,22 @@ that appears only in a narrow lambda window is likely a regularization
 artifact, while a peak stable across a decade of lambda reflects real
 relaxation structure in the data.
 
-Peak detection inside the probe always uses scipy.signal.find_peaks (fast and
-deterministic), even when the main analysis uses GMM; GMM reference peaks are
-matched against the scipy peaks of each probe solution by proximity in
-log10(tau).
+Peak detection inside the probe always uses the significance test of the
+scipy path (drt.significance, deterministic), even when the main analysis
+uses GMM; GMM reference peaks are matched against the scipy peaks of each
+probe solution by proximity in log10(tau).
 """
 
 import numpy as np
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from numpy.typing import NDArray
-from scipy.signal import find_peaks
 
 from .results import DRTMatrices, LambdaProbePoint, PeakStability, StabilityDiagnostics
 from .estimation import _estimate_peak_resistance, refine_peak_tau
 from .linear_system import _reconstruct, _solve_nnls
-from ..fitting.config import DRT_LAMBDA_RANGE, DRT_PEAK_HEIGHT_THRESHOLD
+from .significance import assess_peak_significance
+from ..fitting.config import DRT_LAMBDA_RANGE
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +118,13 @@ def _match_peaks(ref_log_taus: NDArray, tolerances: NDArray,
     return matched
 
 
-def _detect_probe_peaks(tau: NDArray, gamma: NDArray) -> List[dict]:
-    """Scipy peak detection with the package-wide height threshold."""
-    gamma_max = float(np.max(gamma)) if len(gamma) else 0.0
-    if gamma_max <= 0:
-        return []
-    peaks_idx, _ = find_peaks(gamma, height=gamma_max * DRT_PEAK_HEIGHT_THRESHOLD)
+def _detect_probe_peaks(matrices: DRTMatrices, lambda_reg: float, gamma: NDArray,
+                        Z: NDArray, R_inf: float, L_series: float,
+                        noise_sigma: Optional[float]) -> List[dict]:
+    """The probe solution's peaks by the same significance test as the main run."""
+    tau = matrices.tau
+    peaks_idx = assess_peak_significance(matrices, lambda_reg, gamma, Z, R_inf,
+                                         L_series, noise_sigma).significant
     resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
     return [
         {'tau': refine_peak_tau(tau, gamma, idx), 'R_estimate': float(resistances[i])}
@@ -184,7 +185,8 @@ def _assess_peaks(reference_peaks: List[Tuple[float, float]],
 
 def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
                            reference_peaks: List[Tuple[float, float]],
-                           Z: NDArray, R_inf: float) -> StabilityDiagnostics:
+                           Z: NDArray, R_inf: float,
+                           noise_sigma: Optional[float] = None) -> StabilityDiagnostics:
     """
     Assess peak stability by re-solving the DRT at lambdas around lambda*.
 
@@ -200,6 +202,11 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
         Complex impedance [Ohm] (for reconstruction error).
     R_inf : float
         High-frequency resistance used in the main run [Ohm].
+    noise_sigma : float, optional
+        Relative noise the main run's peak test used
+        (``diagnostics.noise_sigma_used``), so that every probe judges its
+        maxima against the same noise. Without it each probe uses its own
+        DRT residual.
 
     Returns
     -------
@@ -240,7 +247,8 @@ def probe_lambda_stability(matrices: DRTMatrices, lambda_star: float,
             gamma=gamma,
             gamma_max=float(np.max(gamma)),
             reconstruction_error_rel=rel_error,
-            peaks=_detect_probe_peaks(matrices.tau, gamma)
+            peaks=_detect_probe_peaks(matrices, lam, gamma, Z, R_inf,
+                                      solution.L_series, noise_sigma)
         ))
 
     peak_stability = _assess_peaks(reference_peaks, probe_points)

@@ -13,9 +13,8 @@ symbols are re-exported below so they remain importable from ``drt.core``.
 
 import numpy as np
 import logging
-from typing import Tuple, Optional, List, Dict, Union
+from typing import Optional, Union
 from numpy.typing import NDArray
-from scipy.signal import find_peaks
 
 from .results import (
     RinfEstimate,
@@ -30,22 +29,21 @@ from .results import (
 )
 from .estimation import (
     _rpol_from_gamma,
-    _estimate_peak_resistance,
     _edge_pile_up,
     _effective_bins,
     _estimate_r_inf,
-    _flag_boundary_peaks,
     _extrapolated_fraction,
     _inductance_choice,
     refine_peak_tau,
 )
 from .linear_system import _reconstruct, _validate_frequencies
-from .peaks import gmm_peak_detection
+from .peaks import _detect_peaks
 from .stability import probe_lambda_stability
+from .significance import assess_peak_significance
 from .extension import _solve_with_extension
-from ..fitting.config import (DRT_PEAK_HEIGHT_THRESHOLD, DRT_MIN_EFFECTIVE_BINS,
+from ..fitting.config import (DRT_MIN_EFFECTIVE_BINS,
                              DRT_EDGE_BIN_RPOL_FRACTION, DRT_PEAK_EDGE_DECADES,
-                             DRT_EXTRAPOLATED_RPOL_FRACTION, GMM_N_COMPONENTS_RANGE)
+                             DRT_EXTRAPOLATED_RPOL_FRACTION)
 
 logger = logging.getLogger(__name__)
 
@@ -67,61 +65,6 @@ __all__ = [
     'StabilityDiagnostics',
 ]
 
-
-
-# =============================================================================
-# Peak Detection
-# =============================================================================
-
-def _detect_peaks(tau: NDArray, gamma: NDArray,
-                  peak_method: str,
-                  gmm_bic_threshold: float = 10.0,
-                  n_data: Optional[int] = None,
-                  *, tau_window: Tuple[float, float]
-                  ) -> Tuple[Optional[List[Dict]], Optional[List[float]], Optional[List[Dict]]]:
-    """
-    Detect peaks in DRT spectrum.
-
-    n_data: počet skutečných měření (frekvencí) pro penalizaci BIC v GMM.
-    tau_window: měřené okno pro okrajové příznaky píků.
-
-    Returns:
-        (gmm_peaks, bic_scores, scipy_peaks)
-    """
-    use_gmm = (peak_method == 'gmm')
-
-    # Always calculate scipy peaks for diagnostics
-    peaks_idx, _ = find_peaks(gamma, height=np.max(gamma) * DRT_PEAK_HEIGHT_THRESHOLD)
-    peak_resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
-
-    scipy_peaks = []
-    for i, idx in enumerate(peaks_idx):
-        R_peak = peak_resistances[i] if i < len(peak_resistances) else 0.0
-        tau_peak = refine_peak_tau(tau, gamma, idx)
-        scipy_peaks.append({
-            'index': int(idx),
-            'tau': tau_peak,
-            'frequency': float(1/(2 * np.pi * tau_peak)),
-            'R_estimate': float(R_peak)
-        })
-
-    _flag_boundary_peaks(tau_window, scipy_peaks, 'tau')
-
-    if use_gmm:
-        peaks_result, gmm_model, bic_scores = gmm_peak_detection(
-            tau, gamma, n_components_range=GMM_N_COMPONENTS_RANGE,
-            bic_threshold=gmm_bic_threshold, n_data=n_data
-        )
-
-        if len(peaks_result) == 0 or gmm_model is None:
-            # GMM failed, scipy_peaks available as fallback
-            return None, None, scipy_peaks
-
-        _flag_boundary_peaks(tau_window, peaks_result, 'tau_center')
-
-        return peaks_result, bic_scores, scipy_peaks
-
-    return None, None, scipy_peaks
 
 
 # =============================================================================
@@ -188,6 +131,17 @@ def calculate_drt(
         (default) adds it only when the top decade has a point with
         Im(Z) > 0 (DRT_INDUCTANCE_DECADES); the choice is reported in
         ``diagnostics.inductance_note``.
+
+    Notes
+    -----
+    A local maximum of gamma is reported as a scipy peak only if the data
+    need it: refitting it as a shoulder of the nearest taller peak must raise
+    the pseudo chi^2 by at least DRT_PEAK_DCHI2_MIN noise variances, the noise
+    being the DRT's own residual (drt.significance). The threshold is
+    calibrated for 'sqrt' and 'modulus' weighting; under 'uniform' and
+    'proportional' the solved problem departs from the pseudo chi^2 the test
+    measures and it is less reliable. The noise used and the rejected maxima
+    are in ``diagnostics``.
 
     Returns
     -------
@@ -289,10 +243,22 @@ def calculate_drt(
     assert gamma_physical is not None  # set whenever normalized; narrows Optional
 
     # === Step 7: Peak Detection ===
+    # A local maximum is a peak when the data need it: the shoulder test
+    # (drt.significance) against the DRT's own residual.
+    significance = assess_peak_significance(
+        matrices, lambda_sel.lambda_value, gamma_physical, Z, R_inf,
+        nnls_result.L_series)
     peaks_result, bic_scores, scipy_peaks = _detect_peaks(
         matrices.tau, gamma_physical, peak_method, gmm_bic_threshold,
-        n_data=len(frequencies), tau_window=tau_window
+        n_data=len(frequencies), tau_window=tau_window,
+        significance=significance
     )
+    significant = set(significance.significant.tolist())
+    rejected_peaks = [
+        {'tau': refine_peak_tau(matrices.tau, gamma_physical, int(idx)), 'delta_chi2': float(d)}
+        for idx, d in zip(significance.candidates, significance.delta_chi2)
+        if int(idx) not in significant
+    ]
 
     # The peaks the run reports: GMM components when GMM ran and succeeded,
     # otherwise the scipy maxima. Everything downstream counts this set.
@@ -419,7 +385,8 @@ def calculate_drt(
             reference_peaks = [(p['tau'], p['R_estimate'])
                                for p in (scipy_peaks or [])]
         stability = probe_lambda_stability(
-            matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf
+            matrices, lambda_sel.lambda_value, reference_peaks, Z, R_inf,
+            noise_sigma=significance.noise_sigma
         )
 
     # === Build diagnostics ===
@@ -441,6 +408,8 @@ def calculate_drt(
         peak_method=peak_method,
         n_peaks=n_peaks,
         scipy_peaks=scipy_peaks,
+        noise_sigma_used=significance.noise_sigma,
+        rejected_peaks=rejected_peaks,
         n_effective_bins=n_eff,
         edge_pile_up_fraction=edge_pile_up_fraction,
         edge_pile_up_end=edge_pile_up_end,

@@ -66,6 +66,22 @@ def refine_peak_tau(tau: NDArray, gamma: NDArray, idx: int) -> float:
     return float(tau[idx] * np.exp((w[2] - w[0]) / np.sum(w) * step))
 
 
+def _peak_basins(gamma: NDArray, peak_indices: NDArray) -> List[Tuple[int, int]]:
+    """
+    Half-open [left, right) segment of the tau axis for each sorted peak.
+
+    The axis is split at the valley (gamma minimum) between consecutive peaks
+    and runs to the array ends on the outside, so every grid point belongs to
+    exactly one peak.
+    """
+    bounds = [0]
+    for j in range(len(peak_indices) - 1):
+        lo, hi = int(peak_indices[j]), int(peak_indices[j + 1])
+        bounds.append(lo + int(np.argmin(gamma[lo:hi + 1])))
+    bounds.append(len(gamma))
+    return [(bounds[j], bounds[j + 1]) for j in range(len(peak_indices))]
+
+
 def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
                                peak_indices: NDArray) -> List[float]:
     """
@@ -73,36 +89,19 @@ def _estimate_peak_resistance(tau: NDArray, gamma: NDArray,
     of the tau axis.
 
     The tau axis is split at the valleys (gamma minima) between consecutive
-    peaks into disjoint half-open segments, so each grid point is assigned to
-    exactly one peak. Each segment is integrated with the rectangle rule
-    (consistent with the DRT kernel, F10), so sum(R_i) equals the total R_pol
-    over the spanned range exactly — unlike per-peak threshold windows, which
-    double-count the overlap region of adjacent peaks.
+    peaks into disjoint half-open segments (`_peak_basins`), so each grid
+    point is assigned to exactly one peak. Each segment is integrated with
+    the rectangle rule (consistent with the DRT kernel, F10), so sum(R_i)
+    equals the total R_pol over the spanned range exactly — unlike per-peak
+    threshold windows, which double-count the overlap region of adjacent
+    peaks.
     """
     if len(peak_indices) == 0:
         return []
 
-    ln_tau = np.log(tau)
-    d_ln_tau = float(np.mean(np.diff(ln_tau)))
-    peaks = np.sort(peak_indices)
-
-    # Partition boundaries: start of the array plus the valley (argmin) between
-    # each pair of consecutive peaks, plus the end. Segments are half-open
-    # [bounds[j], bounds[j+1]) so every grid point belongs to exactly one peak.
-    bounds = [0]
-    for j in range(len(peaks) - 1):
-        lo, hi = int(peaks[j]), int(peaks[j + 1])
-        valley = lo + int(np.argmin(gamma[lo:hi + 1]))
-        bounds.append(valley)
-    bounds.append(len(gamma))
-
-    resistances = []
-    for j in range(len(peaks)):
-        left, right = bounds[j], bounds[j + 1]
-        R_peak = _rpol_from_gamma(gamma[left:right], d_ln_tau) if right > left else 0.0
-        resistances.append(R_peak)
-
-    return resistances
+    d_ln_tau = float(np.mean(np.diff(np.log(tau))))
+    return [_rpol_from_gamma(gamma[left:right], d_ln_tau) if right > left else 0.0
+            for left, right in _peak_basins(gamma, np.sort(peak_indices))]
 
 
 def _flag_boundary_peaks(tau_window: Tuple[float, float],

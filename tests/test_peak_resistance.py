@@ -13,7 +13,7 @@ These tests lock sum(R_i) == R_pol for overlapping peaks.
 import numpy as np
 import pytest
 
-from eis_analysis.drt.core import _estimate_peak_resistance, _rpol_from_gamma
+from eis_analysis.drt.estimation import _estimate_peak_resistance, _rpol_from_gamma
 from eis_analysis.drt.peaks import gmm_peak_detection
 
 
