@@ -42,7 +42,7 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
 
 ### Installation
 
-Requires Python 3.9 or newer.
+Requires Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/chmelat/eis_analysis

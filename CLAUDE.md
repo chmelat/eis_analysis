@@ -7,7 +7,7 @@ This file provides guidance for Claude Code (claude.ai/code) when working on thi
 ### Environment
 
 - **Use `python3` command** (not `python`) - system has no `python` symlink
-- Python version: >=3.9
+- Python version: >=3.11
 - Package manager: pip with pyproject.toml
 
 ### Project Structure
