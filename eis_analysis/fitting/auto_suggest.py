@@ -18,6 +18,7 @@ try:
 except ImportError:  # NumPy < 2.0
     from numpy import trapz as np_trapz  # type: ignore[attr-defined,no-redef]
 
+from ..drt.estimation import refine_peak_tau
 from ..utils.impedance import calculate_rpol
 from .config import (
     DRT_PEAK_HEIGHT_THRESHOLD,
@@ -157,14 +158,18 @@ def analyze_voigt_elements(
     R_pol_data, R_inf, R_dc = calculate_rpol(frequencies, Z, n_avg)
 
     # Find peaks - either from GMM or scipy
+    # Peak tau by grid index: GMM centers stay as fitted, scipy maxima are
+    # refined between nodes (tau[idx] is off by up to half a grid step)
+    peak_tau: Dict[int, float] = {}
     if peaks_gmm is not None and len(peaks_gmm) > 0:
         # Convert GMM peaks to format compatible with rest of function
         # Find nearest index in tau for each GMM peak
         peak_indices = []
         for peak_gmm in peaks_gmm:
             tau_center = peak_gmm['tau_center']
-            idx = np.argmin(np.abs(tau - tau_center))
+            idx = int(np.argmin(np.abs(tau - tau_center)))
             peak_indices.append(idx)
+            peak_tau[idx] = float(tau_center)
         peaks = np.array(peak_indices)
         properties = {}  # GMM doesn't need properties from find_peaks
     else:
@@ -272,7 +277,7 @@ def analyze_voigt_elements(
     elements = []
 
     for i, peak in enumerate(valid_peaks):
-        tau_i = tau[peak]
+        tau_i = peak_tau.get(int(peak)) or refine_peak_tau(tau, gamma, int(peak))
         f_i = 1 / (2 * np.pi * tau_i)
 
         # Estimate R_i from peak area

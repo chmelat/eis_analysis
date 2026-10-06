@@ -20,7 +20,7 @@ from numpy.typing import NDArray
 from scipy.signal import find_peaks
 
 from .results import DRTMatrices, LambdaProbePoint, PeakStability, StabilityDiagnostics
-from .estimation import _estimate_peak_resistance
+from .estimation import _estimate_peak_resistance, refine_peak_tau
 from .linear_system import _reconstruct, _solve_nnls
 from ..fitting.config import DRT_LAMBDA_RANGE, DRT_PEAK_HEIGHT_THRESHOLD
 
@@ -126,7 +126,7 @@ def _detect_probe_peaks(tau: NDArray, gamma: NDArray) -> List[dict]:
     peaks_idx, _ = find_peaks(gamma, height=gamma_max * DRT_PEAK_HEIGHT_THRESHOLD)
     resistances = _estimate_peak_resistance(tau, gamma, peaks_idx)
     return [
-        {'tau': float(tau[idx]), 'R_estimate': float(resistances[i])}
+        {'tau': refine_peak_tau(tau, gamma, idx), 'R_estimate': float(resistances[i])}
         for i, idx in enumerate(peaks_idx)
     ]
 

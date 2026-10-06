@@ -37,6 +37,7 @@ from .estimation import (
     _flag_boundary_peaks,
     _extrapolated_fraction,
     _inductance_choice,
+    refine_peak_tau,
 )
 from .linear_system import _reconstruct, _validate_frequencies
 from .peaks import gmm_peak_detection
@@ -96,10 +97,11 @@ def _detect_peaks(tau: NDArray, gamma: NDArray,
     scipy_peaks = []
     for i, idx in enumerate(peaks_idx):
         R_peak = peak_resistances[i] if i < len(peak_resistances) else 0.0
+        tau_peak = refine_peak_tau(tau, gamma, idx)
         scipy_peaks.append({
             'index': int(idx),
-            'tau': float(tau[idx]),
-            'frequency': float(1/(2 * np.pi * tau[idx])),
+            'tau': tau_peak,
+            'frequency': float(1/(2 * np.pi * tau_peak)),
             'R_estimate': float(R_peak)
         })
 
