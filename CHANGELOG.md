@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.3 (2026-10-06)
+
+### Fixed
+
+- **A European CSV without a header row loads.** The delimiter was the
+  most frequent of comma, tab and semicolon in the first line. Without a
+  header that line holds numbers, and in "0,0031;0,049;-0,02" the decimal
+  commas outnumber the semicolons, so the file was split at commas;
+  tab-separated values with decimal commas tied and fell to the comma as
+  well. A line of numbers now takes the first of semicolon, tab, comma and
+  whitespace that splits it into at least three numbers. Files with a
+  header are detected as before.
+
+---
+
 ## Version 0.56.2 (2026-10-06)
 
 ### Fixed
