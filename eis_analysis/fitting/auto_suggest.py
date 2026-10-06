@@ -158,8 +158,9 @@ def analyze_voigt_elements(
     R_pol_data, R_inf, R_dc = calculate_rpol(frequencies, Z, n_avg)
 
     # Find peaks - either from GMM or scipy
-    # Peak tau by grid index: GMM centers stay as fitted, scipy maxima are
-    # refined between nodes (tau[idx] is off by up to half a grid step)
+    # Peak tau by grid index, used for every message and element: GMM centers
+    # stay as fitted, scipy maxima are refined between nodes (tau[idx] is off
+    # by up to half a grid step)
     peak_tau: Dict[int, float] = {}
     if peaks_gmm is not None and len(peaks_gmm) > 0:
         # Convert GMM peaks to format compatible with rest of function
@@ -208,6 +209,10 @@ def analyze_voigt_elements(
             warnings=warnings,
             excluded_peaks=excluded_peaks)
 
+    for peak in peaks:
+        if int(peak) not in peak_tau:
+            peak_tau[int(peak)] = refine_peak_tau(tau, gamma, int(peak))
+
     # Filter peaks at edges (may be artifacts or truncated)
     edge_margin = max(2, len(tau) // 20)  # 5% from edge
     valid_peaks = []
@@ -215,7 +220,7 @@ def analyze_voigt_elements(
     for peak in peaks:
         peak_info = {
             'index': peak,
-            'tau': tau[peak],
+            'tau': peak_tau[peak],
             'gamma': gamma[peak],
             'valid': True,
             'warnings': []
@@ -239,10 +244,10 @@ def analyze_voigt_elements(
         else:
             # Surface why a detected DRT peak is dropped from the circuit
             # suggestion (otherwise the count silently shrinks, e.g. 2 -> 1).
-            f_peak = 1 / (2 * np.pi * tau[peak])
+            f_peak = 1 / (2 * np.pi * peak_tau[peak])
             reason = '; '.join(peak_info['warnings'])
             excluded_peaks.append(
-                f"Peak at tau = {tau[peak]:.2e} s (f = {f_peak:.2e} Hz) "
+                f"Peak at tau = {peak_tau[peak]:.2e} s (f = {f_peak:.2e} Hz) "
                 f"excluded: {reason}"
             )
 
@@ -251,12 +256,12 @@ def analyze_voigt_elements(
         highest_peak = peaks[np.argmax(gamma[peaks])]
         valid_peaks = [highest_peak]
         warnings.append(f"All peaks at tau range edges, using the highest "
-                        f"at tau = {tau[highest_peak]:.2e} s")
+                        f"at tau = {peak_tau[highest_peak]:.2e} s")
 
     n_peaks_valid = len(valid_peaks)
 
     # Sort peaks by tau (smallest to largest)
-    valid_peaks = sorted(valid_peaks, key=lambda p: tau[p])
+    valid_peaks = sorted(valid_peaks, key=lambda p: peak_tau[p])
 
     # Limit number of Voigt elements (config.MAX_VOIGT_ELEMENTS)
     if len(valid_peaks) > MAX_VOIGT_ELEMENTS:
@@ -267,7 +272,7 @@ def analyze_voigt_elements(
         # Select most prominent peaks
         peak_heights = [gamma[p] for p in valid_peaks]
         top_indices = np.argsort(peak_heights)[-MAX_VOIGT_ELEMENTS:]
-        valid_peaks = sorted([valid_peaks[i] for i in top_indices], key=lambda p: tau[p])
+        valid_peaks = sorted([valid_peaks[i] for i in top_indices], key=lambda p: peak_tau[p])
 
     # Calculate Voigt elements from peaks
     n_voigt = len(valid_peaks)
@@ -277,7 +282,7 @@ def analyze_voigt_elements(
     elements = []
 
     for i, peak in enumerate(valid_peaks):
-        tau_i = peak_tau.get(int(peak)) or refine_peak_tau(tau, gamma, int(peak))
+        tau_i = peak_tau[peak]
         f_i = 1 / (2 * np.pi * tau_i)
 
         # Estimate R_i from peak area
