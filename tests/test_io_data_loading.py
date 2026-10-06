@@ -391,13 +391,19 @@ def test_csv_header_autodetect(tmp_path):
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
-def test_csv_positional_fallback(tmp_path):
-    # Headers that match no known pattern -> fall back to columns 0,1,2.
-    text = _make_csv(_rows(12), headers=("alpha", "beta", "gamma"))
+@pytest.mark.parametrize("headers, warning", [
+    (("alpha", "beta", "gamma"), "positional"),   # unknown names -> columns 0, 1, 2
+    (None, "no header"),                          # no header row: the first line is data
+])
+def test_csv_positional_fallback(tmp_path, headers, warning):
+    rows = _rows(12)
+    text = _make_csv(rows, headers=headers or ("x", "y", "z"))
+    if headers is None:
+        text = text.split("\n", 1)[1]            # drop the header line
     result = load_csv_data(_write(tmp_path, "pos.csv", text))
     f, Z = _fz(result)
-    assert len(f) == 12
-    assert any("positional" in w.lower() for w in result.warnings)
+    assert np.allclose(f, [r[0] for r in rows])   # no point taken for a header
+    assert any(warning in w.lower() for w in result.warnings)
 
 
 def test_csv_header_only_raises(tmp_path):

@@ -32,7 +32,8 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
     both named, so exports carrying both forms read the Re/Im columns
   - If no name matches, the first three columns are used positionally
     (with a warning); a header that names only some of the three, or one
-    of them twice, is rejected
+    of them twice, is rejected. A file without a header row (the first line
+    is numbers) is read the same way, from its first line
   - Delimiter: comma, semicolon, or tab (auto-detection); whitespace when the
     header has none of them (aligned columns, names without spaces)
   - Several sweeps in one file (the frequency steps back to the start) are

@@ -659,6 +659,15 @@ def _detect_delimiter(header_line: str) -> str:
     return max(',', '\t', ';', key=header_line.count)
 
 
+def _is_number(field: str) -> bool:
+    """Whether a CSV field reads as a number (decimal comma allowed)."""
+    try:
+        float(field.strip().replace(',', '.'))
+    except ValueError:
+        return False
+    return True
+
+
 def _split(line: str, delimiter: str) -> List[str]:
     """Fields of a line; ' ' splits at runs of whitespace (aligned columns)."""
     return line.split() if delimiter == ' ' else line.split(delimiter)
@@ -813,7 +822,8 @@ def load_csv_data(
     quantity or a derived column (y, m, c, admittance, modulus, err, std,
     fit, ...) anywhere means it is not Z, so Re(Y) is not read as Re(Z).
     Typographic minus, primes and curly quotes count as - ' ''.
-    Without any recognised name the columns are taken in order (0, 1, 2).
+    Without any recognised name the columns are taken in order (0, 1, 2);
+    a first line of numbers is no header but the first data row.
 
     Parameters
     ----------
@@ -889,9 +899,14 @@ def load_csv_data(
     logger.debug(f"CSV headers: {headers}")
 
     warnings: List[str] = []
-    columns = _detect_columns(headers, filename)
+    # A first line of numbers is the first data row of a file without a
+    # header, not a header: taken as one, the first point was lost
+    headerless = len(headers) >= 3 and all(_is_number(h) for h in headers)
+    columns = None if headerless else _detect_columns(headers, filename)
     if columns is None:
-        warnings.append("Could not detect columns from headers, using positional (0, 1, 2)")
+        warnings.append("No header row, columns taken in order (frequency, Z_real, Z_imag)"
+                        if headerless else
+                        "Could not detect columns from headers, using positional (0, 1, 2)")
         columns = (0, 1, 2, 1.0, 1.0, None)
     freq_col, a_col, b_col, sign_a, sign_b, phase_scale = columns
 
@@ -904,7 +919,8 @@ def load_csv_data(
     impedances: List[complex] = []
     line_nums: List[int] = []
 
-    for line_num, line in enumerate(lines[header_idx + 1:], start=header_idx + 2):
+    first_data = header_idx if headerless else header_idx + 1
+    for line_num, line in enumerate(lines[first_data:], start=first_data + 1):
         line = line.strip()
         if not line or line.startswith('#'):
             continue
