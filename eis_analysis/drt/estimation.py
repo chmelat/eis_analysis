@@ -30,6 +30,17 @@ def _rpol_from_gamma(gamma: NDArray, d_ln_tau: float) -> float:
     return float(np.sum(gamma) * d_ln_tau)
 
 
+# refine_peak_tau fits the parabola only when both neighbours hold at least
+# this share of the peak. A Gaussian with sigma >= 0.5 grid steps has its
+# neighbours at >= exp(-2) = 0.135 of the maximum; a narrower peak is in effect
+# two bins wide, where the centroid is exact. Below the share, a tiny NNLS tail
+# would set the parabola's vertex through log(a) - log(c), not through mass:
+# [1e-6, 1, 0.01] put it 0.25 steps off against the centroid's 0.01. Measured
+# neighbour/peak ratios (56 peaks, exact and 0.5-1 % noise) fall in 0-0.03 or
+# >= 0.22, and any value in 0.05-0.2 gives the same peaks.
+PEAK_PARABOLA_MIN_NEIGHBOUR = 0.1
+
+
 def refine_peak_tau(tau: NDArray, gamma: NDArray, idx: int) -> float:
     """
     Peak position between grid nodes from gamma at idx and its two neighbours.
@@ -38,15 +49,16 @@ def refine_peak_tau(tau: NDArray, gamma: NDArray, idx: int) -> float:
     decades: +-0.05 dec, +-12 %). A smooth peak is close to a Gaussian in
     ln(tau), so a parabola through ln(gamma) puts its vertex exactly. A
     peak NNLS concentrated into two bins (small lambda, noise-free data) has
-    a zero neighbour; NNLS splits a single time constant between the two
-    nodes by proximity, so the gamma-weighted centroid recovers it (YAPPARI
-    3x RC: +7..+12 % -> within 0.3 %). An edge peak keeps its node.
+    a (near-)zero neighbour; NNLS splits a single time constant between the
+    two nodes by proximity, so the gamma-weighted centroid recovers it
+    (exact 3-RC spectrum, 10 decades: +7..+12 % -> within 0.3 %). An edge
+    peak keeps its node.
     """
     if idx <= 0 or idx >= len(gamma) - 1:
         return float(tau[idx])
-    step = float(np.mean(np.diff(np.log(tau))))
+    step = float(np.log(tau[idx + 1] / tau[idx]))
     w = gamma[idx - 1:idx + 2]
-    if np.min(w) > 0:
+    if min(w[0], w[2]) >= PEAK_PARABOLA_MIN_NEIGHBOUR * w[1]:
         a, b, c = np.log(w)
         curvature = a - 2 * b + c
         if curvature < 0:
