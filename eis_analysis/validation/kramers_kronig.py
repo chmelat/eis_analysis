@@ -31,8 +31,17 @@ logger = logging.getLogger(__name__)
 # 10 % drift. It must still span the chi^2 bumps of a coarse grid (a few M):
 # 5 stopped early on 1 % noise, 8 matched the all-M minimum on every
 # KK-compliant spectrum tested.
+# The condition must hold for CHI2_PLATEAU_RUN consecutive M: on a coarse grid
+# a single M can land in a chi^2 dip that the next 8 M do not undercut. The
+# YAPPARI tutorial spectrum (3 RC in 2 of 10 decades) dips at M = 12 and drops
+# 6 more decades after M = 19; with 0.1 % noise a single-M plateau stopped at
+# M = 21 and estimated 1 % noise. 2 still stopped early on one 1 % noise seed,
+# 3 and 4 gave identical results; real example spectra and drift spectra do
+# not change, except that the noise estimate on drift-free data gets closer
+# to the true 0.2 % (doc/YAPPARI_COMPARISON.md, B).
 CHI2_PLATEAU_DECADES = 0.3
 CHI2_PLATEAU_WINDOW = 8
+CHI2_PLATEAU_RUN = 3
 
 # find_optimal_extend_decades grid: 11 points are 0.1-decade steps over the
 # default 0-1 decade range. Candidates whose chi^2 is within EXTEND_CHI2_TIE
@@ -397,9 +406,9 @@ def _chi2_lower_M(
     fit_type: str,
     weighting: str
 ) -> int:
-    """First M whose pseudo chi^2 is within CHI2_PLATEAU_DECADES of the
-    lowest over the next CHI2_PLATEAU_WINDOW M (unextended tau grid, as the
-    mu search)."""
+    """First M from which CHI2_PLATEAU_RUN consecutive M have pseudo chi^2
+    within CHI2_PLATEAU_DECADES of the lowest over their next
+    CHI2_PLATEAU_WINDOW M (unextended tau grid, as the mu search)."""
     from ..fitting.voigt_chain import generate_tau_grid_fixed_M, estimate_R_linear
 
     Ms = np.arange(3, max_M + 1)
@@ -417,8 +426,9 @@ def _chi2_lower_M(
 
     # A point with Z = 0 makes every chi^2 infinite and every comparison NaN:
     # no plateau, so start where the original Lin-KK does
-    return int(next((M for i, M in enumerate(Ms)
-                     if log_chi2[i] - log_chi2[i:i + CHI2_PLATEAU_WINDOW + 1].min() <= CHI2_PLATEAU_DECADES),
+    level = [log_chi2[i] - log_chi2[i:i + CHI2_PLATEAU_WINDOW + 1].min() <= CHI2_PLATEAU_DECADES
+             for i in range(len(Ms))]
+    return int(next((M for i, M in enumerate(Ms) if all(level[i:i + CHI2_PLATEAU_RUN])),
                     Ms[0]))
 
 
