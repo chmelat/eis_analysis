@@ -5,16 +5,12 @@ This is the SINGLE SOURCE OF TRUTH for version information.
 All other files should import from here.
 """
 
-__version__ = '0.56.0'
-__version_info__ = (0, 56, 0)
+__version__ = '0.56.1'
+__version_info__ = (0, 56, 1)
 __release_date__ = '2026-10-06'
 
 # Breaking changes in this version
-__breaking_changes__: list[str] = [
-    "DRT peaks: Delta chi^2 shoulder test replaces the 3 % height threshold",
-    "analyze_voigt_elements needs peak_indices or peaks_gmm",
-    "Removed DRT_PEAK_HEIGHT_THRESHOLD, DRT_PEAK_PROMINENCE_THRESHOLD, GMM_PEAK_HEIGHT_FACTOR, PEAK_INTEGRATION_TOLERANCE",
-]
+__breaking_changes__: list[str] = []
 
 # Human-readable version string
 def get_version_string():

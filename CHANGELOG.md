@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.1 (2026-10-06)
+
+### Fixed
+
+- **Several sweeps in one CSV are rejected** instead of loaded as one
+  spectrum. Four 29-point sweeps one after another (pyimpspec's
+  `case-multiple-spectra.csv`) loaded as 116 points with only a
+  "duplicate or out-of-order frequencies" warning, so every analysis ran
+  on the mixture. A step back against the sweep direction now splits the
+  points; two or more runs of at least 10 points raise, naming each
+  sweep's lines. A single out-of-order point still only warns. Gamry DTA
+  files are unchanged (warning only).
+- **CSV with whitespace-separated columns** (no comma, tab or semicolon
+  in the header) loads instead of reporting no data.
+- **Polar CSV** (`|Z|`, `Zmod`, `mod`, `magnitude`, `abs` with `phase`,
+  `Zphz`, `theta`, ...; degrees unless the header says `rad`, `-phase`
+  negated) loads when Re(Z) and Im(Z) are not both named.
+- **`-Z'` columns** are negated like `-Im(Z)` instead of rejected.
+
+Checked on pyimpspec's 12 CSV test files: the 11 single-spectrum ones now
+all load to the same spectrum (4 failed before), both multi-sweep ones are
+refused.
+
+---
+
 ## Version 0.56.0 (2026-10-06)
 
 ### Changed (breaking)
