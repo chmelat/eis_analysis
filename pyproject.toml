@@ -18,12 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff",
-    # mypy 2.x refuses python_version = "3.9" ("must be 3.10 or higher") and
-    # exits with a fatal config error instead of type-checking. The project
-    # still supports 3.9 (see requires-python), so the checker is held back
-    # rather than the floor raised. Lift this pin when the 3.9 floor is
-    # dropped, not before.
-    "mypy<2",
+    "mypy",
     "pytest",
 ]
 
@@ -61,17 +56,6 @@ markers = ["slow: long-running regression benchmarks, excluded by default"]
 select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
-
-# matplotlib 3.11 ships inline types, so mypy stopped treating it as a missing
-# import and started parsing its source - against python_version 3.9, which
-# rejects the `match` statement in matplotlib/_afm.py. That is a blocking
-# error: the job checked nothing at all from matplotlib 3.11 until this
-# override, it only aborted. Skipping the import restores what
-# ignore_missing_imports gave when matplotlib was untyped (Any), and costs
-# nothing this project was actually using. Drop it when the 3.9 floor goes.
-[[tool.mypy.overrides]]
-module = "matplotlib.*"
-follow_imports = "skip"
