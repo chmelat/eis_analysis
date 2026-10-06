@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.2 (2026-10-06)
+
+### Fixed
+
+- **A CSV without a header row keeps its first point.** The first
+  non-comment line was always taken as the header; in a file without one
+  it is the first point, which then matched no column name, fell back to
+  positional columns with a warning, and was dropped. impedance.py's
+  `exampleData.csv` (66 rows) loaded 65 points, lowest frequency 3.98 mHz
+  instead of 3.16 mHz. A first line of at least three numeric fields
+  (decimal comma allowed) is now read as data, with the warning "No header
+  row, columns taken in order".
+
+---
+
 ## Version 0.56.1 (2026-10-06)
 
 ### Fixed
