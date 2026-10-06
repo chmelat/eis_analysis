@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.55.0 (2026-10-06)
+
+### Changed (breaking)
+
+- **Python 3.11 or newer is required** (was 3.9). Python 3.9 reached end of
+  life in 2025-10. The CI test matrix runs 3.11 and 3.12.
+
+### Changed
+
+- **mypy checks against Python 3.11.** The mypy<2 pin and the matplotlib
+  `follow_imports = "skip"` override existed only because of the 3.9 target,
+  so both are removed. Under 3.9 the numpy 2.x stubs resolved to Any and numpy
+  code went unchecked. Under 3.11 they apply: mypy 1.19.0 reports 42 errors in
+  12 files (was 1), mostly stub precision (complexfloating vs complex128). The
+  typecheck job stays non-blocking.
+
+---
+
 ## Version 0.54.1 (2026-10-03)
 
 ### Fixed
