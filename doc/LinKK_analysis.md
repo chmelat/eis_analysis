@@ -71,7 +71,7 @@ Pocet elementu M se rozsirenim nemeni, jen se zvetsi rozestup mezi tau_k. Vysoko
 
 ### Algoritmus
 
-1. Najdi `M_lower`: prvni M, u ktereho log10(pseudo chi^2) lezi do 0.3 dekady od minima pres nasledujicich 8 M (`CHI2_PLATEAU_DECADES`, `CHI2_PLATEAU_WINDOW`)
+1. Najdi `M_lower`: prvni M, od ktereho u 3 po sobe jdoucich M (`CHI2_PLATEAU_RUN`) lezi log10(pseudo chi^2) do 0.3 dekady od minima pres nasledujicich 8 M (`CHI2_PLATEAU_DECADES`, `CHI2_PLATEAU_WINDOW`). Jedine M by mohlo padnout do nahodneho poklesu chi^2 na hrubem gridu.
 2. Zacni s M = M_lower (puvodni Lin-KK zacina s M=3)
 3. Fituj pomoci pseudoinverze (povol zaporne R_k)
 4. Vypocitej mu metriku

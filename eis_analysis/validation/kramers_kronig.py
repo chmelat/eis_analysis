@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 # 5 stopped early on 1 % noise, 8 matched the all-M minimum on every
 # KK-compliant spectrum tested.
 # The condition must hold for CHI2_PLATEAU_RUN consecutive M: on a coarse grid
-# a single M can land in a chi^2 dip that the next 8 M do not undercut. The
-# YAPPARI tutorial spectrum (3 RC in 2 of 10 decades) dips at M = 12 and drops
+# a single M can land in a chi^2 dip that the next 8 M do not undercut. An
+# exact 3-RC spectrum (its RC in 2 of 10 decades) dips at M = 12 and drops
 # 6 more decades after M = 19; with 0.1 % noise a single-M plateau stopped at
 # M = 21 and estimated 1 % noise. 2 still stopped early on one 1 % noise seed,
 # 3 and 4 gave identical results; real example spectra and drift spectra do
 # not change, except that the noise estimate on drift-free data gets closer
-# to the true 0.2 % (doc/YAPPARI_COMPARISON.md, B).
+# to the true 0.2 %.
 CHI2_PLATEAU_DECADES = 0.3
 CHI2_PLATEAU_WINDOW = 8
 CHI2_PLATEAU_RUN = 3
