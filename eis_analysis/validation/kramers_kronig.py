@@ -244,6 +244,33 @@ def estimate_noise_percent(chi2_ps: float, n_points: int) -> float:
     return float(np.sqrt(chi2_ps * 5000 / n_points))
 
 
+def low_frequency_slope(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complex128]
+) -> float:
+    """
+    Slope of log10(-Z'') vs log10(f) over the lowest measured decade.
+
+    Negative when -Z'' still grows as the frequency drops: a capacitive end
+    (-1 for a capacitor, -1/2 for a semi-infinite Warburg, around 0 for an
+    arc whose maximum sits at the lowest frequency). Positive when the arc
+    closes and the phase returns toward zero. This is the case for the
+    series capacitance (include_C): it fixes a capacitive end, and on a
+    closing end it can only absorb drift.
+
+    Returns NaN with fewer than 3 points in the decade or when -Z'' <= 0 at
+    any of them (an end at or past zero phase, inductive, or a noisy end
+    crossing zero, as on drifting data).
+    """
+    order = np.argsort(frequencies)
+    f, Z = frequencies[order], Z[order]
+    in_decade = f <= 10 * f[0]
+    minus_im = -Z.imag[in_decade]
+    if in_decade.sum() < 3 or np.any(minus_im <= 0):
+        return float('nan')
+    return float(np.polyfit(np.log10(f[in_decade]), np.log10(minus_im), 1)[0])
+
+
 def reconstruct_impedance(
     frequencies: NDArray[np.float64],
     elements: NDArray[np.float64],

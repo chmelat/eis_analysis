@@ -9,6 +9,7 @@ from .kramers_kronig import (
     LinKKResult,
     compute_pseudo_chisqr,
     estimate_noise_percent,
+    low_frequency_slope,
     find_optimal_extend_decades,
     reconstruct_impedance,
 )
@@ -36,6 +37,7 @@ __all__ = [
     'LinKKResult',
     'compute_pseudo_chisqr',
     'estimate_noise_percent',
+    'low_frequency_slope',
     'find_optimal_extend_decades',
     'reconstruct_impedance',
     'zhit_validation',

@@ -29,7 +29,8 @@ from ...validation import (
     ZHITResult,
 )
 from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
-from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
+from ...validation.kramers_kronig import (KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD,
+                                          low_frequency_slope)
 from ...validation.zhit import _quality_label
 from ...validation.thd import THD_TO_Z_ERROR
 
@@ -111,14 +112,17 @@ def run_kk_validation(
            f"{KK_RESIDUAL_THRESHOLD}%, allowed {KK_MAX_FRACTION_ABOVE:.0%}; "
            f"max mean |res|={mean_abs_residual:.2f}%)")
 
-    # Signature of a missing series term (L or C): the real part fits well
-    # while imaginary residuals dominate - typical for blocking/2-electrode
-    # cells whose series capacitance the Voigt chain cannot represent.
-    if (not result.is_valid and not args.kk_series_c
-            and result.mean_residual_imag > KK_RESIDUAL_THRESHOLD
-            and result.mean_residual_real < 1.0):
-        logger.info("Hint: imag residuals dominate while the real fit is good - "
-                    "try --kk-series-c (blocking/2-electrode behavior)")
+    # A capacitive low-frequency end (-Z'' still rising) is what the series C
+    # fixes: blocking/2-electrode cells, Warburg diffusion, an arc continuing
+    # past f_min. The test is the shape of the data, not of the residuals: a
+    # Warburg fails on a few edge points with a 1.5 % mean, and on a closing
+    # end the series C would only absorb drift (doc/KK_INTUITION.md).
+    if not result.is_valid and not args.kk_series_c:
+        slope = low_frequency_slope(frequencies, Z)
+        if slope < 0:
+            logger.info(f"Hint: the low-frequency end is capacitive (-Z'' still "
+                        f"rising, slope {slope:.2f} per decade) - try --kk-series-c. "
+                        f"If the test still fails with it, the series C was not the cause.")
 
     return result
 

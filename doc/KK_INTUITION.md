@@ -263,8 +263,13 @@ at 1.6 mHz. With `--kk-series-c` the climb disappears, the largest residual
 drops to 0.37%, and the fitted C is 35 uF. The climb was the missing capacitor,
 not a violation.
 
-When a spectrum fails with imaginary residuals dominating while the real part
-fits well, the CLI suggests `--kk-series-c` itself. At the high-frequency end the series
+When a spectrum fails and its low-frequency end is capacitive (-Z'' still
+rising over the lowest decade), the CLI suggests `--kk-series-c` itself. A
+closing end never triggers it, so the hint does not lead to hiding drift. It
+looks at the data, not the residuals: an exact Warburg fails on a few edge
+points with a 1.5 % mean residual. A real violation can also end capacitively
+(`real_gamry_example.DTA`); it still fails with the series C, which is the
+answer. At the high-frequency end the series
 inductance L, which is always in the model, plays the same role for cable
 inductance.
 
