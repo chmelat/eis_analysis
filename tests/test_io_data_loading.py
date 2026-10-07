@@ -340,6 +340,27 @@ def test_csv_header_names(tmp_path, headers, roles):
     assert np.allclose(Z, [complex(r[1], r[2]) for r in rows])
 
 
+# The file holds frequency / f_unit and Z / z_unit
+@pytest.mark.parametrize("headers, f_unit, z_unit", [
+    (("Freq (kHz)", "Z' (kOhm)", "Z'' (kOhm)"), 1e3, 1e3),
+    (("freq/Hz", "Re(Z)/mOhm", "Im(Z)/mOhm"), 1.0, 1e-3),  # m milli, not mega
+    (("f (MHz)", "Zreal [MΩ]", "Zimag [MΩ]"), 1e6, 1e6),
+    (("Frequency (rad/s)", "Zreal_uOhm", "Zimag_uOhm"), 1 / (2 * np.pi), 1e-6),
+    (("Freq", "Zreal", "Zimag"), 1.0, 1.0),                # no unit, no warning
+])
+def test_csv_unit_prefixes_converted(tmp_path, headers, f_unit, z_unit):
+    rows = _rows(12)
+    stored = [(fr / f_unit, zr / z_unit, zi / z_unit) for fr, zr, zi in rows]
+    result = load_csv_data(_write(tmp_path, "u.csv", _make_csv(stored, headers=headers)))
+    f, Z = _fz(result)
+    assert np.allclose(f, [r[0] for r in rows])
+    assert np.allclose(Z, [complex(r[1], r[2]) for r in rows])
+    assert any("Units from the header" in w for w in result.warnings) == ((f_unit, z_unit) != (1, 1))
+    with pytest.raises(ValueError, match="several units"):
+        load_csv_data(_write(tmp_path, "c.csv", _make_csv(stored, headers=(
+            headers[0], "Z' (Ohm) [kOhm]", headers[2]))))
+
+
 @pytest.mark.parametrize("headers", [
     ("freq", "Re", "Zreal"),       # Z_real named twice, Z_imag not at all
     ("freq", "Re", "Zphz"),         # Re without Im, a phase without |Z|

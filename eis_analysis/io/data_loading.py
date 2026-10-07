@@ -682,7 +682,8 @@ def _split(line: str, delimiter: str) -> List[str]:
 
 # Header words per quantity. A header is split into words (_header_words), so
 # 're' in 'freq' or 'im' in 'time' never count, and units or labels such as
-# 'ohms', 'hz' in brackets or ZView's '(a)'/'(b)' are simply other words.
+# 'ohms', 'hz' in brackets or ZView's '(a)'/'(b)' are simply other words
+# (the prefix of a unit is read separately, see _unit_factor).
 _FREQ_WORDS = {'freq', 'frequency', 'hz'}  # plus 'f' as the first word, see below
 _ZREAL_WORDS = {'re', 'real', 'zreal', 'zre', 'zr', 'rez', "z'"}
 _ZIMAG_WORDS = {'im', 'imag', 'imaginary', 'zimag', 'zim', 'zi', 'imz', "z''"}
@@ -719,6 +720,37 @@ def _header_words(header: str) -> Tuple[List[str], List[str], bool]:
     words = r"[^\W_]+'*"
     outside = re.sub(r'\([^)]*\)|\[[^\]]*\]', ' ', name)
     return re.findall(words, outside), re.findall(words, name), negated
+
+
+# Unit prefixes, read case-sensitively as in SI: lowercased, the MOhm of an
+# oxide would be the mOhm of a battery. K is the common misspelling of k,
+# u stands in for µ in ASCII-only exports.
+_PREFIXES = {'G': 1e9, 'M': 1e6, 'k': 1e3, 'K': 1e3, '': 1.0,
+             'm': 1e-3, 'µ': 1e-6, 'μ': 1e-6, 'u': 1e-6}
+# A unit with its prefix, neither preceded nor followed by a letter: Gamry's
+# Zphz holds no Hz, 'Ohmic' no Ohm, while '_', '/', '(' and '[' are no letters.
+_UNIT_PATTERNS = {unit: re.compile(rf"(?<![^\W\d_])([GMkKmµμu]?)(?:{names})(?![^\W\d_])")
+                  for unit, names in (('Hz', 'Hz|hz|HZ'), ('Ohm', 'Ohms?|ohms?|OHMS?|Ω|Ω'))}
+
+
+def _unit_factor(header: str, unit: str, filename: str) -> Tuple[float, str]:
+    """
+    Factor from a column's unit to `unit` ('Hz' or 'Ohm'), and the unit as written.
+
+    (1.0, '') when the header names no such unit. A frequency header with the
+    word rad is an angular frequency, divided by 2 pi. Two different prefixes
+    in one header raise: either guess could be off by orders of magnitude.
+    """
+    found = {m.group(1): m.group(0) for m in _UNIT_PATTERNS[unit].finditer(header)}
+    if len(found) > 1:
+        raise ValueError(f"CSV header {header.strip()!r} of {filename} gives several units: "
+                         f"{', '.join(found.values())}")
+    if found:
+        ((prefix, written),) = found.items()
+        return _PREFIXES[prefix], written
+    if unit == 'Hz' and 'rad' in _header_words(header)[1]:
+        return 1 / (2 * np.pi), 'rad/s'
+    return 1.0, ''
 
 
 def _classify_header(header: str) -> Tuple[Optional[str], bool]:
@@ -815,7 +847,11 @@ def load_csv_data(
 
     Column names (case-insensitive) are split into words at spaces,
     punctuation and brackets; units and labels are just other words, so
-    'Frequency (Hz)', "Z' (Ohms)", 'Z Real', "Z'(a)" (ZView) all work:
+    'Frequency (Hz)', "Z' (Ohms)", 'Z Real', "Z'(a)" (ZView) all work.
+    A unit prefix G, M, k, m or µ (u) on Hz or Ohm/Ω converts the column to
+    Hz and Ohm ('Freq (kHz)', "Z' (MΩ)", 'Re(Z)/mOhm'), case-sensitively as
+    in SI (M mega, m milli; K counts as k), noted in the warnings; a
+    frequency in rad/s is divided by 2 pi. Names:
     - Frequency: a word freq, frequency or hz, or f as the first word
     - Z real: a word re, real, zreal, zre, zr, rez or z'
     - Z imag: a word im, imag, imaginary, zimag, zim, zi, imz or z'' (or z");
@@ -917,6 +953,24 @@ def load_csv_data(
         columns = (0, 1, 2, 1.0, 1.0, None)
     freq_col, a_col, b_col, sign_a, sign_b, phase_scale = columns
 
+    # Unit prefixes scale the columns; a polar b is the phase, see phase_scale
+    roles = [(freq_col, 'Hz', 'frequency'),
+             (a_col, 'Ohm', 'Z_real' if phase_scale is None else '|Z|')]
+    if phase_scale is None:
+        roles.append((b_col, 'Ohm', 'Z_imag'))
+    factors = [1.0, sign_a, sign_b]
+    conversions = []
+    for k, (col, unit, name) in enumerate(roles):
+        if headerless or col >= len(headers):
+            break
+        factor, written = _unit_factor(headers[col], unit, filename)
+        factors[k] *= factor
+        if factor != 1.0:
+            conversions.append(f"{name} {written} -> {unit}")
+    if conversions:
+        warnings.append("Units from the header: " + ", ".join(conversions))
+    f_factor, a_factor, b_factor = factors
+
     logger.debug(f"Column indices: freq={freq_col}, a={a_col}, b={b_col} "
                  f"(signs {sign_a:+.0f} {sign_b:+.0f}, "
                  f"{'polar' if phase_scale is not None else 'Re/Im'})")
@@ -939,9 +993,9 @@ def load_csv_data(
         parts = _split(line, delimiter)
 
         try:
-            freq = float(parts[freq_col].replace(',', '.'))
-            a = sign_a * float(parts[a_col].replace(',', '.'))
-            b = sign_b * float(parts[b_col].replace(',', '.'))
+            freq = f_factor * float(parts[freq_col].replace(',', '.'))
+            a = a_factor * float(parts[a_col].replace(',', '.'))
+            b = b_factor * float(parts[b_col].replace(',', '.'))
 
             if freq > 0 and np.isfinite(freq) and np.isfinite(a) and np.isfinite(b):
                 frequencies.append(freq)

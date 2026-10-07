@@ -24,6 +24,12 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
     A word for another quantity or a derived column (`Re(Y)`, `Z' err`,
     `Zreal fit`) rules a column out (full rules in the `load_csv_data`
     docstring)
+  - Unit prefixes are converted: `Freq (kHz)`, `Z' (kOhm)`, `Re(Z)/mOhm`,
+    `|Z| (MΩ)` are read as Hz and Ohm (prefixes G, M, k, m, µ or u;
+    case-sensitive as in SI, so `M` is mega and `m` milli; `K` counts as
+    kilo), and a frequency in `rad/s` is divided by 2 pi. The conversion
+    is reported as a warning; a header with two different prefixes is
+    rejected
   - A column named with a leading minus (`-Im(Z)`, `-Z''`, EC-Lab; also
     `-Z'`) holds the negative and is negated
   - Polar form: `|Z|` (or `Zmod`, `mod`, `magnitude`, `abs`) and a phase
