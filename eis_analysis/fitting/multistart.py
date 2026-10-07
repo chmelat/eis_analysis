@@ -9,7 +9,7 @@ from initial fits to intelligently generate perturbations.
 
 import numpy as np
 import logging
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Union
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,6 +20,10 @@ from .bounds import generate_simple_bounds
 from .diagnostics import compute_information_criteria
 
 logger = logging.getLogger(__name__)
+
+# Anything np.random.default_rng() accepts: None (fresh entropy), an int seed,
+# or a Generator (used as is, so one stream can feed several calls)
+Seed = Union[None, int, np.random.Generator]
 
 
 @dataclass
@@ -74,11 +78,25 @@ class MultistartResult:
     diagnostics: Optional[MultistartDiagnostics] = None
 
 
+def _clip_to_bounds(perturbed, bounds):
+    """Clip a perturbed start into `bounds`, or to >= 0 without them.
+
+    Every parameter of the library is non-negative, so 0 is the physical
+    floor. The former absolute floor of 1e-15 lifted G (bounds 0..1e4 S)
+    and alpha_CC (0..0.9) off a valid 0 and pushed a G below 1e-15 S - an
+    oxide's conductance - up to it. A zero start is fine: the optimizer
+    gives it a step scale only (optimizer.ZERO_START_SCALE).
+    """
+    lower, upper = bounds if bounds is not None else (0.0, np.inf)
+    return np.clip(perturbed, lower, upper)
+
+
 def perturb_from_covariance(
     params: NDArray[np.float64],
     cov: NDArray[np.float64],
     scale: float = 2.0,
-    bounds: Optional[Tuple[NDArray, NDArray]] = None
+    bounds: Optional[Tuple[NDArray, NDArray]] = None,
+    rng: Seed = None
 ) -> NDArray[np.float64]:
     """
     Generate correlated perturbation using Cholesky decomposition of covariance.
@@ -86,6 +104,7 @@ def perturb_from_covariance(
     Parameters with high covariance (uncertainty) are perturbed more,
     and correlations between parameters are preserved.
     """
+    rng = np.random.default_rng(rng)
     n_params = len(params)
 
     try:
@@ -98,69 +117,55 @@ def perturb_from_covariance(
         safe = np.where(d > 0, d, 1.0)
         corr = cov / np.outer(safe, safe)
         L = np.linalg.cholesky(corr + 1e-10 * np.eye(n_params))
-        perturbation = scale * d * (L @ np.random.randn(n_params))
+        perturbation = scale * d * (L @ rng.standard_normal(n_params))
         perturbed = params + perturbation
 
     except np.linalg.LinAlgError:
         stderr = np.sqrt(np.abs(np.diag(cov)))
-        perturbation = scale * stderr * np.random.randn(n_params)
+        perturbation = scale * stderr * rng.standard_normal(n_params)
         perturbed = params + perturbation
 
-    if bounds is not None:
-        lower, upper = bounds
-        perturbed = np.clip(perturbed, lower, upper)
-
-    perturbed = np.maximum(perturbed, 1e-15)
-
-    return perturbed
+    return _clip_to_bounds(perturbed, bounds)
 
 
 def perturb_from_stderr(
     params: NDArray[np.float64],
     stderr: NDArray[np.float64],
     scale: float = 2.0,
-    bounds: Optional[Tuple[NDArray, NDArray]] = None
+    bounds: Optional[Tuple[NDArray, NDArray]] = None,
+    rng: Seed = None
 ) -> NDArray[np.float64]:
     """
     Generate uncorrelated perturbation scaled by standard errors.
     """
+    rng = np.random.default_rng(rng)
     stderr_safe = np.where(
         np.isfinite(stderr) & (stderr > 0),
         stderr,
         np.abs(params) * 0.1
     )
 
-    perturbation = scale * stderr_safe * np.random.randn(len(params))
+    perturbation = scale * stderr_safe * rng.standard_normal(len(params))
     perturbed = params + perturbation
 
-    if bounds is not None:
-        lower, upper = bounds
-        perturbed = np.clip(perturbed, lower, upper)
-
-    perturbed = np.maximum(perturbed, 1e-15)
-
-    return perturbed
+    return _clip_to_bounds(perturbed, bounds)
 
 
 def perturb_log_uniform(
     params: NDArray[np.float64],
     factor: float = 3.0,
-    bounds: Optional[Tuple[NDArray, NDArray]] = None
+    bounds: Optional[Tuple[NDArray, NDArray]] = None,
+    rng: Seed = None
 ) -> NDArray[np.float64]:
     """
     Generate log-uniform perturbation (multiplicative).
     """
+    rng = np.random.default_rng(rng)
     log_factor = np.log(factor)
-    multipliers = np.exp(np.random.uniform(-log_factor, log_factor, len(params)))
+    multipliers = np.exp(rng.uniform(-log_factor, log_factor, len(params)))
     perturbed = params * multipliers
 
-    if bounds is not None:
-        lower, upper = bounds
-        perturbed = np.clip(perturbed, lower, upper)
-
-    perturbed = np.maximum(perturbed, 1e-15)
-
-    return perturbed
+    return _clip_to_bounds(perturbed, bounds)
 
 
 def fit_circuit_multistart(
@@ -172,7 +177,8 @@ def fit_circuit_multistart(
     weighting: str = 'modulus',
     parallel: bool = False,
     max_workers: int = 4,
-    use_analytic_jacobian: bool = True
+    use_analytic_jacobian: bool = True,
+    rng: Seed = None
 ) -> Tuple[MultistartResult, NDArray[np.complex128]]:
     """
     Fit circuit using adaptive multi-start optimization.
@@ -197,6 +203,10 @@ def fit_circuit_multistart(
         Maximum parallel workers (default: 4)
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian (default: True)
+    rng : None, int or numpy.random.Generator, optional
+        Source of the restart perturbations. None draws fresh entropy; an int
+        seed or a Generator makes the result reproducible. The global
+        np.random state is never touched.
 
     Returns
     -------
@@ -215,6 +225,7 @@ def fit_circuit_multistart(
     perturbation_method = 'covariance'
 
     jacobian_type = 'analytic' if use_analytic_jacobian else 'numeric'
+    rng = np.random.default_rng(rng)
 
     # Step 1: Initial fit (on a copy too, so every result owns its circuit -
     # see run_single_fit; the caller's circuit is synced to the best fit at the end)
@@ -261,17 +272,17 @@ def fit_circuit_multistart(
     for i in range(1, n_restarts):
         if result0.cov is not None and result0.is_well_conditioned:
             perturbed = perturb_from_covariance(
-                result0.params_opt, result0.cov, scale=scale, bounds=bounds
+                result0.params_opt, result0.cov, scale=scale, bounds=bounds, rng=rng
             )
             perturbation_method = 'covariance'
         elif not np.any(np.isinf(result0.params_stderr)):
             perturbed = perturb_from_stderr(
-                result0.params_opt, result0.params_stderr, scale=scale, bounds=bounds
+                result0.params_opt, result0.params_stderr, scale=scale, bounds=bounds, rng=rng
             )
             perturbation_method = 'stderr'
         else:
             perturbed = perturb_log_uniform(
-                result0.params_opt, factor=3.0, bounds=bounds
+                result0.params_opt, factor=3.0, bounds=bounds, rng=rng
             )
             perturbation_method = 'log_uniform'
         perturbations.append((i + 1, perturbed))

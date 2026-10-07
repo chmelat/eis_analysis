@@ -624,7 +624,8 @@ ms_result, Z_fit = fit_circuit_multistart(
     weighting='modulus',
     parallel=True,               # Parallel execution
     max_workers=4,
-    use_analytic_jacobian=True   # Analytic Jacobian (default)
+    use_analytic_jacobian=True,  # Analytic Jacobian (default)
+    rng=None                     # int seed or numpy Generator for reproducible restarts
 )
 
 # ms_result: MultistartResult dataclass

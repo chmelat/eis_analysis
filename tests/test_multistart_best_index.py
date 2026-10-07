@@ -45,7 +45,7 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
     base_params = np.array([100.0, 1e-6])
     idx_counter = {"i": 2}  # perturbed restarts are numbered 2, 3, ...
 
-    def fake_perturb(params, factor=3.0, bounds=None):
+    def fake_perturb(params, factor=3.0, bounds=None, rng=None):
         i = idx_counter["i"]
         idx_counter["i"] += 1
         return np.array([float(i), 1e-6])
@@ -196,3 +196,65 @@ def test_parallel_restarts_do_not_share_circuit(monkeypatch):
 
     assert result.best_result.params_opt[0] == pytest.approx(3.0)
     assert circuit.params[0] == pytest.approx(3.0)  # caller's circuit = best fit
+
+
+def test_rng_makes_restarts_reproducible():
+    """The same seed gives the same restarts; the global np.random is untouched.
+
+    Regression: the perturbations drew from the global np.random, so a fit was
+    not reproducible and depended on whatever else had consumed that stream.
+    """
+    from eis_analysis.cli.utils import parse_circuit_expression
+
+    f = np.logspace(5, -1, 40)
+    truth = parse_circuit_expression("R(10) - (R(1000)|C(1e-6)) - (R(500)|Q(1e-4,0.8))")
+    noise = np.random.default_rng(0).standard_normal((2, f.size))
+    Z = truth.impedance(f, truth.get_all_params())
+    Z = Z + 0.01 * np.abs(Z) * (noise[0] + 1j * noise[1])
+
+    def restarts(rng):
+        circuit = parse_circuit_expression("R(20) - (R(2000)|C(3e-6)) - (R(200)|Q(3e-5,0.7))")
+        result, _ = ms.fit_circuit_multistart(circuit, f, Z, n_restarts=4, rng=rng)
+        return np.array([r.params_opt for r in result.all_results])
+
+    np.random.seed(123)
+    state = np.random.get_state()[1].copy()
+    first = restarts(7)
+    assert np.array_equal(np.random.get_state()[1], state)
+    assert np.array_equal(first, restarts(np.random.default_rng(7)))
+    assert not np.array_equal(first, restarts(8))
+
+
+@pytest.mark.parametrize('perturb', ['stderr', 'covariance', 'log_uniform'])
+def test_perturbed_conductance_keeps_its_magnitude(perturb):
+    """A G of 1e-17 S (bounds 0..1e4 S) stays near 1e-17, never below 0.
+
+    Regression: every perturbation ended in max(x, 1e-15), which lifted an
+    oxide-film conductance below 1e-15 S up to 1e-15 and G = 0 off its
+    valid lower bound.
+    """
+    G = np.array([1e-17])
+    bounds = (np.array([0.0]), np.array([1e4]))
+    rng = np.random.default_rng(0)
+    if perturb == 'stderr':
+        draws = [ms.perturb_from_stderr(G, np.array([2e-18]), bounds=bounds, rng=rng)
+                 for _ in range(200)]
+    elif perturb == 'covariance':
+        draws = [ms.perturb_from_covariance(G, np.array([[4e-36]]), bounds=bounds, rng=rng)
+                 for _ in range(200)]
+    else:
+        draws = [ms.perturb_log_uniform(G, bounds=bounds, rng=rng) for _ in range(200)]
+    draws = np.concatenate(draws)
+    assert np.all(draws >= 0)
+    assert np.max(draws) < 1e-16
+
+
+def test_perturbation_reaches_zero_but_not_below():
+    """With and without bounds, a perturbation crossing 0 stops at exactly 0."""
+    rng = np.random.default_rng(0)
+    G, stderr = np.array([1e-17]), np.array([1e-16])   # most draws cross 0
+    for bounds in [(np.array([0.0]), np.array([1e4])), None]:
+        draws = np.concatenate([ms.perturb_from_stderr(G, stderr, bounds=bounds, rng=rng)
+                                for _ in range(200)])
+        assert np.all(draws >= 0)
+        assert np.any(draws == 0)
