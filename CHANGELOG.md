@@ -4,6 +4,31 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.5 (2026-10-07)
+
+### Changed
+
+- **`eis_analysis.io.data_loading` is split into three modules.** The
+  file had grown to 1034 lines and held three independent parts:
+  `io/gamry.py` (DTA parser, OCV curve, metadata, `load_data`),
+  `io/csv_loading.py` (delimiter, header and unit detection,
+  `load_csv_data`) and `io/spectrum.py` (`LoadResult`,
+  `MIN_DATA_POINTS`, the checks every loader applies). No change of
+  behaviour. Unreachable checks in `load_data` (empty data, NaN,
+  non-positive frequencies - `read_gamry_native` already excludes them)
+  are gone.
+
+### Migration
+
+- `from eis_analysis.io.data_loading import ...` no longer works. Import
+  from `eis_analysis.io` (or `eis_analysis`), which exports the same
+  public names as before; `MIN_DATA_POINTS` is in
+  `eis_analysis.io.spectrum`. A logging config that filters the logger
+  `eis_analysis.io.data_loading` must name `eis_analysis.io.gamry` or
+  `eis_analysis.io.csv_loading` instead.
+
+---
+
 ## Version 0.56.4 (2026-10-07)
 
 ### Fixed
