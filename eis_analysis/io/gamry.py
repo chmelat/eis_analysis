@@ -452,23 +452,12 @@ def load_data(filename: str) -> LoadResult:
     Raises
     ------
     ValueError
-        If data is invalid (empty, NaN, negative frequencies)
+        If the file cannot be parsed or holds no valid point (see
+        read_gamry_native, which keeps only finite points with f > 0),
+        has fewer than MIN_DATA_POINTS points, or Re(Z) < 0 everywhere
     """
     result = read_gamry_native(filename)
     frequencies, Z = result.frequencies, result.Z
-
-    # Data validation
-    if len(frequencies) == 0 or len(Z) == 0:
-        raise ValueError("File contains no data")
-
-    if len(frequencies) != len(Z):
-        raise ValueError(f"Array length mismatch: {len(frequencies)} frequencies, {len(Z)} impedances")
-
-    if np.any(frequencies <= 0):
-        raise ValueError("Frequencies must be positive")
-
-    if np.any(~np.isfinite(frequencies)) or np.any(~np.isfinite(Z)):
-        raise ValueError("Data contains NaN or Inf values")
 
     n_measured = len(frequencies)
     result.keep_points(_drop_negative_real_hf(frequencies, Z, result.warnings))
