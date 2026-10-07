@@ -4,6 +4,20 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.6 (2026-10-07)
+
+### Fixed
+
+- **A CSV with a preamble without `#` loads.** Only `#` lines were
+  skipped, so the first line of a preamble an instrument writes ahead of
+  the header (`Sample: ZrO2 run 3`, `Date: ...`) was taken as the header
+  and the file failed with "No valid data found". The header is now the
+  first line with as many fields as the first line of numbers (or that
+  line itself in a file without a header). A file without any line of
+  numbers keeps the old rule.
+
+---
+
 ## Version 0.56.5 (2026-10-07)
 
 ### Changed
