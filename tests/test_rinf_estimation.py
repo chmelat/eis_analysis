@@ -10,7 +10,7 @@ open CPE arc (D), always with fit_success=True and no warning.
 import numpy as np
 import pytest
 
-from eis_analysis.io.data_loading import load_csv_data
+from eis_analysis.io import load_csv_data
 from eis_analysis.rinf_estimation import estimate_rinf
 
 

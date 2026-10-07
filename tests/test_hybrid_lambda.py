@@ -132,7 +132,7 @@ def test_larger_lambda_wins(spectrum, winner):
     rule or swapped stage labels each fail one case.
     """
     from eis_analysis.drt import calculate_drt
-    from eis_analysis.io.data_loading import load_data
+    from eis_analysis.io import load_data
 
     if spectrum == 'two_zarc_0.1%':
         f, Z = _two_zarc(0.001)

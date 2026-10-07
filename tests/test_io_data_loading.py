@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the IO module (eis_analysis/io/data_loading.py).
+"""Unit tests for the IO loaders (eis_analysis/io/gamry.py, csv_loading.py, spectrum.py).
 
 Covers the public DTA/CSV parsing surface (audit finding 2.4 — the parser
 had zero direct unit tests despite tight coupling to user file formats):
@@ -20,15 +20,15 @@ import os
 import numpy as np
 import pytest
 
-from eis_analysis.io.data_loading import (
+from eis_analysis.io import (
     read_gamry_native,
     load_data,
     load_csv_data,
     parse_dta_metadata,
     parse_ocv_curve,
     expected_points,
-    MIN_DATA_POINTS,
 )
+from eis_analysis.io.spectrum import MIN_DATA_POINTS
 
 EXAMPLE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example")
 REAL_DTA = os.path.join(EXAMPLE_DIR, "EISPOT-test1.DTA")

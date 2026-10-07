@@ -328,10 +328,10 @@ na okraj.
   protokolu, testovat bez `caplog` a CLI je vytiskne uvnitř své sekce,
   nikoliv v okamžiku vzniku.
 - **Ne -> zůstává `logger.warning`.** Chyba I/O, nepovedený parse, funkce
-  vracející `None` (`data_loading.py:123, :196, :384`). Není kam to dát;
+  vracející `None` (`parse_ocv_curve`, `parse_dta_metadata` v `io/gamry.py`). Není kam to dát;
   žádný výsledek nevzniká.
 
-Co tím padá: dnes se varování z `data_loading` vysypou na výstup v okamžiku
+Co tím padá: dnes se varování z `io/gamry.py` vysypou na výstup v okamžiku
 vzniku, tedy klidně dřív, než CLI vytiskne hlavičku sekce, do které patří —
 táž chyba pořadí, jaká se řešila v v0.28.1. Kdyby se stěhovalo jen `info`,
 u varování by zůstala neopravená.
