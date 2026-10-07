@@ -4,6 +4,60 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.57.0 (2026-10-07)
+
+### Added
+
+- **`fit_circuit_multistart(..., rng=...)` makes a multistart fit
+  reproducible.** The restart perturbations drew from the global
+  `np.random`, which takes no seed and is shared with everything else in
+  the process, so the same call could give a different fit. `rng` takes
+  an int seed or a `numpy.random.Generator`; the default `None` stays
+  random but no longer touches the global state.
+  The same parameter is on `perturb_from_covariance`,
+  `perturb_from_stderr` and `perturb_log_uniform`. The CLI is unchanged.
+- **`fit_equivalent_circuit(..., bounds=(lower, upper))`** replaces the
+  absolute `PARAMETER_BOUNDS` with per-parameter bounds, for fits whose
+  result must not depend on the units.
+
+### Fixed
+
+- **R_inf (`estimate_rinf`, `--ri-fit`) no longer depends on the units.**
+  The R-L-(R|Q) window fit used the absolute `PARAMETER_BOUNDS`. Where the
+  window does not see the arc close, R_k runs off to an open arc and hit
+  R <= 1e10 Ohm, Q <= 0.1 or L <= 1e-4 H depending on the units. The new
+  stress test (`tests/stress.py`) multiplied 1250 random spectra by 1000 or
+  0.001 and found R_inf shifted on 51 % of them, by more than 10 % on 7 %.
+  On a GOhm oxide film the fit failed and R_inf fell back to the HF bound
+  (1.2e9 instead of 1.6e3 Ohm). The upper bounds now follow the window's
+  |Z| (an arc resistance up to 1e6 x max|Z|, `RINF_BOUND_RANGE`; Q down to
+  the same impedance), and R and L are bounded below by 0, their physical
+  limit. A relative floor would cut off what noise-free data still
+  determine. The initial L of a capacitive top is now a reactance of 0.1 %
+  of |Z| instead of 1 nH.
+- **Circuit fits stop at the same point in any units.** `least_squares`
+  stops on xtol and gtol, which mix units: xtol compares the step norm
+  with the norm of x over R ~ 1e7 Ohm and C ~ 1e-12 F alike, and gtol is
+  absolute in a cost that carried Ohm^2. The `x_scale` floor of 1e-10 also
+  scaled a 1e-12 F capacitor differently from a 1e-9 F one. Exactly halved
+  data (an exact binary scaling) could therefore end in a different fit,
+  79x apart on one stress case. The LM fit and the DE polish now optimize
+  x / |x0| (`least_squares_normalized`, new module `fitting/optimizer.py`)
+  on a dimensionless residual (`compute_residual_weights`), with gtol
+  disabled: on a dimensionless cost an absolute gradient threshold stopped
+  fits early wherever a parameter is small relative to |Z|. They end on
+  the relative ftol and xtol instead. With bounds scaled along with the data, 300
+  of 300 stress cases now give identical fits; before, 42 did not. The
+  default absolute `PARAMETER_BOUNDS` still steer scipy's trust region (by
+  their distance, even far away), so a fit with them stays unit-dependent:
+  a known limit, measured by the stress test.
+- **Multistart restarts keep a small conductance.** Every perturbed start
+  ended in max(x, 1e-15), which lifted G (bounds 0..1e4 S) and alpha_CC off
+  their valid 0 and pushed a G below 1e-15 S up to 1e-15. Starts are now
+  clipped into the parameter's bounds only, or to >= 0 without bounds.
+
+---
+
 ## Version 0.56.7 (2026-10-07)
 
 ### Fixed
