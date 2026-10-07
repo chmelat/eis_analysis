@@ -48,6 +48,9 @@ Modular toolkit for electrochemical impedance spectroscopy (EIS) analysis with D
     corrupt every analysis. Split the file and load one sweep at a time
   - Decimal format: US (dot) and European (comma for semicolon-delimited)
   - Comments: lines starting with `#` are ignored
+  - Preamble: lines an instrument writes ahead of the header (`Sample: X`,
+    `Date: ...`) are skipped; the header is the first line with as many
+    fields as the first row of numbers
   - Examples: [example/example_eis_data.csv](example/example_eis_data.csv)
 
 **Changelog:** [CHANGELOG.md](CHANGELOG.md)

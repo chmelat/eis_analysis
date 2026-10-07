@@ -28,21 +28,32 @@ def _sweep_segments(frequencies: NDArray[np.float64]) -> List[Tuple[int, int]]:
     return list(zip(bounds[:-1], bounds[1:]))
 
 
+def _numbers_delimiter(line: str) -> Optional[str]:
+    """
+    Delimiter of a line of numbers: the first of semicolon, tab, comma and
+    whitespace that splits it into at least three numbers (counting
+    characters would pick the decimal commas of "0,1;2,5;-0,3"). None when
+    the line is not one of numbers.
+    """
+    for candidate in (';', '\t', ',', ' '):
+        fields = _split(line, candidate)
+        if len(fields) >= 3 and all(_is_number(x) for x in fields):
+            return candidate
+    return None
+
+
 def _detect_delimiter(header_line: str) -> str:
     """
     Auto-detect CSV delimiter from header line.
 
-    A line of numbers (a file without a header) takes the first of semicolon,
-    tab, comma and whitespace that splits it into at least three numbers:
-    counting characters would pick the decimal commas of "0,1;2,5;-0,3".
+    A line of numbers (a file without a header) takes _numbers_delimiter.
     A header line returns whichever of comma, tab, semicolon occurs most
     often, or ' ' (runs of whitespace, see _split) when it has none of them
     but a space. Comma is listed first so it wins a single-column header.
     """
-    for candidate in (';', '\t', ',', ' '):
-        fields = _split(header_line, candidate)
-        if len(fields) >= 3 and all(_is_number(x) for x in fields):
-            return candidate
+    numbers = _numbers_delimiter(header_line)
+    if numbers is not None:
+        return numbers
     if not any(d in header_line for d in ',\t;') and ' ' in header_line.strip():
         return ' '
     return max(',', '\t', ';', key=header_line.count)
@@ -236,6 +247,9 @@ def load_csv_data(
     - Columns: frequency, Z_real, Z_imag by header names, or frequency, |Z|
       and phase (polar form)
     - Comments: lines starting with '#' are ignored
+    - Preamble: lines ahead of the header ('Sample: X') are skipped; the
+      header is the first line with as many fields as the first row of
+      numbers
 
     Column names (case-insensitive) are split into words at spaces,
     punctuation and brackets; units and labels are just other words, so
@@ -312,13 +326,26 @@ def load_csv_data(
         with open(filename, 'r', encoding='ISO-8859-1') as f:
             lines = f.readlines()
 
-    # Skip comment lines (starting with #) to find header
-    header_idx = 0
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped and not stripped.startswith('#'):
-            header_idx = i
-            break
+    # The header is the first line, after '#' comments and any preamble an
+    # instrument writes ahead of it ("Sample: X"), with as many fields as the
+    # first line of numbers - or that line itself in a file without a header.
+    # Without a line of numbers (a text column, an empty cell) it is the
+    # first non-comment line.
+    # ponytail: field count only; a preamble line that happens to split into
+    # as many fields (aligned columns: as many words) is taken as the header.
+    content = [i for i, line in enumerate(lines)
+               if line.strip() and not line.strip().startswith('#')]
+    header_idx = content[0] if content else 0
+    first = next(((i, d) for i in content if (d := _numbers_delimiter(lines[i].strip()))), None)
+    if first is not None:
+        first_numbers, numbers_sep = first
+        sep = delimiter or numbers_sep
+        n_fields = len(_split(lines[first_numbers].strip(), sep))
+        # Ends at the latest on the line of numbers itself
+        header_idx = next(i for i in content
+                          if len(_split(lines[i].strip(), sep)) == n_fields)
+        if header_idx > content[0]:
+            logger.debug(f"Skipped preamble lines {content[0] + 1}-{header_idx} of {filename}")
 
     if len(lines) - header_idx < 2:
         raise ValueError(f"CSV file {filename} must have header and at least one data row")

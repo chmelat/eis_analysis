@@ -401,10 +401,14 @@ def test_csv_polar(tmp_path, headers, phase_sign, scale):
     assert np.allclose(Z, [complex(zr, zi) for _, zr, zi in rows])
 
 
-def test_csv_comment_lines_skipped(tmp_path):
-    text = _make_csv(_rows(12), comments=("# exported data", "# units: Hz, Ohm"))
-    f, Z = _fz(load_csv_data(_write(tmp_path, "cm.csv", text)))
-    assert len(f) == 12
+@pytest.mark.parametrize("comments", [
+    ("# exported data", "# units: Hz, Ohm"),
+    ("Sample: ZrO2 run 3", "Date: 2026-10-07, 12:30"),  # preamble without '#'
+])
+def test_csv_comment_lines_skipped(tmp_path, comments):
+    rows = _rows(12)
+    f, Z = _fz(load_csv_data(_write(tmp_path, "cm.csv", _make_csv(rows, comments=comments))))
+    assert np.allclose(f, [r[0] for r in rows])
 
 
 def test_csv_header_autodetect(tmp_path):
