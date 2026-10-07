@@ -26,7 +26,7 @@ from eis_analysis.fitting.diffevo import (
     _DECostFunction,
     DiffEvoResult,
 )
-from eis_analysis.fitting.diagnostics import compute_weights
+from eis_analysis.fitting.diagnostics import compute_residual_weights
 from eis_analysis.fitting.jacobian import make_jacobian_function
 from eis_analysis.fitting.covariance import compute_covariance_matrix
 
@@ -36,7 +36,7 @@ def weighted_ssr(params_full, Z, weighting='modulus'):
 
     This mirrors the cost function that DE and least_squares both minimize.
     """
-    w = compute_weights(Z, weighting)
+    w = compute_residual_weights(Z, weighting)
     Z_fit = make_circuit().impedance(FREQ, list(params_full))
     return np.sum(((Z.real - Z_fit.real) * w) ** 2
                   + ((Z.imag - Z_fit.imag) * w) ** 2)
@@ -248,7 +248,7 @@ def test_refinement_failure_falls_back_with_valid_covariance(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("forced refinement failure")
 
-    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
+    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares_normalized', boom)
     Z = true_impedance()
     result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
     warns = result.diagnostics.warnings
@@ -265,7 +265,7 @@ def test_refinement_failure_reported_honestly(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("forced refinement failure")
 
-    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares', boom)
+    monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares_normalized', boom)
     Z = true_impedance()
     result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
 
@@ -287,7 +287,7 @@ def test_covariance_computed_at_returned_point():
     result, _ = standard_fit()
     # No fixed params -> params_opt is the full == free vector.
     params_opt = np.asarray(result.best_result.params_opt)
-    w = compute_weights(Z, 'modulus')
+    w = compute_residual_weights(Z, 'modulus')
     J = make_jacobian_function(make_circuit(), FREQ, w)(params_opt)
     Z_fit = make_circuit().impedance(FREQ, list(params_opt))
     residuals = np.concatenate([(Z.real - Z_fit.real) * w,

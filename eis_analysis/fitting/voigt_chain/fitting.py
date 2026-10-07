@@ -187,8 +187,10 @@ def estimate_R_linear(
     n_freq = len(frequencies)
     n_tau = len(tau)
 
-    # Weights (normalized to mean = 1 for numerical stability). Shared with
-    # circuit fitting so both paths weight a spectrum identically.
+    # Weights (normalized to mean = 1 for numerical stability). Same relative
+    # weighting as circuit fitting; circuit fitting additionally scales them
+    # to a dimensionless residual (compute_residual_weights), so the two
+    # costs differ by a constant factor and are not comparable.
     weights = compute_weights(Z, weighting)
 
     # Determine matrix dimensions

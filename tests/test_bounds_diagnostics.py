@@ -12,6 +12,7 @@ Regression tests for audit findings (2026-07-03):
 """
 
 import numpy as np
+import pytest
 
 from eis_analysis.fitting import fit_equivalent_circuit
 from eis_analysis.fitting.bounds import build_bound_status
@@ -155,3 +156,72 @@ def test_in_bounds_guess_no_clip_warning():
     result, _ = fit_equivalent_circuit(freq, Z, circuit)
 
     assert [w for w in result.diagnostics.warnings if 'clipped' in w] == []
+
+
+# --- Units: a fit must not depend on them ---
+
+def _blocking_spectrum():
+    """Stress test case blocking/38: R - (R|Q) - Q, noise-free."""
+    f = np.logspace(np.log10(107962.72875713777), np.log10(0.24267724373552552), 52)
+    truth = [4254241.56646422, 232721572.02547705, 1.838929474718818e-10,
+             0.6633267992074743, 4.0252334682656605e-11, 0.8996571087461844]
+    circuit = R(truth[0]) - (R(truth[1]) | Q(truth[2], truth[3])) - Q(truth[4], truth[5])
+    return f, circuit.impedance(f, truth)
+
+
+def _start():
+    return R(8.5e6) - (R(9.3e7) | Q(5.5e-10, 0.7)) - Q(2e-11, 0.85)
+
+
+def test_fit_does_not_depend_on_units():
+    """Exactly halved data (a binary scaling, no rounding) gives exactly
+    scaled parameters when the bounds scale too.
+
+    Regression: least_squares stops on xtol and gtol, which mix the
+    parameters' units (norm(step) over R ~ 1e7 and C ~ 1e-12 alike) and
+    the cost's (Ohm^2), and the x_scale floor of 1e-10 rescaled the small C
+    differently: the same spectrum in other units stopped elsewhere (stress
+    test case rc/24, here 79x apart). The absolute PARAMETER_BOUNDS still
+    steer the trust region (scipy's trf scales by the distance to the
+    bounds), so this needs scaled bounds.
+    """
+    f = np.logspace(np.log10(19071.51670080574), np.log10(0.0035536906006914185), 95)
+    truth = [530028.4117574899, 20022831.072997387, 1.7818095897842149e-12,
+             5310970.904689248, 1.4246395569165385e-10]
+    start = [739208.3200348469, 34032330.40650132, 1.1750296971834518e-12,
+             11024351.515477987, 1.487868908363994e-10]
+    noise = np.random.default_rng(0).standard_normal((2, f.size))
+    powers = np.array([1, 1, -1, 1, -1])
+    lower = np.array([1e-4, 1e-4, 1e-15, 1e-4, 1e-15])
+    upper = np.array([1e10, 1e10, 1e-1, 1e10, 1e-1])
+
+    results = []
+    for k in (1.0, 0.5):
+        circuit = R(truth[0]) - (R(truth[1]) | C(truth[2])) - (R(truth[3]) | C(truth[4]))
+        Z = circuit.impedance(f, truth)
+        Z = k * (Z + 1e-3 * np.abs(Z) * (noise[0] + 1j * noise[1]))
+        x0 = np.array(start) * k ** powers
+        circuit = R(x0[0]) - (R(x0[1]) | C(x0[2])) - (R(x0[3]) | C(x0[4]))
+        bounds = (lower * k ** powers, upper * k ** powers)
+        fit, _ = fit_equivalent_circuit(f, Z, circuit, bounds=bounds)
+        results.append(fit.params_opt / k ** powers)
+    np.testing.assert_allclose(results[1], results[0], rtol=1e-9)
+
+
+def test_bounds_override():
+    """Explicit bounds replace PARAMETER_BOUNDS, also in bound_status."""
+    f, Z = _blocking_spectrum()
+    lower = [1.0, 1.0, 1e-13, 0.3, 1e-13, 0.3]
+    upper = [5e6, 1e7, 1e-6, 1.0, 1e-6, 1.0]   # R_k capped below its truth
+    fit, _ = fit_equivalent_circuit(f, Z, _start(), bounds=(lower, upper))
+    assert fit.params_opt[1] <= 1e7
+    assert fit.bound_status[1] == 'upper'
+
+
+def test_bounds_override_rejects_empty_interval():
+    """lower >= upper fails with the parameter named, not deep in scipy."""
+    f, Z = _blocking_spectrum()
+    lower = [1.0, 1.0, 1e-13, 0.3, 1e-13, 0.3]
+    upper = [5e6, 1e7, 1e-6, 0.3, 1e-6, 1.0]   # n0: 0.3 .. 0.3
+    with pytest.raises(ValueError, match='n0'):
+        fit_equivalent_circuit(f, Z, _start(), bounds=(lower, upper))

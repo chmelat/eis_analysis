@@ -18,7 +18,7 @@ import pytest
 
 from eis_analysis.fitting import R, Q, CC
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
-from eis_analysis.fitting.diagnostics import compute_weights
+from eis_analysis.fitting.diagnostics import compute_residual_weights
 from eis_analysis.fitting.diffevo import (
     _DECostFunction,
     _LogSpaceCost,
@@ -119,7 +119,7 @@ def test_de_result_x_is_in_linear_space():
     Z = true_impedance()
     result = _fit(100)
 
-    w = compute_weights(Z, 'modulus')
+    w = compute_residual_weights(Z, 'modulus')
     cost = _DECostFunction(make_circuit(), FREQ, Z, w)
     assert cost(result.de_result.x) == pytest.approx(result.diagnostics.de_cost,
                                                      rel=1e-9)

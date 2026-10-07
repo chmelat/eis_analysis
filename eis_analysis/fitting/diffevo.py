@@ -16,14 +16,15 @@ import warnings
 from typing import Tuple, List, Optional, Any
 from numpy.typing import NDArray
 from dataclasses import dataclass, field
-from scipy.optimize import differential_evolution, least_squares, OptimizeWarning
+from scipy.optimize import differential_evolution, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
                      log_search_bounds,
                      validate_fixed_params)
 from .covariance import compute_covariance_matrix
-from .diagnostics import compute_weights, compute_fit_metrics, compute_significance
+from .diagnostics import compute_residual_weights, compute_fit_metrics, compute_significance
+from .optimizer import least_squares_normalized
 from .de_archive import Refinement, choose, select_archive_candidates, selection_warnings
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
@@ -325,7 +326,7 @@ def fit_circuit_diffevo(
     ]
 
     # Precompute weights
-    weights = compute_weights(Z, weighting)
+    weights = compute_residual_weights(Z, weighting)
 
     # Cost function for DE
     cost_function = _DECostFunction(
@@ -442,11 +443,9 @@ def fit_circuit_diffevo(
         x0 = np.clip(np.asarray(x0, dtype=float), lb_arr, ub_arr)
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always", OptimizeWarning)
-            return least_squares(
-                residual_function, x0, jac=jac_func,
-                bounds=(lower_bounds, upper_bounds), method='trf',
-                x_scale=np.maximum(np.abs(x0), 1e-10),
-                ftol=1e-10, xtol=1e-10, gtol=1e-10, max_nfev=5000,
+            return least_squares_normalized(
+                residual_function, x0, jac_func, (lower_bounds, upper_bounds),
+                method='trf', ftol=1e-10, xtol=1e-10, max_nfev=5000,
             )
 
     def spectrum(x_free):

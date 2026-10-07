@@ -22,9 +22,9 @@ Usage:
 import numpy as np
 import logging
 import warnings
-from typing import Tuple, Union, List, Optional
+from typing import Tuple, Union, List, Optional, Sequence
 from numpy.typing import NDArray
-from scipy.optimize import least_squares, OptimizeWarning
+from scipy.optimize import OptimizeWarning
 from dataclasses import dataclass, field
 
 from .circuit_elements import CircuitElement
@@ -32,7 +32,8 @@ from .circuit_builder import Series, Parallel
 from .covariance import compute_covariance_matrix, compute_confidence_interval
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
                      validate_fixed_params)
-from .diagnostics import compute_weights, compute_fit_metrics, compute_significance
+from .diagnostics import compute_residual_weights, compute_fit_metrics, compute_significance
+from .optimizer import least_squares_normalized
 from .jacobian import make_jacobian_function
 
 logger = logging.getLogger(__name__)
@@ -206,10 +207,14 @@ class OptimizationSetup:
     clipped_params: List[int] = field(default_factory=list)
 
 
-def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
+def _prepare_optimization(
+    circuit: Circuit,
+    bounds: Optional[Tuple[Sequence[float], Sequence[float]]] = None
+) -> OptimizationSetup:
     """
     Prepare optimization setup: extract parameters, labels, bounds.
 
+    `bounds` overrides the PARAMETER_BOUNDS of generate_simple_bounds().
     Returns OptimizationSetup with all necessary configuration.
     """
     initial_guess = list(circuit.get_all_params())
@@ -221,7 +226,18 @@ def _prepare_optimization(circuit: Circuit) -> OptimizationSetup:
                             for i, label in enumerate(param_labels_raw)]
 
     fixed_params = circuit.get_all_fixed_params()
-    lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
+    if bounds is None:
+        lower_bounds, upper_bounds = generate_simple_bounds(param_labels_raw)
+    else:
+        lower_bounds, upper_bounds = [float(b) for b in bounds[0]], [float(b) for b in bounds[1]]
+        if not len(lower_bounds) == len(upper_bounds) == len(initial_guess):
+            raise ValueError(
+                f"bounds have {len(lower_bounds)} and {len(upper_bounds)} elements, "
+                f"but circuit has {len(initial_guess)} parameters"
+            )
+        for label, lb, ub in zip(param_labels_indexed, lower_bounds, upper_bounds):
+            if not lb < ub:  # also catches NaN
+                raise ValueError(f"bounds of {label}: lower {lb} must be below upper {ub}")
 
     # Clip initial guess to bounds. Fixed parameters are exempt: they are
     # never optimized, so the bounds do not apply to them and clipping
@@ -250,7 +266,8 @@ def fit_equivalent_circuit(
     circuit: Circuit,
     weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
-    use_analytic_jacobian: bool = True
+    use_analytic_jacobian: bool = True,
+    bounds: Optional[Tuple[Sequence[float], Sequence[float]]] = None
 ) -> Tuple[FitResult, NDArray[np.complex128]]:
     """
     Fit equivalent circuit to impedance data.
@@ -269,6 +286,10 @@ def fit_equivalent_circuit(
         Override initial guess for parameters
     use_analytic_jacobian : bool, optional
         Use analytic Jacobian (default: True)
+    bounds : (lower, upper), optional
+        Per-parameter bounds in circuit order. Default: PARAMETER_BOUNDS by
+        parameter type, which are absolute - pass bounds derived from the
+        data where the result must not depend on the units.
 
     Returns
     -------
@@ -282,7 +303,7 @@ def fit_equivalent_circuit(
         raise ValueError(f"weighting must be one of {VALID_WEIGHTINGS}, got '{weighting}'")
 
     # Step 1: Prepare optimization
-    setup = _prepare_optimization(circuit)
+    setup = _prepare_optimization(circuit, bounds)
 
     # Save original circuit values for fixed parameters
     circuit_values = list(circuit.get_all_params())
@@ -325,7 +346,7 @@ def fit_equivalent_circuit(
     initial_guess_full = list(initial_guess_list)
 
     # Precompute weights
-    weights = compute_weights(Z, weighting)
+    weights = compute_residual_weights(Z, weighting)
 
     if any(fixed_params):
         initial_guess_for_opt = [v for v, f in zip(initial_guess_list, fixed_params) if not f]
@@ -392,15 +413,9 @@ def fit_equivalent_circuit(
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always", OptimizeWarning)
 
-            x_scale = np.maximum(np.abs(initial_guess_for_opt), 1e-10)
-
-            opt_result = least_squares(
-                residual,
-                x0=initial_guess_for_opt,
-                jac=jac_func,
-                bounds=bounds_for_opt,
-                max_nfev=10000,
-                x_scale=x_scale
+            opt_result = least_squares_normalized(
+                residual, initial_guess_for_opt, jac_func, bounds_for_opt,
+                max_nfev=10000
             )
 
             params_opt_free = opt_result.x

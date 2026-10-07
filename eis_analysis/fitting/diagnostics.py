@@ -54,6 +54,23 @@ def compute_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.flo
     return weights / np.mean(weights)
 
 
+def compute_residual_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.float64]:
+    """
+    Weights of a least-squares residual: compute_weights scaled to mean(w |Z|) = 1.
+
+    compute_weights normalizes to mean 1, which leaves the weighted residual
+    in Ohm and the cost proportional to |Z|^2. least_squares stops on an
+    absolute gtol, so a fit of the same spectrum in other units stopped
+    elsewhere (stress test: R_inf moved under Z -> Z/2, an exact binary
+    scaling). Relative to the data, the cost is dimensionless; the optimum,
+    the covariance and every relative metric are unchanged.
+    """
+    weights = compute_weights(Z, weighting)
+    scale = np.mean(weights * np.abs(Z))
+    # All-zero data: nothing to scale by, keep the plain weights
+    return weights / scale if scale > 0 else weights
+
+
 def compute_fit_metrics(
     Z: NDArray[np.complex128],
     Z_fit: NDArray[np.complex128],

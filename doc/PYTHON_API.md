@@ -473,7 +473,8 @@ result, Z_fit = fit_equivalent_circuit(
     Z,
     circuit,
     weighting='modulus',      # 'uniform', 'sqrt', 'proportional', 'modulus'
-    use_analytic_jacobian=True     # Analytic Jacobian (default, faster)
+    use_analytic_jacobian=True,    # Analytic Jacobian (default, faster)
+    bounds=None               # (lower, upper) per parameter; default: absolute PARAMETER_BOUNDS
 )
 
 # Weighting types:
