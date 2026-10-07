@@ -347,6 +347,7 @@ def test_csv_header_names(tmp_path, headers, roles):
     (("f (MHz)", "Zreal [MΩ]", "Zimag [MΩ]"), 1e6, 1e6),
     (("Frequency (rad/s)", "Zreal_uOhm", "Zimag_uOhm"), 1 / (2 * np.pi), 1e-6),
     (("Freq", "Zreal", "Zimag"), 1.0, 1.0),                # no unit, no warning
+    (("kHz", "Z' (k\u2126)", "Z'' (kOhm) [KOhm]"), 1e3, 1e3),  # ohm sign; k and K agree
 ])
 def test_csv_unit_prefixes_converted(tmp_path, headers, f_unit, z_unit):
     rows = _rows(12)
@@ -356,9 +357,10 @@ def test_csv_unit_prefixes_converted(tmp_path, headers, f_unit, z_unit):
     assert np.allclose(f, [r[0] for r in rows])
     assert np.allclose(Z, [complex(r[1], r[2]) for r in rows])
     assert any("Units from the header" in w for w in result.warnings) == ((f_unit, z_unit) != (1, 1))
-    with pytest.raises(ValueError, match="several units"):
-        load_csv_data(_write(tmp_path, "c.csv", _make_csv(stored, headers=(
-            headers[0], "Z' (Ohm) [kOhm]", headers[2]))))
+    for z_header, error in (("Z' (Ohm) [kOhm]", "several units"), ("Z' (mohm)", "milli or mega")):
+        with pytest.raises(ValueError, match=error):
+            load_csv_data(_write(tmp_path, "c.csv", _make_csv(stored, headers=(
+                headers[0], z_header, headers[2]))))
 
 
 @pytest.mark.parametrize("headers", [

@@ -684,7 +684,7 @@ def _split(line: str, delimiter: str) -> List[str]:
 # 're' in 'freq' or 'im' in 'time' never count, and units or labels such as
 # 'ohms', 'hz' in brackets or ZView's '(a)'/'(b)' are simply other words
 # (the prefix of a unit is read separately, see _unit_factor).
-_FREQ_WORDS = {'freq', 'frequency', 'hz'}  # plus 'f' as the first word, see below
+_FREQ_WORDS = {'freq', 'frequency', 'hz', 'khz', 'mhz', 'ghz'}  # plus 'f' as the first word, see below
 _ZREAL_WORDS = {'re', 'real', 'zreal', 'zre', 'zr', 'rez', "z'"}
 _ZIMAG_WORDS = {'im', 'imag', 'imaginary', 'zimag', 'zim', 'zi', 'imz', "z''"}
 # Polar form: |Z| (written |Z| or abs(Z); 'modulus' stays the electric modulus
@@ -730,7 +730,8 @@ _PREFIXES = {'G': 1e9, 'M': 1e6, 'k': 1e3, 'K': 1e3, '': 1.0,
 # A unit with its prefix, neither preceded nor followed by a letter: Gamry's
 # Zphz holds no Hz, 'Ohmic' no Ohm, while '_', '/', '(' and '[' are no letters.
 _UNIT_PATTERNS = {unit: re.compile(rf"(?<![^\W\d_])([GMkKmµμu]?)(?:{names})(?![^\W\d_])")
-                  for unit, names in (('Hz', 'Hz|hz|HZ'), ('Ohm', 'Ohms?|ohms?|OHMS?|Ω|Ω'))}
+                  for unit, names in (('Hz', 'Hz|hz|HZ'),
+                                       ('Ohm', 'Ohms?|ohms?|OHMS?|\u03a9|\u2126'))}  # omega, ohm sign
 
 
 def _unit_factor(header: str, unit: str, filename: str) -> Tuple[float, str]:
@@ -739,15 +740,24 @@ def _unit_factor(header: str, unit: str, filename: str) -> Tuple[float, str]:
 
     (1.0, '') when the header names no such unit. A frequency header with the
     word rad is an angular frequency, divided by 2 pi. Two different prefixes
-    in one header raise: either guess could be off by orders of magnitude.
+    in one header raise, as does m or M on a unit written in one case ('mhz',
+    'MOHM'): either guess could be off by orders of magnitude.
     """
-    found = {m.group(1): m.group(0) for m in _UNIT_PATTERNS[unit].finditer(header)}
+    found: Dict[float, str] = {}  # by factor: kOhm and KOhm are one unit
+    for m in _UNIT_PATTERNS[unit].finditer(header):
+        prefix, written = m.group(1), m.group(0)
+        # 'mhz', 'MOHM': a header in one case cannot tell milli from mega
+        if prefix and prefix in 'mM' and written[1:].isascii() and (
+                written.islower() or written.isupper()):
+            raise ValueError(f"CSV header {header.strip()!r} of {filename}: {written!r} "
+                             f"may be milli or mega; write m{unit} or M{unit}")
+        found[_PREFIXES[prefix]] = written
     if len(found) > 1:
         raise ValueError(f"CSV header {header.strip()!r} of {filename} gives several units: "
                          f"{', '.join(found.values())}")
     if found:
-        ((prefix, written),) = found.items()
-        return _PREFIXES[prefix], written
+        ((factor, written),) = found.items()
+        return factor, written
     if unit == 'Hz' and 'rad' in _header_words(header)[1]:
         return 1 / (2 * np.pi), 'rad/s'
     return 1.0, ''
@@ -851,7 +861,8 @@ def load_csv_data(
     A unit prefix G, M, k, m or µ (u) on Hz or Ohm/Ω converts the column to
     Hz and Ohm ('Freq (kHz)', "Z' (MΩ)", 'Re(Z)/mOhm'), case-sensitively as
     in SI (M mega, m milli; K counts as k), noted in the warnings; a
-    frequency in rad/s is divided by 2 pi. Names:
+    frequency in rad/s is divided by 2 pi. m or M on a unit in one case
+    ('mhz', 'MOHM') is ambiguous and raises. Names:
     - Frequency: a word freq, frequency or hz, or f as the first word
     - Z real: a word re, real, zreal, zre, zr, rez or z'
     - Z imag: a word im, imag, imaginary, zimag, zim, zi, imz or z'' (or z");

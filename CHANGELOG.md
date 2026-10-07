@@ -14,9 +14,11 @@ Complete change history for all project versions.
   small, capacitances and time constants off by three orders of
   magnitude. A prefix G, M, k, m or µ (u) on Hz or Ohm/Ω now scales the
   column, case-sensitively as in SI (`M` mega, `m` milli; `K` counts as
-  kilo), and a frequency in rad/s is divided by 2 pi. The conversion is
-  reported as a warning; a header with two different prefixes is
-  rejected.
+  kilo), and a frequency in rad/s is divided by 2 pi. Both the Greek
+  omega and the ohm sign (U+2126) count as Ohm, and a bare `kHz` names
+  the frequency column. The conversion is reported as a warning. A header
+  with two different prefixes, or with m/M on a unit written in one case
+  (`mhz`, `MOHM`: milli or mega?), is rejected.
 
 ---
 
