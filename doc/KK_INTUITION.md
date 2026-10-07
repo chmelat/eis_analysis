@@ -246,7 +246,15 @@ Two tools deal with this:
 - **A series capacitance** (`--kk-series-c`) gives the chain the one
   KK-consistent term it cannot build from RC elements: a pure capacitor has no
   real part. This is the physics of blocking systems such as two-electrode
-  cells, passive films and oxide layers.
+  cells, passive films and oxide layers. It also covers Warburg diffusion: an
+  exact semi-infinite or open Warburg fails the test without it.
+
+  It is off by default because it also absorbs drift. On a ZARC whose R grows
+  during the sweep (0.2 % noise, 10 seeds), a 10 % drift fails on every seed
+  without the series C (largest residual 7.9 %) and on none with it (2.2 %);
+  a 20 % drift still passes with it (4.0 %). Use it when the low-frequency end
+  is capacitive (-Z'' keeps growing as the frequency drops), not when the
+  phase returns toward zero there.
 
 The measured ZrO2-on-Zr spectrum `example/EISPOT-M136113-4.DTA` (two-electrode
 cell) shows the same thing on real data. Without a series C it passes, but its
