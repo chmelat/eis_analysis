@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.4 (2026-10-07)
+
+### Fixed
+
+- **Unit prefixes in a CSV header are converted.** A unit was just
+  another word of the header, so `Freq (kHz)` and `Z' (kOhm)` loaded
+  without a warning as Hz and Ohm: frequencies and impedances 1000x too
+  small, capacitances and time constants off by three orders of
+  magnitude. A prefix G, M, k, m or µ (u) on Hz or Ohm/Ω now scales the
+  column, case-sensitively as in SI (`M` mega, `m` milli; `K` counts as
+  kilo), and a frequency in rad/s is divided by 2 pi. The conversion is
+  reported as a warning; a header with two different prefixes is
+  rejected.
+
+---
+
 ## Version 0.56.3 (2026-10-06)
 
 ### Fixed
