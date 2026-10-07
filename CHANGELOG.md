@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.56.7 (2026-10-07)
+
+### Fixed
+
+- **The CLI suggests `--kk-series-c` when the low-frequency end is
+  capacitive.** The hint required a mean imaginary residual above 5 %
+  with a good real fit and fired on none of the Warburg examples: an
+  exact semi-infinite Warburg fails on a few edge points with a 1.5 %
+  mean, an open Warburg fits the real part badly too. It could also fire
+  on drift. It now fires when the test fails and -Z'' still rises over
+  the lowest decade (new `low_frequency_slope` in
+  `eis_analysis.validation`): on W, Wo and an arc continuing past f_min,
+  and on none of 120 drifting ZARC spectra. The series C stays off by
+  default: it absorbs drift (a 20 % drift passes with it), see
+  `doc/KK_INTUITION.md`.
+
+---
+
 ## Version 0.56.6 (2026-10-07)
 
 ### Fixed
