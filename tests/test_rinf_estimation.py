@@ -109,3 +109,58 @@ def test_too_few_window_points_fall_back_without_fit():
     res = estimate_rinf(f[::10], Z[::10])
     assert res.method == 'hf_bound' and res.fit is None
     assert 'need >=' in res.warnings[0]
+
+
+# Spectra of the stress test (tests/stress.py) that broke unit invariance:
+# (expression, f_max, f_min, points), noise-free
+UNIT_CASES = {
+    # open film arc in the window: R_k ran into R <= 1e10 Ohm at Z x 1000,
+    # the fit failed and R_inf fell back to the HF bound, 1.2e9 instead of 1.6e3
+    'oxide/10': ('R(1.5060315555665122) - (R(24856893.804588407)'
+                 '|Q(4.7578522543970145e-11,0.9080075824366625))',
+                 1858.4534441671751, 6.656689604430729, 33),
+    # blocking tail: LM stopped on xtol, which mixes the parameters' units,
+    # at a different point for Z and for exactly Z/2
+    'blocking/38': ('R(4254241.56646422) - (R(232721572.02547705)'
+                    '|Q(1.838929474718818e-10,0.6633267992074743))'
+                    ' - Q(4.0252334682656605e-11,0.8996571087461844)',
+                    107962.72875713777, 0.24267724373552552, 52),
+}
+
+
+@pytest.mark.parametrize('name', list(UNIT_CASES))
+@pytest.mark.parametrize('k', [0.5, 1e-3, 1e3])
+def test_rinf_does_not_depend_on_units(name, k):
+    """Z -> k*Z gives k*R_inf by the same method.
+
+    Regression: the window fit used the absolute PARAMETER_BOUNDS and
+    least_squares' unit-mixing stop criteria; R_inf shifted on 51 % of the
+    stress test's random spectra, by over 10 % on 7 % of them.
+    """
+    from eis_analysis.cli.utils import parse_circuit_expression
+
+    expression, f_max, f_min, n = UNIT_CASES[name]
+    f = np.logspace(np.log10(f_max), np.log10(f_min), n)
+    circuit = parse_circuit_expression(expression)
+    Z = circuit.impedance(f, circuit.get_all_params())
+
+    ref, scaled = estimate_rinf(f, Z), estimate_rinf(f, k * Z)
+    assert scaled.method == ref.method
+    assert scaled.R_inf == pytest.approx(k * ref.R_inf, rel=1e-6)
+
+
+def test_small_rinf_in_front_of_large_film():
+    """Noise-free 0.05 Ohm R_s in front of a GOhm film, |Z| 3e3..2.5e5 Ohm.
+
+    Regression (code review of the unit fix): lower bounds of R and L at
+    1e-6 of the window's |Z| biased R_s to 0.064 Ohm, and the absolute gtol
+    on the now dimensionless cost stopped the fit early; R_inf fell back to
+    the HF bound, 243 Ohm.
+    """
+    from eis_analysis.cli.utils import parse_circuit_expression
+
+    f = np.logspace(5, 1, 41)
+    circuit = parse_circuit_expression("R(0.05)-(R(1e9)|Q(1e-9,0.95))")
+    result = estimate_rinf(f, circuit.impedance(f, circuit.get_all_params()))
+    assert result.method == 'rlq_fit'
+    assert result.R_inf == pytest.approx(0.05, rel=1e-3)

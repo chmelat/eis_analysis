@@ -93,7 +93,24 @@ must hold at least `RINF_FIT_MIN_POINTS = 5` points (5 free parameters,
 | R_k | spread of Re(Z) in the window |
 | tau = (R_k*Q)^(1/n) | 1/omega at the -Im(Z) maximum, where an arc peaks |
 | n | 0.8 |
-| L | Im(Z)/omega at f_max if the top point is inductive, else 1 nH |
+| L | Im(Z)/omega at f_max if the top point is inductive, else a reactance of 0.1 % of \|Z\| at f_max |
+
+### Bounds
+
+Upper bounds relative to the window's impedance, with
+`RINF_BOUND_RANGE = 1e6`: R_s and R_k up to 1e6 x max|Z|, L such that its
+reactance stays below that across the window, and Q such that 1/(Q omega^n)
+stays within min|Z|/1e6 .. 1e6 x max|Z|, over the window and the whole n
+range 0.3-1 (Q is the only parameter with a relative lower bound). Above
+those an arc is open (or shorted) to better than 1e-6, under any
+instrument's resolution. R and L are bounded below by 0, their physical
+limit: a relative floor cut off what noise-free data still determine (an L
+floor at 1e-6 |Z| biased a 0.05 Ohm R_s in front of a GOhm film to
+0.064 Ohm). Start values are clipped into min|Z|/1e6 .. max|Z| x 1e6 (in
+impedance), so none starts at 0. The absolute
+`PARAMETER_BOUNDS` of the circuit fit made R_inf depend on the units: an open
+arc's R_k ran into R <= 1e10 Ohm, and Z -> 1000 Z shifted R_inf on 51 % of
+the stress test's random spectra (`tests/stress.py`).
 
 A single fit from these start values is used. Multistart was measured worse:
 under noise it finds degenerate minima with a lower residual (R_s at its lower

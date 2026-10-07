@@ -15,7 +15,7 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -44,12 +44,27 @@ RINF_REL_STDERR_MAX = 0.05
 # so short spectra do not reach down into the arc.
 HF_MEDIAN_MAX_POINTS = 5
 
+# Range of the window fit, relative to the window's impedance: every term from
+# min|Z|/RINF_BOUND_RANGE to max|Z|*RINF_BOUND_RANGE over the window. Above
+# 1e6 times the largest |Z| an arc resistance is an open arc, and Q the same
+# for a short, to better than 1e-6 - under any instrument's resolution (~1e-4
+# of |Z|) - so these are the upper bounds. R and L are bounded below by their
+# physical limit 0 instead: a relative floor cut off what the data still
+# determine (noise-free 0.05 Ohm R_s in front of a GOhm film, |Z| 3e3..2.5e5
+# Ohm: an L floor at 1e-6 |Z| biased R_s to 0.064 Ohm, and R_inf fell back
+# to 243 Ohm). The lower end of the range only places the starts, so that
+# none is 0. Absolute PARAMETER_BOUNDS made R_inf
+# depend on the units: the open arc's R_k ran into R <= 1e10 Ohm (or Q into
+# 0.1, L into 1e-4 H), and Z -> 1000 Z shifted R_inf on 51 % of the stress
+# test's random spectra, by over 10 % on 7 % of them.
+RINF_BOUND_RANGE = 1e6
+
 # Initial n of the CPE: midway in the typical 0.6-1.0 range of real arcs.
 _N_GUESS = 0.8
 
-# Initial L when the top point is capacitive (Im <= 0): a fraction of the
-# typical cable inductance, so the fit starts near "no inductance".
-_L_GUESS_CAPACITIVE = 1e-9  # [H]
+# Initial L when the top point is capacitive (Im <= 0): reactance 0.1 % of
+# |Z| at f_max, so the fit starts near "no inductance".
+_L_GUESS_REACTANCE_SHARE = 1e-3
 
 
 @dataclass
@@ -108,26 +123,48 @@ def _hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float]:
     return float(Z.real[i]), float(frequencies[i])
 
 
-def _clip(value: float, label: str) -> float:
-    lo, hi = PARAMETER_BOUNDS[label]
-    return float(np.clip(value, lo, hi))
+def _window_range(f: NDArray, Z: NDArray) -> Dict[str, Tuple[float, float]]:
+    """Range per parameter type, each term's impedance within
+    min|Z|/RANGE..max|Z|*RANGE.
+
+    R: the value itself. L: its reactance omega*L across the window. Q: its
+    impedance 1/(Q omega^n) across the window and the whole n range. All scale
+    with Z, so R_inf does not depend on the units.
+    """
+    Z_abs = np.abs(Z)
+    lo, hi = float(Z_abs.min()) / RINF_BOUND_RANGE, float(Z_abs.max()) * RINF_BOUND_RANGE
+    w_lo, w_hi = 2 * np.pi * float(f.min()), 2 * np.pi * float(f.max())
+    n_lo, n_hi = PARAMETER_BOUNDS['n']
+    w_n = [w**n for w in (w_lo, w_hi) for n in (n_lo, n_hi)]
+    return {
+        'R': (lo, hi),
+        'L': (lo / w_hi, hi / w_lo),
+        'Q': (1 / (hi * max(w_n)), 1 / (lo * min(w_n))),
+        'n': (n_lo, n_hi),
+    }
 
 
-def _initial_circuit(f: NDArray, Z: NDArray):
-    """R - L - (R|Q) with a data-driven start.
+def _initial_circuit(f: NDArray, Z: NDArray, bounds: Dict[str, Tuple[float, float]]):
+    """R - L - (R|Q) with a data-driven start, clipped into the range `bounds`.
 
     R_s: the lowest Re(Z) in the window (Re >= R_s for every term of the model).
     R_k: the spread of Re(Z). tau: 1/omega at the -Im(Z) maximum, which the
     (R|Q) arc peaks at. L: Im/omega at f_max if the top point is inductive.
     """
+    def clip(value: float, label: str) -> float:
+        return float(np.clip(value, *bounds[label]))
+
     omega = 2 * np.pi * f
     i_top = int(np.argmax(f))
-    R_s = _clip(Z.real.min(), 'R')
-    R_k = _clip(np.ptp(Z.real), 'R')
+    R_s = clip(Z.real.min(), 'R')
+    R_k = clip(np.ptp(Z.real), 'R')
     tau = 1.0 / omega[int(np.argmax(-Z.imag))]
-    L_val = Z.imag[i_top] / omega[i_top] if Z.imag[i_top] > 0 else _L_GUESS_CAPACITIVE
-    return (R(R_s) - L(_clip(L_val, 'L'))
-            - (R(R_k) | Q(_clip(tau**_N_GUESS / R_k, 'Q'), _N_GUESS)))
+    if Z.imag[i_top] > 0:
+        L_val = Z.imag[i_top] / omega[i_top]
+    else:
+        L_val = _L_GUESS_REACTANCE_SHARE * abs(Z[i_top]) / omega[i_top]
+    return (R(R_s) - L(clip(L_val, 'L'))
+            - (R(R_k) | Q(clip(tau**_N_GUESS / R_k, 'Q'), _N_GUESS)))
 
 
 def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
@@ -189,8 +226,17 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
             f"(need >= {RINF_FIT_MIN_POINTS}); {fallback}")
         return result
 
+    if not np.min(np.abs(Z_win)) > 0:
+        result.warnings.append(f"Zero impedance in the top {RINF_FIT_DECADES} decades; {fallback}")
+        return result
+
+    window_range = _window_range(f_win, Z_win)
+    circuit = _initial_circuit(f_win, Z_win, window_range)
+    labels = circuit.get_param_labels()
+    lower = [0.0 if label in ('R', 'L') else window_range[label][0] for label in labels]
+    upper = [window_range[label][1] for label in labels]
     try:
-        fit, _ = fit_equivalent_circuit(f_win, Z_win, _initial_circuit(f_win, Z_win))
+        fit, _ = fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
     except RuntimeError as e:
         result.warnings.append(f"R-L-(R|Q) fit failed ({e}); {fallback}")
         return result
