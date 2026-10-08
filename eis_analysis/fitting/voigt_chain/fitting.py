@@ -89,7 +89,7 @@ class VoigtChainFit:
 
 def estimate_R_linear(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     tau: NDArray[np.float64],
     include_Rs: bool = True,
     include_L: bool = True,
@@ -333,7 +333,8 @@ def estimate_R_linear(
             try:
                 ATA = A_real.T @ A_real + A_imag.T @ A_imag
                 ATb = A_real.T @ b_real + A_imag.T @ b_imag
-                elements = np.linalg.solve(ATA, ATb)
+                # numpy stubs type solve() as floating[Any]; it is float64 for float64 input
+                elements = np.linalg.solve(ATA, ATb)  # type: ignore[assignment]
             except np.linalg.LinAlgError:
                 # Fallback to pseudoinverse if singular
                 A_combined = np.vstack([A_real, A_imag])
@@ -385,7 +386,7 @@ def estimate_R_linear(
 
 def fit_voigt_chain_linear(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     n_per_decade: int = 3,
     extend_decades: float = 0.0,
     include_Rs: bool = True,

@@ -13,7 +13,7 @@ from ..drt.results import DRTResult
 from ..fitting.config import GMM_N_COMPONENTS_RANGE
 
 
-def plot_drt(Z: NDArray[np.complex128], result: DRTResult) -> plt.Figure:
+def plot_drt(Z: NDArray[np.complexfloating], result: DRTResult) -> plt.Figure:
     """
     Plot a DRT result: gamma(tau) spectrum and Nyquist reconstruction check.
 

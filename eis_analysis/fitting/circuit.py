@@ -262,13 +262,13 @@ def _prepare_optimization(
 
 def fit_equivalent_circuit(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     circuit: Circuit,
     weighting: str = 'modulus',
     initial_guess: Optional[List[float]] = None,
     use_analytic_jacobian: bool = True,
     bounds: Optional[Tuple[Sequence[float], Sequence[float]]] = None
-) -> Tuple[FitResult, NDArray[np.complex128]]:
+) -> Tuple[FitResult, NDArray[np.complexfloating]]:
     """
     Fit equivalent circuit to impedance data.
 

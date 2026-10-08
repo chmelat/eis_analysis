@@ -80,7 +80,7 @@ AMBIGUITY_SPECTRUM = 0.01
 PRECISION_FLOOR = 1e-6
 
 
-def cost_floor(Z: NDArray[np.complex128], weights: NDArray[np.float64]) -> float:
+def cost_floor(Z: NDArray[np.complexfloating], weights: NDArray[np.float64]) -> float:
     """Weighted SSR of a fit that is off by PRECISION_FLOOR of |Z| at every point."""
     return float(PRECISION_FLOOR ** 2 * np.sum(weights ** 2 * np.abs(Z) ** 2))
 
@@ -151,7 +151,7 @@ def select_archive_candidates(
 class Refinement:
     """A least_squares run from one start: its weighted SSR, spectrum and result."""
     cost: float
-    Z: NDArray[np.complex128]
+    Z: NDArray[np.complexfloating]
     params: List[float]          # full parameter vector (fixed ones included)
     result: Any                  # scipy OptimizeResult
 

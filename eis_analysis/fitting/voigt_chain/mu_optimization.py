@@ -128,7 +128,7 @@ def calc_mu(R_i: NDArray[np.float64]) -> float:
 
 def find_optimal_M_mu(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     mu_threshold: float = 0.85,
     max_M: int = 50,
     extend_decades: float = 0.0,

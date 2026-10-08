@@ -17,7 +17,7 @@ FIT_CURVE_POINTS = 300
 
 def plot_circuit_fit(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     result: FitResult,
     title: Optional[str] = None
 ) -> plt.Figure:
@@ -86,7 +86,7 @@ def plot_circuit_fit(
 
 def visualize_data(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     title: str = "EIS Spectrum"
 ) -> plt.Figure:
     """
@@ -261,7 +261,7 @@ def _residual_panel(ax, frequencies, result, threshold: float, title: str,
 
 def plot_kk_validation(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     result,
     flagged_frequencies: Sequence[float] = ()
 ) -> plt.Figure:
@@ -315,7 +315,7 @@ def plot_kk_validation(
 
 def plot_zhit_validation(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     result,
     flagged_frequencies: Sequence[float] = ()
 ) -> plt.Figure:

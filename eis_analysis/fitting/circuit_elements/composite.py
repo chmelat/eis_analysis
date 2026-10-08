@@ -78,7 +78,7 @@ class K(CircuitElement):
         super().__init__(R, tau)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         R_val, tau_val = params[0], params[1]
         omega = 2 * np.pi * freq
         return R_val / (1 + 1j * omega * tau_val)
@@ -178,7 +178,7 @@ class GE(CircuitElement):
         super().__init__(sigma, tau)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         sigma_val, tau_val = params[0], params[1]
         omega = 2 * np.pi * freq
         return sigma_val / np.sqrt(1 + 1j * omega * tau_val)
@@ -215,7 +215,7 @@ YG_P_DEGENERATE = 1e-300
 
 def _yg_log_terms(
     omega: NDArray[np.float64], p: float, tau: float
-) -> Tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+) -> Tuple[NDArray[np.complexfloating], NDArray[np.complexfloating]]:
     """Return ln(1 + jωτ·e^(1/p)) and ln(1 + jωτ) without overflowing.
 
     The formula as printed overflows for p < 1/709 -- inside YG's own
@@ -333,7 +333,7 @@ class YG(CircuitElement):
         super().__init__(C, p, tau)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         C_val, p_val, tau_val = params[0], params[1], params[2]
         omega = 2 * np.pi * freq
         if p_val <= YG_P_DEGENERATE:

@@ -36,7 +36,7 @@ class ModelScore(NamedTuple):
 
 def score_candidates(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     candidates: List[Tuple[str, Optional[FitResult]]],
     weighting: str
 ) -> List[ModelScore]:

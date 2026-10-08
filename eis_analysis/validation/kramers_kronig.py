@@ -88,7 +88,7 @@ class KKResult:
         the residuals); mu > threshold only when max_M was reached.
         With extend_decades > 0 the returned model's own mu is at least
         this value: extensions that would lower it are rejected.
-    Z_fit : NDArray[np.complex128] or None
+    Z_fit : NDArray[np.complexfloating] or None
         Fitted impedance
     residuals_real : NDArray[np.float64] or None
         Real part residuals (normalized by |Z|)
@@ -119,7 +119,7 @@ class KKResult:
     M: int = 0
     M_lower: int = 0
     mu: float = 0.0
-    Z_fit: Optional[NDArray[np.complex128]] = None
+    Z_fit: Optional[NDArray[np.complexfloating]] = None
     residuals_real: Optional[NDArray[np.float64]] = None
     residuals_imag: Optional[NDArray[np.float64]] = None
     pseudo_chisqr: float = 0.0
@@ -176,8 +176,8 @@ LinKKResult = KKResult
 
 
 def compute_pseudo_chisqr(
-    Z_exp: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128]
+    Z_exp: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating]
 ) -> float:
     """
     Compute pseudo chi-squared (Boukamp 1995).
@@ -246,7 +246,7 @@ def estimate_noise_percent(chi2_ps: float, n_points: int) -> float:
 
 def low_frequency_slope(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128]
+    Z: NDArray[np.complexfloating]
 ) -> float:
     """
     Slope of log10(-Z'') vs log10(f) over the lowest measured decade.
@@ -278,7 +278,7 @@ def reconstruct_impedance(
     L_value: Optional[float],
     include_L: bool = True,
     C_value: Optional[float] = None
-) -> NDArray[np.complex128]:
+) -> NDArray[np.complexfloating]:
     """
     Reconstruct impedance from fitted Voigt elements.
 
@@ -318,7 +318,7 @@ def reconstruct_impedance(
         raise ValueError(f"reconstruct_impedance: {len(R_i)} resistances for {len(tau)} "
                          f"time constants (include_L={include_L}, {len(elements)} elements)")
 
-    Z_fit = np.full_like(frequencies, R_s, dtype=complex)
+    Z_fit = np.full_like(frequencies, R_s, dtype=np.complex128)
     for r, t in zip(R_i, tau):
         Z_fit += r / (1 + 1j * omega * t)
 
@@ -333,7 +333,7 @@ def reconstruct_impedance(
 
 def find_optimal_extend_decades(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     M: int,
     search_range: Tuple[float, float] = (0.0, 1.0),
     n_evaluations: int = EXTEND_N_EVALUATIONS,
@@ -426,7 +426,7 @@ def find_optimal_extend_decades(
 
 def _chi2_lower_M(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     max_M: int,
     include_L: bool,
     include_C: bool,
@@ -441,7 +441,7 @@ def _chi2_lower_M(
     Ms = np.arange(3, max_M + 1)
     log_chi2 = np.empty(len(Ms))
     for i, M in enumerate(Ms):
-        tau = generate_tau_grid_fixed_M(frequencies, M)
+        tau = generate_tau_grid_fixed_M(frequencies, int(M))
         elements, _, L_value, C_value = estimate_R_linear(
             frequencies, Z, tau,
             include_Rs=True, include_L=include_L, include_C=include_C,
@@ -461,7 +461,7 @@ def _chi2_lower_M(
 
 def lin_kk_native(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     mu_threshold: float = 0.85,
     max_M: int = 50,
     include_L: bool = True,
@@ -618,7 +618,7 @@ def lin_kk_native(
 
 def kramers_kronig_validation(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     mu_threshold: float = 0.85,
     max_M: int = 50,
     auto_extend_decades: bool = True,

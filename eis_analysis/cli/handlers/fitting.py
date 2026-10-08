@@ -227,8 +227,8 @@ def _fmt_pair(real: float, imag: float, fmt: str) -> str:
 
 def _residual_diagnostics(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
     weighting: str
 ) -> Optional[ResidualDiagnostics]:
     """Residual shape tests, or None if they fail.

@@ -46,7 +46,7 @@ class Q(CircuitElement):
         super().__init__(Q_val, n)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         Q_val, n_val = params[0], params[1]
         omega = 2 * np.pi * freq
         return 1 / (Q_val * (1j * omega) ** n_val)
@@ -80,7 +80,7 @@ class W(CircuitElement):
         super().__init__(sigma)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         sigma_val = params[0]
         omega = 2 * np.pi * freq
         return sigma_val / np.sqrt(omega) * (1 - 1j)
@@ -127,7 +127,7 @@ class Ws(CircuitElement):
         super().__init__(R_W, tau_W)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         R_W_val, tau_W_val = params[0], params[1]
         omega = 2 * np.pi * freq
         arg = np.sqrt(1j * omega * tau_W_val)
@@ -155,7 +155,7 @@ class Wo(Ws):
     """
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         R_W_val, tau_W_val = params[0], params[1]
         omega = 2 * np.pi * freq
         arg = np.sqrt(1j * omega * tau_W_val)
@@ -236,14 +236,14 @@ class CC(CircuitElement):
         super().__init__(C_inf, dC, tau, alpha)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         C_inf_val, dC_val = params[0], params[1]
         tau_val, alpha_val = params[2], params[3]
         omega = 2 * np.pi * freq
-        C_star: NDArray[np.complex128] = (
+        C_star: NDArray[np.complexfloating] = (
             C_inf_val + dC_val / (1 + (1j * omega * tau_val) ** (1.0 - alpha_val))
         )
-        return 1 / (1j * omega * C_star)
+        return -1j / (omega * C_star)
 
     def get_param_labels(self) -> List[str]:
         return ['C_inf', 'ΔC', 'τ_CC', 'α_CC']
@@ -285,7 +285,7 @@ _GL_X, _GL_W = np.polynomial.legendre.leggauss(DQ_QUAD_NODES)
 
 
 def dq_quadrature(omega: NDArray[np.float64], n: float, tau_min: float,
-                  U: float) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+                  U: float) -> Tuple[NDArray[np.float64], NDArray[np.complexfloating]]:
     """Gauss-Legendre nodes in ln(tau) and the DQ integrand at them.
 
     Shared by ``DQ.impedance`` and the analytic Jacobian so the two can never
@@ -299,7 +299,7 @@ def dq_quadrature(omega: NDArray[np.float64], n: float, tau_min: float,
         e^(n*s) / (1 + j*omega*e^s)
     """
     s = np.log(tau_min) + 0.5 * U * (_GL_X + 1.0)
-    integrand: NDArray[np.complex128] = (
+    integrand: NDArray[np.complexfloating] = (
         np.exp(n * s) / (1.0 + 1j * omega[:, None] * np.exp(s))
     )
     return s, integrand
@@ -375,13 +375,13 @@ class DQ(CircuitElement):
         super().__init__(A, n, tau_min, U)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         A_val, n_val = params[0], params[1]
         tau_min_val, U_val = params[2], params[3]
         omega = 2 * np.pi * freq
         _, integrand = dq_quadrature(omega, n_val, tau_min_val, U_val)
         # 0.5*U is the Jacobian of the map from [-1, 1] to [s_min, s_max]
-        Z: NDArray[np.complex128] = A_val * 0.5 * U_val * (integrand @ _GL_W)
+        Z: NDArray[np.complexfloating] = A_val * 0.5 * U_val * (integrand @ _GL_W)
         return Z
 
     def get_param_labels(self) -> List[str]:

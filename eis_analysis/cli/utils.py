@@ -57,16 +57,16 @@ class LoadedData:
         Per-point THD (fraction) aligned with `Z`, see `LoadResult`.
     """
     frequencies: NDArray[np.float64]
-    Z: NDArray[np.complex128]
+    Z: NDArray[np.complexfloating]
     title: str
     metadata: Optional[dict]
     ocv_data: Optional[dict] = None
-    Z_zhit: Optional[NDArray[np.complex128]] = None
+    Z_zhit: Optional[NDArray[np.complexfloating]] = None
     current_thd: Optional[NDArray[np.float64]] = None
     voltage_thd: Optional[NDArray[np.float64]] = None
 
     @property
-    def Z_for_fit(self) -> NDArray[np.complex128]:
+    def Z_for_fit(self) -> NDArray[np.complexfloating]:
         """Impedance the circuit fit runs on.
 
         The Z-HIT reconstruction when one is attached (`--fit-on zhit`),

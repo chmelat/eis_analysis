@@ -31,8 +31,8 @@ def _finite(x: float) -> Optional[float]:
 
 def fit_result_record(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
     result: FitResult,
     weighting: str,
     context: Optional[Dict[str, Any]] = None
@@ -138,8 +138,8 @@ def save_fit_result(
     prefix: str,
     record: Dict[str, Any],
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128]
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating]
 ) -> Tuple[str, str]:
     """
     Write a fit record to ``{prefix}.json`` and the curves to ``{prefix}.csv``.

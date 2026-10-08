@@ -101,7 +101,7 @@ class ZHITResult:
     ----------
     Z_mag_reconstructed : NDArray[np.float64]
         Reconstructed impedance magnitude [Ohm]
-    Z_fit : NDArray[np.complex128]
+    Z_fit : NDArray[np.complexfloating]
         Reconstructed complex impedance (|Z_recon| * exp(j*phi)) [Ohm]
     residuals_mag : NDArray[np.float64]
         Magnitude residuals [%]
@@ -119,7 +119,7 @@ class ZHITResult:
         Pass/fail threshold for `is_valid` and the `quality` metric [%].
     """
     Z_mag_reconstructed: NDArray[np.float64]
-    Z_fit: NDArray[np.complex128]
+    Z_fit: NDArray[np.complexfloating]
     residuals_mag: NDArray[np.float64]
     residuals_real: NDArray[np.float64]
     residuals_imag: NDArray[np.float64]
@@ -237,7 +237,7 @@ def zhit_reconstruct_magnitude(
 
 def zhit_validation(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     quality_threshold: float = 5.0
 ) -> ZHITResult:
     """
@@ -342,7 +342,7 @@ def zhit_validation(
 
     # Calculate quality metric (based on magnitude residuals)
     mean_abs_residual_mag = np.mean(np.abs(residuals_mag))
-    quality = max(0.0, 1.0 - mean_abs_residual_mag / quality_threshold)
+    quality = max(0.0, 1.0 - float(mean_abs_residual_mag) / quality_threshold)
 
     # Restore the user's original frequency ordering on output arrays so they
     # pair element-wise with the input `frequencies` / `Z`.

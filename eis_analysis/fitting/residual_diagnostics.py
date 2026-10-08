@@ -359,8 +359,8 @@ def _series_diagnostics(
 
 def analyze_residuals(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
     weighting: str = 'modulus'
 ) -> ResidualDiagnostics:
     """
@@ -412,8 +412,8 @@ def analyze_residuals(
     False
     """
     frequencies = np.asarray(frequencies, dtype=float)
-    Z = np.asarray(Z, dtype=complex)
-    Z_fit = np.asarray(Z_fit, dtype=complex)
+    Z = np.asarray(Z, dtype=np.complex128)
+    Z_fit = np.asarray(Z_fit, dtype=np.complex128)
 
     if len(frequencies) < 4:
         return ResidualDiagnostics(warnings=[

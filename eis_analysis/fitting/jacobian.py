@@ -69,7 +69,7 @@ def element_jacobian(
     element: CircuitElement,
     freq: NDArray[np.float64],
     params: List[float]
-) -> Tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+) -> Tuple[NDArray[np.complexfloating], NDArray[np.complexfloating]]:
     """
     Compute impedance and Jacobian for a single circuit element.
 
@@ -100,8 +100,8 @@ def element_jacobian(
     # Resistor: Z = R
     if isinstance(element, R):
         R_val = params[0]
-        Z = R_val * np.ones(n_freq, dtype=complex)
-        dZ: NDArray[np.complex128] = np.ones((n_freq, 1), dtype=complex)
+        Z: NDArray[np.complexfloating] = R_val * np.ones(n_freq, dtype=np.complex128)
+        dZ: NDArray[np.complexfloating] = np.ones((n_freq, 1), dtype=np.complex128)
         return Z, dZ
 
     # Conductance: Z = 1/G -> dZ/dG = -1/G^2 = -Z^2
@@ -109,7 +109,7 @@ def element_jacobian(
         # Clipped as in G.impedance; the parallel chain rule then evaluates
         # to -Z_total^2 instead of 0 * inf.
         G_val = max(params[0], element.G_MIN)
-        Z = (1 / G_val) * np.ones(n_freq, dtype=complex)
+        Z = (1 / G_val) * np.ones(n_freq, dtype=np.complex128)
         dZ = -(Z ** 2).reshape(-1, 1)
         return Z, dZ
 
@@ -236,7 +236,7 @@ def element_jacobian(
         jwt_b = (1j * omega * tau_val) ** beta
         D = 1 + jwt_b
         C_star = C_inf_val + dC_val / D
-        Z = 1 / (1j * omega * C_star)
+        Z = -1j / (omega * C_star)
 
         # dZ/dC* = -1/(jw*C*^2) = -Z/C*
         dZ_dCstar = -Z / C_star
@@ -322,7 +322,7 @@ def circuit_jacobian(
     circuit: Union[CircuitElement, CompositeCircuit],
     freq: NDArray[np.float64],
     params: List[float]
-) -> Tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+) -> Tuple[NDArray[np.complexfloating], NDArray[np.complexfloating]]:
     """
     Compute impedance and Jacobian for a circuit (element or composite).
 
@@ -361,8 +361,8 @@ def circuit_jacobian(
     # Series connection: Z = sum(Zi)
     if isinstance(circuit, Series):
         n_params_total = len(params)
-        Z_total: NDArray[np.complex128] = np.zeros(n_freq, dtype=complex)
-        dZ_total: NDArray[np.complex128] = np.zeros((n_freq, n_params_total), dtype=complex)
+        Z_total: NDArray[np.complexfloating] = np.zeros(n_freq, dtype=np.complex128)
+        dZ_total: NDArray[np.complexfloating] = np.zeros((n_freq, n_params_total), dtype=np.complex128)
 
         param_idx = 0
         for elem in circuit.elements:
@@ -381,8 +381,8 @@ def circuit_jacobian(
     # Parallel connection: Z = 1/Y, Y = sum(1/Zi)
     if isinstance(circuit, Parallel):
         n_params_total = len(params)
-        Y_total: NDArray[np.complex128] = np.zeros(n_freq, dtype=complex)
-        dZ_total = np.zeros((n_freq, n_params_total), dtype=complex)
+        Y_total: NDArray[np.complexfloating] = np.zeros(n_freq, dtype=np.complex128)
+        dZ_total = np.zeros((n_freq, n_params_total), dtype=np.complex128)
 
         # First pass: compute Y_total and store element impedances/jacobians
         elem_data = []

@@ -75,7 +75,7 @@ class OxideAnalysisResult:
 
 def _extract_capacitance(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     area_cm2: float,
     fit_result: Optional[FitResult],
     warnings: List[str]
@@ -249,7 +249,7 @@ def _validate_inputs(frequencies, Z, **positive: Optional[float]):
         if value is not None and not (np.isfinite(value) and value > 0):
             raise ValueError(f"{name} must be a finite number > 0, got {value}")
     frequencies = np.asarray(frequencies, dtype=float)
-    Z = np.asarray(Z, dtype=complex)
+    Z = np.asarray(Z, dtype=np.complex128)
     if frequencies.shape != Z.shape:
         raise ValueError(f"frequencies and Z differ in shape: "
                          f"{frequencies.shape} vs {Z.shape}")
@@ -262,7 +262,7 @@ def _validate_inputs(frequencies, Z, **positive: Optional[float]):
 
 def analyze_oxide_layer(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     epsilon_r: float = DEFAULT_EPSILON_R,
     area_cm2: float = 1.0,
     fit_result: Optional[FitResult] = None,
@@ -375,7 +375,7 @@ def analyze_oxide_layer(
 
 def estimate_permittivity(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     thickness_nm: float,
     area_cm2: float = 1.0,
     fit_result: Optional[FitResult] = None,

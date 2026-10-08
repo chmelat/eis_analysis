@@ -201,7 +201,7 @@ class DRTResult:
     gamma: Optional[NDArray[np.float64]] = None
     gamma_original: Optional[NDArray[np.float64]] = None
     # Impedance rebuilt from gamma, L_series and R_inf [Ohm]; for plot_drt
-    Z_reconstructed: Optional[NDArray[np.complex128]] = None
+    Z_reconstructed: Optional[NDArray[np.complexfloating]] = None
 
     # GMM peaks (if GMM method used)
     peaks: Optional[List[Dict]] = None

@@ -8,7 +8,7 @@ Author: EIS Analysis Toolkit
 
 import numpy as np
 import logging
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, Union
 from numpy.typing import NDArray
 
 from .config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
@@ -18,7 +18,7 @@ from .jacobian import circuit_jacobian
 logger = logging.getLogger(__name__)
 
 
-def compute_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.float64]:
+def compute_weights(Z: NDArray[np.complexfloating], weighting: str) -> NDArray[np.float64]:
     """
     Compute weights based on weighting type.
 
@@ -54,7 +54,7 @@ def compute_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.flo
     return weights / np.mean(weights)
 
 
-def compute_residual_weights(Z: NDArray[np.complex128], weighting: str) -> NDArray[np.float64]:
+def compute_residual_weights(Z: NDArray[np.complexfloating], weighting: str) -> NDArray[np.float64]:
     """
     Weights of a least-squares residual: compute_weights scaled to mean(w |Z|) = 1.
 
@@ -72,8 +72,8 @@ def compute_residual_weights(Z: NDArray[np.complex128], weighting: str) -> NDArr
 
 
 def compute_fit_metrics(
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
     weighting: str
 ) -> Tuple[float, float, str]:
     """
@@ -132,8 +132,8 @@ def compute_fit_metrics(
 
 
 def compute_information_criteria(
-    Z: NDArray[np.complex128],
-    Z_fit: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
     weighting: str,
     n_free_params: int
 ) -> Tuple[float, float, float]:
@@ -222,7 +222,7 @@ def compute_information_criteria(
 def compute_significance(
     circuit,
     frequencies: NDArray[np.float64],
-    params: Sequence[float]
+    params: Union[Sequence[float], NDArray[np.float64]]
 ) -> Optional[NDArray[np.float64]]:
     """
     Sensitivity of the network impedance to each parameter (Zahner significance).

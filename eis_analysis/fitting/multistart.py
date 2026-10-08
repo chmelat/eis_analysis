@@ -171,7 +171,7 @@ def perturb_log_uniform(
 def fit_circuit_multistart(
     circuit: Circuit,
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     n_restarts: int = 10,
     scale: float = 2.0,
     weighting: str = 'modulus',
@@ -179,7 +179,7 @@ def fit_circuit_multistart(
     max_workers: int = 4,
     use_analytic_jacobian: bool = True,
     rng: Seed = None
-) -> Tuple[MultistartResult, NDArray[np.complex128]]:
+) -> Tuple[MultistartResult, NDArray[np.complexfloating]]:
     """
     Fit circuit using adaptive multi-start optimization.
 

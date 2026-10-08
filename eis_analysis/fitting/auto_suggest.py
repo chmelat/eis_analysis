@@ -83,7 +83,7 @@ def analyze_voigt_elements(
     tau: NDArray[np.float64],
     gamma: NDArray[np.float64],
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     peaks_gmm: Optional[List[Dict]] = None,
     peak_indices: Optional[Sequence[int]] = None
 ) -> VoigtSuggestion:

@@ -64,7 +64,7 @@ class _DECostFunction:
     """Picklable cost function for differential evolution with workers > 1."""
 
     def __init__(self, circuit: Circuit, frequencies: NDArray[np.float64],
-                 Z: NDArray[np.complex128], weights: NDArray[np.float64],
+                 Z: NDArray[np.complexfloating], weights: NDArray[np.float64],
                  fixed_params: Optional[List[bool]] = None,
                  full_initial_guess: Optional[List[float]] = None):
         self.circuit = circuit
@@ -212,7 +212,7 @@ class DiffEvoResult:
 def fit_circuit_diffevo(
     circuit: Circuit,
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     strategy: int = DEFAULT_DE_STRATEGY,
     popsize: int = 15,
     maxiter: int = 1000,
@@ -222,7 +222,7 @@ def fit_circuit_diffevo(
     use_analytic_jacobian: bool = True,
     seed: Optional[int] = None,
     archive_check: bool = True
-) -> Tuple[DiffEvoResult, NDArray[np.complex128]]:
+) -> Tuple[DiffEvoResult, NDArray[np.complexfloating]]:
     """
     Fit circuit using Differential Evolution global optimization.
 
@@ -288,17 +288,15 @@ def fit_circuit_diffevo(
 
     # Filter to free parameters only
     if any(fixed_params):
-        initial_guess = [v for v, f in zip(initial_guess_full, fixed_params) if not f]
+        initial_guess = np.array([v for v, f in zip(initial_guess_full, fixed_params) if not f])
         lower_bounds = [lb for lb, f in zip(lower_bounds_full, fixed_params) if not f]
         upper_bounds = [ub for ub, f in zip(upper_bounds_full, fixed_params) if not f]
         free_labels = [lab for lab, f in zip(param_labels, fixed_params) if not f]
     else:
-        initial_guess = initial_guess_full
+        initial_guess = np.array(initial_guess_full)
         lower_bounds = lower_bounds_full
         upper_bounds = upper_bounds_full
         free_labels = param_labels
-
-    initial_guess = np.array(initial_guess)
 
     # Clip initial guess to bounds
     initial_guess = np.clip(initial_guess, lower_bounds, upper_bounds)

@@ -60,7 +60,7 @@ class CircuitElement(ABC):
 
     @abstractmethod
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         """
         Calculate impedance Z(ω) with given parameters.
 

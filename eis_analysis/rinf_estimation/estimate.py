@@ -80,7 +80,7 @@ class RinfResult:
     R_inf_hf: float  # HF upper bound of R_inf, see _hf_bound [Ohm]
     f_hf: float  # frequency of R_inf_hf; below f_max if the top is inductive [Hz]
     f_window: NDArray[np.float64]  # frequencies of the fit window [Hz]
-    Z_window: NDArray[np.complex128]  # impedance of the fit window [Ohm]
+    Z_window: NDArray[np.complexfloating]  # impedance of the fit window [Ohm]
     fit: Optional[FitResult] = None  # None if the fit did not run
     warnings: List[str] = field(default_factory=list)
 
@@ -200,7 +200,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     is flagged -0.7 % instead of ~0 %.
     """
     frequencies = np.asarray(frequencies, dtype=float)
-    Z = np.asarray(Z, dtype=complex)
+    Z = np.asarray(Z, dtype=np.complex128)
     if frequencies.shape != Z.shape:
         raise ValueError(f"frequencies and Z differ in shape: "
                          f"{frequencies.shape} vs {Z.shape}")

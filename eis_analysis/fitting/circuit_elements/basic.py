@@ -36,9 +36,9 @@ class R(CircuitElement):
         super().__init__(R)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         R_val = params[0]
-        return R_val * np.ones_like(freq, dtype=complex)
+        return R_val * np.ones_like(freq, dtype=np.complex128)
 
     def get_param_labels(self) -> List[str]:
         return ['R']
@@ -69,7 +69,7 @@ class C(CircuitElement):
         super().__init__(C)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         C_val = params[0]
         omega = 2 * np.pi * freq
         return 1 / (1j * omega * C_val)
@@ -103,7 +103,7 @@ class L(CircuitElement):
         super().__init__(L)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         L_val = params[0]
         omega = 2 * np.pi * freq
         return 1j * omega * L_val
@@ -158,9 +158,9 @@ class G(CircuitElement):
         super().__init__(G)
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         G_val = max(params[0], self.G_MIN)
-        return (1 / G_val) * np.ones_like(freq, dtype=complex)
+        return (1 / G_val) * np.ones_like(freq, dtype=np.complex128)
 
     def get_param_labels(self) -> List[str]:
         return ['G']

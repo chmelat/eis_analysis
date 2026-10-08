@@ -50,7 +50,7 @@ class LoadResult:
         only '#' as the unit.
     """
     frequencies: NDArray[np.float64]
-    Z: NDArray[np.complex128]
+    Z: NDArray[np.complexfloating]
     filename: str
     metadata: Optional[Dict[str, Any]] = None
     warnings: List[str] = field(default_factory=list)
@@ -70,7 +70,7 @@ class LoadResult:
             self.voltage_thd = self.voltage_thd[mask]
 
 
-def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.complex128],
+def _drop_negative_real_hf(frequencies: NDArray[np.float64], Z: NDArray[np.complexfloating],
                            warnings: List[str]) -> NDArray[np.bool_]:
     """
     Mask of the points to keep: all but the high-frequency run with Re(Z) < 0,

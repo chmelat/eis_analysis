@@ -113,7 +113,7 @@ class CompositeCircuit(ABC):
         self,
         freq: NDArray[np.float64],
         params: List[float]
-    ) -> Iterator[NDArray[np.complex128]]:
+    ) -> Iterator[NDArray[np.complexfloating]]:
         """
         Iterate over element impedances, extracting appropriate parameters.
 
@@ -148,7 +148,7 @@ class CompositeCircuit(ABC):
 
     @abstractmethod
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         """
         Calculate total impedance.
 
@@ -189,7 +189,7 @@ class Series(CompositeCircuit):
     """
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         """
         Calculate total impedance of series connection.
 
@@ -205,7 +205,7 @@ class Series(CompositeCircuit):
         Z : ndarray of complex
             Total impedance [Ω]
         """
-        Z_total = np.zeros_like(freq, dtype=complex)
+        Z_total = np.zeros_like(freq, dtype=np.complex128)
 
         # Use base class iterator for parameter handling
         for Z_elem in self._iter_element_impedances(freq, params):
@@ -247,7 +247,7 @@ class Parallel(CompositeCircuit):
     """
 
     def impedance(self, freq: NDArray[np.float64],
-                  params: List[float]) -> NDArray[np.complex128]:
+                  params: List[float]) -> NDArray[np.complexfloating]:
         """
         Calculate total impedance of parallel connection.
 
@@ -263,7 +263,7 @@ class Parallel(CompositeCircuit):
         Z : ndarray of complex
             Total impedance [Ω]
         """
-        Y_total = np.zeros_like(freq, dtype=complex)  # admittance
+        Y_total = np.zeros_like(freq, dtype=np.complex128)  # admittance
 
         # Use base class iterator for parameter handling
         for Z_elem in self._iter_element_impedances(freq, params):

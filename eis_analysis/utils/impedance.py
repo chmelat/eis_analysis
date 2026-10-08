@@ -17,7 +17,7 @@ from typing import Tuple
 
 def calculate_rpol(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     n_avg: int = 5
 ) -> Tuple[float, float, float]:
     """
@@ -89,8 +89,8 @@ def calculate_rpol(
 
 def sort_by_frequency(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128]
-) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+    Z: NDArray[np.complexfloating]
+) -> Tuple[NDArray[np.float64], NDArray[np.complexfloating]]:
     """
     Sort impedance data by frequency in ascending order.
 

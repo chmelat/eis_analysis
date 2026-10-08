@@ -14,7 +14,7 @@ def generate_synthetic_data(
     R1: float = 8e5,
     Q1: Tuple[float, float] = (3e-5, 0.43),
     noise: float = 0.01
-) -> Tuple[NDArray[np.float64], NDArray[np.complex128]]:
+) -> Tuple[NDArray[np.float64], NDArray[np.complexfloating]]:
     """
     Generate synthetic test data for Rs-(R0||CPE0)-(R1||CPE1) circuit.
     Use for testing the script without real data.

@@ -73,7 +73,7 @@ __all__ = [
 
 def calculate_drt(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     n_tau: int = 100,
     lambda_reg: Optional[float] = None,
     auto_lambda: bool = False,

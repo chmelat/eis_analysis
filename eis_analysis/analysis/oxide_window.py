@@ -235,7 +235,7 @@ def _window_notes(
 
 def _hf_capacitance_estimate(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     warnings: List[str]
 ) -> Optional[Tuple[float, Optional[int]]]:
     """

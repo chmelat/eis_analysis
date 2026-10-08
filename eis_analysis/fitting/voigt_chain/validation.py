@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 
 def validate_eis_data(
     frequencies: NDArray[np.float64],
-    Z: NDArray[np.complex128],
+    Z: NDArray[np.complexfloating],
     context: str = "EIS data"
 ) -> None:
     """
