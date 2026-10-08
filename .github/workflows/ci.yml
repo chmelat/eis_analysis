@@ -37,6 +37,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          # Must match [tool.mypy] python_version: on 3.12 pip resolves
+          # numpy 2.5 (requires >= 3.12), whose stubs read as 3.11 fail.
+          python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: mypy eis_analysis/
