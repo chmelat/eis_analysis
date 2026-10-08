@@ -45,7 +45,7 @@ Circuit strings are parsed by `parse_circuit_expression()` in
 def parse_circuit_expression(expr: str):
     safe_namespace = {
         'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
-        'Ws': Ws, 'Wo': Wo, 'Wa': Wa, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
+        'Ws': Ws, 'Wo': Wo, 'Wa': Wa, 'Wat': Wat, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -306,6 +306,25 @@ Wa(1e7, 30, "1.0")    # gamma fixed at 1: identical to Wo(1e7, 30)
 ```
 
 Reference: Bisquert, J.; Compte, A. J. Electroanal. Chem. 499 (2001) 112-120.
+
+### Wat - anomalous finite-length Warburg
+
+The transmissive counterpart of `Wa`: `Ws` with a free exponent, for a
+channel whose far boundary passes the flux.
+
+```python
+x = (j*omega*tau_W)**(gamma/2)
+Z_Wat = R_W * tanh(x) / x
+```
+
+High frequency: slope gamma/2, as `Wa`. Low frequency: Z -> R_W, a DC path
+through the channel, where `Wa` blocks. gamma = 1 is exactly `Ws`. Same
+parameters, defaults and bounds as `Wa`.
+
+```python
+Wat(1e8, 300, 0.7)    # all free
+Wat(1e8, 300, "1.0")  # gamma fixed at 1: identical to Ws(1e8, 300)
+```
 
 ### K - Voigt element (R||C with tau parametrization)
 
@@ -684,7 +703,7 @@ circuit.update_params(fitted_params)
 
 **Note:** the labels are the symbols the fit output prints, not the argument
 names used in this document's parameter tables. They are Greek where the
-symbol is: `W` -> `σ`, `Ws`/`Wo` -> `R_W`, `τ_W`, `Wa` -> `R_W`, `τ_W`, `γ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
+symbol is: `W` -> `σ`, `Ws`/`Wo` -> `R_W`, `τ_W`, `Wa`/`Wat` -> `R_W`, `τ_W`, `γ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
 `G` -> `σ_G`, `τ_G`, `CC` -> `C_inf`, `ΔC`, `τ_CC`, `α_CC`. `bounds.py` keys
 its default bounds on these labels.
 

@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 
-from ..fitting import R, C, Q, L, G, W, Ws, Wo, Wa, K, GE, CC, DQ, YG
+from ..fitting import R, C, Q, L, G, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, YG
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ def parse_circuit_expression(expr: str):
     Notes
     -----
     Uses eval() with restricted namespace for safety. Only circuit element
-    classes (R, C, Q, L, G, W, Ws, Wo, Wa, K, GE, CC, DQ, YG) are available in the
+    classes (R, C, Q, L, G, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, YG) are available in the
     evaluation context.
     """
     # Safe namespace for eval - only circuit elements
@@ -197,6 +197,7 @@ def parse_circuit_expression(expr: str):
         'Ws': Ws,
         'Wo': Wo,
         'Wa': Wa,
+        'Wat': Wat,
         'K': K,
         'GE': GE,
         'CC': CC,

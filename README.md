@@ -425,6 +425,7 @@ Elegant operator overloading syntax for circuit definition.
 | `Ws(R_W, tau)` | Warburg finite-length (constant concentration, tanh; Z -> R_W at DC) | `Ws(100, 1.0)` |
 | `Wo(R_W, tau)` | Warburg finite-space (zero flux, coth; capacitive at DC) | `Wo(100, 1.0)` |
 | `Wa(R_W, tau, gamma)` | Anomalous finite-space Warburg (Wo with free exponent; CPE with n = gamma at DC, gamma = 1 is Wo) | `Wa(1e7, 30, 0.7)` |
+| `Wat(R_W, tau, gamma)` | Anomalous finite-length Warburg (Ws with free exponent; Z -> R_W at DC, gamma = 1 is Ws) | `Wat(1e8, 300, 0.7)` |
 | `K(R, tau)` | Voigt with tau parametrization | `K(1000, 1e-4)` |
 | `GE(sigma, tau)` | Gerischer (reaction-diffusion) | `GE(100, 1e-3)` |
 | `CC(C_inf, dC, tau, alpha)` | Cole-Cole dielectric relaxation | `CC(1e-8, 1e-7, 1e-3, 0.2)` |
@@ -703,7 +704,7 @@ a rise to ~0.72 at both ends, and led to the `L-R0-(G|Wa|Q|C)` model.
 
 ### Circuit fitting
 
-- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, G, Q, W, Ws, Wo, Wa, K, GE, CC, DQ, YG. Repeat the option to fit several candidates on the same data and rank them by AIC/BIC - see [Comparing candidate circuits](#comparing-candidate-circuits).
+- `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, G, Q, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, YG. Repeat the option to fit several candidates on the same data and rank them by AIC/BIC - see [Comparing candidate circuits](#comparing-candidate-circuits).
 - `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 

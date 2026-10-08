@@ -744,7 +744,7 @@ circuit, params = chain.circuit, chain.initial_params
 
 All fit functions support analytic Jacobian (`use_analytic_jacobian=True`, default), which is faster and more accurate than numerical approximation.
 
-Every built-in element supplies one: R, C, L, G, Q, W, Ws, Wo, Wa, K, GE, CC, DQ, YG.
+Every built-in element supplies one: R, C, L, G, Q, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, YG.
 
 A custom element that does not is **not** silently downgraded - the fit raises:
 
@@ -793,6 +793,7 @@ result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 | Ws(R, tau) | R [Ohm], tau [s] | Z = R*tanh(u)/u, u = sqrt(j*omega*tau) (finite-length, constant concentration) |
 | Wo(R, tau) | R [Ohm], tau [s] | Z = R*coth(u)/u (finite-space, zero flux) |
 | Wa(R, tau, gamma) | R [Ohm], tau [s], gamma | Z = R*coth(x)/x, x = (j*omega*tau)^(gamma/2) (anomalous finite-space; gamma = 1 is Wo) |
+| Wat(R, tau, gamma) | R [Ohm], tau [s], gamma | Z = R*tanh(x)/x, x = (j*omega*tau)^(gamma/2) (anomalous finite-length; gamma = 1 is Ws) |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
 | GE(sigma, tau) | sigma [Ohm], tau [s] | Z = sigma/sqrt(1+j*omega*tau) (Gerischer) |
 | CC(C_inf, dC, tau, alpha) | C_inf, dC [F], tau [s], alpha | Z = 1/(j*omega*(C_inf + dC/(1+(j*omega*tau)^(1-alpha)))) (Cole-Cole) |

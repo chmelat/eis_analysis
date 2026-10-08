@@ -27,6 +27,15 @@ Complete change history for all project versions.
   and the CPE at n 0.73-0.79 on every sample; `Wo` in its place reaches
   only 1.4-3.3 %, and `Wa` without the CPE falls back to the reference.
 
+- **`Wat`: the transmissive counterpart of `Wa`.** Z = R_W tanh(x)/x,
+  x = (j omega tau_W)^(gamma/2): `Ws` with a free exponent, slope gamma/2 at
+  high frequency and Z -> R_W at DC. gamma = 1 is exactly `Ws`; same
+  parameters and bounds as `Wa`. On the ZrO2 spectra it tested whether the
+  DC conduction of the 42 d sample is the blocked channel of the younger
+  ones opening: it is not - `(Wat|Q|C)` reaches 0.44 % against 0.15 % for
+  `(G|Wa|Q|C)`, and on 7-21 d it is 4-7x worse than `Wa`, confirming the
+  blocking there.
+
 - **`--local-exponent`: a map of the local CPE exponent n(f), with no
   circuit fit.** n(f) = d ln Re(Y) / d ln(omega), Y = 1/(Z - R_inf - j omega L),
   from a sliding one-decade regression; C does not enter Re(Y). One CPE

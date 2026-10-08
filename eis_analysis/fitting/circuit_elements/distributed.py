@@ -1,7 +1,7 @@
 """
 Distributed circuit elements: constant phase element (Q), Warburg
 diffusion (semi-infinite W, finite-length Ws, finite-space Wo, anomalous
-finite-space Wa), Cole-Cole
+finite-space Wa and finite-length Wat), Cole-Cole
 relaxation (CC)
 and the bounded power-law distribution (DQ).
 """
@@ -218,6 +218,33 @@ class Wa(CircuitElement):
 
     def get_param_labels(self) -> List[str]:
         return ['R_W', 'τ_W', 'γ_W']
+
+
+class Wat(Wa):
+    """
+    Anomalous finite-length Warburg: `Ws` with a free exponent, the
+    transmissive counterpart of `Wa` (a boundary that passes the flux).
+
+    Z_Wat = R_W * tanh(x) / x,  x = (jωτ_W)^(γ/2)
+
+    High frequency: slope γ/2, as `Wa`. Low frequency: Z -> R_W, a DC path
+    through the channel, where `Wa` blocks. γ = 1 is exactly `Ws`.
+
+    Same parameters and bounds as `Wa`, of which it is a subclass only to
+    share them: test for `Wat` before `Wa` in an isinstance chain.
+
+    Examples
+    --------
+    >>> wat = Wat(1e8, 300, 0.7)    # all free
+    >>> wat = Wat(1e8, 300, "1.0")  # gamma fixed: identical to Ws(1e8, 300)
+    """
+
+    def impedance(self, freq: NDArray[np.float64],
+                  params: List[float]) -> NDArray[np.complexfloating]:
+        R_W_val, tau_W_val, gamma_val = params[0], params[1], params[2]
+        omega = 2 * np.pi * freq
+        x = (1j * omega * tau_W_val) ** (gamma_val / 2)
+        return R_W_val * np.tanh(x) / x
 
 
 class CC(CircuitElement):

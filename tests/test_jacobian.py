@@ -9,7 +9,7 @@ Three levels:
 
 import numpy as np
 import pytest
-from eis_analysis.fitting import R, C, L, Q, W, Ws, Wo, Wa, K, GE, CC, YG
+from eis_analysis.fitting import R, C, L, Q, W, Ws, Wo, Wa, Wat, K, GE, CC, YG
 from eis_analysis.fitting.jacobian import circuit_jacobian
 
 
@@ -90,11 +90,12 @@ def freq():
     (Wo(100, 0.01), [100.0, 0.01]),
     (Wo(100, 10.0), [100.0, 10.0]),
     (Wa(100, 0.01, 0.7), [100.0, 0.01, 0.7]),
+    (Wat(100, 0.01, 0.7), [100.0, 0.01, 0.7]),
     (K(500, 1e-4), [500.0, 1e-4]),
     (GE(100, 1e-3), [100.0, 1e-3]),
     (CC(1e-8, 1e-7, 1e-3, 0.25), [1e-8, 1e-7, 1e-3, 0.25]),
     (YG(1e-5, 0.05, 0.1), [1e-5, 0.05, 0.1]),
-], ids=["R", "C", "L", "Q", "W", "Ws", "Wo", "Wo-slow", "Wa", "K", "GE", "CC", "YG"])
+], ids=["R", "C", "L", "Q", "W", "Ws", "Wo", "Wo-slow", "Wa", "Wat", "K", "GE", "CC", "YG"])
 def test_element_jacobian(freq, element, params):
     """Analytic Jacobian of each element matches numerical."""
     assert_jacobian_close(element, freq, params)

@@ -51,7 +51,7 @@ PARAMETER_BOUNDS = {
     # Time constant: 1 ns - 10000 s
     'τ': (1e-9, 1e4),
 
-    # Finite Warburg (Ws, Wo, Wa) - diffusion resistance: same range as R, for
+    # Finite Warburg (Ws, Wo, Wa, Wat) - diffusion resistance: same range as R, for
     # the same reason as sigma. At 1e-2..1e8 a 3 mOhm battery Ws was pinned
     # (tau 343 s instead of 20 s) and converged Zr-oxide fits at 3-7e7 were
     # flagged "near upper bound".
@@ -60,7 +60,7 @@ PARAMETER_BOUNDS = {
     # Warburg bounded - diffusion time
     'τ_W': (1e-6, 1e4),
 
-    # Anomalous finite-space Warburg (Wa) - exponent. Its low-frequency limit
+    # Anomalous finite Warburg (Wa, Wat) - exponent. Its low-frequency limit
     # is a CPE with exponent gamma, so it takes the CPE exponent's range.
     # Above 1 that limit has a phase beyond -90 deg (Re Z < 0, not passive);
     # 1.0 itself is Wo.
@@ -165,8 +165,8 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     - n (Q/CPE exponent): 0.3 - 1.0
     - sigma (Warburg): 1e-6 - 1e10 Ohm*s^(-1/2) (R's range, reached at low frequency)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)
-    - R_W, tau_W (finite Warburg Ws, Wo, Wa): as R, tau
-    - gamma_W (anomalous Warburg Wa exponent): 0.3 - 1.0, as n
+    - R_W, tau_W (finite Warburg Ws, Wo, Wa, Wat): as R, tau
+    - gamma_W (anomalous Warburg Wa, Wat exponent): 0.3 - 1.0, as n
     - sigma_GE, tau_GE (Gerischer): as R, tau
     - C_inf, dC (Cole-Cole capacitances): similar to C
     - tau_CC (Cole-Cole relaxation time): similar to tau
