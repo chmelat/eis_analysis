@@ -72,6 +72,12 @@ exceeds the signal:
   (0, R_inf_upper) for a bound; it held R_s in 400 of 400 spectra with 3 %
   proportional or constant noise of 0.75 R_s) and `RinfResult.L` the
   inductance to subtract with R_inf.
+- **The n(f) map no longer marks points determined when R_inf is only a
+  bound.** Its R_inf sensitivity used +-5 % of R_inf, also when
+  `estimate_rinf` returned the HF upper bound, which can be 100x R_s on an
+  oxide: points flagged as determined to 0.02 were 0.2 off (oxide/119).
+  `local_exponent` takes `R_inf_range`, the interval the true R_inf lies
+  in (default +-5 %), and `--local-exponent` passes `est.R_inf_range`.
 
 - **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is
   false, so the mu search skipped its loop and returned M = min_M - 1 with

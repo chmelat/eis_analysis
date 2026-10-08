@@ -55,10 +55,7 @@ def run_local_exponent(
 
     try:
         est = estimate_rinf(frequencies, Z)
-        # L only from a fit the estimator accepted: a rejected fit's L paired
-        # with the HF-bound R_inf would be two inconsistent corrections
-        L = float(est.fit.params_opt[1]) if est.method == 'rlq_fit' and est.fit is not None else 0.0
-        result = local_exponent(frequencies, Z, est.R_inf, L)
+        result = local_exponent(frequencies, Z, est.R_inf, est.L, R_inf_range=est.R_inf_range)
     except ValueError as e:
         logger.error(f"Local exponent failed: {e}")
         return None
@@ -67,7 +64,8 @@ def run_local_exponent(
     logger.info(f"Subtracted: R_inf = {result.R_inf:.4g} Ohm ({used}), "
                 f"L = {result.L * 1e9:.3g} nH")
     if est.method != 'rlq_fit':
-        logger.warning("  R_inf is not determined, so n near f_max is unreliable")
+        logger.warning("  R_inf is not determined: the uncertainty of n covers R_inf "
+                       f"anywhere in {result.R_inf_range[0]:.4g}..{result.R_inf_range[1]:.4g} Ohm")
     for warning in est.warnings:
         logger.warning(f"  {warning}")
 

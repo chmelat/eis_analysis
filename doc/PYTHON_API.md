@@ -903,12 +903,13 @@ from eis_analysis.analysis import local_exponent
 from eis_analysis.rinf_estimation import estimate_rinf
 
 est = estimate_rinf(frequencies, Z)
-L = est.fit.params_opt[1] if est.fit is not None else 0.0
-res = local_exponent(frequencies, Z, R_inf=est.R_inf, L=L)
+# est.L: the window fit's L when it determined R_inf, else 0;
+# est.R_inf_range: R_inf +- max(5 %, 3 stderr), or (0, R_inf_upper) when undetermined
+res = local_exponent(frequencies, Z, R_inf=est.R_inf, L=est.L, R_inf_range=est.R_inf_range)
 
 # res is a LocalExponentResult (arrays sorted by ascending frequency):
 res.frequencies, res.n       # n(f) = d ln Re(Y) / d ln(omega), NaN where undefined
-res.n_uncertainty            # regression stderr and R_inf +-5 % sensitivity, combined
+res.n_uncertainty            # regression stderr and R_inf sensitivity (R_inf_range, default +-5 %)
 res.valid                    # points with uncertainty <= 0.02
 res.n_min, res.f_n_min       # over the valid points
 res.n_max, res.f_n_max

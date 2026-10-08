@@ -10,7 +10,7 @@ R_inf and L.
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -59,6 +59,7 @@ class LocalExponentResult:
     n_uncertainty: NDArray[np.float64]
     valid: NDArray[np.bool_]
     R_inf: float  # subtracted series resistance [Ohm]
+    R_inf_range: Tuple[float, float]  # where the true R_inf may lie; n_uncertainty covers it [Ohm]
     L: float  # subtracted series inductance [H]
     window_decades: float
     uncertainty_max: float  # threshold behind `valid`
@@ -100,15 +101,16 @@ def local_exponent(
     Z: NDArray[np.complexfloating],
     R_inf: float,
     L: float = 0.0,
+    R_inf_range: Optional[Tuple[float, float]] = None,
 ) -> LocalExponentResult:
     """
     Map the local CPE exponent n(f) = d ln Re Y / d ln w.
 
     Y = 1/(Z - R_inf - jwL). The slope is a sliding linear regression over
     LOCAL_EXPONENT_WINDOW_DECADES. Each point's uncertainty combines the
-    regression stderr with the change of n when R_inf moves by
-    +-LOCAL_EXPONENT_RINF_REL, which is what limits it near f_max, where
-    Re Z approaches R_inf.
+    regression stderr with the change of n when R_inf moves to either end of
+    `R_inf_range`, which is what limits it near f_max, where Re Z
+    approaches R_inf.
 
     Parameters
     ----------
@@ -120,6 +122,13 @@ def local_exponent(
         Series resistance to subtract [Ohm], e.g. `estimate_rinf(...).R_inf`
     L : float, optional
         Series inductance to subtract [H] (default 0)
+    R_inf_range : (float, float), optional
+        Interval the true R_inf lies in [Ohm]; must contain R_inf. Default:
+        R_inf +-LOCAL_EXPONENT_RINF_REL. Pass `estimate_rinf(...).R_inf_range`:
+        when R_inf is only an upper bound there, it is (0, bound + noise).
+        The bound can be 100x R_s or more on an oxide, and +-5 % of it marked
+        points as determined to 0.02 that were 0.2 off (stress test,
+        oxide/119).
 
     Returns
     -------
@@ -146,6 +155,12 @@ def local_exponent(
                          f"points, got {len(frequencies)}")
     if not np.isfinite(R_inf) or not np.isfinite(L):
         raise ValueError("local_exponent: R_inf and L must be finite")
+    if R_inf_range is None:
+        shift = LOCAL_EXPONENT_RINF_REL * abs(R_inf)
+        R_inf_range = (R_inf - shift, R_inf + shift)
+    if not (np.all(np.isfinite(R_inf_range)) and R_inf_range[0] <= R_inf <= R_inf_range[1]):
+        raise ValueError(f"local_exponent: R_inf_range {R_inf_range} must be finite "
+                         f"and contain R_inf = {R_inf}")
 
     order = np.argsort(frequencies)
     f, Z = frequencies[order], Z[order]
@@ -159,11 +174,10 @@ def local_exponent(
         return _sliding_slope(log_f, x, y, LOCAL_EXPONENT_WINDOW_DECADES)
 
     n, stderr = slopes(R_inf)
-    shift = LOCAL_EXPONENT_RINF_REL * abs(R_inf)
-    n_up, _ = slopes(R_inf + shift)
-    n_down, _ = slopes(R_inf - shift)
-    # np.maximum, not fmax: n undefined after either shift (Re Y <= 0 near
-    # f_max) must leave the point undetermined, not judged by the other side
+    n_down, _ = slopes(R_inf_range[0])
+    n_up, _ = slopes(R_inf_range[1])
+    # np.maximum, not fmax: n undefined at either end (Re Y <= 0 near f_max)
+    # must leave the point undetermined, not judged by the other side
     sensitivity = np.maximum(np.abs(n_up - n), np.abs(n_down - n))
     uncertainty = np.hypot(stderr, sensitivity)
     valid = np.isfinite(n) & (uncertainty <= LOCAL_EXPONENT_UNCERTAINTY_MAX)
@@ -189,7 +203,8 @@ def local_exponent(
 
     return LocalExponentResult(
         frequencies=f, n=n, n_uncertainty=uncertainty, valid=valid,
-        R_inf=float(R_inf), L=float(L),
+        R_inf=float(R_inf), R_inf_range=(float(R_inf_range[0]), float(R_inf_range[1])),
+        L=float(L),
         window_decades=LOCAL_EXPONENT_WINDOW_DECADES,
         uncertainty_max=LOCAL_EXPONENT_UNCERTAINTY_MAX,
         n_min=n_min, f_n_min=f_n_min, n_max=n_max, f_n_max=f_n_max,
