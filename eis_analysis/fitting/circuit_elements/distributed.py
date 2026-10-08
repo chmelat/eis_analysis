@@ -1,6 +1,7 @@
 """
 Distributed circuit elements: constant phase element (Q), Warburg
-diffusion (semi-infinite W, finite-length Ws, finite-space Wo), Cole-Cole
+diffusion (semi-infinite W, finite-length Ws, finite-space Wo, anomalous
+finite-space Wa), Cole-Cole
 relaxation (CC)
 and the bounded power-law distribution (DQ).
 """
@@ -162,6 +163,61 @@ class Wo(Ws):
         # coth(u)/u as 1/(u*tanh(u)): numpy has no coth, and tanh saturates
         # to 1 at large |u| instead of overflowing
         return R_W_val / (arg * np.tanh(arg))
+
+
+class Wa(CircuitElement):
+    """
+    Anomalous finite-space Warburg: `Wo` with a free exponent, for diffusion
+    or transport that is not ideal (Bisquert's anomalous diffusion with a
+    reflecting boundary).
+
+    Z_Wa = R_W * coth(x) / x,  x = (jωτ_W)^(γ/2)
+
+    High frequency: power law with slope γ/2 (0.5 for normal diffusion).
+    Low frequency: Z -> R_W/3 + R_W/(jωτ_W)^γ, a CPE with exponent γ instead
+    of Wo's ideal capacitance. γ = 1 is exactly `Wo`.
+
+    Parameters
+    ----------
+    R_W : float or str, optional
+        Diffusion resistance [Ω] (default: 100.0)
+    tau_W : float or str, optional
+        Characteristic time [s] (default: 1.0)
+    gamma : float or str, optional
+        Anomalous exponent, 0 < γ <= 1 (default: 0.8, inside the bounds;
+        1.0 would reproduce Wo but sit on the upper bound). Above 1 the
+        low-frequency limit has a phase beyond -90°, i.e. Re Z < 0: the
+        element would not be passive.
+
+    References
+    ----------
+    Bisquert, J.; Compte, A. "Theory of the electrochemical impedance of
+    anomalous diffusion." J. Electroanal. Chem. 499 (2001) 112-120.
+
+    Examples
+    --------
+    >>> wa = Wa(1e7, 30, 0.7)       # all free
+    >>> wa = Wa(1e7, 30, "1.0")     # gamma fixed: identical to Wo(1e7, 30)
+    """
+
+    R_W = param_property(0)
+    tau_W = param_property(1)
+    gamma = param_property(2)
+
+    def __init__(self, R_W: Union[float, str] = 100.0, tau_W: Union[float, str] = 1.0,
+                 gamma: Union[float, str] = 0.8):
+        super().__init__(R_W, tau_W, gamma)
+
+    def impedance(self, freq: NDArray[np.float64],
+                  params: List[float]) -> NDArray[np.complexfloating]:
+        R_W_val, tau_W_val, gamma_val = params[0], params[1], params[2]
+        omega = 2 * np.pi * freq
+        x = (1j * omega * tau_W_val) ** (gamma_val / 2)
+        # coth(x)/x as 1/(x*tanh(x)), as in Wo
+        return R_W_val / (x * np.tanh(x))
+
+    def get_param_labels(self) -> List[str]:
+        return ['R_W', 'τ_W', 'γ_W']
 
 
 class CC(CircuitElement):

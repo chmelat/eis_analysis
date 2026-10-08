@@ -6,6 +6,27 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Added
+
+- **`Wa`: a finite-space Warburg with an anomalous exponent.**
+  Z = R_W coth(x)/x with x = (j omega tau_W)^(gamma/2) (Bisquert & Compte,
+  J. Electroanal. Chem. 499 (2001) 112). gamma = 1 is exactly `Wo`; below it
+  the high-frequency slope is gamma/2 and the low-frequency limit a CPE with
+  exponent gamma instead of an ideal capacitance. gamma is bounded to
+  0.3-1.0: above 1 that limit would have Re Z < 0.
+
+  ```bash
+  eis data.DTA --circuit 'L(8e-8) - R(1.2) - (G(5e-9) | Wa(2e7, 20, 0.7) | Q(1e-7, 0.75) | C(7e-8))'
+  ```
+
+  Motivation: on four ZrO2-on-Zr spectra the reference `L-R0-(G|Q|C)`
+  leaves deterministic residuals at 4.5-5.1 % (noise 0.11-0.19 %), and the
+  local exponent of the admittance, read off the data without a model,
+  is not constant: ~0.50 at 0.1 Hz, ~0.65 at 12 Hz, rising again below
+  0.05 Hz. `(G|Wa|Q|C)` fits all four at 0.15-0.48 % with gamma 0.60-0.72
+  and the CPE at n 0.73-0.79 on every sample; `Wo` in its place reaches
+  only 1.4-3.3 %, and `Wa` without the CPE falls back to the reference.
+
 ### Fixed
 
 - **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is

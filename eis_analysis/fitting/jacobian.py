@@ -28,6 +28,7 @@ Q:   Z = 1/(Q(jw)^n) -> dZ/dQ = -Z/Q, dZ/dn = -Z*ln(jw)
 W:   Z = s(1-j)/sqrt(w) -> dZ/ds = (1-j)/sqrt(w)
 Ws:  Z = Rw*tanh(u)/u   -> dZ/dRw = tanh(u)/u, dZ/dtau = complex formula
 Wo:  Z = Rw/(u*tanh(u)) -> dZ/dRw = 1/(u*tanh(u)), dZ/dtau = complex formula
+Wa:  Z = Rw/(x*tanh(x)), x = (jwt)^(g/2) -> chain rule through x for tau and g
 K:   Z = R/(1+jwt)   -> dZ/dR = 1/(1+jwt), dZ/dtau = -jw*R/(1+jwt)^2
 GE:  Z = s/sqrt(1+jwt)  -> dZ/ds = 1/sqrt(1+jwt), dZ/dtau = -s*jw/(2*(1+jwt)^1.5)
 CC:  Z = 1/(jw*C*), C* = C_inf + dC/D, D = 1+(jwt)^b, b = 1-alpha
@@ -59,7 +60,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
-from .circuit_elements import R, C, L, G, Q, W, Ws, Wo, K, GE, CC, DQ, YG, CircuitElement
+from .circuit_elements import R, C, L, G, Q, W, Ws, Wo, Wa, K, GE, CC, DQ, YG, CircuitElement
 from .circuit_elements.distributed import dq_quadrature, _GL_W
 from .circuit_elements.composite import _yg_log_terms, YG_P_DEGENERATE
 from .circuit_builder import Series, Parallel, CompositeCircuit
@@ -76,7 +77,7 @@ def element_jacobian(
     Parameters
     ----------
     element : CircuitElement
-        Circuit element (R, C, L, G, Q, W, Ws, Wo, K, GE, CC, DQ, YG)
+        Circuit element (R, C, L, G, Q, W, Ws, Wo, Wa, K, GE, CC, DQ, YG)
     freq : ndarray of float
         Frequencies [Hz]
     params : list of float
@@ -150,6 +151,23 @@ def element_jacobian(
         # (the element is absent) and Z/sigma would be 0/0 = nan there.
         dZ_dsigma = (1 - 1j) / np.sqrt(omega)
         return Z, dZ_dsigma.reshape(-1, 1)
+
+    # Anomalous finite-space Warburg: Z = Rw / (x*tanh(x)), x = (jw*tau)^(g/2).
+    # Same derivative in x as Wo's in u; only dx/dtau and dx/dg differ.
+    if isinstance(element, Wa):
+        Rw_val, tau_val, gamma_val = params[0], params[1], params[2]
+        ln_jwt = np.log(omega * tau_val) + 1j * np.pi / 2
+        x = (1j * omega * tau_val) ** (gamma_val / 2)  # as Wa.impedance
+        tanh_x = np.tanh(x)
+        g = 1 / (x * tanh_x)
+        Z = Rw_val * g
+
+        dZ_dx = -Rw_val * g**2 * (tanh_x + x * (1 - tanh_x**2))
+        dZ_dtau = dZ_dx * gamma_val / 2 * x / tau_val
+        dZ_dgamma = dZ_dx * x * ln_jwt / 2
+
+        dZ = np.column_stack([g, dZ_dtau, dZ_dgamma])
+        return Z, dZ
 
     # Warburg finite-space: Z = Rw * coth(u) / u = Rw / (u*tanh(u)).
     # Before Ws: Wo subclasses it, so isinstance(element, Ws) is true for both.

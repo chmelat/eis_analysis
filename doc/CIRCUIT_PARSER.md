@@ -45,7 +45,7 @@ Circuit strings are parsed by `parse_circuit_expression()` in
 def parse_circuit_expression(expr: str):
     safe_namespace = {
         'R': R, 'C': C, 'Q': Q, 'L': L, 'W': W,
-        'Ws': Ws, 'Wo': Wo, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
+        'Ws': Ws, 'Wo': Wo, 'Wa': Wa, 'K': K, 'G': G, 'CC': CC, 'DQ': DQ, 'YG': YG
     }
     circuit = eval(expr, {"__builtins__": {}}, safe_namespace)
     return circuit
@@ -277,6 +277,35 @@ and including v0.52.0 the tanh form was called `Wo`.
 Ws(100, 1.0)    # R_W=100, tau=1s, constant concentration
 Wo(100, 1.0)    # R_W=100, tau=1s, zero flux
 ```
+
+### Wa - anomalous finite-space Warburg
+
+`Wo` with a free exponent (Bisquert's anomalous diffusion with a reflecting
+boundary): transport that is not ideal diffusion, but still blocked at low
+frequency.
+
+```python
+x = (j*omega*tau_W)**(gamma/2)
+Z_Wa = R_W * coth(x) / x
+```
+
+High frequency: slope gamma/2 instead of 1/2. Low frequency:
+Z -> R_W/3 + R_W/(j*omega*tau_W)**gamma, a CPE with exponent gamma instead of
+Wo's ideal capacitance. gamma = 1 is exactly `Wo`. gamma > 1 is excluded: the
+low-frequency limit would have a phase beyond -90 deg, i.e. Re Z < 0.
+
+| Parameter | Unit | Default | Bounds    | Description                       |
+|-----------|------|---------|-----------|-----------------------------------|
+| R_W       | Ohm  | 100     | as R      | Diffusion resistance              |
+| tau_W     | s    | 1.0     | as tau_W  | Characteristic time               |
+| gamma     | -    | 0.8     | 0.3 - 1.0 | Exponent; LF limit is a CPE with n = gamma |
+
+```python
+Wa(1e7, 30, 0.7)      # all free
+Wa(1e7, 30, "1.0")    # gamma fixed at 1: identical to Wo(1e7, 30)
+```
+
+Reference: Bisquert, J.; Compte, A. J. Electroanal. Chem. 499 (2001) 112-120.
 
 ### K - Voigt element (R||C with tau parametrization)
 
@@ -655,7 +684,7 @@ circuit.update_params(fitted_params)
 
 **Note:** the labels are the symbols the fit output prints, not the argument
 names used in this document's parameter tables. They are Greek where the
-symbol is: `W` -> `σ`, `Ws`/`Wo` -> `R_W`, `τ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
+symbol is: `W` -> `σ`, `Ws`/`Wo` -> `R_W`, `τ_W`, `Wa` -> `R_W`, `τ_W`, `γ_W`, `Q` -> `Q`, `n`, `K` -> `R`, `τ`,
 `G` -> `σ_G`, `τ_G`, `CC` -> `C_inf`, `ΔC`, `τ_CC`, `α_CC`. `bounds.py` keys
 its default bounds on these labels.
 

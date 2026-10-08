@@ -86,7 +86,7 @@ def test_builtins_are_not_reachable():
 
 
 @pytest.mark.parametrize("expr", DOCUMENTED_ELEMENTS + [
-    'G(1e-9)', 'DQ(1e-3, 0.6, 1e-6, 10)', 'YG(1e-6, 0.1, 1e-3)',
+    'G(1e-9)', 'DQ(1e-3, 0.6, 1e-6, 10)', 'YG(1e-6, 0.1, 1e-3)', 'Wa(1e7, 30, "0.7")',
     'R(10) - (R("1000") | Q(1e-5, "0.9")) - YG("1e-6", 0.1, 1e-3)',
     'R("1234.56") - Q(1.23456789e-5, "0.87654321")',
 ])
