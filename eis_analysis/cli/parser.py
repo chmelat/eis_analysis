@@ -290,6 +290,10 @@ Examples:
 
     oxide_group.add_argument('--analyze-oxide', action='store_true',
                              help='Perform oxide layer analysis')
+    oxide_group.add_argument('--local-exponent', action='store_true',
+                             help='Map the local CPE exponent n(f) from the real '
+                                  'part of the admittance - shows where one CPE '
+                                  'fails; needs no circuit fit')
     oxide_group.add_argument('--epsilon-r', type=_positive_float, default=None,
                              help='Relative permittivity of oxide (default: 22 for ZrO2)')
     oxide_group.add_argument('--thickness', type=_positive_float, default=None,

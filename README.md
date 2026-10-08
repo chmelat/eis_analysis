@@ -645,6 +645,37 @@ chosen equivalent circuit is physically consistent.
 
 **Detailed documentation:** [doc/OXIDE_ANALYSIS_GUIDE.md](doc/OXIDE_ANALYSIS_GUIDE.md)
 
+### Local CPE exponent n(f)
+
+Shows where, and how, a layer's dispersion departs from one CPE - without a
+circuit fit.
+
+```bash
+eis data.DTA --local-exponent
+```
+
+For a layer with admittance Y = G + Q(j omega)^n + j omega C, the real part
+of the admittance (R_inf and L from `--ri-fit`'s estimator subtracted) is
+G + Q omega^n cos(n pi/2). C does not enter it, and where the CPE dominates,
+its log-log slope is n. The map is that slope, from a sliding one-decade
+regression:
+
+- **one CPE:** flat at its n;
+- **DC conductance G:** n falls towards 0 at low frequency;
+- **a blocked transport channel** (e.g. `Wa`, `Wo`): n rises towards that
+  channel's own exponent at low frequency;
+- **anything else that varies:** more than one dispersive process.
+
+A point counts as determined when its uncertainty - the regression stderr
+combined with the shift of n when R_inf moves by 5 % - is at most 0.02;
+near f_max, where Re Z approaches R_inf, points drop out for that reason.
+A span of n above 0.1 over the determined points raises a warning. Spectra
+without a blocking layer (several closed arcs) give n near 0 and little
+information.
+
+Example: on ZrO2-on-Zr spectra the map showed a minimum of 0.52 at 0.25 Hz,
+a rise to ~0.72 at both ends, and led to the `L-R0-(G|Wa|Q|C)` model.
+
 ---
 
 ## CLI Reference
@@ -758,6 +789,7 @@ Reads the per-point residuals of both validations above, so it belongs to neithe
 - `--epsilon-r` (default: 22.0) - Relative permittivity of oxide. Default 22 for ZrO2. Other oxides: Al2O3 ~ 9, TiO2 ~ 80, SiO2 ~ 3.9. Ignored (with a warning) when `--thickness` is given.
 - `--thickness` - Known oxide thickness [nm], e.g. from SEM/TEM. Reverses the analysis: the thickness becomes the input and the relative permittivity the estimated quantity.
 - `--area` (default: from DTA metadata, else 1.0) - Electrode area [cm^2]. Required for correct thickness calculation. An explicit value always takes precedence over the DTA metadata.
+- `--local-exponent` - Map the local CPE exponent n(f) from the real part of the admittance; needs no circuit fit. Prints n per decade, min/max/span, and warns when the span exceeds 0.1. See [Local CPE exponent n(f)](#local-cpe-exponent-nf).
 - `--rho-delta` - Film resistivity at the electrolyte interface [Ohm cm]. Adds the power-law (Hirschorn-Orazem) thickness, or permittivity with `--thickness`, as a comparison value for a dominant CPE. No default: the spectrum does not determine it. See `doc/OXIDE_ANALYSIS_GUIDE.md`.
 
 ### Fit input

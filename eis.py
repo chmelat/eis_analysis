@@ -56,6 +56,7 @@ from eis_analysis.cli import (
     run_voigt_analysis,
     run_circuit_fitting,
     run_oxide_analysis,
+    run_local_exponent,
     # Utils
     EISAnalysisError,
     save_figure,
@@ -113,6 +114,9 @@ def _run_analysis(args) -> None:
 
     # R_inf estimation
     R_inf_computed, _ = run_rinf_estimation(data.frequencies, data.Z, args)
+
+    # Local CPE exponent n(f)
+    run_local_exponent(data.frequencies, data.Z, args)
 
     # DRT analysis
     drt_result = run_drt_analysis(

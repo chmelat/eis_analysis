@@ -12,6 +12,7 @@ working.
 - drt:        run_drt_analysis, run_voigt_analysis
 - fitting:    run_circuit_fitting
 - oxide:      run_oxide_analysis
+- local_exponent: run_local_exponent
 """
 
 from .validation import (
@@ -26,6 +27,7 @@ from .rinf import run_rinf_estimation
 from .drt import run_drt_analysis, run_voigt_analysis
 from .fitting import run_circuit_fitting
 from .oxide import run_oxide_analysis
+from .local_exponent import run_local_exponent
 
 __all__ = [
     'run_kk_validation',
@@ -39,4 +41,5 @@ __all__ = [
     'run_voigt_analysis',
     'run_circuit_fitting',
     'run_oxide_analysis',
+    'run_local_exponent',
 ]

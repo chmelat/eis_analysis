@@ -27,6 +27,16 @@ Complete change history for all project versions.
   and the CPE at n 0.73-0.79 on every sample; `Wo` in its place reaches
   only 1.4-3.3 %, and `Wa` without the CPE falls back to the reference.
 
+- **`--local-exponent`: a map of the local CPE exponent n(f), with no
+  circuit fit.** n(f) = d ln Re(Y) / d ln(omega), Y = 1/(Z - R_inf - j omega L),
+  from a sliding one-decade regression; C does not enter Re(Y). One CPE
+  gives a flat map, so the map shows where and how a dispersion departs from
+  it - the ZrO2 analysis behind `Wa` started from it. Points count as
+  determined at uncertainty <= 0.02 (regression stderr and R_inf +-5 %
+  combined, which drops the points near f_max where Re Z approaches R_inf);
+  a span above 0.1 raises a warning. Python: `local_exponent()` returning
+  `LocalExponentResult`, `plot_local_exponent()`.
+
 ### Fixed
 
 - **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is

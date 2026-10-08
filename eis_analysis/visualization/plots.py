@@ -241,6 +241,41 @@ def plot_rinf_fit(result) -> plt.Figure:
     return fig
 
 
+def plot_local_exponent(result) -> plt.Figure:
+    """
+    Plot the local CPE exponent n(f).
+
+    Parameters
+    ----------
+    result : LocalExponentResult
+        Output of `local_exponent`
+
+    Returns
+    -------
+    fig : Figure
+        n(f) with its uncertainty at the determined points; the rest grey.
+    """
+    f, n, u, valid = result.frequencies, result.n, result.n_uncertainty, result.valid
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.errorbar(f[valid], n[valid], yerr=u[valid], fmt='o', ms=4, capsize=2,
+                label='determined')
+    rest = ~valid & np.isfinite(n)
+    if rest.any():
+        ax.semilogx(f[rest], n[rest], 'o', ms=3, color='lightgray',
+                    label='not determined')
+    ax.set_xscale('log')
+    ax.set_xlabel('Frequency [Hz]')
+    ax.set_ylabel('local exponent n')
+    ax.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
+    ax.legend(fontsize=8)
+    title = 'Local CPE exponent n(f) = d ln Re(Y) / d ln(omega)'
+    if valid.any():
+        title += f'\nspan {result.span:.2f} (one CPE: constant)'
+    ax.set_title(title)
+    plt.tight_layout()
+    return fig
+
+
 def _residual_panel(ax, frequencies, result, threshold: float, title: str,
                     flagged_frequencies: Sequence[float]) -> None:
     """Real/imag residuals [%] with +-threshold lines and a red band per flagged frequency."""

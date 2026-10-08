@@ -78,6 +78,8 @@ from .fitting import (
 # Analysis
 from .analysis import (
     analyze_oxide_layer,
+    local_exponent,
+    LocalExponentResult,
 )
 
 # Visualization
@@ -129,6 +131,8 @@ __all__ = [
     'fit_voigt_chain_linear',
     # Analysis
     'analyze_oxide_layer',
+    'local_exponent',
+    'LocalExponentResult',
     # Visualization
     'visualize_data',
     'visualize_ocv',

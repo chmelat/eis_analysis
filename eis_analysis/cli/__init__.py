@@ -26,6 +26,7 @@ from .handlers import (
     run_voigt_analysis,
     run_circuit_fitting,
     run_oxide_analysis,
+    run_local_exponent,
 )
 from .utils import (
     EISAnalysisError,
@@ -57,6 +58,7 @@ __all__ = [
     'run_voigt_analysis',
     'run_circuit_fitting',
     'run_oxide_analysis',
+    'run_local_exponent',
     # Utils
     'EISAnalysisError',
     'LoadedData',

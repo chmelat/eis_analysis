@@ -893,6 +893,32 @@ d = epsilon_0 * epsilon_r / C_specific     (analyze_oxide_layer)
 epsilon_r = d * C_specific / epsilon_0     (estimate_permittivity)
 ```
 
+**Local CPE exponent n(f) (no circuit fit needed):**
+
+```python
+from eis_analysis.analysis import local_exponent
+from eis_analysis.rinf_estimation import estimate_rinf
+
+est = estimate_rinf(frequencies, Z)
+L = est.fit.params_opt[1] if est.fit is not None else 0.0
+res = local_exponent(frequencies, Z, R_inf=est.R_inf, L=L)
+
+# res is a LocalExponentResult (arrays sorted by ascending frequency):
+res.frequencies, res.n       # n(f) = d ln Re(Y) / d ln(omega), NaN where undefined
+res.n_uncertainty            # regression stderr and R_inf +-5 % sensitivity, combined
+res.valid                    # points with uncertainty <= 0.02
+res.n_min, res.f_n_min       # over the valid points
+res.n_max, res.f_n_max
+res.span                     # n_max - n_min; > 0.1 adds a warning
+res.warnings
+
+from eis_analysis.visualization import plot_local_exponent
+fig = plot_local_exponent(res)
+```
+
+Y = 1/(Z - R_inf - j omega L). One CPE gives a flat n(f); see the README
+section "Local CPE exponent n(f)" for how to read the rest.
+
 ### eis_analysis.visualization
 
 **Basic visualization (Nyquist + Bode):**
