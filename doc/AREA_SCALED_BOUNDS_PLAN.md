@@ -1,7 +1,26 @@
 # Plan: meze parametru podle plochy elektrody
 
-Stav: navrh (2026-10-07), **neschvaleno, neimplementovano**. Vychozi verze:
-eis_analysis v0.57.0.
+Stav: **zamitnuto (2026-10-08), neimplementovano**. Navrh z 2026-10-07,
+vychozi verze eis_analysis v0.57.0. Duvody v sekci Rozhodnuti; zbytek
+dokumentu je puvodni navrh.
+
+## Rozhodnuti
+
+1. **Plocha je nespolehlivy vstup.** Operatori ji casto nezaznamenavaji,
+   takze v metadatech zustava vychozi hodnota bez vztahu ke skutecne plose.
+   Z DTA nelze poznat, zda plochu nekdo nastavil (Gamry `AREA` zapisuje
+   vzdy). Spatne vyplnena plocha by meze tise posunula o tolik dekad, o kolik
+   se lisi, a ze spektra se to poznat neda. Zbylo by jen explicitni
+   `--area`, coz je pro jediny hypoteticky pripad (vysoke R na male plose)
+   prilis.
+2. **Stress test plan nepodporuje.** Invariant Babs testuje zmenu jednotek
+   (Z x k), ne geometrii. Plocha zavislost na jednotkach neresi; navrzeny
+   invariant "Z x k spolu s A / k" by prosel jen konstrukci.
+3. **Alternativa, pokud bude potreba:** az se najde realne spektrum, jehoz
+   fit konci na horni mezi R (1e10 Ohm), rozsirit `RESISTANCE_RANGE` na mez
+   pouziteho potenciostatu, bez plochy. Paralelni R je identifikovatelne jen
+   pri namerenem |Z| ~ R, takze mez vadi jen spektrum s |Z| > 1e10. Cena:
+   DE prohledava R v log prostoru o 2 dekady sirsi (14 -> 16).
 
 ## Kontext
 

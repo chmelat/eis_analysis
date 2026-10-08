@@ -89,8 +89,12 @@ so they steer the fit even when no parameter comes near them. The same
 spectrum in other units (k = 0.001 / 1000) gives a visibly different fit
 in 628 / 778 of 1250 cases (Babs "meze"). With bounds scaled along with the
 data the fit is exact (invariant B). `fit_equivalent_circuit(...,
-bounds=...)` takes data-derived bounds; making them the default is an open
-decision.
+bounds=...)` takes data-derived bounds, but the default stays absolute:
+bounds derived from the spectrum were rejected (2026-10-07; one spectrum can
+hold an R_s near zero and an oxide R near infinity, and a bound from |Z|
+could cut off a physical optimum), and so were bounds scaled by the
+electrode area (2026-10-08, `doc/AREA_SCALED_BOUNDS_PLAN.md`; the area is
+often not recorded). This limit is accepted.
 
 ### 3. Ill-posed fits are path-dependent
 
