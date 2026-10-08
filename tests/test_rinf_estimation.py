@@ -111,6 +111,39 @@ def test_too_few_window_points_fall_back_without_fit():
     assert 'need >=' in res.warnings[0]
 
 
+def test_negative_upper_bound_is_clipped_to_zero():
+    """At a point dominated by noise Re(Z) can be negative; R_s >= 0, so the
+    bound is 0, not the negative value (stress test, constant noise:
+    rc/196 gave R_inf = -1.9e4 Ohm against R_s = 2.0e4)."""
+    f, Z = _spectrum(Rs=5, L=0, R0=100, tau=_f_arc(1e3))
+    Z[0] = -3.0 - 1.0j    # f_max swamped by noise
+    est = estimate_rinf(f[[0, 20, 30, 40, 50]], Z[[0, 20, 30, 40, 50]])
+    assert est.method == 'hf_bound'
+    assert est.R_inf == 0.0
+    assert est.R_inf_hf == -3.0
+    assert 'negative' in est.warnings[-1]
+    # No fit ran to read the noise, yet the range must not collapse to (0, 0)
+    lo, hi = est.R_inf_range
+    assert lo == 0.0 and hi >= 5
+
+
+def test_range_of_a_noisy_bound_holds_rs():
+    """Constant noise at ~0.6x |Z(f_max)|: the window fit cannot determine
+    R_s and the top point reads -4e3 Ohm against R_s = 2e4. R_inf_range,
+    which local_exponent takes for its R_inf sensitivity, must still hold
+    R_s: (0, 0) from the clipped bound made 68 of 81 n(f) points
+    'determined' that were up to 0.79 off (code review)."""
+    f = np.logspace(5, -1, 61)
+    w = 2 * np.pi * f
+    Z = 2e4 + 1 / (1e-9 * (1j * w) ** 0.85 + 1j * w * 2e-11)
+    rng = np.random.default_rng(8)
+    Z = Z + 1.5e4 * (rng.normal(size=61) + 1j * rng.normal(size=61))
+    est = estimate_rinf(f, Z)
+    assert est.method == 'hf_bound' and est.R_inf_hf < 0 and est.R_inf == 0.0
+    lo, hi = est.R_inf_range
+    assert lo == 0.0 and hi >= 2e4
+
+
 # Spectra of the stress test (tests/stress.py) that broke unit invariance:
 # (expression, f_max, f_min, points), noise-free
 UNIT_CASES = {

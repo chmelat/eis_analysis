@@ -140,7 +140,9 @@ the data (e.g. two overlapping CPE arcs) it understates the real error: on
 When the fit does not determine R_inf, `R_inf = Re(Z)` at the highest
 frequency with Im(Z) <= 0 (`method='hf_bound'`, value in `R_inf_hf`, its
 frequency in `f_hf`). Every passive element adds Re >= 0 to R_s, so any
-point is an upper bound of R_inf. On a capacitive top this is f_max, the
+point is an upper bound of R_inf. A negative Re(Z) there (noise exceeding
+the signal, or a lead artifact) bounds nothing, as R_s >= 0: `R_inf` is
+then 0 and `R_inf_hf` keeps the measured value. On a capacitive top this is f_max, the
 tightest one the data give: on an open arc Re(Z) still falls towards R_s as
 the frequency rises. The 5-point HF median used before 0.41 reaches back
 into the arc and overestimates more. Measured with 1 % noise:

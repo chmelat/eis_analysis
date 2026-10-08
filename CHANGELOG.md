@@ -60,6 +60,18 @@ exceeds the signal:
   cases); a swamped point's error now stays bounded instead of compounding.
   Not supported any more: a phase that truly passes +-180 deg (Re Z < 0
   over a band, e.g. negative differential resistance or swapped leads).
+- **`estimate_rinf` no longer returns a negative R_inf, and its bound
+  covers the noise.** When the window fit does not determine R_s, the
+  fallback is Re(Z) at the top frequency; where noise exceeds the signal
+  that point can be negative (rc/196: -1.9e4 Ohm against R_s = 2.0e4), or
+  shifted below R_s. `R_inf` is now clipped at 0, with a warning
+  (`R_inf_hf` keeps the measured value), and the new `R_inf_upper` widens
+  the bound by 3 sigma of the noise at f_hf, read off the window fit's
+  residuals within half a decade of it. `RinfResult.R_inf_range` gives the
+  interval R_s lies in (around a fitted R_s 3 stderr, at least +-5 %;
+  (0, R_inf_upper) for a bound; it held R_s in 400 of 400 spectra with 3 %
+  proportional or constant noise of 0.75 R_s) and `RinfResult.L` the
+  inductance to subtract with R_inf.
 
 - **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is
   false, so the mu search skipped its loop and returned M = min_M - 1 with

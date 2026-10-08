@@ -205,6 +205,11 @@ def plot_rinf_fit(result) -> plt.Figure:
 
     lines = [(result.R_inf_hf, 'gray',
               f'HF bound Re(Z) = {result.R_inf_hf:.4g} Ohm at {result.f_hf:.3g} Hz')]
+    if result.R_inf_upper != max(result.R_inf_hf, 0.0):
+        lines.append((result.R_inf_upper, 'silver',
+                      f'upper bound of R_s = {result.R_inf_upper:.4g} Ohm'))
+    if result.method != 'rlq_fit' and result.R_inf != result.R_inf_hf:
+        lines.append((result.R_inf, 'black', f'R_inf used = {result.R_inf:.4g} Ohm (bound < 0)'))
     if result.R_inf_fit is not None:
         lines.append((result.R_inf_fit, 'green',
                       f'fit R_s = {result.R_inf_fit:.4g} +- {result.R_inf_stderr:.2g} Ohm'))

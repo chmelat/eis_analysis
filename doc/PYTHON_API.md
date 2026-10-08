@@ -325,7 +325,9 @@ from eis_analysis.rinf_estimation import estimate_rinf, hf_median
 est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite point
 
 # est: RinfResult dataclass
-est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound
+est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound (clipped at 0)
+est.R_inf_upper    # HF bound + 3 sigma of the noise at f_hf: R_s cannot exceed it
+est.R_inf_range    # (lo, hi) the true R_s lies in; est.L: the L to subtract with R_inf
 est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
 est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
