@@ -219,7 +219,8 @@ def find_optimal_M_mu(
 
     M = min_M - 1  # the loop increments before fitting
     # Not 1.0: mu never exceeds 1, so a threshold >= 1 skipped the loop and
-    # returned no fit at all. Every threshold >= 1 now stops at min_M.
+    # returned no fit at all. Every threshold >= 1 now stops at min_M; the
+    # M < min_M clause covers mu_threshold = inf, which mu = inf does not.
     mu = np.inf
     iteration = 0
     L_value = None
@@ -228,7 +229,7 @@ def find_optimal_M_mu(
     elements = None
     R_i = np.array([])
 
-    while mu > mu_threshold and M < max_M:
+    while M < min_M or (mu > mu_threshold and M < max_M):
         M += 1
         iteration += 1
 
@@ -259,6 +260,8 @@ def find_optimal_M_mu(
             iterations.append(MuIteration(
                 iteration=iteration, M=M, mu=mu, residual=residual,
                 n_negative=int(np.sum(R_i < 0)), n_R=len(R_i)))
+
+    assert tau is not None and elements is not None  # the loop ran at least once
 
     reached_max_M = mu > mu_threshold
     if reached_max_M:

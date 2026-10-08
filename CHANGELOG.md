@@ -4,6 +4,17 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is
+  false, so the mu search skipped its loop and returned M = min_M - 1 with
+  no tau grid and no elements; `--mu-threshold inf` and
+  `--voigt-mu-threshold inf` reached it from the CLI. The search now always
+  fits at least min_M, so an infinite threshold stops there like any
+  threshold >= 1. Found by mypy.
+
 ## Version 0.57.0 (2026-10-07)
 
 ### Added
