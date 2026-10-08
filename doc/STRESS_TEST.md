@@ -1,6 +1,6 @@
 # Stress test: results and known limits
 
-`tests/stress.py` generates random, physically faithful spectra (five circuit
+`tests/stress.py` generates random, physically faithful spectra (six circuit
 families, random frequency grids and noise) and checks invariants that must
 hold whatever the truth is. Design: `doc/STRESS_TEST_PLAN.md`.
 
@@ -22,7 +22,9 @@ purpose, one BLAS thread per process), so every number below names its seed.
 
 Analyses: `calculate_drt` (auto lambda), `kramers_kronig_validation`,
 `zhit_validation`, `estimate_rinf`, and one LM `fit_equivalent_circuit` of the
-true circuit from truth x U(0.3, 3). For B the fit's bounds scale with Z
+true circuit from truth x U(0.3, 3), and `local_exponent` (the n(f) map,
+with the true Rs and L subtracted, so the map is tested and not
+`estimate_rinf`; n compared only where the library marks it `valid`). For B the fit's bounds scale with Z
 (PARAMETER_BOUNDS x k^power), so the optimizer alone is under test.
 
 Tolerances: relative 1e-6, plus absolute floors where the value is rounding
@@ -40,6 +42,20 @@ noise-free data the change that moves the fit by 1e-9 |Z|).
 - Lin-KK: 114 failed checks, all on noise-free spectra (known limit 1).
 - Fit: 30 failed checks, almost all in ill-posed cases (known limit 3);
   Babs "meze" in 624 (k = 0.001) and 776 (k = 1000) of 1250 fits (known limit 2).
+
+## Extension 2026-10-08: `anomalous` family and the n(f) map
+
+Family `anomalous` (id 6): half Randles with Wa or Wat, half the ZrO2
+layer model Rs-(G|Wa|Q|C) or Rs-(Wat|Q|C), drawn by its crossover
+frequencies (`doc/STRESS_TEST_PLAN.md`). 1500 cases (250 per family),
+1455 s on 4 processes, 3.9 s per case (anomalous 3.6 s, max 8.4 s).
+
+- The five existing families: the same 146 failed checks as on 2026-10-07.
+- n(f): 9000 checks (A, B, C, K on all six families), none failed.
+- anomalous, all analyses: A and K no failure; DRT, Z-HIT, R_inf no
+  failure; Lin-KK 22 failed checks in 11 of 68 noise-free cases (known
+  limit 1); fit 14 failed checks in 5 cases (known limit 3). The 125
+  ZrO2 cases, 7-8 parameters each, have none.
 
 ## Bugs found and fixed
 
@@ -79,6 +95,10 @@ rescaling or reordering of the points moves:
   -> 0.56), rc/206 (48 -> 46, mu 0.71 -> 0.83), rc/123 (50 -> 47 at the
   max_M cap, mu 0.60 -> 0.82).
 
+`anomalous` (2026-10-08): 11 of 68 noise-free cases, elements up to
+1.8e-4 relative (anomalous/241), residuals up to 4e-9 |Z| (anomalous/79),
+M unchanged.
+
 None of this is visible on measured data, where noise is at least 1e-5 |Z|.
 
 ### 2. Absolute PARAMETER_BOUNDS make a circuit fit unit-dependent
@@ -107,6 +127,13 @@ relative, the LM stopping precision (cpe/213, oxide/177). The two others:
 
 - diffusion/53: a failed fit (82 % error), only its stderr moves (8 %);
 - diffusion/203: one parameter at 1.0e-6 relative, the stopping precision.
+
+`anomalous` (2026-10-08): 14 failed checks in 5 Randles cases with Wa at
+1-3 % noise (anomalous/10, 91, 101, 114, 229). The Wa tail is lost in the
+noise: R_W and tau_W have relative stderr 10 to 1e4, the fit ends far
+from the truth at an unchanged fit error, and stderr (up to 20 %) or a
+parameter (up to 9 %, anomalous/101) moves along the valley. The family
+has no arc classes (n/a in the class table).
 
 By class (B-, B+, Crev, Cmix together): tight 11, medium 14, loose 2, weak
 20, normal 7 (the two axes overlap; see the runner's class table).

@@ -2,7 +2,15 @@
 
 Stav: schvaleny plan (2026-10-06), revize po kritickem cteni (2026-10-07).
 Krok 2 implementovan a roztriden (2026-10-07): vysledky a zname limity
-v `doc/STRESS_TEST.md`.
+v `doc/STRESS_TEST.md`. Rozsireni 2026-10-08: rodina `anomalous` (Wa, Wat,
+model ZrO2 vrstvy) a mapa n(f) (`local_exponent`), viz nize.
+Krok 3 rozpracovan (2026-10-08): D, E, F, I, M v `tests/stress_consistency.py`,
+prahy PROVIZORNI. Prvni plny beh roztriden: chyby testu opraveny (piky DRT
+z `scipy_peaks`, serie C v Lin-KK podle pravidla CLI, Edc proti intervalu
+do DC, Erec jen na uzavrenem VF konci), knihovna opravena (Z-HIT bez
+unwrap, mez R_inf se sumem, n(f) s `R_inf_range`), konstantni sum omezen
+na SNR >= 10. Zbyva: plny beh, kalibrace prahu s 2x rezervou, overovaci
+beh, zapis do `doc/STRESS_TEST.md`, kontrolni bod s uzivatelem.
 Vychozi verze: eis_analysis v0.56.7.
 
 ## Kontext
@@ -97,6 +105,23 @@ Sum: {0, 0.1 %, 1 %, 3 %} proporcionalni; 20 % pripadu konstantni
 | `diffusion` | Randles s W, Ws nebo Wo: Rs-(Q\|(R-W)) atd. |
 | `blocking` | Rs-(R\|Q)-C nebo -Q (n v [0.85, 0.98]): kapacitni NF konec |
 | `oxide` | Rs 1-100 - (R 1e6..1e9 \| Q 1e-11..1e-8, n 0.8-0.98) [+ druhy oblouk]; \|Z\| pres mnoho dekad (Zr oxidy) |
+| `anomalous` | pulka Randles Rs-(Q\|(R-Wa nebo Wat)), pulka ZrO2 vrstva Rs-(G\|Wa\|Q\|C) nebo Rs-(Wat\|Q\|C); gamma 0.5-0.95 |
+
+`anomalous` (id 6, pridana 2026-10-08) je samostatna rodina, ne rozsireni
+`diffusion`: pridani Wa/Wat do losovani `diffusion` by zmenilo obvody
+existujicich indexu a seedy citovane v `doc/STRESS_TEST.md` by prestaly
+platit. gamma <= 0.95 drzi pravdu mimo gamma = 1 (presne Wo/Ws, horni mez).
+
+Model ZrO2 vrstvy (fit realnych spekter M136, CHANGELOG `Wa`) se losuje
+pres charakteristicke frekvence, ne pres hodnoty prvku, aby kazdy prvek
+v okne neco urcoval: tri casy s rozestupy 0.3-3 dek uvnitr okna (jako
+oblouky) davaji 1/omega prechodu Q -> C (Q omega^n = C omega), prechodu
+Wa -> Q (\|Y_Wa\| = Q omega^n, s presnou admitanci prvku z knihovny, ne
+s VF asymptotou: tau_W muze lezet jen 0.3 dek nad prechodem) a tau_W;
+gamma < n jako ve vsech fitech, jinak by Q prevzal NF konec. Rs 1-100 Ohm, C 1e-9..1e-7 F (vrstva 0.1-10 um, plocha mm^2-cm^2),
+n 0.6-0.9 (fit: 0.73-0.79), G 0.1-1x \|Y_Wa(f_min)\| (vodivost, ktera NF
+konec ohyba, ale blokaci neschova). Vetev Wat (pulka ZrO2 pripadu) je bez
+G: DC cestu ma Wat sam (model `(Wat|Q|C)` z CHANGELOGu).
 
 Idealni n = 1 pokryvaji prvky C v `rc` a `blocking`.
 
@@ -176,15 +201,17 @@ ZScope):
   z konstrukce, takze Lin-KK musi projit (rezidua <= c * sum + podlaha);
   `blocking` s `include_C=True`. Z-HIT totez s vlastni podlahou
   (~1 % aproximacni chyba, viz DRT_PEAK_SIGNIFICANCE_PLAN).
-- **E DRT.** gamma >= 0 a konecne; kazdy pik uvnitr okna nebo oznaceny
-  (`boundary_sensitive`, `outside_window`, `edge_contaminated`); u `rc`
+- **E DRT.** gamma >= 0 (konecnost hlida A); u `rc`
   chyba rekonstrukce <= c * sum + podlaha; u uzavrenych spekter (faze na
   f_min > -5 deg) R_inf + R_pol ~ Re Z(f_min); u `rc` bez sumu, tridy
   `min_frac` normalni, s tau >= 1 dek od sebe ma kazde pravdive tau pik
   do 0.15 dek. Kontrola piku zavisi na tom, ktere piky DRT hlasi, a to
   zmeni DRT_PEAK_SIGNIFICANCE_PLAN: pokud ten pujde driv, kalibrovat az
   po nem, jinak pocitat s druhou kalibraci.
-  (Puvodni "soucet `R_estimate` <= R_pol" vypusten: u GMM je
+  (Puvodni "kazdy pik uvnitr okna nebo oznaceny" vypusten 2026-10-08:
+  priznaky se pocitaji prave ze vzdalenosti od okna,
+  `_flag_boundary_peaks`, takze nemuze selhat.
+  Puvodni "soucet `R_estimate` <= R_pol" vypusten: u GMM je
   `R_estimate = weight * R_pol` a vahy davaji soucet 1, `drt/peaks.py:300`,
   takze nemuze selhat.)
 - **F Fit (LM).** cost = sum |(Z - Z_model) * w|^2 s
@@ -218,6 +245,17 @@ ZScope):
   kdyz je VF konec uzavreny (faze na f_max > -5 deg, obdoba NF konce
   v E), |R_inf - Rs| / Rs mala.
 - **J Oxid.** (Z / a, plocha a) pro a v {1, 2} cm^2 -> stejna tloustka.
+- **M Mapa n(f).** `local_exponent` dostava A, B, C, K jako ostatni
+  analyzy (n, nejistota a maska `valid` se pri Z -> kZ nemeni), s
+  odectenym pravdivym Rs a L (x k): testuje se mapa, ne `estimate_rinf`.
+  Fitovane R_inf se pri B a C hybe v ramci sve stderr a n u f_max, vzor
+  NaN i prah `valid` by ho nasledovaly (code review 2026-10-08: polovina
+  pripadu falesne selhala). Konzistence pres cestu CLI (R_inf a L
+  z `estimate_rinf`): u pripadu se sumem musi body oznacene `valid`
+  souhlasit s mapou bezsumoveho Z s pravdivym Rs a L,
+  |n - n_ref| <= 2 * `n_uncertainty`. Hlasi se mira (jako F3), ne
+  selhani po pripadech; overuje prahy 0.02 a 0.1, kalibrovane zatim jen
+  na ctyrech spektrech M136.
 - **L CLI end-to-end** (podvzorek): `eis.py case.csv --no-show` skonci
   s kodem 0 a bez tracebacku.
 
@@ -268,7 +306,8 @@ nebezi. Presne pocty doladit v kroku 4.
    testem a CHANGELOG. Pak generator + runner + invarianty A, B, C, K
    na DRT, Lin-KK, Z-HIT, R_inf, LM fit. Zmerit cas, spustit, roztridit
    selhani.
-3. Invarianty D, E, F, I. Kalibrovat tolerance a prah `min_frac`
+3. Rodina `anomalous` a analyza n(f) s A, B, C, K; plny beh a trideni.
+   Pak invarianty D, E, F, I, M. Kalibrovat tolerance a prah `min_frac`
    z prvniho behu.
    **Kontrolni bod:** zastavit a s uzivatelem podle realnych selhani
    rozhodnout, zda kroky 4 a 5 maji smysl v plnem rozsahu.

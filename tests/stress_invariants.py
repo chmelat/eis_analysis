@@ -3,7 +3,7 @@
 Each analysis reduces its result to a *signature*: name -> Entry, where an
 Entry says how the value behaves when Z -> k*Z and when the points are
 reordered. The invariants then compare signatures, so one comparison serves
-DRT, Lin-KK, Z-HIT, R_inf and the fit alike. See doc/STRESS_TEST_PLAN.md.
+DRT, Lin-KK, Z-HIT, R_inf, the fit and the n(f) map alike. See doc/STRESS_TEST_PLAN.md.
 """
 
 from dataclasses import dataclass
@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from eis_analysis.analysis.local_exponent import local_exponent
 from eis_analysis.drt.core import calculate_drt
 from eis_analysis.fitting import fit_equivalent_circuit
 from eis_analysis.fitting.bounds import generate_simple_bounds
@@ -18,7 +19,7 @@ from eis_analysis.rinf_estimation.estimate import estimate_rinf
 from eis_analysis.validation.kramers_kronig import kramers_kronig_validation
 from eis_analysis.validation.zhit import zhit_validation
 
-from tests.stress_cases import ORDER, Case, fit_start, k_powers
+from tests.stress_cases import ORDER, Case, capacitive_end, fit_start, k_powers
 
 # Exact invariants (B, C) allow this relative difference: an iterative solver
 # on a rescaled or reordered problem rounds differently, but nothing a user
@@ -47,7 +48,8 @@ class Entry:
 
     power : how it scales under Z -> k*Z (value * k**power); per parameter
         for the fit, so it may be an array
-    kind : 'exact' compared with ==; 'num' allclose with atol relative to
+    kind : 'raw' the analysis result itself, for the consistency checks
+        (tests/stress_consistency.py), never compared; 'exact' compared with ==; 'num' allclose with atol relative to
         max|value| (arrays with legitimate zeros, like gamma); 'rel' elementwise
         rtol only (parameters spanning decades); 'pf' like 'num' but one value
         per frequency, so it follows a reordering of the points
@@ -72,10 +74,18 @@ def _inductance_atol(f, Z) -> float:
 
 # --- analyses ---------------------------------------------------------------
 
+def drt_peaks(r) -> List[Dict[str, Any]]:
+    """The peaks the CLI reports, sorted by tau: GMM components when GMM ran,
+    the scipy peaks otherwise (`r.peaks` holds only the former)."""
+    peaks = r.peaks or (r.diagnostics.scipy_peaks if r.diagnostics else None) or []
+    return sorted(peaks, key=lambda p: p.get('tau', p.get('tau_center')))
+
+
 def _drt(case: Case, f, Z, k: float) -> Signature:
     r = calculate_drt(f, Z, auto_lambda=True)   # CLI defaults otherwise
-    peaks = sorted(r.peaks or [], key=lambda p: p['tau'])
+    peaks = drt_peaks(r)
     return {
+        'raw': Entry(r, kind='raw'),
         'success': Entry(r.success, kind='exact'),
         'lambda': Entry(r.lambda_used),
         'tau': Entry(r.tau),
@@ -85,7 +95,7 @@ def _drt(case: Case, f, Z, k: float) -> Signature:
         'L_series': Entry(r.L_series, 1, atol=_inductance_atol(f, Z)),
         'rec_error': Entry(r.reconstruction_error),
         'Z_rec': Entry(r.Z_reconstructed, 1, 'pf'),
-        'peak_tau': Entry(np.array([p['tau'] for p in peaks]), 0, 'rel'),
+        'peak_tau': Entry(np.array([p.get('tau', p.get('tau_center')) for p in peaks]), 0, 'rel'),
         'peak_R': Entry(np.array([p['R_estimate'] for p in peaks]), 1, 'rel'),
         'peak_flags': Entry([(p.get('boundary_sensitive'), p.get('outside_window'))
                              for p in peaks], kind='exact'),
@@ -93,8 +103,9 @@ def _drt(case: Case, f, Z, k: float) -> Signature:
 
 
 def _linkk(case: Case, f, Z, k: float) -> Signature:
-    r = kramers_kronig_validation(f, Z, include_C=case.family == 'blocking')
+    r = kramers_kronig_validation(f, Z, include_C=capacitive_end(case))
     return {
+        'raw': Entry(r, kind='raw'),
         'error': Entry(r.error, kind='exact', finite=False),
         'M': Entry(r.M, kind='exact'),
         'M_lower': Entry(r.M_lower, kind='exact'),
@@ -114,6 +125,7 @@ def _linkk(case: Case, f, Z, k: float) -> Signature:
 def _zhit(case: Case, f, Z, k: float) -> Signature:
     r = zhit_validation(f, Z)
     return {
+        'raw': Entry(r, kind='raw'),
         'quality': Entry(r.quality),
         'chi2': Entry(r.pseudo_chisqr, atol=CHI2_ATOL),
         'noise': Entry(r.noise_estimate, atol=PERCENT_ATOL),
@@ -128,6 +140,7 @@ def _rinf(case: Case, f, Z, k: float) -> Signature:
     # A fitted R_inf gets the play of a fitted parameter (PARAM_STDERR_SHARE)
     stderr = r.R_inf_stderr if r.method == 'rlq_fit' else None
     return {
+        'raw': Entry(r, kind='raw'),
         'R_inf': Entry(r.R_inf, 1, atol=PARAM_STDERR_SHARE * stderr
                        if stderr is not None and np.isfinite(stderr) else None),
         'R_inf_hf': Entry(r.R_inf_hf, 1),
@@ -164,8 +177,37 @@ def _fit(case: Case, f, Z, k: float, absolute_bounds: bool = False) -> Signature
     }
 
 
+def _local_exponent(case: Case, f, Z, k: float) -> Signature:
+    """n(f) with the true Rs and L subtracted (times k).
+
+    The map itself is under test, not estimate_rinf (analysis 'rinf'): a
+    fitted R_inf moves within its stderr under Z -> k*Z or a reordering,
+    and n near f_max, its NaN pattern and the `valid` threshold follow it.
+    The CLI path, with R_inf and L from estimate_rinf, is invariant M.
+    The result is sorted by frequency whatever the input order, so its
+    arrays compare as plain values, not per input point.
+    """
+    Rs = case.truth[case.labels.index('R')]   # every family starts with Rs
+    L = case.truth[case.labels.index('L')] if 'L' in case.labels else 0.0
+    r = local_exponent(f, Z, Rs * k, L * k)
+    # An exponent is O(1), so RTOL is its absolute floor too: where Re Y is
+    # flat (closed arcs, n ~ 0) rounding moves the slope by ~1e-8. n counts
+    # only where `valid`: near f_max, where Z -> Rs cancels in Z - Rs, the
+    # library marks it undetermined and it is rounding noise (rc/79: 7e-6);
+    # so is its uncertainty, built from the same n.
+    return {
+        'n': Entry(np.where(r.valid, r.n, np.nan), finite=False, atol=RTOL),
+        'n_unc': Entry(np.where(r.valid, r.n_uncertainty, np.nan), finite=False, atol=RTOL),
+        'valid': Entry(r.valid.tolist(), kind='exact'),
+        'n_min': Entry(r.n_min, finite=False, atol=RTOL),
+        'n_max': Entry(r.n_max, finite=False, atol=RTOL),
+        'warnings': Entry(len(r.warnings), kind='exact'),
+    }
+
+
 ANALYSES: Dict[str, Callable[..., Signature]] = {
     'drt': _drt, 'linkk': _linkk, 'zhit': _zhit, 'rinf': _rinf, 'fit': _fit,
+    'n(f)': _local_exponent,
 }
 
 
@@ -188,6 +230,8 @@ def _as_array(value) -> Optional[np.ndarray]:
 def _compare(name: str, ref: Entry, got: Entry, k: float,
              perm: Optional[np.ndarray], bitwise: bool) -> Optional[str]:
     """Mismatch description, or None. `got` was computed on k*Z[perm]."""
+    if ref.kind == 'raw':
+        return None
     if ref.kind == 'exact':
         return None if ref.value == got.value else f'{name}: {ref.value!r} -> {got.value!r}'
     a, b = _as_array(ref.value), _as_array(got.value)
@@ -242,7 +286,7 @@ def invariant_A(sig) -> Check:
     if 'error' in sig and sig['error'].value is not None:
         return 'fail', f'error: {sig["error"].value}'
     for name, entry in sig.items():
-        if entry.kind == 'exact' or not entry.finite or entry.value is None:
+        if entry.kind in ('raw', 'exact') or not entry.finite or entry.value is None:
             continue
         a = _as_array(entry.value)
         if not np.all(np.isfinite(a)):
@@ -306,12 +350,16 @@ def invariant_K(name: str, case: Case, ref: Signature) -> List[Tuple[str, Check]
 INVARIANTS = ('A', 'B-', 'B+', 'Babs-', 'Babs+', 'Crev', 'Cmix', 'K')
 
 
-def check_case(case: Case, analyses=tuple(ANALYSES)) -> List[Tuple[str, str, str, str]]:
-    """All invariants of one case: [(analysis, invariant, status, detail)]."""
+def check_case(case: Case, analyses=tuple(ANALYSES)):
+    """All invariants of one case: [(analysis, invariant, status, detail)],
+    and {analysis: its raw result} for those that passed A."""
     rows = []
+    raw: Dict[str, Any] = {}
     for name in analyses:
         ref = run_analysis(name, case, case.frequencies, case.Z)
         status, detail = invariant_A(ref)
+        if status == 'pass' and 'raw' in ref:
+            raw[name] = ref['raw'].value
         rows.append((name, 'A', status, detail))
         if status != 'pass':
             rows += [(name, inv, 'skip', 'A failed') for inv in INVARIANTS[1:]
@@ -319,4 +367,4 @@ def check_case(case: Case, analyses=tuple(ANALYSES)) -> List[Tuple[str, str, str
             continue
         for checker in (invariant_B, invariant_C, invariant_K):
             rows += [(name, inv, s, d) for inv, (s, d) in checker(name, case, ref)]
-    return rows
+    return rows, raw

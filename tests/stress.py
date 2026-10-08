@@ -28,9 +28,13 @@ from collections import Counter, defaultdict  # noqa: E402
 from concurrent.futures import ProcessPoolExecutor  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+import numpy as np  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests.stress_cases import FAMILIES, generate_case  # noqa: E402
+from tests.stress_consistency import (CONSISTENCY_INVARIANTS, RATIO_INVARIANTS,  # noqa: E402
+                                      consistency_rows)
 from tests.stress_invariants import ANALYSES, INVARIANTS, check_case  # noqa: E402
 
 # Cases per family of a full run; sized so that the run stays under ~1 h on
@@ -39,6 +43,23 @@ DEFAULT_N = 250
 
 # At most 4 CPU-heavy processes for long runs
 MAX_WORKERS = 4
+
+# Invariants with a fail/checked table; F3, Ifit and M are aggregate rates ('stat')
+TABLE_INVARIANTS = INVARIANTS + tuple(i for i in CONSISTENCY_INVARIANTS if i not in ('F3', 'Ifit', 'M'))
+FIT_INVARIANTS = INVARIANTS + ('F1', 'F2', 'F4')
+
+# Deviations that are not failures, shown in brackets: absolute bounds
+# (Babs) and fits ending in a local minimum (F2), a rate by class
+SOFT = ('meze', 'lokmin')
+
+
+def _cell(n: Counter) -> str:
+    soft = sum(n[s] for s in SOFT)
+    return f'{n["fail"]}/{n["pass"] + n["fail"] + soft}' + (f' [{soft}]' if soft else '')
+
+
+# Quantiles of a consistency invariant's measured value, for calibration
+QUANTILES = (0.5, 0.9, 0.99, 1.0)
 
 # Identifiability classes (doc/STRESS_TEST_PLAN.md): neighbouring arcs closer
 # than 1 decade are tight, over 2 decades loose; an arc under 5 % of the
@@ -59,14 +80,16 @@ def run_case(job):
     _quiet()
     start = time.perf_counter()
     case = generate_case(family, index)
-    rows = check_case(case)
+    rows, raw = check_case(case)
+    rows += consistency_rows(case, raw)
     return {
         'family': family, 'index': index, 'expression': case.expression,
         'n_arcs': case.n_arcs, 'min_sep': case.min_sep, 'min_frac': case.min_frac,
         'noise': f'{case.noise_level:g} {case.noise_kind}',
         'n_points': len(case.frequencies), 'n_rejected': case.n_rejected,
         'seconds': time.perf_counter() - start,
-        'checks': [dict(zip(('analysis', 'invariant', 'status', 'detail'), r)) for r in rows],
+        'checks': [dict(zip(('analysis', 'invariant', 'status', 'detail', 'value'), r))
+                   for r in rows],
     }
 
 
@@ -76,24 +99,21 @@ def _row_key(result):
 
 def print_tables(results):
     """One table per invariant: rows family/n_arcs, columns analyses, cells
-    failures/total (meze in brackets)."""
+    failures/total (meze, lokmin in brackets)."""
     rows = sorted({_row_key(r) for r in results},
                   key=lambda k: (list(FAMILIES).index(k.split('/')[0]), k))
-    for inv in INVARIANTS:
+    for inv in TABLE_INVARIANTS:
         counts = defaultdict(Counter)
         for r in results:
             for c in r['checks']:
                 if c['invariant'] == inv:
                     counts[(_row_key(r), c['analysis'])][c['status']] += 1
-        print(f'\nInvariant {inv}  (fail/checked, [meze], skip not counted)')
+        print(f'\nInvariant {inv}  (fail/checked, [meze/lokmin], skip not counted)')
         print(f'{"":14}' + ''.join(f'{a:>14}' for a in ANALYSES))
         for row in rows:
             cells = []
             for a in ANALYSES:
-                n = counts[(row, a)]
-                checked = n['pass'] + n['fail'] + n['meze']
-                cell = f'{n["fail"]}/{checked}' + (f' [{n["meze"]}]' if n['meze'] else '')
-                cells.append(f'{cell:>14}')
+                cells.append(f'{_cell(counts[(row, a)]):>14}')
             print(f'{row:14}' + ''.join(cells))
 
 
@@ -118,15 +138,44 @@ def print_fit_classes(results):
             if c['analysis'] == 'fit':
                 for cls in classes:
                     counts[(c['invariant'], cls)][c['status']] += 1
-    print('\nFit by identifiability class  (fail/checked, [meze])')
+    print('\nFit by identifiability class  (fail/checked, [meze/lokmin])')
     print(f'{"":8}' + ''.join(f'{c:>12}' for c in columns))
-    for inv in INVARIANTS:
+    for inv in FIT_INVARIANTS:
         cells = []
         for cls in columns:
-            n = counts[(inv, cls)]
-            cell = f'{n["fail"]}/{n["pass"] + n["fail"] + n["meze"]}' + (f' [{n["meze"]}]' if n['meze'] else '')
-            cells.append(f'{cell:>12}')
+            cells.append(f'{_cell(counts[(inv, cls)]):>12}')
         print(f'{inv:8}' + ''.join(cells))
+
+
+def print_calibration(results):
+    """Distribution of measured / allowed of each threshold check by noise
+    level (what its threshold is calibrated against), and the aggregate
+    rates F3 and M, with M's worst |dn| per case."""
+    values = defaultdict(list)
+    rates = defaultdict(lambda: [0, 0])
+    for r in results:
+        level = r['noise'].split()[0]
+        for c in r['checks']:
+            if c.get('value') is None:
+                continue
+            if c['invariant'] in RATIO_INVARIANTS:
+                values[(c['analysis'], c['invariant'], level)].append(c['value'])
+            elif c['status'] == 'stat':
+                hit, total = map(int, c['detail'].split()[0].split('/'))
+                rates[(c['invariant'], level)][0] += hit
+                rates[(c['invariant'], level)][1] += total
+                if c['invariant'] == 'M':
+                    values[('n(f)', 'M |dn|', level)].append(c['value'])
+    print('\nCalibration: measured / allowed by noise level, M as max |dn| (quantiles '
+          + ', '.join(f'{q:g}' for q in QUANTILES) + ')')
+    for (analysis, inv, level), v in sorted(values.items()):
+        q = np.quantile(v, QUANTILES)
+        print(f'  {analysis:6} {inv:8} noise {level:6} n={len(v):5}  '
+              + '  '.join(f'{x:10.3g}' for x in q))
+    print('\nAggregate rates (F3: truth inside the 95 % CI; Ifit: R_inf fitted on a closed HF end;'
+          ' M: |dn| <= 2 x uncertainty)')
+    for (inv, level), (hit, total) in sorted(rates.items()):
+        print(f'  {inv:3} noise {level:6} {hit}/{total} = {hit / max(total, 1):.3f}')
 
 
 def print_failures(results):
@@ -179,6 +228,7 @@ def main(argv=None):
             print_case(r)
     print_tables(results)
     print_fit_classes(results)
+    print_calibration(results)
     print_failures(results)
 
     seconds = [r['seconds'] for r in results]
