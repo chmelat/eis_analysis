@@ -48,6 +48,19 @@ Complete change history for all project versions.
 
 ### Fixed
 
+Found by the stress test (`doc/STRESS_TEST.md`), on points where the noise
+exceeds the signal:
+
+- **Z-HIT no longer unwraps the phase.** `np.unwrap` turned the random
+  phase of noise-swamped points into +-2 pi offsets, and the cumulative
+  phase integral carried them into every later point: |Z| reconstructed up
+  to 1e35 too large (stress case diffusion/104, 50 of 81 points below the
+  noise). A passive phase stays in [-90, 90] deg and never meets the wrap,
+  so on noise-free spectra the result is identical (checked on 353 stress
+  cases); a swamped point's error now stays bounded instead of compounding.
+  Not supported any more: a phase that truly passes +-180 deg (Re Z < 0
+  over a band, e.g. negative differential resistance or swapped leads).
+
 - **`find_optimal_M_mu(mu_threshold=inf)` fits again.** `inf > inf` is
   false, so the mu search skipped its loop and returned M = min_M - 1 with
   no tau grid and no elements; `--mu-threshold inf` and

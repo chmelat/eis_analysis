@@ -75,8 +75,15 @@ window makes the result edge-sensitive. The local expansion needs neither.
 ## Algorithm (`zhit_validation`)
 
 1. Sort by ascending frequency; outputs are returned in the caller's order.
-2. `phi = np.unwrap(arctan2(Z.imag, Z.real))` removes 2*pi jumps that would
-   spike the derivative.
+2. `phi = arctan2(Z.imag, Z.real)`, not unwrapped: a passive phase stays in
+   [-pi/2, pi/2] and never meets the +-pi wrap, so unwrap only acts on
+   points swamped by noise, where it turns a random phase into 2*pi offsets
+   that the cumulative integral carries into every later point (stress
+   test: |Z| 1e35 too large). Removed 2026-10-08; on noise-free spectra the
+   result is identical. Not supported since: a phase that truly passes
+   +-180 deg (Re Z < 0 over a band: negative differential resistance,
+   swapped leads); it steps by 2*pi and shifts the rest of the
+   reconstruction.
 3. `zhit_reconstruct_magnitude(frequencies, phi, ln|Z|)`:
    cumulative trapezoid of `(2/pi) * phi` over ln(omega), plus
    `-pi/6 * np.gradient(phi, ln omega)`, plus the median offset.

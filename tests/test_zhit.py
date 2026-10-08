@@ -55,6 +55,24 @@ def test_offset_is_the_median_difference():
     assert np.median(ln_Z_exp - ln_Z) == pytest.approx(0.0, abs=1e-12)
 
 
+def test_points_swamped_by_noise_stay_a_local_error():
+    """Above 1 kHz the phase steps by 135 deg per point, as at points where
+    the noise exceeds |Z| (stress test, constant noise). np.unwrap read that
+    as a steady rotation, and the cumulative phase integral put |Z| e^64
+    off there (diffusion/104: 1e35). Without it the phase stays within
+    +-pi: the error is the second-order term on a jumping phase, bounded.
+    Measured: max |ln(|Z_rec| / |Z|)| 5.2 on the swamped points."""
+    Z = _r_rc(1.0)
+    swamped = FREQUENCIES > 1e3
+    steps = 0.75 * np.pi * np.arange(1, swamped.sum() + 1)
+    Z[swamped] = np.abs(Z[swamped]) * np.exp(1j * steps)
+    result = zhit_validation(FREQUENCIES, Z)
+    plt.close('all')
+    error = np.abs(np.log(result.Z_mag_reconstructed / np.abs(Z)))
+    assert np.all(np.isfinite(error))
+    assert np.max(error[swamped]) < 10
+
+
 def test_validation_leaves_no_open_figures():
     plt.close('all')
     for _ in range(3):

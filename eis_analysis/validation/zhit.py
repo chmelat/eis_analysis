@@ -297,11 +297,19 @@ def zhit_validation(
     frequencies = frequencies[sort_idx]
     Z = Z[sort_idx]
 
-    # Extract magnitude and phase. np.unwrap removes 2*pi jumps from arctan2
-    # at the [-pi, pi] boundary (relevant for inductive systems or noisy data
-    # near the wrap point), which would otherwise spike the phase derivative.
+    # Extract magnitude and phase. No np.unwrap: a passive impedance has
+    # Re(Z) >= 0, so its phase stays in [-pi/2, pi/2] (inductive tops
+    # included) and never meets the +-pi wrap. Only a point swamped by noise
+    # (Re(Z) < 0) gets there, and unwrap turns its random phase into +-2*pi
+    # offsets that the cumulative integral below carries into every later
+    # point: with half of 81 points below the noise, |Z| came out 1e35 too
+    # large. Without unwrap a swamped point's phase error stays within +-pi:
+    # the integral still carries it on, but bounded, not compounded. The
+    # price: a phase that truly passes +-pi (Re Z < 0 over a band, negative
+    # differential resistance, swapped leads) now steps by 2*pi there and
+    # shifts the rest of the reconstruction - such spectra are not supported.
     Z_mag = np.abs(Z)
-    phi = np.unwrap(np.arctan2(Z.imag, Z.real))
+    phi = np.arctan2(Z.imag, Z.real)
 
     # Perform Z-HIT magnitude reconstruction using numerical integration
     try:
