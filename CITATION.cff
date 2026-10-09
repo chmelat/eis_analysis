@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, with the version you used."
+type: software
+title: "EIS Analysis Toolkit (eis_analysis)"
+abstract: >-
+  A command-line tool for electrochemical impedance spectroscopy that
+  reads Gamry DTA and CSV files: Kramers-Kronig validation (Lin-KK,
+  Z-HIT), distribution of relaxation times with automatic regularization
+  and peak detection, R_inf estimation, equivalent-circuit fitting by
+  differential evolution or multistart with model comparison (AIC/BIC), a
+  model-free map of the local CPE exponent, and
+  oxide-layer analysis (thickness, permittivity). The same functions are
+  available as a Python library.
+authors:
+  - family-names: Chmela
+    given-names: Tomáš
+    affiliation: "UJP PRAHA"
+    email: chmela@ujp.cz
+repository-code: "https://github.com/chmelat/eis_analysis"
+license: MIT
+keywords:
+  - electrochemical impedance spectroscopy
+  - distribution of relaxation times
+  - Kramers-Kronig
+  - equivalent circuit fitting
+  - differential evolution
