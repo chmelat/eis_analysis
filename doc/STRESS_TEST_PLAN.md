@@ -15,7 +15,8 @@ volitelny (Ifit 0.80 / 0.64 pri 1 / 3 % sumu). Overovaci beh hotov.
 Kontrolni bod 2026-10-09: z kroku 4 jen G (DE ze startu az 2 dekady od pravdy,
 kazdy paty pripad; 300/300 proslo), H, J a L vynechany; krok 5 hotov
 (`stress_baseline.json`, `--check`, `--update-baseline`, smoke test
-s markerem `stress`). Zbyva: oprava `R_inf_range` (znamy limit 7).
+s markerem `stress`). Oprava `R_inf_range` (znamy limit 7) hotova 2026-10-09:
+Irange 39 -> 0, baseline 189 selhani. Plan je timto uzavren.
 Vychozi verze: eis_analysis v0.56.7.
 
 ## Kontext

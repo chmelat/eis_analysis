@@ -128,8 +128,9 @@ residuals:
   rc 1), none a failure. F3 coverage of the nominal 95 % CI: 0.897, 0.899,
   0.904 at 0.1, 1, 3 % noise (known limit 9).
 - R_inf: Ihf 0/1417, Iclosed 1/737 (cpe/85), Irange 39/1417 (both known
-  limit 7). Ifit: the window fit determines R_s on a closed end in 0.989,
-  0.968, 0.802, 0.635 of the cases at 0, 0.1, 1, 3 % noise.
+  limit 7; Irange fixed later the same day, see below). Ifit: the
+  window fit determines R_s on a closed end in 0.989, 0.968, 0.802, 0.635
+  of the cases at 0, 0.1, 1, 3 % noise.
 - n(f), M: 0.975, 0.945, 0.909 of the points within 2x their uncertainty
   at 0.1, 1, 3 % noise; largest |dn| 0.075, 0.084, 0.13.
 
@@ -163,6 +164,20 @@ runs the first 3 cases of every family through `--check` in a subprocess,
 which keeps one BLAS thread as invariant K needs; 66 s. Check of the check:
 R_inf x 1.1 injected into `estimate_rinf` gave 20 new failures (Ihf,
 Iclosed, Irange) and exit code 1.
+
+## R_inf_range fix, full run 2026-10-09
+
+`R_inf_range` now covers the window fit's model error (known limit 7, below;
+details in `doc/RINF_ESTIMATION.md`): the fit is repeated over the top decade
+of its window and the range reaches 3x the move of R_s, within
+0..R_inf_upper. Full run, 2401 s:
+
+- Irange: 0 of 1417 failed (before: 39). No other check changed: the 39
+  Irange failures are the only difference to the previous run, none new.
+- n(f), M: 0.978, 0.947, 0.910 of the points within 2x their uncertainty
+  at 0.1, 1, 3 % noise (before: 0.975, 0.945, 0.909), on 0.7 % fewer
+  compared points; largest |dn| unchanged (0.053, 0.084, 0.13).
+- The baseline now holds 189 failures.
 
 ## Bugs found and fixed
 
@@ -289,19 +304,27 @@ stay at 1-8 % of |Z|, up to 5e5 sigma of the local noise (oxide/123:
 5.2 % at 1.35e6 x min|Z|, M = 17). Lin-KK reports a consistent spectrum
 as consistent, but with its accuracy set by the worst relative noise.
 
-### 7. R_inf_range misses R_s on open high-frequency ends
+### 7. R_inf window fit on open high-frequency ends
 
-39 of 1417 cases without L: the window fit (`rlq_fit`) is accepted
-(stderr <= 5 %), but R_inf is off by 6-34 %, 36 times below R_s and 3
-times above (cpe/101 +12 %, cpe/220 +18 %, oxide/156 +29 %). All on
-open ends (phase at f_max -4 to -82 deg) at low noise: 0 % (16 cases),
-0.1 % (17), 1 % (6), none at 3 %, where the stderr and so the range are
-wider. The R-L-(R|Q) window model differs from the arc, CPE or Warburg
-that continues above f_max; that model error is not in the stderr, and
-the range's +-5 % floor does not cover it. One of them (cpe/85, phase
--4.1 deg) also fails Iclosed. The n(f) map then counts points near f_max
-as determined. A bound of |R_inf - R_s| by |Im Z(f_max)| does not hold
-(exceeded in 179 of 878 window fits). Open.
+On an end still open at f_max the R-L-(R|Q) window model differs from the
+arc, CPE or Warburg that continues above it, and the accepted fit (stderr
+<= 5 %) can be off: 6-34 % on 39 of 1417 cases without L, 36 times below
+R_s and 3 times above (cpe/101 +12 %, cpe/220 +18 %, oxide/156 +29 %), at
+phases -4 to -82 deg at f_max and low noise (0 %: 16 cases, 0.1 %: 17,
+1 %: 6, 3 %: none). R_inf itself stays so: one decade resolves an open arc
+better but scatters ten times more under noise. One of them (cpe/85, phase
+-4.1 deg) fails Iclosed.
+
+`R_inf_range` missed R_s in all 39: the stderr does not see the model
+error, and the +-5 % floor did not cover it. **Fixed 2026-10-09:** the range
+also reaches 3x the move of R_s when the fit is repeated over the top
+decade, which measures the model error; Irange now fails on none of the
+1417 (strictly, without the test's allowance of 1 % + 3 sigma, R_s is
+outside on 7 of 878 accepted fits, 5 of them by under 3 % at 1-3 % noise).
+Rejected along the way: a bound by |Im Z(f_max)| (exceeded in 179 of 878
+fits), the window disagreement as an acceptance criterion (59 false alarms
+on 625 closed ends at a 10 % threshold), and a 3-decade comparison window
+(it reaches a second arc and widened a closed end's range to -64 %).
 
 ### 8. DRT: R_inf on open high-frequency arcs, small arcs
 

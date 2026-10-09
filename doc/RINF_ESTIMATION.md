@@ -135,6 +135,34 @@ the data (e.g. two overlapping CPE arcs) it understates the real error: on
 `example/example_eis_data.csv` it reports 23 % while the fitted R_s is off by
 +153 %.
 
+### Range: where R_s lies
+
+`R_inf_range` is the interval meant to hold the true R_s, which the n(f) map
+(`--local-exponent`) turns into the uncertainty of n near f_max. For a bound
+it is (0, R_inf_upper): R_inf_upper is R_inf_hf widened by 3 sigma of the
+noise at f_hf. Around a fitted R_s it is the largest of
+
+- 3 x its stderr,
+- +-5 % (RINF_REL_STDERR_MAX),
+- 3 x the move of R_s when the fit is repeated over the top decade
+  (`R_inf_window_spread`; counted only when that fit determines R_s by the
+  same 5 % stderr criterion),
+
+clipped to 0..R_inf_upper (up to R_inf, should the fit lie above that bound).
+The last term is the model error the stderr does not see: on an end still
+open at f_max, R-L-(R|Q) stands in for an arc, CPE or Warburg continuing
+above it, and R_s moves with the window width. The comparison window lies
+inside the fit window, so it cannot reach another process further down; a
+3-decade window did (a second arc widened a closed end's range to -64 %).
+Without the term the stress test found an accepted fit 6-34 % off R_s,
+outside its range, on 39 of 1417 spectra; with it R_s is outside on 7 of 878
+accepted fits, 5 of them by under 3 % at 1-3 % noise, the others on ends
+far from closing (oxide/35: phase -84 deg at f_max, 16 % high). The median
+half-width stays 5 %, since on a closed end both windows agree; 90 % stay
+within 11.5 % (`doc/STRESS_TEST.md`, known limit 7). R_inf itself is the
+2-decade fit either way: one decade resolves an open arc better but
+scatters ten times more under noise.
+
 ### Fallback: HF upper bound
 
 When the fit does not determine R_inf, `R_inf = Re(Z)` at the highest
@@ -231,6 +259,10 @@ est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit)
 est.R_inf_stderr   # its standard error [Ohm]
 est.R_inf_hf       # fallback upper bound: Re(Z) at the highest f with Im(Z) <= 0 [Ohm]
+est.R_inf_upper    # R_inf_hf + 3 sigma of the noise there: what R_s cannot exceed [Ohm]
+est.R_inf_range    # (lo, hi) meant to hold R_s, see "Range" above [Ohm]
+est.R_inf_window_spread  # move of R_s in the top decade, the model error [Ohm]
+est.L              # inductance to subtract with R_inf (0 for a bound) [H]
 est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult of R-L-(R|Q): params_opt = [R_s, L, R_k, Q, n]
 est.f_window, est.Z_window  # data of the fit window

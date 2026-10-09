@@ -197,3 +197,61 @@ def test_small_rinf_in_front_of_large_film():
     result = estimate_rinf(f, circuit.impedance(f, circuit.get_all_params()))
     assert result.method == 'rlq_fit'
     assert result.R_inf == pytest.approx(0.05, rel=1e-3)
+
+
+
+def test_range_covers_the_model_error_on_an_open_end():
+    """A CPE arc peaking at 10 kHz, still open at f_max = 100 kHz: the
+    R-L-(R|Q) window fit is accepted 10 % below R_s = 10 Ohm (no noise).
+
+    Regression: R_inf_range was R_inf +- max(5 %, 3 stderr), 8.36..9.57 Ohm,
+    which the model error escapes; the stress test found R_s outside it on
+    39 of 1417 spectra. The window spread now widens it.
+    """
+    f = np.logspace(5, -2, 71)
+    jw = 2j * np.pi * f
+    Z = 10 + 1 / (1e-4 + 5.26e-7 * jw**0.6) + 1 / (1e-4 + 1.59e-5 * jw)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'rlq_fit'
+    assert abs(est.R_inf - 10) > 0.05 * 10           # the model error itself
+    assert est.R_inf_window_spread > 0.02 * est.R_inf
+    lo, hi = est.R_inf_range
+    assert lo <= 10 <= hi
+    assert hi <= est.R_inf_upper
+
+
+def test_range_stays_tight_on_a_closed_end():
+    """A closed arc (peak at 160 Hz, f_max 100 kHz): the narrow window gives
+    R_s too, so the window spread adds nothing to the +-5 % floor, and the
+    upper end is Re Z(f_max), the tighter physical bound."""
+    f = np.logspace(5, -2, 71)
+    est = estimate_rinf(f, 10 + 1000 / (1 + 2j * np.pi * f * 1e-3))
+    assert est.method == 'rlq_fit'
+    assert est.R_inf_window_spread < 1e-3 * est.R_inf
+    lo, hi = est.R_inf_range
+    assert (lo, hi) == pytest.approx((0.95 * est.R_inf, est.R_inf_upper), rel=1e-9)
+    assert est.R_inf_upper < 1.05 * est.R_inf
+
+
+def test_range_ignores_an_arc_below_the_window():
+    """Two arcs two decades apart, the top end closed (code review): a
+    3-decade comparison window reached into the second arc and widened the
+    range to 3.5..10.2 Ohm; the narrow window stays inside the first."""
+    f = np.logspace(7, -2, 91)
+    jw = 2j * np.pi * f
+    est = estimate_rinf(f, 10 + 100 / (1 + jw * 1e-6) + 1000 / (1 + jw * 1e-4))
+    assert est.method == 'rlq_fit'
+    lo, hi = est.R_inf_range
+    assert lo <= 10 <= hi
+    assert lo > 0.9 * est.R_inf
+
+
+def test_zero_point_below_the_window_does_not_break_the_spread():
+    """Z = 0 at a point 2.5 decades below f_max (code review: the 3-decade
+    window then divided by min|Z| = 0 and raised ZeroDivisionError)."""
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-3)
+    Z[25] = 0
+    est = estimate_rinf(f, Z)
+    assert est.method == 'rlq_fit'
+    assert est.R_inf == pytest.approx(10, rel=1e-6)

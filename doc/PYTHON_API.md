@@ -327,7 +327,7 @@ est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite
 # est: RinfResult dataclass
 est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound (clipped at 0)
 est.R_inf_upper    # HF bound + 3 sigma of the noise at f_hf: R_s cannot exceed it
-est.R_inf_range    # (lo, hi) meant to hold R_s (a fitted range can miss it, see docstring); est.L: the L to subtract with R_inf
+est.R_inf_range    # (lo, hi) meant to hold R_s, the fit's model error included (misses: docstring); est.L: the L to subtract with R_inf
 est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
 est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
@@ -904,7 +904,8 @@ from eis_analysis.rinf_estimation import estimate_rinf
 
 est = estimate_rinf(frequencies, Z)
 # est.L: the window fit's L when it determined R_inf, else 0;
-# est.R_inf_range: R_inf +- max(5 %, 3 stderr), or (0, R_inf_upper) when undetermined
+# est.R_inf_range: R_inf +- max(5 %, 3 stderr, 3x est.R_inf_window_spread) within
+#                   0..R_inf_upper, or (0, R_inf_upper) when undetermined
 res = local_exponent(frequencies, Z, R_inf=est.R_inf, L=est.L, R_inf_range=est.R_inf_range)
 
 # res is a LocalExponentResult (arrays sorted by ascending frequency):

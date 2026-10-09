@@ -74,6 +74,22 @@ RINF_BOUND_NOISE_SIGMAS = 3.0
 # 100x |Z(f_hf)|). Half a decade holds >= 3 points at >= 5 points/decade.
 RINF_NOISE_LOCAL_DECADES = 0.5
 
+# R_inf_range also covers the model error of the window fit, which its
+# stderr does not see: on an end still open at f_max, R-L-(R|Q) stands in for
+# an arc, CPE or Warburg continuing above it, and R_s moves with the window
+# width (accepted 6-34 % off on 39 of 1417 stress-test spectra,
+# doc/STRESS_TEST.md). The fit is repeated over the top RINF_SPREAD_DECADES
+# of its window, a subset that cannot reach another process further down (a
+# 3-decade window did: a second arc there widened a closed end's range to
+# -64 %), and the range reaches RINF_WINDOW_SPREAD_FACTOR x the move of R_s.
+# The error shrinks with the window, so the truth lies beyond the narrow
+# window's R_s: with 2x the move R_s stayed outside the range in 12 of 878
+# accepted fits, with 3x in 7 (5 of them within 3 % of the range at 1-3 %
+# noise), with 4x in 5; the median half-width stays 5 % (the move is ~0 on a
+# closed end), 90 % stay within 10, 11.5 and 13 %.
+RINF_SPREAD_DECADES = 1
+RINF_WINDOW_SPREAD_FACTOR = 3.0
+
 # Initial n of the CPE: midway in the typical 0.6-1.0 range of real arcs.
 _N_GUESS = 0.8
 
@@ -102,6 +118,9 @@ class RinfResult:
     f_window: NDArray[np.float64]  # frequencies of the fit window [Hz]
     Z_window: NDArray[np.complexfloating]  # impedance of the fit window [Ohm]
     fit: Optional[FitResult] = None  # None if the fit did not run
+    # |R_s - R_inf| of the fit over the top RINF_SPREAD_DECADES; 0 if R_inf
+    # is a bound or that fit is not possible or does not determine R_s [Ohm]
+    R_inf_window_spread: float = 0.0
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -120,20 +139,23 @@ class RinfResult:
     @property
     def R_inf_range(self) -> Tuple[float, float]:
         """Interval meant to hold the true R_s [Ohm]: (0, R_inf_upper) for a
-        bound; around a fitted R_s, RINF_BOUND_NOISE_SIGMAS x its stderr,
-        but at least +-RINF_REL_STDERR_MAX, as the stderr understates the
-        error under model mismatch.
+        bound. Around a fitted R_s the largest of RINF_BOUND_NOISE_SIGMAS x
+        its stderr, +-RINF_REL_STDERR_MAX and RINF_WINDOW_SPREAD_FACTOR x
+        `R_inf_window_spread` (the model error, which the stderr does not
+        see), within 0..R_inf_upper, where R_s physically lies (up to R_inf
+        if the fit itself lies above that bound).
 
-        In the stress test the bound held R_s every time, a fitted range
-        not always: where the arc is still open at f_max (phase down to
-        -82 deg) and the noise is low (<= 1 %), the window model's error
-        can exceed the +-5 %. R_s was outside in 39 of 1417 spectra, the
-        fit 6-34 % off, mostly below R_s (doc/STRESS_TEST.md, known
-        limit 7)."""
+        In the stress test the bound held R_s every time; a fitted range
+        missed it in 7 of 878 spectra, 5 of them by under 3 % at 1-3 %
+        noise, the others on ends far from closing (oxide/35: phase -84 deg
+        at f_max, 16 % high; doc/STRESS_TEST.md, known limit 7)."""
         if self.method == 'rlq_fit' and self.fit is not None:
             shift = max(RINF_REL_STDERR_MAX * abs(self.R_inf),
-                        RINF_BOUND_NOISE_SIGMAS * float(self.fit.params_stderr[0]))
-            return self.R_inf - shift, self.R_inf + shift
+                        RINF_BOUND_NOISE_SIGMAS * float(self.fit.params_stderr[0]),
+                        RINF_WINDOW_SPREAD_FACTOR * self.R_inf_window_spread)
+            # max(): a fit above the bound keeps R_inf inside its own range
+            return (max(self.R_inf - shift, 0.0),
+                    min(self.R_inf + shift, max(self.R_inf_upper, self.R_inf)))
         return 0.0, self.R_inf_upper
 
     @property
@@ -215,6 +237,36 @@ def _initial_circuit(f: NDArray, Z: NDArray, bounds: Dict[str, Tuple[float, floa
             - (R(R_k) | Q(clip(tau**_N_GUESS / R_k, 'Q'), _N_GUESS)))
 
 
+def _fit_window(f_win: NDArray, Z_win: NDArray) -> Tuple[FitResult, NDArray]:
+    """R-L-(R|Q) fit of one window with bounds relative to its |Z|; raises
+    RuntimeError when the fit fails."""
+    window_range = _window_range(f_win, Z_win)
+    circuit = _initial_circuit(f_win, Z_win, window_range)
+    labels = circuit.get_param_labels()
+    lower = [0.0 if label in ('R', 'L') else window_range[label][0] for label in labels]
+    upper = [window_range[label][1] for label in labels]
+    return fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
+
+
+def _window_spread(f_win: NDArray, Z_win: NDArray, R_fit: float) -> float:
+    """|R_s - R_fit| of the fit over the top RINF_SPREAD_DECADES of the
+    window. 0 when that part is too short or the whole window, or its fit
+    fails or does not determine R_s by the main fit's RINF_REL_STDERR_MAX
+    (an undetermined R_s measures the noise, not the model)."""
+    top = f_win >= f_win.max() / 10**RINF_SPREAD_DECADES
+    if top.sum() < RINF_FIT_MIN_POINTS or top.all():
+        return 0.0
+    try:
+        fit, _ = _fit_window(f_win[top], Z_win[top])
+    except RuntimeError:
+        return 0.0
+    R_s, stderr = float(fit.params_opt[0]), float(fit.params_stderr[0])
+    # `not <=` also rejects a NaN stderr
+    if not stderr <= RINF_REL_STDERR_MAX * abs(R_s):
+        return 0.0
+    return abs(R_s - R_fit)
+
+
 def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     """
     Estimate R_inf by an R-L-(R|Q) fit over the top RINF_FIT_DECADES decades.
@@ -288,13 +340,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
         result.warnings.append(f"Zero impedance in the top {RINF_FIT_DECADES} decades; {fallback}")
         return result
 
-    window_range = _window_range(f_win, Z_win)
-    circuit = _initial_circuit(f_win, Z_win, window_range)
-    labels = circuit.get_param_labels()
-    lower = [0.0 if label in ('R', 'L') else window_range[label][0] for label in labels]
-    upper = [window_range[label][1] for label in labels]
     try:
-        fit, Z_fit = fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
+        fit, Z_fit = _fit_window(f_win, Z_win)
     except RuntimeError as e:
         result.warnings.append(f"R-L-(R|Q) fit failed ({e}); {fallback}")
         return result
@@ -322,4 +369,5 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
         return result
 
     result.R_inf, result.method = R_fit, 'rlq_fit'
+    result.R_inf_window_spread = _window_spread(f_win, Z_win, R_fit)
     return result

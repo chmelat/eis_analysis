@@ -68,12 +68,22 @@ exceeds the signal:
   (`R_inf_hf` keeps the measured value), and the new `R_inf_upper` widens
   the bound by 3 sigma of the noise at f_hf, read off the window fit's
   residuals within half a decade of it. `RinfResult.R_inf_range` gives the
-  interval R_s lies in (around a fitted R_s 3 stderr, at least +-5 %;
-  (0, R_inf_upper) for a bound; it held R_s in 400 of 400 spectra with 3 %
-  proportional or constant noise of 0.75 R_s; on open high-frequency ends
-  at noise <= 1 % the window model's error escapes it, 39 of 1417 stress
-  cases, `doc/STRESS_TEST.md` known limit 7) and `RinfResult.L` the
-  inductance to subtract with R_inf.
+  interval R_s lies in ((0, R_inf_upper) for a bound, which held R_s in 400
+  of 400 spectra with 3 % proportional or constant noise of 0.75 R_s; around
+  a fitted R_s see the next entry) and `RinfResult.L` the inductance to
+  subtract with R_inf.
+- **`R_inf_range` covers the window fit's model error.** On an end still
+  open at f_max, R-L-(R|Q) stands in for an arc, CPE or Warburg continuing
+  above it, and the stderr does not see that error: the stress test found
+  the fit accepted (stderr <= 5 %) 6-34 % off R_s and outside a range of
+  +-max(5 %, 3 stderr) on 39 of 1417 spectra (cpe/91: 25 % low). The fit is
+  now repeated over the top decade of its window; the range reaches 3x the
+  move of R_s (`RinfResult.R_inf_window_spread`, counted only when that fit
+  determines R_s) and is clipped to 0..R_inf_upper, where R_s physically
+  lies. R_s is outside it on 7 of 878 accepted fits (5 of them by under
+  3 % at 1-3 % noise), the median half-width stays 5 %, 90 % stay within
+  11.5 %. R_inf itself is unchanged, so are `--ri-fit` and the DRT. One more
+  window fit per `estimate_rinf` call.
 - **The n(f) map no longer marks points determined when R_inf is only a
   bound.** Its R_inf sensitivity used +-5 % of R_inf, also when
   `estimate_rinf` returned the HF upper bound, which can be 100x R_s on an
