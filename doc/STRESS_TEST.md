@@ -289,11 +289,47 @@ front of a 3.8 Ohm arc, with L: the phase turns from capacitive to
 inductive) 15 %, rc/64 (35 points, with L) 5.4 %.
 
 The phase derivative is taken unsmoothed, which multiplies the phase noise
-by ~gamma / d(ln omega) (gamma = -pi/6). Beyond the floor a point is off
-by up to 11.7 sigma with proportional noise and 24 sigma with constant
-noise (rc/41): at 3 % noise, 10-30 % of |Z| at single points. At noise of
-1 % and more, Z-HIT's pointwise residuals say little; a smoothed phase
-before the derivative (Ehm et al.) would lower this, not implemented.
+by ~gamma / d(ln omega) (gamma = -pi/6): ~1.6x at 10 points/decade, ~3x at
+20, and the factor grows with the density (99 % of the noisy cases need
+5.9 sigma below 10 points/decade, 9.8 at 10-15, 11.9 above). Beyond the
+floor a point is off by up to 11.7 sigma with proportional noise and
+24 sigma with constant noise (rc/41): at 3 % noise, 10-30 % of |Z| at
+single points. At noise of 1 % and more, Z-HIT's pointwise residuals say
+little. At the user's ~0.15 % it is below the method's own floor.
+
+**Smoothing the derivative tried and rejected (2026-10-09).** Only
+d(phi)/d(ln omega) was replaced, the rest of Z-HIT kept; measured on the
+1500 spectra (noise factor at a 6 % floor, 99 % / largest; exact-data
+error 99 % / largest) and on `tests/test_zhit_fit_on.py` (resistance
+error of a fit to the reconstruction: clean, drift-corrected, mean of
+5 seeds at 1 % noise):
+
+| Derivative | Noise factor | Exact data | Fit-on clean / drift / 1 % |
+|---|---|---|---|
+| neighbour difference over >= 5 % (kept) | 9.3 / 24 sigma | 3.2 / 14.9 % | 0.12 / 0.42 / 1.04 % |
+| Savitzky-Golay, 5 / 7 points, quadratic | 6.0 / 13, 4.2 / 40 | 4.1 / 9.1, 5.8 / 14 % | |
+| Butterworth fc 0.35 + 5-point stencil | 5.2 / 14 | 3.4 / 13 % | |
+| Butterworth, fc by Morozov's principle | 6.5 / 25 | 3.3 / 16 % | |
+| smoothing spline, lambda by GCV | 3.5 / 76 | 3.4 / 18 % | |
+| local quadratic, +-0.4 decade | 5.4 / 10 | 3.7 / 4.4 % | 0.76 / 0.90 / 1.68 % |
+| local quadratic, +-0.25 decade | 9.9 / 26 | 3.3 / 9.1 % | 0.12 / 0.38 / 1.01 % |
+| local quartic, +-0.75 decade | 13 / 24 | 2.6 / 6.9 % | 0.12 / 0.38 / 0.90 % |
+
+No variant wins both ways. What lowers the pointwise noise (a wide,
+low-order window) puts a smooth, correlated error where the phase bends,
+which a fit to the reconstruction reads as shape: `--fit-on` got worse on
+clean and drifted data, which is what the user's low-noise spectra need.
+What keeps the fit-on accuracy does not lower the noise. A window fixed in
+decades also stops converging on dense grids (derivative error on exact
+data 10-40x the neighbour difference's at 10-20 points/decade), gives
+repeated frequencies double weight and spreads a NaN or a +-pi phase step
+over the whole window. Savitzky-Golay and Butterworth smooth over a fixed
+number of points, so their width in decades follows the point density;
+Morozov's principle chose weak smoothing (the phase noise is small against
+its signal); GCV failed on some spectra. Not tried: separate derivatives
+for the validation residuals and for the reconstruction behind `--fit-on`
+(two reconstructions in one result), and a density-adaptive or weighted
+(LOESS) window.
 
 ### 6. Lin-KK under constant noise
 
