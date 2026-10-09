@@ -1,4 +1,4 @@
-"""Consistency invariants of the stress test (tests/stress.py): D, E, F, I, M.
+"""Consistency invariants of the stress test (tests/stress.py): D, E, F, G, I, M.
 
 Unlike A, B, C, K (tests/stress_invariants.py), which compare an analysis
 with itself, these compare it with the truth the case was generated from.
@@ -26,10 +26,11 @@ import numpy as np
 
 from eis_analysis.analysis.local_exponent import local_exponent
 from eis_analysis.fitting import fit_circuit_multistart, fit_equivalent_circuit
+from eis_analysis.fitting.diffevo import fit_circuit_diffevo
 from eis_analysis.fitting.bounds import generate_simple_bounds
 from eis_analysis.fitting.diagnostics import compute_weights
 
-from tests.stress_cases import MULTISTART, Case, fit_start
+from tests.stress_cases import DE, MULTISTART, Case, de_start, fit_start
 from tests.stress_invariants import RES_ATOL, RTOL, drt_peaks
 
 # --- thresholds (calibrated on the full run of 2026-10-09, doc/STRESS_TEST.md) -
@@ -56,6 +57,10 @@ DRT_PEAK_TOL_DEC = 0.15      # true tau to the nearest DRT peak
 RINF_HF_TOL = 0.01           # R_inf above Re Z_true(f_max), relative
 RINF_CLOSED_TOL = 0.05       # |R_inf - Rs| / Rs on a closed high-frequency end
 F2_RTOL = 1e-6               # F2: cost(fit) <= cost(truth) * (1 + F2_RTOL) + floor
+G_RTOL = 1e-3                # G: the same for DE, whose polish stops on ftol
+# G runs DE (CLI defaults) on every DE_EVERY-th case only: one fit costs
+# ~11 s, 3x a whole case's other analyses (300 fits add ~14 min on 4 processes)
+DE_EVERY = 5
 
 
 Row = Tuple[str, str, str, str, Optional[float]]
@@ -160,6 +165,17 @@ def _cost(case: Case, Z_model: np.ndarray, weights: np.ndarray) -> float:
     return float(np.sum(np.abs((case.Z - Z_model) * weights) ** 2))
 
 
+def _cost_row(case: Case, inv: str, Z_fit: np.ndarray, rtol: float, error: float) -> Row:
+    """cost(fit) <= cost(truth) * (1 + rtol) + floor, both with the modulus
+    weights the fits minimize (the CLI and multistart default); the floor,
+    rounding noise, decides only on noise-free data."""
+    w = compute_weights(case.Z, 'modulus')
+    cost_fit, cost_true = _cost(case, Z_fit, w), _cost(case, case.Z_clean, w)
+    floor = RES_ATOL ** 2 * float(np.sum(np.abs(case.Z * w) ** 2))
+    return _ratio_row('fit', inv, cost_fit, cost_true * (1 + rtol) + floor,
+                      f'cost {cost_fit / max(cost_true, floor):.4g}x truth, error {error:.3g} %')
+
+
 def check_F(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     # F1: noise-free, started at the truth -> stays there
     if case.noise_level == 0:
@@ -171,12 +187,7 @@ def check_F(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     ms, Z_fit = fit_circuit_multistart(case.circuit(fit_start(case)), case.frequencies,
                                        case.Z, rng=case.rng(MULTISTART))
     best = ms.best_result
-    w = compute_weights(case.Z, 'modulus')     # the multistart default
-    cost_fit, cost_true = _cost(case, Z_fit, w), _cost(case, case.Z_clean, w)
-    floor = RES_ATOL ** 2 * float(np.sum(np.abs(case.Z * w) ** 2))
-    row = _ratio_row('fit', 'F2', cost_fit, cost_true * (1 + F2_RTOL) + floor,
-                     f'cost {cost_fit / max(cost_true, floor):.4g}x truth, '
-                     f'error {best.fit_error_rel:.3g} %')
+    row = _cost_row(case, 'F2', Z_fit, F2_RTOL, best.fit_error_rel)
     f2_ok = row[2] == 'pass'
     rows.append(row if f2_ok else ('fit', 'F2', 'lokmin', row[3], row[4]))
 
@@ -199,6 +210,21 @@ def check_F(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
         warned = bool(best.diagnostics and best.diagnostics.bounds_warnings)
         rows.append(_row('fit', 'F4', warned,
                          f'parameters {np.flatnonzero(at).tolist()} at a bound, no warning', None))
+
+
+# --- G: circuit fit with DE ----------------------------------------------------
+
+def check_G(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
+    """DE, the global optimizer and the one the oxide analyses use, ends no
+    worse than the truth from a start up to two decades off (de_start).
+    Unlike F2 a worse end is a failure, not a rate: finding the global
+    minimum is DE's job."""
+    if case.index % DE_EVERY:
+        return
+    seed = int(case.rng(DE).integers(2 ** 31))
+    de, Z_fit = fit_circuit_diffevo(case.circuit(de_start(case)), case.frequencies,
+                                    case.Z, seed=seed)
+    rows.append(_cost_row(case, 'G', Z_fit, G_RTOL, de.best_result.fit_error_rel))
 
 
 # --- I: R_inf ----------------------------------------------------------------
@@ -258,12 +284,12 @@ def check_M(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
 # On an exception the row goes to the check's main analysis and invariant.
 CONSISTENCY: Tuple[Tuple[Callable[..., None], str, str], ...] = (
     (check_D, 'linkk', 'D'), (check_E, 'drt', 'Eneg'), (check_F, 'fit', 'F2'),
-    (check_I, 'rinf', 'Ihf'), (check_M, 'n(f)', 'M'),
+    (check_G, 'fit', 'G'), (check_I, 'rinf', 'Ihf'), (check_M, 'n(f)', 'M'),
 )
-CONSISTENCY_INVARIANTS = ('D', 'Eneg', 'Erec', 'Edc', 'Epeak', 'F1', 'F2', 'F3', 'F4',
+CONSISTENCY_INVARIANTS = ('D', 'Eneg', 'Erec', 'Edc', 'Epeak', 'F1', 'F2', 'F3', 'F4', 'G',
                           'Irange', 'Ihf', 'Iclosed', 'Ifit', 'M')
 # Their value is measured / allowed (pass at <= 1), shown in the calibration table
-RATIO_INVARIANTS = ('D', 'Erec', 'Edc', 'Epeak', 'F1', 'F2', 'Irange', 'Ihf', 'Iclosed')
+RATIO_INVARIANTS = ('D', 'Erec', 'Edc', 'Epeak', 'F1', 'F2', 'G', 'Irange', 'Ihf', 'Iclosed')
 
 
 def consistency_rows(case: Case, raw: Dict[str, Any]) -> List[Row]:

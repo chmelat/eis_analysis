@@ -11,8 +11,11 @@ do DC, Erec jen na uzavrenem VF konci), knihovna opravena (Z-HIT bez
 unwrap, mez R_inf se sumem, n(f) s `R_inf_range`), konstantni sum omezen
 na SNR >= 10. Plny beh 2026-10-09: prahy zkalibrovany (2x rezerva),
 vysledky a zname limity 5-9 v `doc/STRESS_TEST.md`; `--ri-fit` zustava
-volitelny (Ifit 0.80 / 0.64 pri 1 / 3 % sumu). Zbyva: overovaci beh,
-kontrolni bod s uzivatelem (rozsah kroku 4-5, oprava `R_inf_range`).
+volitelny (Ifit 0.80 / 0.64 pri 1 / 3 % sumu). Overovaci beh hotov.
+Kontrolni bod 2026-10-09: z kroku 4 jen G (DE ze startu az 2 dekady od pravdy,
+kazdy paty pripad; 300/300 proslo), H, J a L vynechany; krok 5 hotov
+(`stress_baseline.json`, `--check`, `--update-baseline`, smoke test
+s markerem `stress`). Zbyva: oprava `R_inf_range` (znamy limit 7).
 Vychozi verze: eis_analysis v0.56.7.
 
 ## Kontext
@@ -240,8 +243,9 @@ ZScope):
     v `diagnostics.bounds_warnings`. Jen tento smer: varovani prichazi
     uz do 1 dekady od meze, opacny smer by jen kopiroval
     `classify_bound_status`.
-- **G DE** (~10 % pripadu): `fit_circuit_diffevo` se seedem (purpose 4),
-  cost <= cost(pravda) * (1 + 1e-3) + podlaha.
+- **G DE** (kazdy paty pripad, 20 %): `fit_circuit_diffevo` se seedem (purpose 4)
+  ze startu az 2 dekady od pravdy (purpose 6, `de_start`),
+  cost <= cost(pravda) * (1 + 1e-3) + podlaha. Horsi konec je selhani.
 - **H Voigt.** `fit_voigt_chain_linear`: Rs + sum R ~ Re Z(f_min)
   u uzavrenych spekter.
 - **I R_inf.** Jen pripady bez L. 0 <= R_inf <= Re Z(f_max) * (1 + tol);

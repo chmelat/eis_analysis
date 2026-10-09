@@ -115,6 +115,7 @@ Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-speci
 python3 -m pytest tests/                 # Default run (skips the slow benchmark)
 python3 -m pytest tests/ -m ""           # Everything, benchmark included
 python3 -m pytest tests/ -m slow         # Only the ZScope benchmark
+python3 -m pytest tests/ -m stress       # Only the stress smoke run
 python3 -m pytest tests/ -v              # Verbose output
 python3 -m pytest tests/test_K_element.py  # Specific file
 python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
@@ -123,6 +124,16 @@ python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
 `tests/test_zscope_benchmark.py` is marked `slow` and excluded by default: it
 fits four reference circuits at three noise levels with DE, which is slow.
 Run it before a release.
+
+The stress test (`tests/stress.py`, design `doc/STRESS_TEST_PLAN.md`, results
+and known limits `doc/STRESS_TEST.md`) checks random spectra against
+invariants. Its smoke run is marked `stress` and excluded by default:
+
+```bash
+python3 -m pytest tests/ -m stress       # first 3 cases per family vs. the baseline (~1.5 min)
+python3 tests/stress.py --check          # full run (~40 min) vs. tests/stress_baseline.json
+python3 tests/stress.py --update-baseline  # after a triaged change: record the new baseline
+```
 
 ---
 

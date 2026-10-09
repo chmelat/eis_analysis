@@ -40,9 +40,12 @@ include = ["eis_analysis*"]
 # in the optimizer, the analytic Jacobian or an element's impedance. That is
 # worth running before a release, not on every edit, so it is marked `slow`
 # and excluded by default. Run it with `pytest -m ""` (everything) or
-# `pytest -m slow` (only the benchmark).
-addopts = '-m "not slow"'
-markers = ["slow: long-running regression benchmarks, excluded by default"]
+# `pytest -m slow` (only the benchmark). The stress test's smoke run
+# (tests/test_stress_smoke.py, ~1.5 min) is excluded the same way:
+# `pytest -m stress`.
+addopts = '-m "not slow and not stress"'
+markers = ["slow: long-running regression benchmarks, excluded by default",
+           "stress: smoke run of the stress test against its baseline, excluded by default"]
 
 [tool.ruff.lint]
 # Pinned explicitly rather than relying on ruff's defaults. CI installs ruff

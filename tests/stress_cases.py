@@ -22,7 +22,7 @@ FAMILY_IDS = {'rc': 1, 'cpe': 2, 'diffusion': 3, 'blocking': 4, 'oxide': 5,
               'anomalous': 6}
 
 # Random stream per purpose
-CIRCUIT, NOISE, START, MULTISTART, DE, ORDER = range(6)
+CIRCUIT, NOISE, START, MULTISTART, DE, ORDER, DE_START = range(7)
 
 # How a parameter scales when Z -> k*Z (power of k), by parameter label
 K_POWER = {'R': 1, 'L': 1, 'σ': 1, 'R_W': 1, 'C': -1, 'Q': -1, 'G': -1,
@@ -337,6 +337,30 @@ def capacitive_end(case: Case) -> bool:
     return bool(low_frequency_slope(case.frequencies, case.Z_clean) < 0)
 
 
+# Parameters on a linear scale, capped at 1: a start factor would throw them
+# out of their bounds
+LINEAR_LABELS = ('n', 'γ_W')
+
+# DE start: scale parameters up to this many decades from the truth, as a
+# rough guess for an unfamiliar sample can be
+DE_START_DEC = 2.0
+
+
+def de_start(case: Case) -> np.ndarray:
+    """Start of the DE fit: truth x 10^U(-2, 2), the exponents n and gamma
+    uniform within their bounds, clipped into the bounds.
+
+    DE takes the start as one member of its population, so a start near the
+    truth (fit_start) would test little more than its polish.
+    """
+    rng = case.rng(DE_START)
+    lower, upper = (np.asarray(b, dtype=float) for b in generate_simple_bounds(case.labels))
+    start = case.truth * 10 ** rng.uniform(-DE_START_DEC, DE_START_DEC, len(case.truth))
+    linear = np.isin(case.labels, LINEAR_LABELS)
+    start[linear] = rng.uniform(lower[linear], upper[linear])
+    return np.clip(start, lower, upper)
+
+
 def fit_start(case: Case) -> np.ndarray:
     """Start of the LM fit: truth x U(0.3, 3), clipped into the bounds.
 
@@ -345,7 +369,7 @@ def fit_start(case: Case) -> np.ndarray:
     """
     rng = case.rng(START)
     factors = 10 ** rng.uniform(np.log10(0.3), np.log10(3.0), len(case.truth))
-    linear = np.array([label in ('n', 'γ_W') for label in case.labels])
+    linear = np.isin(case.labels, LINEAR_LABELS)
     factors[linear] = rng.uniform(0.9, 1.1, int(linear.sum()))
     lower, upper = generate_simple_bounds(case.labels)
     return np.clip(case.truth * factors, lower, upper)

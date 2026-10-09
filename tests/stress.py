@@ -5,6 +5,8 @@
     python3 tests/stress.py --n 20 --family rc       # smaller run
     python3 tests/stress.py --family oxide --index 37 -v   # one case
     python3 tests/stress.py --json out.json          # also write every check
+    python3 tests/stress.py --update-baseline        # full run -> stress_baseline.json
+    python3 tests/stress.py --n 3 --check            # fail on a failure not in the baseline
 
 Not a pytest module (no test_ prefix). Design and invariants:
 doc/STRESS_TEST_PLAN.md.
@@ -44,9 +46,20 @@ DEFAULT_N = 250
 # At most 4 CPU-heavy processes for long runs
 MAX_WORKERS = 4
 
+# Known failures (family/index analysis:invariant) and aggregate rates of
+# the last full run; --check compares against it (doc/STRESS_TEST_PLAN.md)
+BASELINE = Path(__file__).with_name('stress_baseline.json')
+# A rate fails --check when it moves the wrong way by more than this many
+# binomial standard errors of the baseline rate (over the cases): a smaller
+# move is within what redrawing the cases would do, so a change of code that
+# shifts a few cases does not count as a regression.
+RATE_SIGMAS = 3.0
+# Rates where a rise is the regression (local minima); for the rest a drop is
+RISING_RATES = ('F2',)
+
 # Invariants with a fail/checked table; F3, Ifit and M are aggregate rates ('stat')
 TABLE_INVARIANTS = INVARIANTS + tuple(i for i in CONSISTENCY_INVARIANTS if i not in ('F3', 'Ifit', 'M'))
-FIT_INVARIANTS = INVARIANTS + ('F1', 'F2', 'F4')
+FIT_INVARIANTS = INVARIANTS + ('F1', 'F2', 'F4', 'G')
 
 # Deviations that are not failures, shown in brackets: absolute bounds
 # (Babs) and fits ending in a local minimum (F2), a rate by class
@@ -147,12 +160,33 @@ def print_fit_classes(results):
         print(f'{inv:8}' + ''.join(cells))
 
 
+def aggregate_rates(results):
+    """'invariant noise-level' -> [hits, total, cases] of the rate invariants
+    (F3, Ifit, M) and of F2's local minima. total counts parameters (F3) or
+    points (M), which within a case are correlated; cases counts the cases."""
+    rates = defaultdict(lambda: [0, 0, 0])
+    for r in results:
+        level = r['noise'].split()[0]
+        for c in r['checks']:
+            if c['status'] == 'stat':
+                hit, total = map(int, c['detail'].split()[0].split('/'))
+            elif c['invariant'] == 'F2' and c['status'] in ('pass', 'lokmin'):
+                # not 'fail': an exception says nothing about local minima
+                hit, total = int(c['status'] == 'lokmin'), 1
+            else:
+                continue
+            rate = rates[f'{c["invariant"]} {level}']
+            rate[0] += hit
+            rate[1] += total
+            rate[2] += 1
+    return dict(sorted(rates.items()))
+
+
 def print_calibration(results):
     """Distribution of measured / allowed of each threshold check by noise
     level (what its threshold is calibrated against), and the aggregate
-    rates F3 and M, with M's worst |dn| per case."""
+    rates, with M's worst |dn| per case."""
     values = defaultdict(list)
-    rates = defaultdict(lambda: [0, 0])
     for r in results:
         level = r['noise'].split()[0]
         for c in r['checks']:
@@ -160,22 +194,62 @@ def print_calibration(results):
                 continue
             if c['invariant'] in RATIO_INVARIANTS:
                 values[(c['analysis'], c['invariant'], level)].append(c['value'])
-            elif c['status'] == 'stat':
-                hit, total = map(int, c['detail'].split()[0].split('/'))
-                rates[(c['invariant'], level)][0] += hit
-                rates[(c['invariant'], level)][1] += total
-                if c['invariant'] == 'M':
-                    values[('n(f)', 'M |dn|', level)].append(c['value'])
+            elif c['invariant'] == 'M':
+                values[('n(f)', 'M |dn|', level)].append(c['value'])
     print('\nCalibration: measured / allowed by noise level, M as max |dn| (quantiles '
           + ', '.join(f'{q:g}' for q in QUANTILES) + ')')
     for (analysis, inv, level), v in sorted(values.items()):
         q = np.quantile(v, QUANTILES)
         print(f'  {analysis:6} {inv:8} noise {level:6} n={len(v):5}  '
               + '  '.join(f'{x:10.3g}' for x in q))
-    print('\nAggregate rates (F3: truth inside the 95 % CI; Ifit: R_inf fitted on a closed HF end;'
-          ' M: |dn| <= 2 x uncertainty)')
-    for (inv, level), (hit, total) in sorted(rates.items()):
-        print(f'  {inv:3} noise {level:6} {hit}/{total} = {hit / max(total, 1):.3f}')
+    print('\nAggregate rates (F2: local minima; F3: truth inside the 95 % CI;'
+          ' Ifit: R_inf fitted on a closed HF end; M: |dn| <= 2 x uncertainty)')
+    for key, (hit, total, _) in aggregate_rates(results).items():
+        inv, level = key.split()
+        print(f'  {inv:4} noise {level:6} {hit}/{total} = {hit / max(total, 1):.3f}')
+
+
+def failure_keys(results):
+    return {f'{r["family"]}/{r["index"]} {c["analysis"]}:{c["invariant"]}'
+            for r in results for c in r['checks'] if c['status'] == 'fail'}
+
+
+def write_baseline(results):
+    BASELINE.write_text(json.dumps({
+        'failures': sorted(failure_keys(results)),
+        'rates': aggregate_rates(results)}, indent=1) + '\n')
+    print(f'\nBaseline written to {BASELINE}')
+
+
+def check_baseline(results, full_run):
+    """False on a failure the baseline does not list, or, on a full run,
+    a rate that moved the wrong way by more than RATE_SIGMAS."""
+    base = json.loads(BASELINE.read_text())
+    ran = {f'{r["family"]}/{r["index"]}' for r in results}
+    expected = {k for k in base['failures'] if k.split()[0] in ran}
+    got = failure_keys(results)
+    new, gone = sorted(got - expected), sorted(expected - got)
+    print(f'\nBaseline check: {len(new)} new failures, {len(gone)} gone')
+    for k in new:
+        print(f'  NEW  {k}')
+    for k in gone:
+        print(f'  gone {k}  (candidate for --update-baseline)')
+    ok = not new
+    if full_run:
+        for key, (hit, total, cases) in aggregate_rates(results).items():
+            if key not in base['rates'] or total == 0:
+                continue
+            b_hit, b_total, _ = base['rates'][key]
+            p = b_hit / b_total
+            # The standard error over cases, not points: the points of one
+            # case move together. At least one case of slack, where the
+            # baseline rate is 0 or 1.
+            allowed = max(RATE_SIGMAS * np.sqrt(p * (1 - p) / cases), 1 / cases)
+            worse = (hit / total - p) * (1 if key.split()[0] in RISING_RATES else -1)
+            if worse > allowed:
+                ok = False
+                print(f'  RATE {key}: {hit / total:.3f} against {p:.3f} (allowed {allowed:.3f})')
+    return ok
 
 
 def print_failures(results):
@@ -205,15 +279,26 @@ def main(argv=None):
     parser.add_argument('--workers', type=int, default=MAX_WORKERS,
                         help=f'processes (default and maximum {MAX_WORKERS})')
     parser.add_argument('--json', type=Path, help='write every check to this file')
+    # Exclusive: written first, the baseline would pass its own check
+    baseline = parser.add_mutually_exclusive_group()
+    baseline.add_argument('--update-baseline', action='store_true',
+                          help=f'write {BASELINE.name} (full run only)')
+    baseline.add_argument('--check', action='store_true',
+                          help=f'exit 1 on a failure not in {BASELINE.name}')
     args = parser.parse_args(argv)
 
-    families = args.family or list(FAMILIES)
+    families = list(dict.fromkeys(args.family or FAMILIES))   # a repeated --family runs once
     if args.index is not None:
         if len(families) != 1:
             parser.error('--index needs exactly one --family')
         jobs = [(families[0], args.index)]
     else:
         jobs = [(family, i) for family in families for i in range(args.n)]
+    full_run = args.index is None and args.n == DEFAULT_N and set(families) == set(FAMILIES)
+    if args.update_baseline and not full_run:
+        parser.error('--update-baseline needs a full run (no --n, --family, --index)')
+    if args.check and not BASELINE.exists():
+        parser.error(f'no {BASELINE.name} yet: write it with a full run --update-baseline')
 
     start = time.perf_counter()
     if len(jobs) == 1:
@@ -237,6 +322,10 @@ def main(argv=None):
           f'rejected draws {sum(r["n_rejected"] for r in results)}')
     if args.json:
         args.json.write_text(json.dumps(results, indent=1))
+    if args.update_baseline:
+        write_baseline(results)
+    if args.check and not check_baseline(results, full_run):
+        return 1
     return 0
 
 

@@ -4,7 +4,10 @@
 families, random frequency grids and noise) and checks invariants that must
 hold whatever the truth is. Design: `doc/STRESS_TEST_PLAN.md`.
 
-    python3 tests/stress.py                          # full run, ~25 min on 4 processes
+    python3 tests/stress.py                          # full run, ~40 min on 4 processes
+    python3 tests/stress.py --check                  # full run against tests/stress_baseline.json
+    python3 tests/stress.py --update-baseline        # record a triaged full run as the baseline
+    python3 -m pytest tests/ -m stress               # smoke: first 3 cases per family, ~1 min
     python3 tests/stress.py --family oxide --index 37 -v   # replay one case
 
 A case is reproducible from `family/index` alone (separate random streams per
@@ -36,6 +39,7 @@ measured / allowed, with the allowance factor x sigma + floor x |Z_true|
 | F2 | Multistart from truth x U(0.3, 3) ends no worse than the truth; a worse end is a local minimum, a rate ("lokmin") |
 | F3 | Rate: truth inside the reported 95 % CI (proportional noise, well-conditioned fits) |
 | F4 | A parameter at a bound is reported |
+| G | DE (CLI defaults) from truth x 10^U(-2, 2), exponents uniform in their bounds, ends no worse than the truth (cost x (1 + 1e-3) + floor); every 5th case; a worse end is a failure |
 | Irange | `R_inf_range` holds the true Rs (cases without L) |
 | Ihf | R_inf <= Re Z_true(f_max) + 1 % + 3 sigma (passivity) |
 | Iclosed | R_inf within 5 % + 3 sigma of Rs on a closed high-frequency end (phase > -5 deg) |
@@ -133,6 +137,32 @@ The Ifit rate decides the `--ri-fit` default: as the default it would
 report "R_inf not determined" on 20 % (1 % noise) to 36 % (3 % noise) of
 spectra whose high-frequency end is closed, so `--ri-fit` stays opt-in
 until that false alarm is silenced.
+
+## Invariant G and the baseline, 2026-10-09
+
+G fits with DE from a start up to two decades off the truth, as a rough
+guess for an unfamiliar sample can be (`de_start`), on every 5th case: 300
+fits, ~11 s each, which lengthens a full run to ~40 min (2465 s). DE takes
+the start as one member of its population, so the first version, started
+like F2 at truth x U(0.3, 3), tested little more than its polish; it too
+passed 150 of 150.
+
+- G: 300 of 300 passed. On noisy spectra DE ends at 0.95-0.998x the
+  truth's cost (it fits part of the noise), on noise-free ones at a
+  relative cost of ~1e-13.
+- All other checks: the same 228 failures as the verification run, none
+  new, none gone.
+
+`tests/stress_baseline.json` holds these 228 failures and the aggregate
+rates (F2 local minima, F3, Ifit, M per noise level, with the number of
+cases). `--check` fails on a failure not in it, and on a full run on a rate
+that moves the wrong way by more than 3 binomial standard errors over the
+cases (the points of one case move together, so they do not count
+separately). The smoke test (`tests/test_stress_smoke.py`, marker `stress`)
+runs the first 3 cases of every family through `--check` in a subprocess,
+which keeps one BLAS thread as invariant K needs; 66 s. Check of the check:
+R_inf x 1.1 injected into `estimate_rinf` gave 20 new failures (Ihf,
+Iclosed, Irange) and exit code 1.
 
 ## Bugs found and fixed
 
