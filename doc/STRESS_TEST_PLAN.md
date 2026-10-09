@@ -9,8 +9,10 @@ prahy PROVIZORNI. Prvni plny beh roztriden: chyby testu opraveny (piky DRT
 z `scipy_peaks`, serie C v Lin-KK podle pravidla CLI, Edc proti intervalu
 do DC, Erec jen na uzavrenem VF konci), knihovna opravena (Z-HIT bez
 unwrap, mez R_inf se sumem, n(f) s `R_inf_range`), konstantni sum omezen
-na SNR >= 10. Zbyva: plny beh, kalibrace prahu s 2x rezervou, overovaci
-beh, zapis do `doc/STRESS_TEST.md`, kontrolni bod s uzivatelem.
+na SNR >= 10. Plny beh 2026-10-09: prahy zkalibrovany (2x rezerva),
+vysledky a zname limity 5-9 v `doc/STRESS_TEST.md`; `--ri-fit` zustava
+volitelny (Ifit 0.80 / 0.64 pri 1 / 3 % sumu). Zbyva: overovaci beh,
+kontrolni bod s uzivatelem (rozsah kroku 4-5, oprava `R_inf_range`).
 Vychozi verze: eis_analysis v0.56.7.
 
 ## Kontext
@@ -26,7 +28,8 @@ ctyri obvody, extremy (mOhm baterie, GOhm oxidy, blokujici elektrody, L)
 a kontrola vlastnosti, ktere nezavisi na pravde. Uz ted je znamy pripad,
 ktery by invariant chytil: absolutni meze `RESISTANCE_RANGE`
 (`fitting/bounds.py:15`) rozbiji fit plosne normovanych dat (mereni B
-v driftlet srovnani), tj. vysledek zavisi na jednotkach.
+v driftlet srovnani). Pozdeji (2026-10-07) uzavreno jako zamer: meze jsou
+fyzikalni v zakladnich jednotkach, `doc/STRESS_TEST.md` limit 2.
 
 **Cil:** nastroj, ktery na nahodnych, ale fyzikalne vernych spektrech
 overi invarianty vsech hlavnich casti (DRT, Lin-KK, Z-HIT, R_inf, fit,

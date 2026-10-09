@@ -70,7 +70,9 @@ exceeds the signal:
   residuals within half a decade of it. `RinfResult.R_inf_range` gives the
   interval R_s lies in (around a fitted R_s 3 stderr, at least +-5 %;
   (0, R_inf_upper) for a bound; it held R_s in 400 of 400 spectra with 3 %
-  proportional or constant noise of 0.75 R_s) and `RinfResult.L` the
+  proportional or constant noise of 0.75 R_s; on open high-frequency ends
+  at noise <= 1 % the window model's error escapes it, 39 of 1417 stress
+  cases, `doc/STRESS_TEST.md` known limit 7) and `RinfResult.L` the
   inductance to subtract with R_inf.
 - **The n(f) map no longer marks points determined when R_inf is only a
   bound.** Its R_inf sensitivity used +-5 % of R_inf, also when
@@ -99,15 +101,15 @@ exceeds the signal:
   The same parameter is on `perturb_from_covariance`,
   `perturb_from_stderr` and `perturb_log_uniform`. The CLI is unchanged.
 - **`fit_equivalent_circuit(..., bounds=(lower, upper))`** replaces the
-  absolute `PARAMETER_BOUNDS` with per-parameter bounds, for fits whose
-  result must not depend on the units.
+  absolute `PARAMETER_BOUNDS` with per-parameter bounds, for fits that
+  need other bounds than the physical defaults.
 
 ### Fixed
 
-- **R_inf (`estimate_rinf`, `--ri-fit`) no longer depends on the units.**
+- **R_inf (`estimate_rinf`, `--ri-fit`) no longer depends on the magnitude of Z.**
   The R-L-(R|Q) window fit used the absolute `PARAMETER_BOUNDS`. Where the
   window does not see the arc close, R_k runs off to an open arc and hit
-  R <= 1e10 Ohm, Q <= 0.1 or L <= 1e-4 H depending on the units. The new
+  R <= 1e10 Ohm, Q <= 0.1 or L <= 1e-4 H depending on the magnitude. The new
   stress test (`tests/stress.py`) multiplied 1250 random spectra by 1000 or
   0.001 and found R_inf shifted on 51 % of them, by more than 10 % on 7 %.
   On a GOhm oxide film the fit failed and R_inf fell back to the HF bound
@@ -117,7 +119,7 @@ exceeds the signal:
   limit. A relative floor would cut off what noise-free data still
   determine. The initial L of a capacitive top is now a reactance of 0.1 %
   of |Z| instead of 1 nH.
-- **Circuit fits stop at the same point in any units.** `least_squares`
+- **Circuit fits stop at the same point at any magnitude of Z.** `least_squares`
   stops on xtol and gtol, which mix units: xtol compares the step norm
   with the norm of x over R ~ 1e7 Ohm and C ~ 1e-12 F alike, and gtol is
   absolute in a cost that carried Ohm^2. The `x_scale` floor of 1e-10 also
@@ -131,8 +133,9 @@ exceeds the signal:
   the relative ftol and xtol instead. With bounds scaled along with the data, 300
   of 300 stress cases now give identical fits; before, 42 did not. The
   default absolute `PARAMETER_BOUNDS` still steer scipy's trust region (by
-  their distance, even far away), so a fit with them stays unit-dependent:
-  a known limit, measured by the stress test.
+  their distance, even far away), so a fit with them depends on where Z
+  sits within these physical limits: intended, see `doc/STRESS_TEST.md`
+  (known limit 2).
 - **Multistart restarts keep a small conductance.** Every perturbed start
   ended in max(x, 1e-15), which lifted G (bounds 0..1e4 S) and alpha_CC off
   their valid 0 and pushed a G below 1e-15 S up to 1e-15. Starts are now

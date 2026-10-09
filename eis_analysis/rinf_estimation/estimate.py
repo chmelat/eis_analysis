@@ -119,10 +119,17 @@ class RinfResult:
 
     @property
     def R_inf_range(self) -> Tuple[float, float]:
-        """Interval the true R_s lies in [Ohm]: (0, R_inf_upper) for a bound;
-        around a fitted R_s, RINF_BOUND_NOISE_SIGMAS x its stderr, but at
-        least +-RINF_REL_STDERR_MAX, as the stderr understates the error
-        under model mismatch."""
+        """Interval meant to hold the true R_s [Ohm]: (0, R_inf_upper) for a
+        bound; around a fitted R_s, RINF_BOUND_NOISE_SIGMAS x its stderr,
+        but at least +-RINF_REL_STDERR_MAX, as the stderr understates the
+        error under model mismatch.
+
+        In the stress test the bound held R_s every time, a fitted range
+        not always: where the arc is still open at f_max (phase down to
+        -82 deg) and the noise is low (<= 1 %), the window model's error
+        can exceed the +-5 %. R_s was outside in 39 of 1417 spectra, the
+        fit 6-34 % off, mostly below R_s (doc/STRESS_TEST.md, known
+        limit 7)."""
         if self.method == 'rlq_fit' and self.fit is not None:
             shift = max(RINF_REL_STDERR_MAX * abs(self.R_inf),
                         RINF_BOUND_NOISE_SIGMAS * float(self.fit.params_stderr[0]))

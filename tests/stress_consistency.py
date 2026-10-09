@@ -32,14 +32,20 @@ from eis_analysis.fitting.diagnostics import compute_weights
 from tests.stress_cases import MULTISTART, Case, fit_start
 from tests.stress_invariants import RES_ATOL, RTOL, drt_peaks
 
-# --- thresholds (PROVISIONAL until calibrated from the first run) ------------
+# --- thresholds (calibrated on the full run of 2026-10-09, doc/STRESS_TEST.md) -
 # Pointwise residual checks: |dZ_i| <= NOISE_FACTOR * sigma_i + FLOOR * |Z_i|.
-# NOISE_FACTOR covers the largest of ~2N Gaussian draws (~3.5 sigma at
-# N = 150); FLOOR is the method's own error on exact data.
-LINKK_NOISE_FACTOR, LINKK_FLOOR = 5.0, 1e-3
-ZHIT_NOISE_FACTOR, ZHIT_FLOOR = 5.0, 1e-2
-# DRT reconstruction, as an RMS over the points of |dZ_i| / allowance_i
-DRT_REC_NOISE_FACTOR, DRT_REC_FLOOR = 1.5, 1e-3
+# FLOOR is 2x the method's largest error on exact data, NOISE_FACTOR 2x the
+# largest (Z-HIT) or 99th-percentile (Lin-KK) factor the noisy cases need on
+# top of it. Lin-KK: largest 6.3e-3 |Z| (Wa/Wat), 99 % 4.4, largest 9.0
+# (anomalous/88). Z-HIT: 99 % of exact cases within 3.2e-2 |Z|, the rest
+# phase jumps (known limit); it differentiates the phase unsmoothed, which
+# multiplies the phase noise by ~gamma / d(ln omega), so up to 11.7 sigma
+# (proportional) and 24 sigma (rc/41, constant).
+LINKK_NOISE_FACTOR, LINKK_FLOOR = 10.0, 1.3e-2
+ZHIT_NOISE_FACTOR, ZHIT_FLOOR = 25.0, 6e-2
+# DRT reconstruction, as an RMS over the points of |dZ_i| / allowance_i;
+# exact data up to an RMS of 7e-3 |Z|
+DRT_REC_NOISE_FACTOR, DRT_REC_FLOOR = 2.0, 1.5e-2
 # Single-value checks read one noisy point: 3 sigma of it on top of the tolerance
 POINT_SIGMAS = 3.0
 # A spectrum counts as closed at an end when its true phase there is above
@@ -85,8 +91,13 @@ def check_D(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     if 'linkk' in raw:
         kk = raw['linkk']
         kk_abs = np.maximum(np.abs(kk.residuals_real), np.abs(kk.residuals_imag)) * Z_mag
-        rows.append(_ratio_row('linkk', 'D', kk_abs,
-                               _allowance(case, LINKK_NOISE_FACTOR, LINKK_FLOOR), f'M {kk.M}'))
+        # Lin-KK fits relative residuals, so the noisiest point relative to
+        # its |Z| sets how far mu lets M grow and the error everywhere: under
+        # constant noise (SNR 10 at min |Z|) up to 8 % at the large |Z|, 5e5
+        # sigma there. For proportional noise this is factor x sigma_i.
+        rel_noise = float(np.max(case.sigma / np.abs(case.Z_clean)))
+        allowed = (LINKK_NOISE_FACTOR * rel_noise + LINKK_FLOOR) * np.abs(case.Z_clean)
+        rows.append(_ratio_row('linkk', 'D', kk_abs, allowed, f'M {kk.M}'))
     if 'zhit' in raw:
         zh = raw['zhit']
         rows.append(_ratio_row('zhit', 'D', np.abs(zh.residuals_mag) / 100 * Z_mag,
