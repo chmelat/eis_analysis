@@ -1,9 +1,11 @@
 # Robustní ztrátová funkce (soft-L1): proč ji zavést
 
-Datum: 2026-09-01
-Stav kódu: v0.28.0
+Datum: 2026-09-01, aktualizace 2026-10-10
+Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0
+Stav návrhu: otevřený (neimplementováno, nezamítnuto)
 Souvisí s: `doc/ZSCOPE_COMPARISON.md` (položka "Robustní loss + sandwich
-kovariance", priorita vysoká), `doc/WEIGHTING_AND_STATISTICS.md`
+kovariance", priorita vysoká), `doc/WEIGHTING_AND_STATISTICS.md`,
+`doc/STRESS_TEST.md` (pokrytí CI), `eis_analysis/validation/outliers.py`
 
 ---
 
@@ -25,11 +27,16 @@ Doporučení: zavést `loss='soft_l1'` jako volitelný režim fitování
 
 ## 2. Problém: jeden bod přepíše výsledek
 
-Reziduum se v `circuit.py:365` skládá takto:
+Reziduum se v `circuit.py:366-378` skládá takto:
 
 ```
-r_i = (Z_i - Z_model,i) * w_i,      w_i = 1/|Z_i|  (modulus, výchozí)
+r_i = (Z_i - Z_model,i) * w_i,      w_i ~ 1/|Z_i|  (modulus, výchozí)
 ```
+
+Váhy jsou od v0.28.0 normované na `mean(w |Z|) = 1`
+(`compute_residual_weights`, `fitting/diagnostics.py:57`), rezidua jsou tedy
+v Ohm. Na argumentaci ani na volbu `f_scale` níže to vliv nemá: `f_scale` se
+odvozuje ze stejných reziduí.
 
 a `scipy.optimize.least_squares` minimalizuje `0.5 * sum(r_i^2)`. Kvadrát je
 tu podstatný: bod s reziduem 10 sigma přispěje do gradientu stokrát víc než
@@ -63,6 +70,10 @@ Jeden bod ze 54 posunul výsledek o pětinu. A protože model tím sedí o 20 %
 vedle, vykazuje pak **každý dobrý bod** reziduum kolem 20 %, což nafoukne
 celkovou chybu z 8 % na 26 %. Diagnostika pak vypadá, jako by byla vadná
 celá sada, ačkoli je vadný jeden bod.
+
+Ověřeno znovu na v0.58.0 (2026-10-10, soubor
+`eis_analysis_data/R_11M/EISPOT-sada_rezistoru.DTA`, výchozí LM fit): obě
+řádky tabulky vycházejí na všechny uvedené číslice stejně.
 
 ---
 
@@ -162,6 +173,16 @@ by byl potřeba LTS (least trimmed squares), což je pro rozsah tohoto projektu
 zbytečné - většinová kontaminace znamená vadné měření, ne potřebu lepšího
 estimátoru.
 
+**Rozpor s reportem odlehlých bodů.** Ve stejné verzi (v0.28.0) vznikl
+`validation/outliers.py` (`--max-residual`): z reziduí Lin-KK a Z-HIT
+vypíše podezřelé body, ale záměrně je nemaže ani jim nesnižuje váhu, protože
+odchylky na nízkých frekvencích bývají drift. Soft-L1 dělá právě to, co ten
+modul odmítá: potichu snižuje váhu. Aby se rozpor neztratil, musí fit
+v robustním režimu vypsat body, kterým ztráta výrazně snížila váhu (viz
+sekce 7), stejným způsobem jako report odlehlých bodů, a uživatel musí
+vidět, jestli leží izolovaně (vadný bod), nebo v trendu k nízkým frekvencím
+(drift, robustní ztráta nevhodná).
+
 **Nedostatečnou citlivost přístroje.** V případě rezistoru 11 MOhm teče při
 10 mV rms proud 0.92 nA, což je na hranici rozlišení. Robustní ztráta zlepší
 odhad z těchto dat, ale nenahradí zvýšení amplitudy.
@@ -176,6 +197,15 @@ rezidua jsou nezávislá, stejně rozdělená a gaussovská s rozptylem, který
 vážení předpokládá. Odlehlé body ten předpoklad porušují, takže intervaly
 spolehlivosti vycházejí příliš úzké - u ZScope měřili pokrytí 89 % místo
 nominálních 95 % při 5 % kontaminovaných bodů.
+
+Vlastní měření (stress test, invariant F3, `doc/STRESS_TEST.md`, známý
+limit 9, 2026-10-09): linearizovaný 95% interval obsahuje pravdu u 0.90
+parametrů, a to **na datech bez odlehlých bodů** (proporcionální šum,
+dobře podmíněné fity), na všech úrovních šumu. Intervaly jsou tedy úzké
+i bez kontaminace, nejspíš kvůli nelinearitě modelu nebo nesouladu vážení
+a skutečného šumu. Sandwich zachytí to druhé, nelinearitu ne. Soft-L1 sama
+pokrytí nezlepší vůbec, to je úloha kovariance. F3 je hotové měřidlo:
+jakákoli změna kovariance se dá ověřit tím, jak posune 0.90 k 0.95.
 
 Sandwich estimátor ten předpoklad nepotřebuje:
 
@@ -206,23 +236,36 @@ jinak by jedna fáze táhla k jinému řešení než druhá:
 
 | místo | co to je | zásah |
 |---|---|---|
-| `fitting/circuit.py:419` | hlavní `least_squares` | `loss=`, `f_scale=` |
-| `fitting/diffevo.py:69` | cílová funkce DE (`sum r^2`) | aplikovat stejné `rho` |
-| `fitting/diffevo.py:395` | doleštění po DE | `loss=`, `f_scale=` |
+| `fitting/circuit.py:416` | hlavní `least_squares` (přes `least_squares_normalized`, `fitting/optimizer.py`, který kwargs propustí) | `loss=`, `f_scale=` |
+| `fitting/diffevo.py:98` | cílová funkce DE (`sum r^2`), ze které se plní i archiv kandidátů | aplikovat stejné `rho` |
+| `fitting/diffevo.py:440` | doleštění po DE, jedno nastavení pro bod DE i kandidáty archivu | `loss=`, `f_scale=` |
+| `fitting/diffevo.py:457, 478` | cena doleštěného fitu `sum(r.fun**2)` | robustní cena (`r.cost`, nebo `sum rho`) |
+| `fitting/de_archive.py:168` | `choose()`: výběr mezi bodem DE, jeho doleštěním a archivem, `ADOPT_MARGIN`, nejednoznačné alternativy | porovnávat robustní ceny |
 | `fitting/multistart.py` | volá `fit_equivalent_circuit` | zdědí automaticky |
 
-Pozor na `diffevo.py:69`: kdyby DE minimalizovalo prostý součet čtverců a
+Pozor na `diffevo.py:98`: kdyby DE minimalizovalo prostý součet čtverců a
 robustní byla jen doleštovací fáze, DE by přistálo v pánvi vychýlené
 odlehlými body a `least_squares` by z ní už nevystoupilo.
+
+Stejná past je o krok dál ve výběru (`diffevo.py:457, 478`,
+`de_archive.choose`): od v0.53.0 se po DE doleštuje víc startů a vítěz se
+vybírá podle kvadratické ceny. S robustní ztrátou by tak mohl vyhrát
+kandidát, kterého táhnou odlehlé body, přestože robustní doleštění našlo
+lepší. Komentář v `diffevo.py:481-484` to říká obecně: výběr musí používat
+právě optimalizovanou cenu. Kvadratická zůstává jen `cost_floor`
+(zaokrouhlovací práh, nezávislý na ztrátě).
 
 ### Past ve scipy
 
 `res.jac`, které `least_squares` vrací, **není** čistý Jacobián reziduí, když
 je zapnutá robustní ztráta. Funkce `scale_for_robust_loss_function`
-(scipy 1.17.1, `optimize/_lsq/common.py`) ho násobí `sqrt(rho' + 2*rho''*f^2)`
-na místě, zatímco `res.fun` zůstává nescalované.
+(scipy 1.17.1, `optimize/_lsq/common.py`; ověřeno 2026-10-10 i v 1.10.1
+z apt a 1.18.1 ve vývojovém venv) ho násobí `sqrt(rho' + 2*rho''*f^2)` na místě, zatímco
+`res.fun` zůstává nescalované. `least_squares_normalized` navíc `res.jac`
+přepočítá zpět do původních proměnných (`jac / scale`), takže škálovaný
+Jacobián by prošel dál a nic by na něj neupozornilo.
 
-Důsledek pro `circuit.py:467`, kde se `opt_result.jac` předává do
+Důsledek pro `circuit.py:458`, kde se `opt_result.jac` předává do
 `compute_covariance_matrix`: po přepnutí na soft-L1 by ta matice už byla
 "bread" A ze sandwiche, zatímco "meat" B by se musela dopočítat zvlášť z
 `res.fun` a nescalovaného Jacobiánu. Kdyby se to pustilo naivně jako dnes,
