@@ -156,7 +156,8 @@ passed 150 of 150.
 
 `tests/stress_baseline.json` holds these 228 failures and the aggregate
 rates (F2 local minima, F3, Ifit, M per noise level, with the number of
-cases). `--check` fails on a failure not in it, and on a full run on a rate
+cases). `--check` fails on a failure not in it (since 2026-10-10 by count
+for the platform-dependent groups, see below), and on a full run on a rate
 that moves the wrong way by more than 3 binomial standard errors over the
 cases (the points of one case move together, so they do not count
 separately). The smoke test (`tests/test_stress_smoke.py`, marker `stress`)
@@ -178,6 +179,34 @@ of its window and the range reaches 3x the move of R_s, within
   at 0.1, 1, 3 % noise (before: 0.975, 0.945, 0.909), on 0.7 % fewer
   compared points; largest |dn| unchanged (0.053, 0.084, 0.13).
 - The baseline now holds 189 failures.
+
+## Python 3.15 and a counting --check, 2026-10-10
+
+The development environment moved from Debian's Python 3.11.2 (numpy
+1.24.2, scipy 1.10.1 from apt) to a venv with Python 3.15.0, numpy 2.5.3,
+scipy 1.18.1 (`doc/PYTHON_ENV_SETUP.md`). Full run against the old
+baseline, 1613 s (before: 2401 s):
+
+- A, K, G and every consistency invariant: unchanged (A, K, G 0 failed;
+  Epeak, Z-HIT D and Iclosed fail in the same cases as before).
+- Rates within their allowance: F3 0.898, 0.897, 0.904 (before 0.897,
+  0.899, 0.904), F2 at zero noise 17/353 (16/353), Ifit and M the same.
+- 187 failures against 189, but 44 new and 46 gone, all in the metamorphic
+  checks (B, C) of Lin-KK on noise-free spectra and of ill-posed fits
+  (known limits 1 and 3), plus R_inf rc/36 gone (limit 4). No group moved
+  by more than 3. Another summation order puts other cases on the wrong
+  side of a rounding floor.
+
+So the exact list is not portable between platforms, while the counts
+are. `--check` now compares those eight groups by count per
+analysis:invariant (`tests/stress.py`: fit x B-, B+, Crev, Cmix at any
+noise, `COUNTED`; Lin-KK x the same only on noise-free cases,
+`COUNTED_NOISE_FREE`, since limit 1 covers no noisy case), allowing a rise
+of max(sqrt(baseline count), 3), 3 being the largest move measured here. A
+new failure anywhere else, Lin-KK on a noisy spectrum included, still fails
+by case. The run above passes it (largest rise: 31 against 28, allowed
+33.3). `tests/test_stress_check.py` covers the rule. The baseline now holds
+this run's 187 failures and rates.
 
 ## Bugs found and fixed
 

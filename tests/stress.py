@@ -7,6 +7,7 @@
     python3 tests/stress.py --json out.json          # also write every check
     python3 tests/stress.py --update-baseline        # full run -> stress_baseline.json
     python3 tests/stress.py --n 3 --check            # fail on a failure not in the baseline
+                                                     # (platform-dependent groups: on their count)
 
 Not a pytest module (no test_ prefix). Design and invariants:
 doc/STRESS_TEST_PLAN.md.
@@ -16,9 +17,12 @@ import os
 
 # One BLAS thread per process, before numpy is imported: 4 processes x a
 # multithreaded OpenBLAS oversubscribe the cores, and threaded reductions are
-# not bit-identical, which would break invariant K and --index replay.
-for _var in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
-    os.environ[_var] = '1'
+# not bit-identical, which would break invariant K and --index replay. Only
+# when run as a script (the workers inherit the environment): a test that
+# imports check_baseline must not pin the whole pytest session.
+if __name__ == '__main__':
+    for _var in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+        os.environ[_var] = '1'
 
 import argparse  # noqa: E402
 import json  # noqa: E402
@@ -56,6 +60,26 @@ BASELINE = Path(__file__).with_name('stress_baseline.json')
 RATE_SIGMAS = 3.0
 # Rates where a rise is the regression (local minima); for the rest a drop is
 RISING_RATES = ('F2',)
+
+# Known limits whose failing cases depend on the platform: the metamorphic
+# checks of Lin-KK on noise-free spectra (residuals at the 1e-9 |Z| rounding
+# floor, limit 1) and of ill-posed fits (limit 3) sit on either side of their
+# tolerance by summation order, so another numpy/scipy/BLAS swaps which cases
+# fail (Python 3.15, numpy 2.5, scipy 1.18 against the baseline's 3.11, 1.24,
+# 1.10: 44 new, 46 gone, 187 failures against 189, no group off by more than
+# 3). For these --check compares the count per analysis:invariant; every
+# other failure is still checked case by case. Lin-KK only on noise-free
+# cases, the only ones limit 1 covers: with noise it never fails B or C, so
+# a failure there is a regression. Fits on any noise (limit 3 has ill-posed
+# Wa fits at 1-3 %).
+METAMORPHIC = ('B-', 'B+', 'Crev', 'Cmix')
+COUNTED_NOISE_FREE = frozenset(f'linkk:{i}' for i in METAMORPHIC)
+COUNTED = frozenset(f'fit:{i}' for i in METAMORPHIC)
+# Allowed rise of a counted group: max(sqrt(count), COUNT_SLACK). The swaps
+# are deterministic per platform, not Poisson; sqrt only widens it for large
+# groups, and COUNT_SLACK is the largest move per group measured on the
+# platform change above.
+COUNT_SLACK = 3
 
 # Invariants with a fail/checked table; F3, Ifit and M are aggregate rates ('stat')
 TABLE_INVARIANTS = INVARIANTS + tuple(i for i in CONSISTENCY_INVARIANTS if i not in ('F3', 'Ifit', 'M'))
@@ -221,20 +245,40 @@ def write_baseline(results):
     print(f'\nBaseline written to {BASELINE}')
 
 
-def check_baseline(results, full_run):
-    """False on a failure the baseline does not list, or, on a full run,
-    a rate that moved the wrong way by more than RATE_SIGMAS."""
-    base = json.loads(BASELINE.read_text())
+def check_baseline(results, full_run, base):
+    """False on a failure the baseline does not list (in a counted group: on
+    a count above the baseline's by more than its allowance), or, on a full
+    run, a rate that moved the wrong way by more than RATE_SIGMAS."""
     ran = {f'{r["family"]}/{r["index"]}' for r in results}
+    noise_free = {f'{r["family"]}/{r["index"]}' for r in results if r['noise'].split()[0] == '0'}
+
+    def group(key):
+        """The counted group of a failure key, None where it is checked by case."""
+        case, check = key.split()
+        if check in COUNTED or (check in COUNTED_NOISE_FREE and case in noise_free):
+            return check
+        return None
+
     expected = {k for k in base['failures'] if k.split()[0] in ran}
     got = failure_keys(results)
     new, gone = sorted(got - expected), sorted(expected - got)
-    print(f'\nBaseline check: {len(new)} new failures, {len(gone)} gone')
+    strict = [k for k in new if group(k) is None]
+    print(f'\nBaseline check: {len(new)} new failures ({len(new) - len(strict)} counted), '
+          f'{len(gone)} gone')
     for k in new:
-        print(f'  NEW  {k}')
+        print(f'  NEW  {k}' if group(k) is None else f'  new  {k}  (counted)')
     for k in gone:
         print(f'  gone {k}  (candidate for --update-baseline)')
-    ok = not new
+    ok = not strict
+    n_base = Counter(group(k) for k in expected)
+    n_got = Counter(group(k) for k in got)
+    for g in sorted(COUNTED | COUNTED_NOISE_FREE):
+        allowed = n_base[g] + max(np.sqrt(n_base[g]), COUNT_SLACK)
+        if n_got[g] > allowed:
+            ok = False
+            print(f'  COUNT {g}: {n_got[g]} against {n_base[g]} (allowed {allowed:.1f})')
+        elif n_got[g] != n_base[g]:
+            print(f'  count {g}: {n_got[g]} against {n_base[g]} (allowed {allowed:.1f})')
     if full_run:
         for key, (hit, total, cases) in aggregate_rates(results).items():
             if key not in base['rates'] or total == 0:
@@ -284,7 +328,9 @@ def main(argv=None):
     baseline.add_argument('--update-baseline', action='store_true',
                           help=f'write {BASELINE.name} (full run only)')
     baseline.add_argument('--check', action='store_true',
-                          help=f'exit 1 on a failure not in {BASELINE.name}')
+                          help=f'exit 1 on a failure not in {BASELINE.name}, or, for '
+                               'the platform-dependent Lin-KK (noise-free) and fit '
+                               'B/C checks, on a count above its allowance')
     args = parser.parse_args(argv)
 
     families = list(dict.fromkeys(args.family or FAMILIES))   # a repeated --family runs once
@@ -324,7 +370,7 @@ def main(argv=None):
         args.json.write_text(json.dumps(results, indent=1))
     if args.update_baseline:
         write_baseline(results)
-    if args.check and not check_baseline(results, full_run):
+    if args.check and not check_baseline(results, full_run, json.loads(BASELINE.read_text())):
         return 1
     return 0
 
