@@ -144,7 +144,7 @@ Některé impedanční funkce mají **singularity**:
 
 **Fyzikální omezení:** `PARAMETER_BOUNDS` v `eis_analysis/fitting/bounds.py`
 - jediný zdroj hodnot; komentář u každé meze vysvětluje její rozsah (např.
-odpory 0.1 mOhm - 10 GOhm, kapacity 1 fF - 100 mF, časové konstanty 1 ns -
+odpory 0.1 mOhm - 10 GOhm, kapacity 1 fF - 10 F, časové konstanty 1 ns -
 10000 s).
 
 **Výhody tight bounds:**

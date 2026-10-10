@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Capacitance and CPE coefficient reach 10 F (was 100 mF).** `C`, `Q`
+  and the Cole-Cole `C_inf` and `dC` now share `CAPACITANCE_RANGE =
+  (1e-15, 1e1)` in `fitting/bounds.py`. On QuantumScape's synthetic battery
+  spectra (AutoECM data, `doc/AUTOECM_COMPARISON.md`) 4 % of the CPE
+  coefficients lie above 0.1; 15 of 180 noise-free spectra could not be
+  fitted with their own circuit, 12 of them with Q beyond the old bound. With
+  the new bound 13 of the 15 fit to 4e-6 % or better and BIC picks the true
+  circuit in 61 instead of 45 of 71 rerun spectra; one previously good fit
+  of 60 got worse (0.01 %). DE takes 6-10 % longer (paired, same seeds).
+  `C_YG` keeps 100 mF: it is the geometric capacitance of an oxide film,
+  which does not reach it.
+
 ## Version 0.58.2 (2026-10-10)
 
 ### Fixed

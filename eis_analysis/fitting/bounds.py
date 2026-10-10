@@ -15,6 +15,14 @@ from numpy.typing import NDArray
 # parameter that is a resistance (R, R_W, sigma_GE), so they cannot drift apart.
 RESISTANCE_RANGE = (1e-4, 1e10)
 
+# Capacitance range, 1 fF - 10 F: parasitic to battery and supercapacitor
+# electrodes. Shared by C and the Cole-Cole capacitances. The former 100 mF
+# cut off battery low-frequency processes: on QuantumScape's synthetic
+# battery spectra (AutoECM data, 2026-10-10) 4 % of the CPE coefficients lie
+# above 0.1, and 12 of the 15 noise-free spectra whose own circuit failed
+# to fit had one there (13 of the 15 fit once the bound was raised).
+CAPACITANCE_RANGE = (1e-15, 1e1)
+
 # Physically reasonable ranges for electrochemical systems
 PARAMETER_BOUNDS = {
     'R': RESISTANCE_RANGE,
@@ -25,14 +33,14 @@ PARAMETER_BOUNDS = {
     # alpha_CC below: an open branch must be a reachable, reportable result.
     'G': (0.0, 1e4),
 
-    # Capacitance: 1 fF - 100 mF
-    'C': (1e-15, 1e-1),
+    'C': CAPACITANCE_RANGE,
 
     # Inductance: 1 pH - 100 uH (parasitic in EIS)
     'L': (1e-12, 1e-4),
 
-    # Q (CPE) coefficient: similar to C
-    'Q': (1e-12, 1e-1),
+    # Q (CPE) coefficient, S*s^n: up to C's 10 (99.9 % of the AutoECM
+    # coefficients are below 6.4, the largest 9.6)
+    'Q': (1e-12, 1e1),
 
     # Q exponent: 0.3 (strongly inhomogeneous) to 1.0 (ideal C)
     'n': (0.3, 1.0),
@@ -72,11 +80,12 @@ PARAMETER_BOUNDS = {
     # Gerischer element - reaction time constant
     'τ_GE': (1e-9, 1e4),
 
-    # Cole-Cole - high-frequency limit capacitance (same range as C)
-    'C_inf': (1e-15, 1e-1),
+    # Cole-Cole - high-frequency limit capacitance. As C: the model also
+    # describes the dispersion of C(omega) of supercapacitor electrodes (F).
+    'C_inf': CAPACITANCE_RANGE,
 
-    # Cole-Cole - relaxation strength dC = C_s - C_inf (same range as C)
-    'ΔC': (1e-15, 1e-1),
+    # Cole-Cole - relaxation strength dC = C_s - C_inf
+    'ΔC': CAPACITANCE_RANGE,
 
     # Cole-Cole - relaxation time
     'τ_CC': (1e-9, 1e4),
@@ -112,9 +121,10 @@ PARAMETER_BOUNDS = {
     # decimal width and not as decades.
     'U_DQ': (0.1, 30.0),
 
-    # YG - total capacity of the layer, the high-frequency limit. Mirrors C:
-    # it is the same physical quantity, just read off a model instead of an
-    # ideal element.
+    # YG - total capacity of the layer, the high-frequency limit. Stays at
+    # 100 mF while C reaches 10 F: it is the geometric capacitance of an
+    # oxide film, eps0*eps_r*A/d, and even 1 nm at eps_r = 25 on 100 cm^2
+    # gives only 2e-3 F.
     'C_YG': (1e-15, 1e-1),
 
     # YG - relative penetration depth p = delta/d of the conductivity.
@@ -159,9 +169,9 @@ def generate_simple_bounds(param_labels: List[str]) -> Tuple[List[float], List[f
     Ranges:
     - R (resistance): 0.1 mOhm - 10 GOhm (batteries to coatings)
     - G (conductance): 0 - 10 kS (0 = open branch, a valid result)
-    - C (capacitance): 1 fF - 100 mF (parasitic to large electrode)
+    - C (capacitance): 1 fF - 10 F (parasitic to battery electrode)
     - L (inductance): 1 pH - 100 uH (parasitic, cabling)
-    - Q (CPE coefficient): 1 pF*s^(n-1) - 100 mF*s^(n-1)
+    - Q (CPE coefficient): 1 pF*s^(n-1) - 10 F*s^(n-1)
     - n (Q/CPE exponent): 0.3 - 1.0
     - sigma (Warburg): 1e-6 - 1e10 Ohm*s^(-1/2) (R's range, reached at low frequency)
     - tau (time constant): 1 ns - 10000 s (covers mHz-GHz)

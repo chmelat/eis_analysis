@@ -570,8 +570,8 @@ Bounds jsou generovány z `PARAMETER_BOUNDS` v `bounds.py`:
 ```python
 PARAMETER_BOUNDS = {
     'R': (1e-4, 1e10),   # 0.1 mOhm - 10 GOhm
-    'C': (1e-15, 1e-1),  # 1 fF - 100 mF
-    'Q': (1e-12, 1e-1),  # Q koeficient
+    'C': (1e-15, 1e1),   # 1 fF - 10 F
+    'Q': (1e-12, 1e1),   # Q koeficient
     'n': (0.3, 1.0),     # Q exponent
     ...
 }
