@@ -76,7 +76,7 @@ def calculate_drt(
     Z: NDArray[np.complexfloating],
     n_tau: int = 100,
     lambda_reg: Optional[float] = None,
-    auto_lambda: bool = False,
+    auto_lambda: bool = True,
     normalize_rpol: bool = False,
     peak_method: str = 'scipy',
     r_inf_preset: Optional[float] = None,
@@ -98,9 +98,12 @@ def calculate_drt(
     n_tau : int
         Number of tau points (default: 100)
     lambda_reg : float, optional
-        Regularization parameter
+        Regularization parameter (finite, > 0; ValueError otherwise); when
+        given it is used as is and ``auto_lambda`` is ignored
     auto_lambda : bool
-        Auto-select lambda using hybrid GCV + L-curve
+        Auto-select lambda using hybrid GCV + L-curve (default True, as the
+        CLI does without --lambda; about 6x the time of one solve). False
+        without ``lambda_reg`` uses DRT_LAMBDA_DEFAULT.
     normalize_rpol : bool
         Normalize gamma by R_pol
     peak_method : str

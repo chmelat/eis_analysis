@@ -144,10 +144,21 @@ def _reconstruct(matrices: DRTMatrices, gamma: NDArray, L_series: float,
 
 def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                    lambda_reg: Optional[float] = None,
-                   auto_lambda: bool = False) -> LambdaSelection:
+                   auto_lambda: bool = True) -> LambdaSelection:
     """
     Select regularization parameter lambda.
+
+    An explicit ``lambda_reg`` wins over ``auto_lambda``: calculate_drt
+    auto-selects by default, and a caller passing a lambda means that one.
     """
+    if lambda_reg is not None:
+        # sqrt(lambda) scales the regularization rows: a negative or non-finite
+        # value would fill the system with NaN and fail later, unexplained;
+        # 0 drops the regularization the ill-posed inversion needs.
+        if not (np.isfinite(lambda_reg) and lambda_reg > 0):
+            raise ValueError(f"lambda_reg must be finite and > 0, got {lambda_reg}")
+        return LambdaSelection(lambda_value=lambda_reg, method='user')
+
     # Edge detection (F3/F7): lambda landing at a bound - or the GCV guess
     # pinning there even when L-curve corrected it - signals the optimizer
     # wants more extreme regularization than DRT_LAMBDA_RANGE allows.
@@ -196,10 +207,7 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
                              f"lambda={DRT_LAMBDA_DEFAULT}", exc_info=True)
                 return LambdaSelection(lambda_value=DRT_LAMBDA_DEFAULT, method='fallback')
 
-    if lambda_reg is None:
-        return LambdaSelection(lambda_value=DRT_LAMBDA_DEFAULT, method='default')
-
-    return LambdaSelection(lambda_value=lambda_reg, method='user')
+    return LambdaSelection(lambda_value=DRT_LAMBDA_DEFAULT, method='default')
 
 
 def _solve_nnls(matrices: DRTMatrices, lambda_reg: float,

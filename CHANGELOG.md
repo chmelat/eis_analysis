@@ -4,6 +4,30 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **`calculate_drt` selects lambda automatically by default, as documented.**
+  `doc/PYTHON_API.md` shows `auto_lambda=True` and `lambda_reg=None` as
+  "None = auto", but the library default was `auto_lambda=False`: a call
+  without either argument solved silently at the fixed
+  `DRT_LAMBDA_DEFAULT` = 1e-6 (`lambda_sel.method == 'default'`) instead of
+  the hybrid GCV/L-curve choice the CLI makes. The default is now
+  `auto_lambda=True`, and an explicit `lambda_reg` takes precedence over it
+  (before, `auto_lambda=True` overrode a given lambda). The CLI is
+  unaffected: it already passed `auto_lambda` explicitly. Library callers
+  that relied on the fixed 1e-6 pass `auto_lambda=False` or
+  `lambda_reg=1e-6`; the search costs about 6x one solve (two-peak Voigt,
+  71 points: 24 -> 143 ms), which matters only in long loops. Found while
+  benchmarking against AutoECM data.
+- **An explicit lambda is validated.** `lambda_reg` (and `--lambda`)
+  zero, negative, NaN or inf raises `ValueError` (the CLI rejects it at
+  parsing) instead of filling the regularized system with NaN or dropping
+  the regularization.
+
+---
+
 ## Version 0.58.1 (2026-10-10)
 
 ### Changed

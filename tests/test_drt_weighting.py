@@ -94,14 +94,14 @@ def test_uniform_is_the_unweighted_system():
 # =============================================================================
 
 def test_sqrt_resolves_small_fast_arc():
-    """At the default lambda=0.1, sqrt recovers all three arcs.
+    """At the fixed DRT_LAMBDA_DEFAULT, sqrt recovers all three arcs.
 
-    Measured (noise-free): tau errors <= 0.02 decade and R errors
-    1.6 / 3.4 / 1.2 %. Uniform used to "miss" the 50 Ohm arc only because
+    Measured (noise-free, 2026-10-10): tau errors <= 0.012 decade and R
+    errors 1.2 / 2.5 / 0.9 %. Uniform used to "miss" the 50 Ohm arc only because
     its maximum fell under the 3 % height threshold; the significance test
     keeps it (0.03 decade, 6 % R off), so the contrast is gone.
     """
-    sqrt = calculate_drt(FREQUENCIES, Z_CLEAN)  # default weighting
+    sqrt = calculate_drt(FREQUENCIES, Z_CLEAN, auto_lambda=False)  # default weighting
     assert sqrt.diagnostics.weighting == 'sqrt'
     for match, (R, tau) in zip(_matched_peaks(sqrt), ELEMENTS):
         assert match is not None, f"sqrt missed the peak at tau={tau}"
@@ -164,7 +164,7 @@ def test_non_finite_impedance_fails_gracefully():
     for weighting, bad in itertools.product(['uniform', 'sqrt', 'modulus'], [np.nan, np.inf]):
         Z = Z_CLEAN.copy()
         Z[5] = bad
-        result = calculate_drt(FREQUENCIES, Z, weighting=weighting)
+        result = calculate_drt(FREQUENCIES, Z, auto_lambda=False, weighting=weighting)
         assert not result.success, (weighting, bad)
 
 

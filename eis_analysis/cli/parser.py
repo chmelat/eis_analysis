@@ -98,7 +98,7 @@ Examples:
     # ==========================================================================
     drt_group = parser.add_argument_group('DRT Analysis')
 
-    drt_group.add_argument('--lambda', '-l', dest='lambda_reg', type=float,
+    drt_group.add_argument('--lambda', '-l', dest='lambda_reg', type=_positive_float,
                            default=None,
                            help='Manual regularization parameter for DRT: weight of the '
                                 'roughness integral of gamma against the mean squared '

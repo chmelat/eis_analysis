@@ -7,8 +7,9 @@ that the full `calculate_drt` pipeline recovers *known* spectra: for an ideal
 Voigt (R||C) circuit the DRT must show peaks at the true time constants
 tau = R*C, and the integral of gamma must recover R_pol = sum(R_i).
 
-Tolerances are empirically grounded (two-peak Voigt, lambda=0.1): detected tau
-within ~0.04 decade of truth, R_pol within ~0.4%. We assert the safer 0.15
+Tolerances are empirically grounded (two-peak Voigt, fixed DRT_LAMBDA_DEFAULT,
+measured 2026-10-10): detected tau within ~0.005 decade of truth, R_pol within
+~0.4%. We assert the safer 0.15
 decade / 3% to stay robust across noise realizations.
 """
 
@@ -40,7 +41,8 @@ def test_two_peak_recovery():
     elements = [(1000.0, 1e-3), (2000.0, 1e-1)]  # (R, tau)
     Z = _voigt_impedance(FREQUENCIES, R_inf, elements)
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')  # default lambda=0.1
+    # Fixed DRT_LAMBDA_DEFAULT: the smoothness check below is calibrated on it
+    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy', auto_lambda=False)
     taus = _peak_taus(r)
 
     assert len(taus) == 2, f"expected 2 peaks, got {len(taus)}: {taus}"
@@ -68,7 +70,7 @@ def test_scipy_peak_frequency_convention():
     R, tau_true = 500.0, 1e-2
     Z = _voigt_impedance(FREQUENCIES, R_inf, [(R, tau_true)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
     peaks = r.diagnostics.scipy_peaks
     assert peaks, "expected at least one scipy peak"
 
@@ -93,8 +95,8 @@ def test_peak_r_estimate_invariant_to_normalize_rpol():
     elements = [(1000.0, 1e-3), (2000.0, 1e-1)]
     Z = _voigt_impedance(FREQUENCIES, R_inf, elements)
 
-    r_plain = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
-    r_norm = calculate_drt(FREQUENCIES, Z, peak_method='scipy',
+    r_plain = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
+    r_norm = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy',
                            normalize_rpol=True)
 
     R_plain = [p['R_estimate'] for p in r_plain.diagnostics.scipy_peaks]
@@ -113,8 +115,8 @@ def test_peak_r_estimate_invariant_to_normalize_rpol():
     assert r_norm.gamma_original is not None
 
     # Same invariance for GMM peaks (R_i = weight_i * R_pol must be in Ohm).
-    g_plain = calculate_drt(FREQUENCIES, Z, peak_method='gmm')
-    g_norm = calculate_drt(FREQUENCIES, Z, peak_method='gmm',
+    g_plain = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='gmm')
+    g_norm = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='gmm',
                            normalize_rpol=True)
     assert g_plain.peaks and g_norm.peaks
     R_g_plain = [p['R_estimate'] for p in g_plain.peaks]
@@ -128,7 +130,7 @@ def test_single_peak_recovery():
     R, tau_true = 500.0, 1e-2
     Z = _voigt_impedance(FREQUENCIES, R_inf, [(R, tau_true)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
     taus = _peak_taus(r)
 
     assert len(taus) == 1, f"expected 1 peak, got {len(taus)}: {taus}"

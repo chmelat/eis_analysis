@@ -40,7 +40,7 @@ def test_well_separated_peaks_are_stable():
     """Two RC peaks 2 decades apart must be stable across the lambda probe."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy', lambda_probe=True)
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy', lambda_probe=True)
     stability = r.diagnostics.stability
 
     assert stability is not None
@@ -60,14 +60,14 @@ def test_well_separated_peaks_are_stable():
 def test_no_probe_by_default():
     """Backward compatibility: without lambda_probe there is no stability data."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3)])
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
     assert r.diagnostics.stability is None
 
 
 def test_pure_resistor_no_peaks():
     """gamma ~ 0 (pure resistor): probe runs, empty peak stability, no crash."""
     Z = np.full_like(FREQUENCIES, 500.0, dtype=complex)
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy', lambda_probe=True)
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy', lambda_probe=True)
     stability = r.diagnostics.stability
     assert stability is not None
     assert stability.peak_stability == []
@@ -89,7 +89,7 @@ def test_probe_survives_solver_failure(monkeypatch):
 
     monkeypatch.setattr(stability_mod, '_solve_nnls', failing_solve)
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy', lambda_probe=True)
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy', lambda_probe=True)
     stability = r.diagnostics.stability
 
     failed = [p for p in stability.probe_points if not p.success]
@@ -104,7 +104,7 @@ def test_probe_survives_solver_failure(monkeypatch):
 def test_gmm_reference_peaks():
     """GMM main peaks are tracked against scipy probe peaks."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
-    r = calculate_drt(FREQUENCIES, Z, peak_method='gmm', lambda_probe=True)
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='gmm', lambda_probe=True)
     stability = r.diagnostics.stability
     assert stability is not None
     assert len(stability.peak_stability) == len(r.peaks)

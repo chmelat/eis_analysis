@@ -11,7 +11,7 @@ from eis_analysis.drt.gcv import (
     find_optimal_lambda_hybrid,
 )
 from eis_analysis.drt.linear_system import _build_drt_matrices
-from eis_analysis.fitting.config import DRT_LAMBDA_RANGE
+from eis_analysis.fitting.config import DRT_LAMBDA_DEFAULT, DRT_LAMBDA_RANGE
 
 EXAMPLE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example"
@@ -168,3 +168,33 @@ def test_corner_below_gcv_is_warned(monkeypatch, corner_below_gcv):
     r = calculate_drt(f, Z, auto_lambda=True, r_inf_preset=10.0, inductance=False)
 
     assert any("L-curve corner" in w for w in r.warnings) == corner_below_gcv
+
+
+@pytest.mark.parametrize("kwargs, method, lambda_value", [
+    ({}, 'hybrid', None),                                   # documented default
+    ({'lambda_reg': 1e-4}, 'user', 1e-4),                   # explicit lambda wins...
+    ({'lambda_reg': 1e-4, 'auto_lambda': True}, 'user', 1e-4),  # ...even over auto
+    ({'auto_lambda': False}, 'default', DRT_LAMBDA_DEFAULT),  # opt-out
+])
+def test_lambda_selection_defaults(voigt_data, kwargs, method, lambda_value):
+    """calculate_drt auto-selects lambda unless the caller gives one."""
+    from eis_analysis.drt import calculate_drt
+
+    f, Z, _ = voigt_data
+    lam = calculate_drt(f, Z, **kwargs).diagnostics.lambda_sel
+
+    assert lam.method == method
+    if lambda_value is not None:
+        assert lam.lambda_value == lambda_value
+
+
+@pytest.mark.parametrize("bad", [0.0, -1e-6, float('nan'), float('inf')])
+def test_invalid_lambda_is_rejected(voigt_data, bad):
+    """An explicit lambda is used as is, so it must be usable: sqrt(lambda)
+    of a negative or non-finite value would poison the system silently, and
+    0 drops the regularization."""
+    from eis_analysis.drt import calculate_drt
+
+    f, Z, _ = voigt_data
+    with pytest.raises(ValueError, match="lambda_reg"):
+        calculate_drt(f, Z, lambda_reg=bad)

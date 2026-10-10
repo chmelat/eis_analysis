@@ -186,7 +186,7 @@ def test_clean_interior_spectrum_reports_no_edge_problems():
     """Two well-centred RC peaks: no flags, no pile-up warning."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
 
     assert r.diagnostics.n_boundary_peaks == 0
     assert r.diagnostics.edge_pile_up_fraction < DRT_EDGE_BIN_RPOL_FRACTION
@@ -201,7 +201,7 @@ def test_process_slower_than_the_window_is_reported():
     """
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (5000.0, 50.0)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
     diag = r.diagnostics
 
     assert diag.edge_pile_up_fraction > DRT_EDGE_BIN_RPOL_FRACTION
@@ -218,7 +218,7 @@ def test_the_peak_that_swallowed_the_pile_up_is_marked():
     """
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (5000.0, 50.0)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='scipy')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='scipy')
     peaks = r.diagnostics.scipy_peaks
 
     assert peaks, "expected at least one detected peak"
@@ -236,7 +236,7 @@ def test_gmm_marks_every_peak_because_rpol_is_the_divisor():
     """GMM splits R_pol by component weight, so pile-up taints all of them."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (5000.0, 50.0)])
 
-    r = calculate_drt(FREQUENCIES, Z, peak_method='gmm')
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, peak_method='gmm')
     if not r.peaks:
         pytest.skip("GMM did not converge on this spectrum")
 
@@ -349,7 +349,7 @@ def test_extension_places_the_slow_process_past_the_window():
 def test_clean_spectrum_extrapolates_nothing():
     """Peaks well inside the window leave the extension empty and quiet."""
     Z = _voigt_impedance(FREQUENCIES, 100.0, [(1000.0, 1e-3), (2000.0, 1e-1)])
-    r = calculate_drt(FREQUENCIES, Z, tau_extend_decades=1.0)
+    r = calculate_drt(FREQUENCIES, Z, auto_lambda=False, tau_extend_decades=1.0)
 
     assert r.diagnostics.R_pol_extrapolated_fraction < 0.01
     assert not any('past the measured window' in w for w in r.diagnostics.nnls.warnings)
@@ -378,13 +378,13 @@ def test_auto_takes_the_smallest_step_that_resolves_the_pile_up():
 
 def test_auto_keeps_the_plain_grid_when_no_step_resolves():
     """
-    At the fixed lambda = 0.1 the slow mass runs to the end of every extended
+    At the fixed DRT_LAMBDA_DEFAULT the slow mass runs to the end of every extended
     grid (pile-up 62 -> 80 -> 88 -> 92 %); 'auto' must not pick a step that
     only moves the heap further out.
     """
     Z = _voigt_impedance(FREQUENCIES, 100.0, SLOW_ELEMENTS)
-    plain = calculate_drt(FREQUENCIES, Z)
-    auto = calculate_drt(FREQUENCIES, Z, tau_extend_decades='auto')
+    plain = calculate_drt(FREQUENCIES, Z, auto_lambda=False)
+    auto = calculate_drt(FREQUENCIES, Z, auto_lambda=False, tau_extend_decades='auto')
 
     assert auto.diagnostics.tau_extend_decades == 0.0
     assert f'up to {DRT_TAU_EXTEND_STEPS[-1]}' in auto.diagnostics.tau_extend_note

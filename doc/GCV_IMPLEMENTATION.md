@@ -201,9 +201,12 @@ class LambdaSelection:
     lambda_at_edge: bool = False         # zvolené λ na mezi GCV rozsahu (F3/F7)
 ```
 
-Když `auto_lambda=True`, volá se `find_optimal_lambda_hybrid` a `method` je
-vždy **`hybrid`**; které kritérium vyhrálo, říká `hybrid_stage`. **`gcv`**
-znamená jen fallback po selhání hybridního hledání.
+Zadané `lambda_reg` má přednost a dá **`user`**. Jinak, když
+`auto_lambda=True` (výchozí v `calculate_drt`, jako v CLI bez `--lambda`),
+volá se `find_optimal_lambda_hybrid` a `method` je vždy **`hybrid`**; které
+kritérium vyhrálo, říká `hybrid_stage`. **`gcv`** znamená jen fallback po
+selhání hybridního hledání, **`default`** pevné `DRT_LAMBDA_DEFAULT` při
+`auto_lambda=False` bez `lambda_reg`.
 
 Detekce okrajů (náprava F3/F7): pokud λ_opt nebo λ_gcv narazí na mez rozsahu
 `[1e-10, 1e-2]`, nebo je na okraji okna roh, který dal λ, nastaví se `lambda_at_edge` —

@@ -52,7 +52,7 @@ def test_degenerate_autolambda_warns():
 def test_healthy_lambda_no_warn():
     """Manual moderate lambda -> smooth DRT -> no sparse warning, high N_eff."""
     f, Z = _two_cpe_data(seed=0)
-    r = calculate_drt(f, Z, peak_method='scipy', auto_lambda=False)  # lambda=0.1
+    r = calculate_drt(f, Z, peak_method='scipy', auto_lambda=False)  # DRT_LAMBDA_DEFAULT
 
     assert r.diagnostics.n_effective_bins > DRT_MIN_EFFECTIVE_BINS
     assert not any("sparse/spiky" in w for w in r.warnings), r.warnings
