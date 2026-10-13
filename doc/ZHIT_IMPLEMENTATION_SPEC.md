@@ -104,8 +104,13 @@ projected by cos(phi) and sin(phi), not an independent check
 PYTHON_API.md. The decisions built on them:
 
 - `success`: False when the reconstruction raised; all arrays are then empty.
-- `is_valid`: `mean_residual_mag < quality_threshold` (default 5 %).
-- `quality`: `max(0, 1 - mean_residual_mag / quality_threshold)`.
+- `is_valid`: `mean_residual_mag < quality_threshold` (default 5 %). A
+  global verdict: drift confined to the low-frequency end is diluted in the
+  mean (a synthetic two-arc spectrum with Re(Z) +15 %/decade below 1 Hz,
+  residuals up to 25 % below 0.1 Hz, passes with a 4.7 % mean; Lin-KK, which
+  counts points above 5 %, fails it). A rule on the residuals smoothed over a
+  decade would catch such drift (`doc/COLD_AGENT.md`, F5), left until a
+  measured spectrum needs it.
 - `quality_label`: shared with Lin-KK (`_quality_label`):
 
 | Mean \|res_mag\| | Label |

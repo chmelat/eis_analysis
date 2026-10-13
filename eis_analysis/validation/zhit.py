@@ -113,10 +113,8 @@ class ZHITResult:
         Pseudo chi-squared (Boukamp 1995)
     noise_estimate : float
         Estimated noise [%] (Yrjana & Bobacka 2024)
-    quality : float
-        Quality metric (0-1 scale, based on magnitude residuals)
     quality_threshold : float
-        Pass/fail threshold for `is_valid` and the `quality` metric [%].
+        Threshold on the mean |residuals_mag| for `is_valid` [%].
     """
     Z_mag_reconstructed: NDArray[np.float64]
     Z_fit: NDArray[np.complexfloating]
@@ -125,7 +123,6 @@ class ZHITResult:
     residuals_imag: NDArray[np.float64]
     pseudo_chisqr: float
     noise_estimate: float
-    quality: float
     quality_threshold: float = 5.0
 
     @property
@@ -150,7 +147,13 @@ class ZHITResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if data passes validation (mean |residual_mag| < quality_threshold)."""
+        """Mean |residuals_mag| below quality_threshold.
+
+        A coarse, global verdict: drift confined to the low-frequency end
+        raises a few points and is diluted in the mean (residuals of 25 %
+        below 0.1 Hz pass with a 4.7 % mean). Local violations show in
+        residuals_mag itself and in the CLI suspicious-points report.
+        """
         return self.mean_residual_mag < self.quality_threshold
 
     @property
@@ -253,8 +256,8 @@ def zhit_validation(
     Z : ndarray of complex
         Complex impedance [Ohm]
     quality_threshold : float, optional
-        Reference threshold for quality metric calculation [%].
-        Default: 5.0 (5% mean residual = quality 0)
+        Threshold on the mean |residuals_mag| for `is_valid` [%].
+        Default: 5.0
 
     Returns
     -------
@@ -267,7 +270,6 @@ def zhit_validation(
         - residuals_imag: Imaginary part residuals (fraction)
         - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
         - noise_estimate: Estimated noise [%]
-        - quality: Quality metric (0-1 scale)
 
     Notes
     -----
@@ -329,7 +331,6 @@ def zhit_validation(
             residuals_imag=empty,
             pseudo_chisqr=0.0,
             noise_estimate=0.0,
-            quality=0.0,
             quality_threshold=quality_threshold
         )
 
@@ -348,10 +349,6 @@ def zhit_validation(
     pseudo_chisqr = compute_pseudo_chisqr(Z, Z_fit)
     noise_estimate = estimate_noise_percent(pseudo_chisqr, len(Z))
 
-    # Calculate quality metric (based on magnitude residuals)
-    mean_abs_residual_mag = np.mean(np.abs(residuals_mag))
-    quality = max(0.0, 1.0 - float(mean_abs_residual_mag) / quality_threshold)
-
     # Restore the user's original frequency ordering on output arrays so they
     # pair element-wise with the input `frequencies` / `Z`.
     return ZHITResult(
@@ -362,6 +359,5 @@ def zhit_validation(
         residuals_imag=residuals_imag[inv_idx],
         pseudo_chisqr=pseudo_chisqr,
         noise_estimate=noise_estimate,
-        quality=quality,
         quality_threshold=quality_threshold
     )

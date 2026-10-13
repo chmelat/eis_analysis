@@ -107,7 +107,7 @@ def check_D(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
         zh = raw['zhit']
         rows.append(_ratio_row('zhit', 'D', np.abs(zh.residuals_mag) / 100 * Z_mag,
                                _allowance(case, ZHIT_NOISE_FACTOR, ZHIT_FLOOR),
-                               f'quality {zh.quality:.3g}'))
+                               f'mean {zh.mean_residual_mag:.3g} %'))
 
 
 # --- E: DRT ------------------------------------------------------------------

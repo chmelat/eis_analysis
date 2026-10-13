@@ -232,7 +232,7 @@ def _failed_reconstruction():
         Z_mag_reconstructed=empty,
         Z_fit=np.array([], dtype=np.complex128),
         residuals_mag=empty, residuals_real=empty, residuals_imag=empty,
-        pseudo_chisqr=0.0, noise_estimate=0.0, quality=0.0,
+        pseudo_chisqr=0.0, noise_estimate=0.0,
     )
 
 

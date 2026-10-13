@@ -118,5 +118,27 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
 | Nalez | Stav |
 |---|---|
 | G1, F1, F3, H1, H2, H3 (kategorie B) | opraveno v dokumentaci (PYTHON_API, OXIDE_ANALYSIS_GUIDE; navic klice piku GMM, scikit-learn v instalaci, `len(result.peaks)` v prikladech). Kontrola: vsech 55 importu z PYTHON_API a pruvodce oxidem projde |
-| F5 (A/C) | otevreno: rozhodnout, co ma `ZHITResult.is_valid` znamenat |
-| F2, F4, F6, G2-G7, H4-H6 (C) | otevreno |
+| F5 (A/C) | dokumentovano: `ZHITResult.is_valid` zustava prumer, docstring a PYTHON_API rikaji, ze lokalni drift zredi (studie nize) |
+| F6 (C) | opraveno: pole `ZHITResult.quality` (0-1) odstraneno; `quality_threshold` je prah prumeru pro `is_valid` |
+| F2, F4, G2-G7, H4-H6 (C) | otevreno |
+
+### F5: studie pravidla platnosti Z-HIT
+
+30 spekter z kazde rodiny stress testu (KK-konzistentni, sum 0-3 %), ciste
+a s driftem (|Z| nebo Re(Z) x (1 + 5-15 %/dekadu) pod nahodnou f_x), plus
+17 souboru z `example/`. Podil spekter uznanych za validni:
+
+| Pravidlo | ciste, sum 0 / 0.1 / 1 % | drift \|Z\|, sum 0.1 % | example/ |
+|---|---|---|---|
+| prumer \|res_mag\| < 5 % (stav) | 33/33, 49/49, 42/44 | 46/49 | real_gamry ne, ostatni ano |
+| <= 5 % bodu nad 5 % (jako KK) | 33/33, 46/49, 29/44 | 2/49 | odmitne 8 cistych s 1 % sumem |
+| klouzavy median 1 dekada < 5 % | 33/33, 48/49, 39/44 | 2/49 | real_gamry ne, ostatni ano |
+| Lin-KK `is_valid` | 26/33, 31/49, 21/44 | 15/49 | - |
+
+Z-HIT zesiluje sum (pri 1 % sumu body az 8 %), proto pravidlo na body
+odmita cista data; klouzavy median sum potlaci a drift ponecha. Prakticky
+dopad je maly: CLI drift ukaze stitkem "marginal (check for drift)"
+a hlasenim podezrelych bodu, na `is_valid` nic v knihovne nestavi, verdikt
+na trech merenych DTA se nemeni. Zvoleno: jen dokumentace; vyhlazene
+pravidlo az pro mereni s driftem, ktery Lin-KK propusti (kandidat: ZrO2,
+`EISPOT-M136113-4.DTA` ma vyhlazene maximum 4.76 %).

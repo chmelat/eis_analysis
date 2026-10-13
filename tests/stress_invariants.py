@@ -126,7 +126,7 @@ def _zhit(case: Case, f, Z, k: float) -> Signature:
     r = zhit_validation(f, Z)
     return {
         'raw': Entry(r, kind='raw'),
-        'quality': Entry(r.quality),
+        'mean_mag': Entry(r.mean_residual_mag, atol=PERCENT_ATOL),
         'chi2': Entry(r.pseudo_chisqr, atol=CHI2_ATOL),
         'noise': Entry(r.noise_estimate, atol=PERCENT_ATOL),
         'res_re': Entry(r.residuals_real, 0, 'pf', atol=RES_ATOL),

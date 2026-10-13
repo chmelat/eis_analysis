@@ -265,7 +265,7 @@ from eis_analysis.validation import zhit_validation, ZHITResult
 result = zhit_validation(
     frequencies,
     Z,
-    quality_threshold=5.0,   # Threshold for quality metric [%]
+    quality_threshold=5.0,   # Threshold on the mean |res_mag| for is_valid [%]
 )
 
 # result: ZHITResult dataclass
@@ -276,14 +276,19 @@ result.residuals_real       # Real part residuals (fraction)
 result.residuals_imag       # Imaginary part residuals (fraction)
 result.pseudo_chisqr        # Pseudo chi-squared
 result.noise_estimate       # Upper bound noise estimate [%]
-result.quality              # Quality metric (0-1)
 
 # Convenience properties
 result.success              # False if the reconstruction failed (empty arrays)
 result.mean_residual_real   # Mean |res_real| [%]
 result.mean_residual_imag   # Mean |res_imag| [%]
 result.mean_residual_mag    # Mean |res_mag| [%]
-result.is_valid             # True if mean_residual_mag < 5%
+result.is_valid             # True if mean_residual_mag < 5% - a global
+                            # verdict: drift at the low-frequency end raises
+                            # a few points and is diluted in the mean (25 %
+                            # below 0.1 Hz passed with a 4.7 % mean). Read
+                            # residuals_mag, or the Lin-KK verdict, which
+                            # counts points above 5 %.
+result.quality_label        # 'excellent' ... 'poor', graded on the mean
 
 # Figure (the validation itself builds none)
 from eis_analysis.visualization import plot_zhit_validation
