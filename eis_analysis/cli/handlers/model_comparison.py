@@ -43,7 +43,6 @@ def score_candidates(
     Z: NDArray[np.complexfloating],
     candidates: List[Tuple[str, Optional[FitResult]]],
     weighting: str,
-    Z_measured: Optional[NDArray[np.complexfloating]] = None,
     noise_percent: Optional[float] = None
 ) -> List[ModelScore]:
     """
@@ -61,12 +60,8 @@ def score_candidates(
     weighting : str
         Weighting used for every fit - the comparison is only valid when it
         is the same for all candidates
-    Z_measured : ndarray of complex, optional
-        Measured impedance the fit is compared with the noise against
-        (differs from Z under --fit-on)
     noise_percent : float, optional
-        Lin-KK noise of these points [%]; without it, or without Z_measured,
-        `noise` stays None
+        Lin-KK noise of these points [%]; without it `noise` stays None
 
     Returns
     -------
@@ -96,7 +91,7 @@ def score_candidates(
             continue
 
         scores.append(ModelScore(index, expression, result, aic, bic,
-                                 noise_adequacy(Z_measured, Z_fit, noise_percent)))
+                                 noise_adequacy(Z, Z_fit, noise_percent)))
 
     return sorted(scores, key=lambda s: s.bic)
 

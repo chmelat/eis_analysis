@@ -556,9 +556,12 @@ cancels it. That is also why the example above can show 0.8 next to
 non-random residuals: Lin-KK rates that spectrum `poor`, and the circuit
 misfit is the drift every KK-compliant model leaves. The noise is taken from
 the Lin-KK run of the full spectrum, restricted to the `--f-min/--f-max`
-points, and the fit is compared with the measured data also under
-`--fit-on zhit` and `--fit-on all`. With `--no-kk` the line is absent; `--voigt-chain` does not
-print it (it is a Lin-KK model itself).
+points. Under `--fit-on zhit` and `--fit-on all` the line says `not
+compared`: the fit runs on the Z-HIT reconstruction, whose own error (up to
+~3 % around relaxations) the Lin-KK noise of the measurement does not
+describe, and a correct circuit would land at 2-5 or near 0 depending on the
+drift. With `--no-kk` the line is absent; `--voigt-chain` does not print it
+(it is a Lin-KK model itself).
 
 The shape is reported as two measurements rather than as one verdict, because
 residuals commonly carry both at once and each asks for a different repair:

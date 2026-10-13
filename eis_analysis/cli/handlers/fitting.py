@@ -299,7 +299,8 @@ def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) ->
 
 def _log_fit_result(result: FitResult,
                     residuals: Optional[ResidualDiagnostics] = None,
-                    noise: Optional[NoiseAdequacyResult] = None) -> None:
+                    noise: Optional[NoiseAdequacyResult] = None,
+                    fit_on: str = 'original') -> None:
     """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape."""
     logger.info("")
     logger.info("Fit results:")
@@ -346,7 +347,7 @@ def _log_fit_result(result: FitResult,
     threshold = quality_thresholds.get(result.quality)
     logger.info(f"  Quality: {result.quality.capitalize()}"
                 + (f" ({threshold})" if threshold else ""))
-    log_noise_adequacy(noise)
+    log_noise_adequacy(noise, fit_on)
 
     if residuals is not None:
         _log_residual_diagnostics(residuals)
@@ -372,7 +373,6 @@ def run_circuit_fitting(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace,
-    Z_measured: Optional[NDArray] = None,
     noise_percent: Optional[float] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
@@ -388,12 +388,10 @@ def run_circuit_fitting(
         CLI arguments (uses: no_fit, input, circuit, voigt_chain, weighting,
                        optimizer, multistart, de_*, fit_on, save, format;
                        optional: f_min, f_max)
-    Z_measured : ndarray, optional
-        Measured impedance at `frequencies`, what the fit is compared with
-        the noise against. Differs from Z under --fit-on.
     noise_percent : float, optional
-        Lin-KK noise of these points [%] (KKResult.noise_estimate_on). Without it,
-        or without Z_measured, the fit is not compared with the noise.
+        Lin-KK noise of these points [%] (kk_noise_for_fit). Without it the
+        fit is not compared with the noise. Standard circuits only: a Voigt
+        chain is a Lin-KK model itself, its ratio is ~1 by construction.
 
     Returns
     -------
@@ -435,10 +433,10 @@ def run_circuit_fitting(
     # exactly as before, no comparison table.
     if len(circuit_exprs) == 1:
         return _fit_standard_circuit(frequencies, Z, args, circuit_exprs[0],
-                                     Z_measured=Z_measured, noise_percent=noise_percent)
+                                     noise_percent=noise_percent)
 
     return _compare_circuits(frequencies, Z, args, circuit_exprs,
-                             Z_measured=Z_measured, noise_percent=noise_percent)
+                             noise_percent=noise_percent)
 
 
 def _compare_circuits(
@@ -446,7 +444,6 @@ def _compare_circuits(
     Z: NDArray,
     args: argparse.Namespace,
     circuit_exprs: list,
-    Z_measured: Optional[NDArray] = None,
     noise_percent: Optional[float] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
@@ -465,7 +462,7 @@ def _compare_circuits(
         CLI arguments
     circuit_exprs : list of str
         Candidate circuit expressions, in the order given on the command line
-    Z_measured, noise_percent : optional
+    noise_percent : float, optional
         See run_circuit_fitting
 
     Returns
@@ -486,7 +483,7 @@ def _compare_circuits(
             # Figures are saved per candidate, otherwise they overwrite one file
             result, fig = _fit_standard_circuit(
                 frequencies, Z, args, expr, save_suffix=f'fit_{index}',
-                Z_measured=Z_measured, noise_percent=noise_percent
+                noise_percent=noise_percent
             )
         except EISAnalysisError as e:
             # An unparsable expression must cost its own candidate, not the
@@ -497,7 +494,7 @@ def _compare_circuits(
         figures.append(fig)
 
     scores = score_candidates(frequencies, Z, candidates, args.weighting,
-                              Z_measured=Z_measured, noise_percent=noise_percent)
+                              noise_percent=noise_percent)
     log_comparison(scores, len(frequencies), args.weighting)
 
     if scores[0].result is None:
@@ -733,7 +730,6 @@ def _fit_standard_circuit(
     args: argparse.Namespace,
     circuit_expr: str,
     save_suffix: str = 'fit',
-    Z_measured: Optional[NDArray] = None,
     noise_percent: Optional[float] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
@@ -752,7 +748,7 @@ def _fit_standard_circuit(
     save_suffix : str, optional
         Filename suffix for --save (default: 'fit'). Comparison runs pass a
         per-candidate suffix so the figures do not overwrite one file.
-    Z_measured, noise_percent : optional
+    noise_percent : float, optional
         See run_circuit_fitting
 
     Returns
@@ -825,7 +821,8 @@ def _fit_standard_circuit(
         # Log fit results. Z_fit is bound by every optimizer branch above.
         _log_fit_result(result,
                         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting),
-                        noise_adequacy(Z_measured, Z_fit, noise_percent))
+                        noise_adequacy(Z, Z_fit, noise_percent),
+                        getattr(args, 'fit_on', 'original'))
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

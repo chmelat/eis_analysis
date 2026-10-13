@@ -270,7 +270,7 @@ def test_noise_ratio_column_and_no_adequate_candidate_note(caplog):
                                             'R(10)-(R(2000)|C(2e-4))')]
 
     scores = score_candidates(FREQ, Z, candidates, 'modulus',
-                              Z_measured=Z, noise_percent=0.5)
+                              noise_percent=0.5)
     assert all(s.noise is not None and not s.noise.adequate for s in scores)
 
     with caplog.at_level('INFO'):

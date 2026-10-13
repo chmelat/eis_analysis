@@ -53,10 +53,6 @@ class LoadedData:
     Z_zhit : ndarray or None
         Z-HIT reconstruction aligned element-wise with `Z`, attached by
         `apply_zhit_reconstruction` under `--fit-on zhit`. None otherwise.
-    Z_original : ndarray or None
-        The measured impedance aligned with `Z`, kept by
-        `apply_zhit_reconstruction` under `--fit-on all`, which replaces `Z`.
-        None otherwise. Read it through `Z_measured`.
     current_thd, voltage_thd : ndarray or None
         Per-point THD (fraction) aligned with `Z`, see `LoadResult`.
     """
@@ -66,7 +62,6 @@ class LoadedData:
     metadata: Optional[dict]
     ocv_data: Optional[dict] = None
     Z_zhit: Optional[NDArray[np.complexfloating]] = None
-    Z_original: Optional[NDArray[np.complexfloating]] = None
     current_thd: Optional[NDArray[np.float64]] = None
     voltage_thd: Optional[NDArray[np.float64]] = None
 
@@ -79,16 +74,6 @@ class LoadedData:
         reconstruction, because that mode replaces `Z` outright.
         """
         return self.Z if self.Z_zhit is None else self.Z_zhit
-
-    @property
-    def Z_measured(self) -> NDArray[np.complexfloating]:
-        """The measured impedance, whatever --fit-on did to `Z`.
-
-        What Lin-KK validated, and so what a fit is compared with the noise
-        against: comparing with the drift-free reconstruction while the
-        noise comes from the drifting measurement would understate the misfit.
-        """
-        return self.Z if self.Z_original is None else self.Z_original
 
 
 # =============================================================================

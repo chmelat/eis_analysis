@@ -14,7 +14,8 @@ import numpy as np
 import pytest
 
 from eis_analysis.cli import run_circuit_fitting
-from eis_analysis.cli.handlers.fit_noise import format_noise_ratio
+from eis_analysis.cli.handlers import fit_noise
+from eis_analysis.cli.handlers.fit_noise import format_noise_ratio, kk_noise_for_fit
 from eis_analysis.cli.handlers.model_comparison import score_candidates
 from eis_analysis.fitting import (compare_fit_to_noise, fit_equivalent_circuit,
                                   NoiseAdequacyResult)
@@ -145,11 +146,11 @@ def test_kk_noise_bad_mask_raises(mask):
 # CLI wiring
 # =============================================================================
 
-def _args(circuit):
+def _args(circuit, fit_on='original'):
     return argparse.Namespace(
         no_fit=False, input='x', circuit=[circuit], voigt_chain=False,
         weighting='modulus', optimizer='single', numeric_jacobian=False,
-        fit_on='original', save=None, format='png', no_show=True)
+        fit_on=fit_on, save=None, format='png', no_show=True)
 
 
 def test_cli_reports_the_ratio_and_warns(caplog):
@@ -157,7 +158,7 @@ def test_cli_reports_the_ratio_and_warns(caplog):
     kk = kramers_kronig_validation(FREQ, Z)
     with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers'):
         run_circuit_fitting(FREQ, Z, _args('R(50)-(R(4000)|Q(1e-5,0.7))'),
-                            Z_measured=Z, noise_percent=kk.noise_estimate)
+                            noise_percent=kk.noise_estimate)
 
     assert 'Fit vs. noise' in caplog.text
     assert 'misses structure' in caplog.text
@@ -172,13 +173,26 @@ def test_cli_without_noise_stays_silent(caplog):
     assert 'Fit vs. noise' not in caplog.text
 
 
-def test_table_survives_a_failing_comparison():
-    """Z_measured of the wrong length makes compare_fit_to_noise raise; the
-    ranking of converged fits must not go down with it."""
+def test_cli_under_fit_on_says_why_there_is_no_ratio(caplog):
+    """The fit block names the reason instead of silently dropping the line."""
+    Z = _synthesize(0.5)
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers'):
+        run_circuit_fitting(FREQ, Z, _args('R(50)-(R(4000)|Q(1e-5,0.7))', 'zhit'))
+
+    assert 'Fit vs. noise: not compared (--fit-on zhit' in caplog.text
+    assert 'misses structure' not in caplog.text
+
+
+def test_table_survives_a_failing_comparison(monkeypatch):
+    """A comparison that raises must not take the ranking of converged fits
+    down with it."""
+    def broken(*_args):
+        raise ValueError("boom")
+    monkeypatch.setattr(fit_noise, 'compare_fit_to_noise', broken)
+
     Z = _synthesize(0.5)
     result, _ = fit_equivalent_circuit(FREQ, Z, _true_circuit(), weighting='modulus')
-    scores = score_candidates(FREQ, Z, [('a', result)], 'modulus',
-                              Z_measured=Z[:-1], noise_percent=0.5)
+    scores = score_candidates(FREQ, Z, [('a', result)], 'modulus', noise_percent=0.5)
 
     assert scores[0].result is result
     assert scores[0].noise is None
@@ -188,6 +202,7 @@ def test_table_survives_a_failing_comparison():
     (0.8, True, '  0.8 '),
     (9.3, False, '  9.3*'),
     (219.4, False, '219.4*'),
+    (999.97, False, '1e+03*'),   # rounds to 1000.0: one character too wide
     (1000.0, False, '1e+03*'),
     (20080.0, False, '2e+04*'),
     (np.nan, True, '     -'),
@@ -200,3 +215,30 @@ def test_ratio_cell_keeps_its_width(ratio, adequate, cell):
 
 def test_ratio_cell_without_comparison():
     assert format_noise_ratio(None) == '     -'
+
+
+# =============================================================================
+# kk_noise_for_fit
+# =============================================================================
+
+def test_kk_noise_for_fit_on_original_is_the_subset_noise():
+    kk = kramers_kronig_validation(FREQ, _synthesize(0.5))
+    mask = FREQ >= 1.0
+    assert kk_noise_for_fit(kk, mask, 'original') == kk.noise_estimate_on(mask)
+
+
+@pytest.mark.parametrize('fit_on', ['zhit', 'all'])
+def test_kk_noise_for_fit_on_reconstruction_is_none(fit_on):
+    """The Lin-KK noise does not describe the reconstruction's error."""
+    kk = kramers_kronig_validation(FREQ, _synthesize(0.5))
+    assert kk_noise_for_fit(kk, np.ones(len(FREQ), dtype=bool), fit_on) is None
+
+
+@pytest.mark.parametrize('mask', [np.zeros(len(FREQ), dtype=bool), np.ones(3, dtype=bool)])
+def test_kk_noise_for_fit_never_raises(mask):
+    kk = kramers_kronig_validation(FREQ, _synthesize(0.5))
+    assert kk_noise_for_fit(kk, mask, 'original') is None
+
+
+def test_kk_noise_for_fit_without_kk_is_none():
+    assert kk_noise_for_fit(None, np.ones(len(FREQ), dtype=bool), 'original') is None

@@ -258,16 +258,11 @@ def test_frequency_filter_masks_the_reconstruction_alongside_z():
 
 
 
-@pytest.mark.parametrize('fit_on', ['original', 'zhit', 'all'])
-def test_measured_z_survives_every_mode_and_the_filter(fit_on):
-    """The fit is compared with the Lin-KK noise against Z_measured, so it
-    must be the measurement in every mode - also under 'all', which replaces
-    Z - and be masked like the rest of the data."""
-    data = _loaded()
-    out = apply_zhit_reconstruction(data, _reconstruction_of(data), _args(fit_on))
-    args = _args(fit_on, f_min=1.0, f_max=1e3)
-    filtered = filter_by_frequency(out, args)
+def test_frequency_mask_selects_what_the_filter_keeps():
+    """The Lin-KK noise is restricted with frequency_mask, so it must pick
+    exactly the points filter_by_frequency keeps."""
+    args = _args('original', f_min=1.0, f_max=1e3)
+    filtered = filter_by_frequency(_loaded(), args)
 
-    mask = frequency_mask(FREQUENCIES, args)
-    np.testing.assert_array_equal(filtered.frequencies, FREQUENCIES[mask])
-    np.testing.assert_array_equal(filtered.Z_measured, data.Z[mask])
+    np.testing.assert_array_equal(filtered.frequencies,
+                                  FREQUENCIES[frequency_mask(FREQUENCIES, args)])

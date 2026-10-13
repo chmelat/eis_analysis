@@ -285,7 +285,6 @@ def filter_by_frequency(
     # element-wise with Z, so it has to survive the same mask - otherwise the
     # fit would pair reconstructed points with the wrong frequencies.
     Z_zhit = data.Z_zhit[mask] if data.Z_zhit is not None else None
-    Z_original = data.Z_original[mask] if data.Z_original is not None else None
     current_thd = data.current_thd[mask] if data.current_thd is not None else None
     voltage_thd = data.voltage_thd[mask] if data.voltage_thd is not None else None
 
@@ -309,7 +308,6 @@ def filter_by_frequency(
         metadata=data.metadata,
         ocv_data=data.ocv_data,
         Z_zhit=Z_zhit,
-        Z_original=Z_original,
         current_thd=current_thd,
         voltage_thd=voltage_thd
     )

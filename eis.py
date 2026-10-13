@@ -47,6 +47,7 @@ from eis_analysis.cli import (
     frequency_mask,
     # Handlers
     run_kk_validation,
+    kk_noise_for_fit,
     run_zhit_validation,
     apply_zhit_reconstruction,
     report_outliers,
@@ -105,7 +106,7 @@ def _run_analysis(args) -> None:
     # spectrum; the fit is compared with it on the points it is fitted to.
     mask = frequency_mask(data.frequencies, args)
     data = filter_by_frequency(data, args)
-    kk_noise = kk_result.noise_estimate_on(mask) if kk_result is not None else None
+    kk_noise = kk_noise_for_fit(kk_result, mask, args.fit_on)
 
     # Visualization
     fig_vis = visualize_data(data.frequencies, data.Z, data.title)
@@ -131,10 +132,7 @@ def _run_analysis(args) -> None:
     run_voigt_analysis(drt_result, data.frequencies, data.Z, args)
 
     # Circuit fitting
-    # Compared with the noise against the measured Z, as KK was - under
-    # --fit-on both the fit's target and (for 'all') Z are the reconstruction.
     fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z_for_fit, args,
-                                           Z_measured=data.Z_measured,
                                            noise_percent=kk_noise)
 
     # Oxide layer analysis

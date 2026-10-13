@@ -4,6 +4,27 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **No fit-to-noise ratio under `--fit-on zhit/all`.** v0.59.0 compared the
+  fit of the Z-HIT reconstruction with the measured data. No reference makes
+  that ratio usable: on a synthetic two-arc spectrum the correct circuit
+  lands at 2.9-5.0 against the measured data or the reconstruction on
+  drift-free data (the reconstruction's own error), at 1.9-2.1 against the
+  measured data under 10 % low-frequency drift (the drift `--fit-on`
+  removes counts as misfit), and at 0.15-0.20 against the reconstruction
+  under 30 % drift (the Lin-KK noise carries the drift). The fit block now
+  says `Fit vs. noise: not compared` and why; the table shows `-`. The
+  `Z_original` field of `LoadedData` that kept the measured Z under `all` is
+  removed again.
+- **The Lin-KK noise of the fitted points can no longer end the run.**
+  `kk_noise_for_fit` (CLI) returns None where `noise_estimate_on` would
+  raise.
+- **The `fit/KK` cell keeps its width at 999.95-999.99**, which rounded to
+  the seven-character `1000.0`.
+
 ## Version 0.59.0 (2026-10-13)
 
 ### Added

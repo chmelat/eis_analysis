@@ -25,6 +25,7 @@ from .handlers import (
     run_drt_analysis,
     run_voigt_analysis,
     run_circuit_fitting,
+    kk_noise_for_fit,
     run_oxide_analysis,
     run_local_exponent,
 )
@@ -58,6 +59,7 @@ __all__ = [
     'run_drt_analysis',
     'run_voigt_analysis',
     'run_circuit_fitting',
+    'kk_noise_for_fit',
     'run_oxide_analysis',
     'run_local_exponent',
     # Utils

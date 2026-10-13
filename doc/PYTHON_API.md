@@ -581,10 +581,12 @@ a.adequate            # False when ratio > FIT_NOISE_RATIO_WARN (2)
 a.warnings            # set when inadequate or not comparable
 ```
 
-Pass the measured `Z` (what Lin-KK saw), also when the circuit was fitted to
-a reconstruction. If the fit covers only part of the validated spectrum, use
-the Lin-KK noise of those points, `kk.noise_estimate_on(mask)` with `mask`
-selecting them from the validated frequencies. Non-finite input gives `ratio = nan` and
+Pass the measured `Z` the circuit was fitted to - what Lin-KK saw. A fit to a
+Z-HIT reconstruction has no usable reference: the Lin-KK noise does not
+describe the reconstruction's own error, and the CLI does not compare it. If
+the fit covers only part of the validated spectrum, use the Lin-KK noise of
+those points, `kk.noise_estimate_on(mask)` with `mask` selecting them from
+the validated frequencies. Non-finite input gives `ratio = nan` and
 `adequate = True` with a warning - a missing comparison is no evidence of a
 misfit.
 

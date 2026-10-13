@@ -276,7 +276,7 @@ def apply_zhit_reconstruction(
     -------
     LoadedData
         Unchanged for --fit-on original; with `Z_zhit` attached for `zhit`;
-        with `Z` itself replaced for `all`, the measured Z kept as `Z_original`.
+        with `Z` itself replaced for `all`.
 
     Raises
     ------
@@ -314,7 +314,7 @@ def apply_zhit_reconstruction(
                        "relaxations even on clean data")
         # Title flows into visualize_data, so the Nyquist/Bode plot says which
         # curve it is showing.
-        return replace(data, Z=zhit_result.Z_fit, Z_original=data.Z,
+        return replace(data, Z=zhit_result.Z_fit,
                        title=f"{data.title} (Z-HIT)")
 
     return replace(data, Z_zhit=zhit_result.Z_fit)
