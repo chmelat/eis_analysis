@@ -8,12 +8,15 @@ Author: EIS Analysis Toolkit
 
 import numpy as np
 import logging
-from typing import Optional, Sequence, Tuple, Union
+from dataclasses import dataclass, field
+from typing import List, Optional, Sequence, Tuple, Union
 from numpy.typing import NDArray
 
 from .config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
-                     FIT_QUALITY_ACCEPTABLE_ERROR)
+                     FIT_QUALITY_ACCEPTABLE_ERROR, FIT_NOISE_RATIO_WARN,
+                     NOISE_FLOOR_PERCENT)
 from .jacobian import circuit_jacobian
+from ..validation.kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
 
 logger = logging.getLogger(__name__)
 
@@ -285,9 +288,98 @@ def compute_significance(
     return np.max(np.abs(relative / Z_mag2[:, np.newaxis]), axis=0)
 
 
+@dataclass
+class NoiseAdequacyResult:
+    """
+    Circuit fit compared with the noise of the data.
+
+    Attributes
+    ----------
+    fit_noise_percent : float
+        The fit's residual expressed as noise [%]: estimate_noise_percent of
+        its pseudo chi-squared, the estimator Lin-KK reports its noise with
+    noise_percent : float
+        Reference noise [%] as given, before NOISE_FLOOR_PERCENT applies
+    ratio : float
+        fit_noise_percent / max(noise_percent, NOISE_FLOOR_PERCENT);
+        nan when the comparison was not possible
+    adequate : bool
+        False when ratio > FIT_NOISE_RATIO_WARN. True when the comparison was
+        not possible - a missing comparison is not evidence of a misfit
+    warnings : list of str
+        Set when the fit is inadequate or the comparison was not possible
+    """
+    fit_noise_percent: float
+    noise_percent: float
+    ratio: float
+    adequate: bool
+    warnings: List[str] = field(default_factory=list)
+
+
+def compare_fit_to_noise(
+    Z: NDArray[np.complexfloating],
+    Z_fit: NDArray[np.complexfloating],
+    noise_percent: float
+) -> NoiseAdequacyResult:
+    """
+    Is the circuit fit at the noise level, or does it miss resolvable structure?
+
+    The fit is converted to noise with the same estimator Lin-KK uses
+    (pseudo chi-squared -> estimate_noise_percent) and divided by the Lin-KK
+    noise of the same points. Both models are KK-compliant, so whatever KK
+    inconsistency (drift) makes the Lin-KK noise only an upper bound sits in
+    both and cancels in the ratio. A correct model lands at ~1; above
+    FIT_NOISE_RATIO_WARN the data resolve structure the model does not have.
+
+    The ratio is RMS-based, not the maximum residual: the maximum of N points
+    grows with N (~3 sigma at 70 points) and follows single outliers.
+    Pseudo chi-squared weights by 1/|Z|^2 whatever the fit's weighting, so
+    the number is comparable across weightings and candidates.
+
+    Parameters
+    ----------
+    Z : ndarray of complex
+        Measured impedance [Ohm] - the data Lin-KK was fitted to, also when
+        the circuit was fitted to a reconstruction (--fit-on)
+    Z_fit : ndarray of complex
+        Circuit impedance at the same frequencies [Ohm]
+    noise_percent : float
+        Lin-KK noise estimate of the same points [%]
+
+    Returns
+    -------
+    NoiseAdequacyResult
+
+    Raises
+    ------
+    ValueError
+        If Z is empty or Z and Z_fit differ in length
+    """
+    if len(Z) == 0 or len(Z) != len(Z_fit):
+        raise ValueError(f"compare_fit_to_noise: Z ({len(Z)}) and Z_fit "
+                         f"({len(Z_fit)}) must be non-empty and of equal length")
+
+    fit_noise = estimate_noise_percent(compute_pseudo_chisqr(Z, Z_fit), len(Z))
+    if not (np.isfinite(fit_noise) and np.isfinite(noise_percent)):
+        return NoiseAdequacyResult(
+            fit_noise, noise_percent, np.nan, True,
+            [f"Fit not compared with the noise: non-finite value "
+             f"(fit {fit_noise:.3g} %, noise {noise_percent:.3g} %)"])
+
+    ratio = fit_noise / max(noise_percent, NOISE_FLOOR_PERCENT)
+    adequate = ratio <= FIT_NOISE_RATIO_WARN
+    warnings = [] if adequate else [
+        f"Fit residual is {ratio:.1f}x the noise (> {FIT_NOISE_RATIO_WARN:g}): "
+        "the model misses structure the data resolve; its parameters and CIs "
+        "are biased"]
+    return NoiseAdequacyResult(fit_noise, noise_percent, ratio, adequate, warnings)
+
+
 __all__ = [
     'compute_weights',
     'compute_fit_metrics',
     'compute_information_criteria',
     'compute_significance',
+    'compare_fit_to_noise',
+    'NoiseAdequacyResult',
 ]

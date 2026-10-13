@@ -561,6 +561,33 @@ sorted internally - both statistics read consecutive points as neighbours.
 What the numbers mean and how to act on them:
 [RESIDUAL_DIAGNOSTICS.md](RESIDUAL_DIAGNOSTICS.md).
 
+### Is the fit at the noise level? (`compare_fit_to_noise`)
+
+The residual tests ask about the shape of the misfit; this asks about its
+size relative to the noise. The fit is turned into a noise level with the
+estimator Lin-KK reports its noise with, then divided by the Lin-KK noise of
+the same points.
+
+```python
+from eis_analysis.fitting import compare_fit_to_noise
+from eis_analysis.validation import kramers_kronig_validation
+
+kk = kramers_kronig_validation(freq, Z)
+a = compare_fit_to_noise(Z, Z_fit, kk.noise_estimate)
+
+a.fit_noise_percent   # the fit's residual as noise [%]
+a.ratio               # fit / max(noise, NOISE_FLOOR_PERCENT); ~1 for a correct model
+a.adequate            # False when ratio > FIT_NOISE_RATIO_WARN (2)
+a.warnings            # set when inadequate or not comparable
+```
+
+Pass the measured `Z` (what Lin-KK saw), also when the circuit was fitted to
+a reconstruction. If the fit covers only part of the validated spectrum, use
+the Lin-KK noise of those points, `kk.noise_estimate_on(mask)` with `mask`
+selecting them from the validated frequencies. Non-finite input gives `ratio = nan` and
+`adequate = True` with a warning - a missing comparison is no evidence of a
+misfit.
+
 ### Comparing candidate circuits (AIC/BIC)
 
 A lower fit error does not mean a better model: adding an element almost
@@ -589,10 +616,12 @@ from eis_analysis.cli.handlers.model_comparison import (
 )
 
 scores = score_candidates(
-    freq, Z, [('R-(R|C)', result_a), ('R-(R|Q)', result_b)], 'modulus'
+    freq, Z, [('R-(R|C)', result_a), ('R-(R|Q)', result_b)], 'modulus',
+    Z_measured=Z, noise_percent=kk.noise_estimate   # optional: fit/KK column
 )
 log_comparison(scores, len(freq), 'modulus')
 best = scores[0].result        # sorted by BIC; failed candidates sort last
+scores[0].noise                # NoiseAdequacyResult; None without noise
 ```
 
 ### FitDiagnostics

@@ -4,6 +4,37 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **The fit is compared with the noise of the data.** Each `--circuit` fit
+  prints a `Fit vs. noise` line: the fit and Lin-KK, both turned into noise
+  by the same estimator (pseudo chi^2, Yrjana & Bobacka 2024) on the same
+  points, and their ratio. Above `FIT_NOISE_RATIO_WARN` = 2 it warns that the
+  model misses structure the data resolve. The circuit comparison table gets
+  a `fit/KK` column and says so when no candidate reaches the noise
+  ("adequacy before AIC", gate E12 of eis-fitting-protocol). Library:
+  `compare_fit_to_noise` / `NoiseAdequacyResult` in `eis_analysis.fitting`;
+  `KKResult.noise_estimate_on(mask)` restricts the Lin-KK noise to the
+  `--f-min/--f-max` points (`frequency_mask` in the CLI, shared with
+  `filter_by_frequency`). Under `--fit-on zhit` and `all` the fit is
+  compared with the measured data, as Lin-KK was; `LoadedData` keeps it as
+  `Z_original` when `all` replaces `Z`.
+
+  The ratio is RMS-based, not the protocol's maximum residual over 10x the
+  noise: both models are KK-compliant, so the drift that makes the Lin-KK
+  noise an upper bound sits in both and cancels, and the maximum of N points
+  grows with N. Measured (`fit_equivalent_circuit`, 71 points, 2 seeds): a
+  correct circuit at 0.1 / 0.5 / 2 % noise lands at 0.60-1.02, a circuit
+  missing an arc at 9-219, Q replaced by C at 1.7-41. On `example/`,
+  `R-(R|Q)-(R|Q)` is at 0.8 on `real_gamry_example.DTA` but at 9.3 and 13 on
+  the two EISPOT spectra, where the fit error (4 %, 12 %) did not tell.
+  On short spectra (15-50 points) the correct circuit stays at <= 1.10, so
+  no degrees-of-freedom correction. `NOISE_FLOOR_PERCENT` = 0.05 keeps the
+  ratio finite on noiseless data.
+  Nothing else changes: no fitted value, no BIC selection.
+
 ## Version 0.58.3 (2026-10-10)
 
 ### Changed

@@ -256,3 +256,35 @@ def test_all_candidates_failed_produces_no_table():
     log_comparison(scores, len(FREQ), 'modulus')
 
     assert all(s.result is None for s in scores)
+
+
+# =============================================================================
+# Fit-to-noise column
+# =============================================================================
+
+def test_noise_ratio_column_and_no_adequate_candidate_note(caplog):
+    """Both candidates miss the second arc: each gets a ratio, and the table
+    says the ranking only orders inadequate models."""
+    Z = _synthesize('R(10)-(R(200)|C(2e-5))-(R(2000)|C(2e-3))', noise=0.005)
+    candidates = [(e, _fit(e, Z)) for e in ('R(10)-(R(200)|C(2e-5))',
+                                            'R(10)-(R(2000)|C(2e-4))')]
+
+    scores = score_candidates(FREQ, Z, candidates, 'modulus',
+                              Z_measured=Z, noise_percent=0.5)
+    assert all(s.noise is not None and not s.noise.adequate for s in scores)
+
+    with caplog.at_level('INFO'):
+        log_comparison(scores, len(FREQ), 'modulus')
+    assert 'fit/KK' in caplog.text
+    assert 'No candidate reaches the noise level' in caplog.text
+
+
+def test_noise_ratio_absent_without_noise(caplog):
+    Z = _synthesize('R(10)-(R(200)|C(2e-5))', noise=0.005)
+    scores = score_candidates(FREQ, Z, [('a', _fit('R(10)-(R(200)|C(2e-5))', Z))],
+                              'modulus')
+    assert scores[0].noise is None
+
+    with caplog.at_level('INFO'):
+        log_comparison(scores, len(FREQ), 'modulus')
+    assert 'No candidate reaches' not in caplog.text

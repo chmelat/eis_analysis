@@ -130,12 +130,13 @@ eis data.DTA \
 
 ```
 Circuit comparison (n = 160 residuals, weighting = modulus)
-  rank  -c  Circuit                                  k    err%     dAIC     dBIC      cond
-     1   1  R(10)-(R(200)|C(2e-5))                   3    2.38      2.4      0.0   1.2e+00
-     2   3  R(10)-(R(150)|C(2e-5))-(R(50)|C(1e-6))   5    2.33      0.0      3.7   1.3e+08
-     3   2  R(10)-(R(200)|Q(2e-5,0.9))               4    2.38      4.4      5.1   6.0e+01
+  rank  -c  Circuit                                  k    err%  fit/KK     dAIC     dBIC      cond
+     1   1  R(10)-(R(200)|C(2e-5))                   3    2.38    0.8       2.4      0.0   1.2e+00
+     2   3  R(10)-(R(150)|C(2e-5))-(R(50)|C(1e-6))   5    2.33    0.8       0.0      3.7   1.3e+08
+     3   2  R(10)-(R(200)|Q(2e-5,0.9))               4    2.38    0.8       4.4      5.1   6.0e+01
 
   dAIC/dBIC < 2: indistinguishable, 4-7: noticeable, > 10: decisive
+  fit/KK: fit residual / Lin-KK noise; * > 2, the model misses structure the data resolve
 
 Selected by BIC: R(10)-(R(200)|C(2e-5))  (candidate 1)
 ```
@@ -153,6 +154,13 @@ disagree on: the two-branch circuit has the *lowest* residual and wins on AIC,
 but BIC rejects the extra branch - and its condition number, eight orders
 higher, shows why. The `!` flag marks `cond > 1e10`, where the covariance is
 numerically unusable; below it, read the column anyway.
+
+`fit/KK` asks the question before the ranking: does the candidate fit to the
+noise at all? It is the same ratio as the `Fit vs. noise` line of each fit
+(see below). Here all three are at the noise, so the ranking is meaningful.
+When every candidate is above 2, the table says so - the ranking then only
+orders wrong models, and the circuit needs another element first. The column
+is `-` with `--no-kk`.
 
 `rank` orders by BIC; `-c` is the position on the command line, which is also
 the number the figures are saved under (`<prefix>_fit_1`, `_fit_2`, ...).
@@ -517,6 +525,7 @@ few percent while its residuals march smoothly across the spectrum. Both
 ```
   Fit error: 4.35% (rel), 322.63 Ohm (abs)
   Quality: Acceptable (<5.0%)
+  Fit vs. noise: 3.96% vs 4.84% (Lin-KK, same points), ratio 0.8 (limit 2)
   Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
 !   Residuals are not random (Re/Im, 7.1 decade window):
 !     trend:     +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
@@ -533,6 +542,23 @@ when neighbouring points share a systematic offset. `runs p` is a runs test
 against the median: the p-value that this many sign changes could come from
 independent residuals. A quality of `Good` alongside that warning is not a
 contradiction - the fit is close, and still the wrong model.
+
+`Fit vs. noise` compares the *size* of the misfit with what the data resolve.
+Both the circuit fit and Lin-KK are turned into a noise level by the same
+estimator (pseudo chi^2, Yrjana & Bobacka 2024) on the same points, and the
+line gives their ratio. A correct circuit lands at about 1 (0.6-1.0 on
+synthetic data at 0.1-2 % noise); above 2 the line becomes a warning: the
+data resolve structure the model does not have, and its parameters are
+biased. On `EISPOT-test1.DTA` the same `R-(R|Q)-(R|Q)` fits to 4 %, rated
+`Acceptable`, and is at 9.3x the noise of 0.34 %. Lin-KK noise is only an
+upper bound - it contains drift - but so does the circuit fit, and the ratio
+cancels it. That is also why the example above can show 0.8 next to
+non-random residuals: Lin-KK rates that spectrum `poor`, and the circuit
+misfit is the drift every KK-compliant model leaves. The noise is taken from
+the Lin-KK run of the full spectrum, restricted to the `--f-min/--f-max`
+points, and the fit is compared with the measured data also under
+`--fit-on zhit` and `--fit-on all`. With `--no-kk` the line is absent; `--voigt-chain` does not
+print it (it is a Lin-KK model itself).
 
 The shape is reported as two measurements rather than as one verdict, because
 residuals commonly carry both at once and each asks for a different repair:

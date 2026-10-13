@@ -17,7 +17,9 @@ from numpy.typing import NDArray
 
 from ..logging import log_separator
 from ...fitting import FitResult
-from ...fitting.diagnostics import compute_information_criteria
+from ...fitting.config import FIT_NOISE_RATIO_WARN
+from ...fitting.diagnostics import NoiseAdequacyResult, compute_information_criteria
+from .fit_noise import noise_adequacy, format_noise_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +34,17 @@ class ModelScore(NamedTuple):
     result: Optional[FitResult]   # None when the fit failed or scored non-finite
     aic: float
     bic: float
+    # Fit compared with the Lin-KK noise; None without a noise estimate
+    noise: Optional[NoiseAdequacyResult] = None
 
 
 def score_candidates(
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complexfloating],
     candidates: List[Tuple[str, Optional[FitResult]]],
-    weighting: str
+    weighting: str,
+    Z_measured: Optional[NDArray[np.complexfloating]] = None,
+    noise_percent: Optional[float] = None
 ) -> List[ModelScore]:
     """
     Score fitted candidates and sort them best-first by BIC.
@@ -55,6 +61,12 @@ def score_candidates(
     weighting : str
         Weighting used for every fit - the comparison is only valid when it
         is the same for all candidates
+    Z_measured : ndarray of complex, optional
+        Measured impedance the fit is compared with the noise against
+        (differs from Z under --fit-on)
+    noise_percent : float, optional
+        Lin-KK noise of these points [%]; without it, or without Z_measured,
+        `noise` stays None
 
     Returns
     -------
@@ -83,7 +95,8 @@ def score_candidates(
             scores.append(ModelScore(index, expression, None, np.inf, np.inf))
             continue
 
-        scores.append(ModelScore(index, expression, result, aic, bic))
+        scores.append(ModelScore(index, expression, result, aic, bic,
+                                 noise_adequacy(Z_measured, Z_fit, noise_percent)))
 
     return sorted(scores, key=lambda s: s.bic)
 
@@ -119,7 +132,7 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
     # 'rank' orders by BIC, '-c' is the position on the command line - the
     # figures are saved under that number, not under the rank.
     logger.info(f"  {'rank':>4}  {'-c':>2}  {'Circuit':<{width}}  {'k':>2}  "
-                f"{'err%':>6}  {'dAIC':>7}  {'dBIC':>7}  {'cond':>8}")
+                f"{'err%':>6}  {'fit/KK':>6}  {'dAIC':>7}  {'dBIC':>7}  {'cond':>8}")
 
     rank = 0
     for score in scores:
@@ -129,15 +142,16 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
 
         if score.result is None:
             logger.info(f"  {'':>4}  {score.candidate:>2}  {expression:<{width}}  "
-                        f"{'-':>2}  {'-':>6}  {'-':>7}  {'-':>7}  {'-':>8}  failed")
+                        f"{'-':>2}  {'-':>6}  {'-':>6}  {'-':>7}  {'-':>7}  {'-':>8}  failed")
             continue
 
         rank += 1
         flag = '' if score.result.is_well_conditioned else '  !'
+        ratio = format_noise_ratio(score.noise)
         logger.info(
             f"  {rank:>4}  {score.candidate:>2}  {expression:<{width}}  "
             f"{score.result.n_free_params:>2}  "
-            f"{score.result.fit_error_rel:>6.2f}  "
+            f"{score.result.fit_error_rel:>6.2f}  {ratio}  "
             f"{score.aic - best_aic:>7.1f}  {score.bic - best_bic:>7.1f}  "
             f"{score.result.condition_number:>8.1e}{flag}"
         )
@@ -145,6 +159,16 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
     logger.info("")
     logger.info("  dAIC/dBIC < 2: indistinguishable, 4-7: noticeable, "
                 "> 10: decisive")
+    compared = [s.noise for s in fitted
+                if s.noise is not None and np.isfinite(s.noise.ratio)]
+    if compared:
+        logger.info(f"  fit/KK: fit residual / Lin-KK noise; * > {FIT_NOISE_RATIO_WARN:g}, "
+                    "the model misses structure the data resolve")
+    # Adequacy before ranking (eis-fitting-protocol, gate E12): when every
+    # candidate misses structure, the ranking only orders wrong models.
+    if compared and not any(a.adequate for a in compared):
+        logger.warning("  No candidate reaches the noise level - the ranking "
+                       "compares inadequate models")
     if any(s.result is not None and not s.result.is_well_conditioned
            for s in scores):
         logger.info("  ! cond > 1e10 - covariance unreliable, model likely "

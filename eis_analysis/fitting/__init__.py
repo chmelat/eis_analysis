@@ -82,7 +82,8 @@ from .circuit import fit_equivalent_circuit, FitResult, FitDiagnostics
 from .covariance import CovarianceResult
 
 # Import model selection criteria
-from .diagnostics import compute_information_criteria
+from .diagnostics import (
+    compute_information_criteria, compare_fit_to_noise, NoiseAdequacyResult)
 
 # Import residual shape tests (are the residuals noise, or missing structure?)
 from .residual_diagnostics import (
@@ -147,6 +148,8 @@ __all__ = [
     'FitResult',
     'FitDiagnostics',
     'compute_information_criteria',
+    'compare_fit_to_noise',
+    'NoiseAdequacyResult',
     'analyze_residuals',
     'ResidualDiagnostics',
     'SeriesDiagnostics',

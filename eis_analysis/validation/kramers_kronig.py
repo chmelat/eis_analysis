@@ -169,6 +169,30 @@ class KKResult:
             return False
         return self.n_above_threshold <= KK_MAX_FRACTION_ABOVE * len(self.residuals_real)
 
+    def noise_estimate_on(self, mask: NDArray[np.bool_]) -> float:
+        """
+        noise_estimate [%] over a subset of the points, e.g. a fit's frequency range.
+
+        The residuals are normalized by |Z|, so their sum of squares over the
+        subset is that subset's pseudo chi-squared. With every point selected
+        this equals noise_estimate.
+
+        Raises
+        ------
+        ValueError
+            If validation failed, the mask does not match the residuals, or
+            it selects no point
+        """
+        if self.residuals_real is None or self.residuals_imag is None:
+            raise ValueError("noise_estimate_on: KK validation has no residuals")
+        mask = np.asarray(mask, dtype=bool)
+        if mask.shape != self.residuals_real.shape:
+            raise ValueError(f"noise_estimate_on: mask shape {mask.shape} does not "
+                             f"match {self.residuals_real.shape} residuals")
+        chi2 = float(np.sum(self.residuals_real[mask] ** 2
+                            + self.residuals_imag[mask] ** 2))
+        return estimate_noise_percent(chi2, int(np.count_nonzero(mask)))
+
 
 # Kept for callers of the former separate class: it duplicated every field and
 # property of KKResult (doc/KRAMERS_KRONIG_REVIEW.md 2.3).

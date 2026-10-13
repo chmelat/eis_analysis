@@ -241,6 +241,37 @@ for an element entering the impedance linearly the significance is bounded by
 anywhere in the measured window. See compute_significance in diagnostics.py.
 """
 
+# Measured 2026-10-13 (fit_equivalent_circuit, 71 points, 2 seeds): a correct
+# circuit on synthetic data at 0.1 / 0.5 / 2 % noise lands at a ratio of
+# 0.60-1.02, a circuit missing one arc at 9-219, a Q replaced by a C at
+# 1.7-41. On the spectra in example/ an R-RQ-RQ fit reaches 0.82 on one and
+# 9-13 on the other two, where fit_error_rel (4 %) still reads "good".
+# No degrees-of-freedom correction: on short spectra (15 / 20 / 30 / 50
+# points, 10 seeds each) the correct circuit stays at <= 1.10, because Lin-KK
+# stops on mu, not at the least-squares minimum, and its residual is not
+# deflated by its many parameters. A dof-corrected ratio came out lower still.
+# At 15 points (2 per decade) Lin-KK overestimates the noise (0.60 % for 0.1 %)
+# and the check loses sensitivity, but a missing arc still lands at 7-34.
+FIT_NOISE_RATIO_WARN = 2.0
+"""
+Fit-to-noise ratio above which the model does not describe the data.
+
+The ratio compares the circuit fit and the Lin-KK fit through the same
+estimator (see compare_fit_to_noise). 2 means the misfit variance is at least
+3x the noise variance; a correct model never exceeded 1.02 in the measurement
+above. A misfit of the order of the noise (Q -> C at 2 % noise, 1.7-2.1)
+passes - that is the residual shape tests' job.
+"""
+
+NOISE_FLOOR_PERCENT = 0.05
+"""
+Lower bound [%] on the noise the fit is compared with.
+
+Below the accuracy of a potentiostat (~0.1 %) a misfit is not resolvable on
+measured data. Without the floor, noiseless synthetic data (Lin-KK noise
+~0.001 %) turns any misfit into a ratio of tens of thousands.
+"""
+
 # =============================================================================
 # Differential Evolution Diagnostics
 # =============================================================================
@@ -339,6 +370,8 @@ __all__ = [
     'FIT_QUALITY_EXCELLENT_ERROR',
     'FIT_QUALITY_GOOD_ERROR',
     'FIT_QUALITY_ACCEPTABLE_ERROR',
+    'FIT_NOISE_RATIO_WARN',
+    'NOISE_FLOOR_PERCENT',
     'DE_STALLED_ERROR_PCT',
     'DE_STALLED_IMPROVEMENT_FACTOR',
 

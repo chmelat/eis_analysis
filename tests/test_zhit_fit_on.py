@@ -21,7 +21,7 @@ import argparse
 import numpy as np
 import pytest
 
-from eis_analysis.cli.data_handling import filter_by_frequency
+from eis_analysis.cli.data_handling import filter_by_frequency, frequency_mask
 from eis_analysis.cli.handlers.validation import apply_zhit_reconstruction
 from eis_analysis.cli.utils import EISAnalysisError, LoadedData
 from eis_analysis.fitting import fit_equivalent_circuit, R, Q
@@ -256,3 +256,18 @@ def test_frequency_filter_masks_the_reconstruction_alongside_z():
     np.testing.assert_array_equal(filtered.Z_zhit, attached.Z_zhit[mask])
     np.testing.assert_array_equal(filtered.Z_for_fit, filtered.Z_zhit)
 
+
+
+@pytest.mark.parametrize('fit_on', ['original', 'zhit', 'all'])
+def test_measured_z_survives_every_mode_and_the_filter(fit_on):
+    """The fit is compared with the Lin-KK noise against Z_measured, so it
+    must be the measurement in every mode - also under 'all', which replaces
+    Z - and be masked like the rest of the data."""
+    data = _loaded()
+    out = apply_zhit_reconstruction(data, _reconstruction_of(data), _args(fit_on))
+    args = _args(fit_on, f_min=1.0, f_max=1e3)
+    filtered = filter_by_frequency(out, args)
+
+    mask = frequency_mask(FREQUENCIES, args)
+    np.testing.assert_array_equal(filtered.frequencies, FREQUENCIES[mask])
+    np.testing.assert_array_equal(filtered.Z_measured, data.Z[mask])

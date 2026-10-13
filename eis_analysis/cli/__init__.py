@@ -13,7 +13,7 @@ The main entry point is in the root eis.py script.
 
 from .logging import setup_logging, log_separator
 from .parser import parse_arguments
-from .data_handling import load_eis_data, filter_by_frequency
+from .data_handling import load_eis_data, filter_by_frequency, frequency_mask
 from .handlers import (
     run_kk_validation,
     run_zhit_validation,
@@ -46,6 +46,7 @@ __all__ = [
     # Data handling
     'load_eis_data',
     'filter_by_frequency',
+    'frequency_mask',
     # Handlers
     'run_kk_validation',
     'run_zhit_validation',

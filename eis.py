@@ -44,6 +44,7 @@ from eis_analysis.cli import (
     # Data handling
     load_eis_data,
     filter_by_frequency,
+    frequency_mask,
     # Handlers
     run_kk_validation,
     run_zhit_validation,
@@ -100,8 +101,11 @@ def _run_analysis(args) -> None:
     # the reconstruction was computed on it and stays aligned with it.
     data = apply_zhit_reconstruction(data, zhit_result, args)
 
-    # Filter to the analysis region
+    # Filter to the analysis region. The Lin-KK noise ran on the full
+    # spectrum; the fit is compared with it on the points it is fitted to.
+    mask = frequency_mask(data.frequencies, args)
     data = filter_by_frequency(data, args)
+    kk_noise = kk_result.noise_estimate_on(mask) if kk_result is not None else None
 
     # Visualization
     fig_vis = visualize_data(data.frequencies, data.Z, data.title)
@@ -127,7 +131,11 @@ def _run_analysis(args) -> None:
     run_voigt_analysis(drt_result, data.frequencies, data.Z, args)
 
     # Circuit fitting
-    fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z_for_fit, args)
+    # Compared with the noise against the measured Z, as KK was - under
+    # --fit-on both the fit's target and (for 'all') Z are the reconstruction.
+    fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z_for_fit, args,
+                                           Z_measured=data.Z_measured,
+                                           noise_percent=kk_noise)
 
     # Oxide layer analysis
     run_oxide_analysis(

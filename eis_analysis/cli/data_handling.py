@@ -3,6 +3,7 @@ Data loading and filtering for EIS CLI.
 
 Contains:
 - load_eis_data: Load from file or generate synthetic data
+- frequency_mask: The --f-min/--f-max selection as a boolean mask
 - filter_by_frequency: Apply frequency range filter
 """
 
@@ -215,6 +216,23 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
 # Data Filtering
 # =============================================================================
 
+def frequency_mask(frequencies: NDArray[np.float64],
+                   args: argparse.Namespace) -> NDArray[np.bool_]:
+    """
+    The --f-min/--f-max selection as a mask over `frequencies`.
+
+    The one definition of the analysis range: filter_by_frequency applies it,
+    and the pipeline uses it to restrict full-spectrum results (Lin-KK noise)
+    to the same points.
+    """
+    mask: NDArray[np.bool_] = np.ones(len(frequencies), dtype=bool)
+    if args.f_min is not None:
+        mask &= (frequencies >= args.f_min)
+    if args.f_max is not None:
+        mask &= (frequencies <= args.f_max)
+    return mask
+
+
 def filter_by_frequency(
     data: LoadedData,
     args: argparse.Namespace
@@ -255,14 +273,10 @@ def filter_by_frequency(
     Z = data.Z
     original_count = len(frequencies)
 
-    mask: NDArray[np.bool_] = np.ones(len(frequencies), dtype=bool)
-
+    mask = frequency_mask(frequencies, args)
     if args.f_min is not None:
-        mask &= (frequencies >= args.f_min)
         logger.info(f"Applying f_min = {args.f_min} Hz")
-
     if args.f_max is not None:
-        mask &= (frequencies <= args.f_max)
         logger.info(f"Applying f_max = {args.f_max} Hz")
 
     frequencies = frequencies[mask]
@@ -271,6 +285,7 @@ def filter_by_frequency(
     # element-wise with Z, so it has to survive the same mask - otherwise the
     # fit would pair reconstructed points with the wrong frequencies.
     Z_zhit = data.Z_zhit[mask] if data.Z_zhit is not None else None
+    Z_original = data.Z_original[mask] if data.Z_original is not None else None
     current_thd = data.current_thd[mask] if data.current_thd is not None else None
     voltage_thd = data.voltage_thd[mask] if data.voltage_thd is not None else None
 
@@ -294,6 +309,7 @@ def filter_by_frequency(
         metadata=data.metadata,
         ocv_data=data.ocv_data,
         Z_zhit=Z_zhit,
+        Z_original=Z_original,
         current_thd=current_thd,
         voltage_thd=voltage_thd
     )
