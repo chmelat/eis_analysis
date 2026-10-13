@@ -104,19 +104,25 @@ Role (vyzkumnik, ktery knihovnu vidi poprve), uloha, data, prostredi,
 pravidla: cist jen `~/coldbox/docs/` a `help()` balicku, nevystupovat
 z `~/coldbox/`, nic neinstalovat. Na konec debrief podle sablony.
 
-### Sablona debriefu (soucast zadani)
+### Osnova zpravy (soucast zadani)
+
+Zprava o pouzitelnosti knihovny a dokumentace, ne o vlastnich uvahach
+agenta: osnova ve tvaru "kde jsi tapal, co jsi cekal" spoustela filtr
+Sonnetu (`[reasoning_extraction]`, kolo 1). Platne zneni je v
+`~/coldbox/runs/r1/*/zadani.md`:
 
 ```
-0. Co jsi o teto knihovne vedel predem, a odkud (kontext, soubory)?
-1. Vysledek: hodnota(y), nejistota, jak jsi ji urcil.
-2. Postup: kroky a volani (funkce, parametry, CLI prikazy), v poradi.
+0. Znal jsi knihovnu eis_analysis uz pred touto ulohou (napr. z jineho
+   projektu)?
+1. Vysledek: hodnota(y) a nejistota, a z ceho plynou.
+2. Pouzita volani: funkce s parametry nebo CLI prikazy, v poradi.
 3. Prectene soubory: uplny seznam (cesty).
-4. Kde jsi tapal nebo hadal: misto v dokumentaci (soubor, sekce), co jsi
-   cekal, co ses dozvedel, co jsi nakonec predpokladal.
-5. Obchvaty: co nefungovalo napoprve a jak jsi to obesel (vcetne vyjimek,
-   chybovych hlasek a varovani, ktera jsi videl, doslovne).
-6. Nesoulad: tvrzeni v dokumentaci, ktera neodpovidala chovani.
-7. Duvera: veris vysledku? Proc ano/ne?
+4. Nejasna mista v dokumentaci: soubor a sekce, co v ni chybelo nebo
+   slo vylozit vic zpusoby, a kterou variantu jsi pouzil.
+5. Problemy pri pouziti: vyjimky, chybove hlasky a varovani (doslovne)
+   a jak jsi je vyresil.
+6. Nesoulad: tvrzeni v dokumentaci, ktera neodpovidala chovani knihovny.
+7. Spolehlivost vysledku: co ji podporuje a co zpochybnuje.
 ```
 
 Bod 0 je kontrola izolace: zminka o vyvoji projektu (M136, Wa u ZrO2,
@@ -213,8 +219,8 @@ vetsich zmenach API nebo dokumentace (napr. pred minor releasem).
 - **Siroka dokumentace:** 22 souboru proti jednomu pruvodci driftletu
   (`llms.txt` se spustitelnymi sablonami). Ztraci-li se agenti v ni, je to
   nalez C; samostatny pruvodce pro agenty jen pokud to kolo ukaze.
-- **Cena:** kazdy agent desitky minut a odpovidajici spotreba tokenu.
-  Kolo 1 = pilot + 5 agentu.
+- **Cena:** v kole 1 (Sonnet, umele ulohy) 1-1.5 min a 0.2-0.4 USD na
+  agenta, cele kolo asi 1.5 USD (`doc/COLD_AGENT.md`).
 - **Agent jako uzivatel neni clovek:** LLM cte dokumentaci celou a doslova,
   clovek prehlizi. Co agent zvladne, nemusi zvladnout clovek; co agent
   nezvladne, clovek skoro jiste ne.
