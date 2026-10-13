@@ -63,20 +63,20 @@ doladí L-křivka:
 
 ### CLI
 
-Vstupní bod je `eis.py` (spouštěj `python3`).
+Příkaz `eis` (po instalaci balíčku; z adresáře projektu též `python3 eis.py`).
 
 ```bash
 # Automatický výběr λ (default — nic se nezadává)
-python3 eis.py data.DTA
+eis data.DTA
 
 # Ruční λ (přebije automatiku)
-python3 eis.py data.DTA --lambda 1e-6      # nebo -l 1e-6
+eis data.DTA --lambda 1e-6      # nebo -l 1e-6
 
 # Vyšší rozlišení tau gridu
-python3 eis.py data.DTA --n-tau 150        # nebo -n 150
+eis data.DTA --n-tau 150        # nebo -n 150
 
 # Bez vstupního souboru = demo se syntetickými daty (též auto λ)
-python3 eis.py
+eis
 ```
 
 ### Relevantní přepínače

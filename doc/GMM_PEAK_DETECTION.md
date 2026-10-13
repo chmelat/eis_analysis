@@ -26,20 +26,20 @@ další závislost** nad rámec core balíčků projektu.
 
 ### CLI
 
-Vstupní bod je `eis.py` (spouštěj `python3`).
+Příkaz `eis` (po instalaci balíčku; z adresáře projektu též `python3 eis.py`).
 
 ```bash
 # GMM detekce píků (místo výchozí scipy metody)
-python3 eis.py data.DTA --peak-method gmm
+eis data.DTA --peak-method gmm
 
 # Konzervativnější / citlivější výběr počtu píků (BIC práh, default 10)
-python3 eis.py data.DTA --peak-method gmm --gmm-bic-threshold 5
+eis data.DTA --peak-method gmm --gmm-bic-threshold 5
 
 # Vyšší rozlišení tau gridu
-python3 eis.py data.DTA --peak-method gmm --n-tau 150
+eis data.DTA --peak-method gmm --n-tau 150
 
 # Uložit grafy a skrýt display
-python3 eis.py data.DTA --peak-method gmm --save results --no-show
+eis data.DTA --peak-method gmm --save results --no-show
 ```
 
 > Výběr regularizace λ je **automatický by default** (GCV + L-curve, viz

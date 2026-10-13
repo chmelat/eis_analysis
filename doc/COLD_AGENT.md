@@ -120,7 +120,8 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
 | G1, F1, F3, H1, H2, H3 (kategorie B) | opraveno v dokumentaci (PYTHON_API, OXIDE_ANALYSIS_GUIDE; navic klice piku GMM, scikit-learn v instalaci, `len(result.peaks)` v prikladech). Kontrola: vsech 55 importu z PYTHON_API a pruvodce oxidem projde |
 | F5 (A/C) | dokumentovano: `ZHITResult.is_valid` zustava prumer, docstring a PYTHON_API rikaji, ze lokalni drift zredi (studie nize) |
 | F6 (C) | opraveno: pole `ZHITResult.quality` (0-1) odstraneno; `quality_threshold` je prah prumeru pro `is_valid` |
-| F2, F4, G2-G7, H4-H6 (C) | otevreno |
+| G2, G3, G6, H5, H6 (C) | opraveno v dokumentaci: `eis` misto `python3 eis.py` (pruvodce oxid, GCV, GMM); nejistota tloustky z fitu (OXIDE_ANALYSIS_GUIDE, 4); tabulka stitku "Data quality" a rozdil verdiktu KK/Z-HIT (README, Data quality); jmena parametru, stderr a CI (README, Circuit fitting) |
+| F2, F4, G4, G5, G7, H4 (C) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 

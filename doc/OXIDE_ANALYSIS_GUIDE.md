@@ -49,17 +49,17 @@ print(f"Permittivity: {inverse.permittivity:.1f}")
 
 ```bash
 # Basic oxide analysis (requires fitted circuit)
-python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' --analyze-oxide
+eis data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' --analyze-oxide
 
 # With custom permittivity and area
-python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+eis data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
     --analyze-oxide --epsilon-r 23 --area 0.5
 
 # Using Voigt chain for automatic circuit
-python3 eis.py data.DTA --voigt-chain --analyze-oxide
+eis data.DTA --voigt-chain --analyze-oxide
 
 # Inverse: thickness known from SEM/TEM, estimate permittivity instead
-python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+eis data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
     --analyze-oxide --thickness 25
 ```
 
@@ -395,6 +395,21 @@ where:
   d in cm, converted to nm (* 1e7)
 ```
 
+**Uncertainty.** `OxideAnalysisResult` carries no uncertainty of the
+thickness; propagate it from the fit. For a dominant C, d is proportional to
+1/C, so the relative errors are equal:
+
+```python
+i = result.param_labels.index('C0')        # the dominant C's label in the fit
+d_err = oxide.thickness_nm * result.params_stderr[i] / result.params_opt[i]
+```
+
+This is the statistical error alone (it assumes random residuals). For a Q
+the effective C depends on R, Q and n together; the spread between the
+Hsu-Mansfeld and Brug values (section 3) is then the larger, model
+uncertainty. The error of epsilon_r and the area enters d linearly on top
+(Limitations, 2).
+
 ### 5. Fallback Without a Fitted Circuit (Mode 2)
 
 **Genuinely the last resort.** It applies only when there is no fit at all, or
@@ -559,7 +574,7 @@ if oxide.permittivity_brug is not None:
 The same analysis from the CLI:
 
 ```bash
-python3 eis.py data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
+eis data.DTA --circuit 'R(100) - (R(5000) | C(1e-6))' \
     --analyze-oxide --thickness 25
 ```
 

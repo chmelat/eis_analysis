@@ -499,6 +499,14 @@ it causes in `|Z|` anywhere in the measured window, `S = max |dln|Z|/dlnP|`:
     R2    = 1.00e-09  [fixed]  S=0.000 [negligible - element may be omitted]
 ```
 
+Names are the parameter type with its count from the left of the expression,
+from 0: in `R(10) - (R(100) - Ws(50, 1) | C(1e-6))` the series resistor is
+`R0`, the charge-transfer resistor `R1`, the Warburg `R_W0` and `τ_W0`, the
+capacitor `C0`; the JSON `label` field uses the same names. `+/-` is one standard error from the
+covariance scaled by the residual variance, s^2 = RSS/(n - p); the 95 % CI
+uses the t-distribution, in log space for positive scale parameters (R, C, Q,
+tau), so it is asymmetric there. Both assume random residuals (see below).
+
 This is a different question from the standard error. A wide CI has two very
 different causes - the parameter is irrelevant, or it is strongly correlated
 with another - and the CI alone cannot tell them apart. `S` can: around 1 the
@@ -792,6 +800,18 @@ the fit reports `Global search contributed nothing` - see
 ### Data quality
 
 Reads the per-point residuals of both validations above, so it belongs to neither.
+
+Each validation ends with a `Data quality:` line. Its label grades the mean residual (for Lin-KK the larger of the real and imaginary means, for Z-HIT the magnitude):
+
+| Mean residual | Label |
+|---|---|
+| < 0.5 % | excellent |
+| < 1.0 % | good |
+| < 2.5 % | acceptable |
+| < 5.0 % | marginal (check for drift/nonlinearity) |
+| >= 5.0 % | poor |
+
+The pass/fail verdict differs between the two. Lin-KK fails when more than 5 % of the points lie above 5 %, and then the label reads `poor` whatever the mean, because a local violation fails with a good mean. Z-HIT passes on a mean below 5 %, so drift confined to the low-frequency end can pass with `marginal`; the suspicious-points list below shows where. A failed verdict prints the line as a warning (`!`).
 
 - `--max-residual` (default: 5.0) - Residual threshold for flagging an individual point as suspicious [%]. Applies to both KK and Z-HIT: once the validations have run (either one alone is enough), points whose relative deviation `|Z - Z_fit| / |Z|` exceeds this value in *either* method are listed with the frequency, both residuals, and which method flagged them. Each residual plot is then marked with the points *its own* method flagged - a band on the KK panel at a frequency KK considers fine would contradict the `flagged by` column. The two methods are complementary - Lin-KK fits both impedance components and is sensitive to phase errors, Z-HIT reconstructs the magnitude from the phase and is sensitive to magnitude errors and drift. Nothing is removed or down-weighted; the list is diagnostic. Higher values = less sensitive.
 
