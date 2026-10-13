@@ -112,3 +112,11 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
   kdo pujde pres API.
 - Pro dalsi kola staci Haiku (levny, dukladny); ulohy musi vest pres API,
   pokud ma kolo testovat API.
+
+## Stav nalezu
+
+| Nalez | Stav |
+|---|---|
+| G1, F1, F3, H1, H2, H3 (kategorie B) | opraveno v dokumentaci (PYTHON_API, OXIDE_ANALYSIS_GUIDE; navic klice piku GMM, scikit-learn v instalaci, `len(result.peaks)` v prikladech). Kontrola: vsech 55 importu z PYTHON_API a pruvodce oxidem projde |
+| F5 (A/C) | otevreno: rozhodnout, co ma `ZHITResult.is_valid` znamenat |
+| F2, F4, F6, G2-G7, H4-H6 (C) | otevreno |

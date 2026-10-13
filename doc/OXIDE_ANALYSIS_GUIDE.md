@@ -27,11 +27,12 @@ Two complementary functions for oxide layer analysis:
 ### Python API
 
 ```python
-from eis_analysis import load_data, fit_equivalent_circuit, R, C
+from eis_analysis import load_data, load_csv_data, fit_equivalent_circuit, R, C
 from eis_analysis.analysis import analyze_oxide_layer, estimate_permittivity
 
 # Load and fit
-freq, Z = load_data('sample.DTA')
+data = load_data('sample.DTA')    # Gamry .DTA; CSV: load_csv_data
+freq, Z = data.frequencies, data.Z
 circuit = R(100) - (R(5000) | C(1e-6))
 result, Z_fit = fit_equivalent_circuit(freq, Z, circuit)
 
@@ -463,10 +464,11 @@ constant); their sum is used only as Rs for the Brug comparison.
 ### Example 1: Simple Voigt Circuit
 
 ```python
-from eis_analysis import load_data, fit_equivalent_circuit, R, C
+from eis_analysis import load_data, load_csv_data, fit_equivalent_circuit, R, C
 from eis_analysis.analysis import analyze_oxide_layer
 
-freq, Z = load_data('sample.DTA')
+data = load_data('sample.DTA')    # Gamry .DTA; CSV: load_csv_data
+freq, Z = data.frequencies, data.Z
 
 # Single Voigt element
 circuit = R(100) - (R(5000) | C(1e-6))

@@ -9,10 +9,9 @@ EIS Analysis Toolkit can be used as a Python library for integration into custom
 ```bash
 # System packages
 sudo apt install python3-numpy python3-scipy python3-matplotlib
-
-# Python packages (for GMM peak detection)
-pip install scikit-learn --break-system-packages
 ```
+
+GMM peak detection is implemented on numpy/scipy; it needs no extra package.
 
 ## Basic Workflow
 
@@ -39,9 +38,6 @@ from eis_analysis import (
     fit_circuit_diffevo,     # Differential evolution (global optimization)
     FitResult,               # Dataclass with fit results
     FitDiagnostics,          # Dataclass with fit diagnostics
-    compute_information_criteria,  # AIC/BIC for model selection
-    analyze_residuals,       # Are the residuals noise, or missing structure?
-    ResidualDiagnostics,     # Dataclass with residual shape tests
     MultistartResult,        # Dataclass with multi-start results
     MultistartDiagnostics,   # Dataclass with multi-start diagnostics
     DiffEvoResult,           # Dataclass with DE results
@@ -53,6 +49,11 @@ from eis_analysis import (
     analyze_oxide_layer,
     # Circuit elements for manual building
     R, C, Q, L, W, Ws, Wo, K, CC, DQ, YG,
+)
+from eis_analysis.fitting import (
+    compute_information_criteria,  # AIC/BIC for model selection
+    analyze_residuals,       # Are the residuals noise, or missing structure?
+    ResidualDiagnostics,     # Dataclass with residual shape tests
 )
 
 # 1. Load data
@@ -76,7 +77,7 @@ drt_result = calculate_drt(
 tau, gamma = drt_result.tau, drt_result.gamma
 peaks_gmm = drt_result.peaks
 # Significant DRT maxima (scipy path); the fallback when GMM finds nothing
-peak_indices = [p['index'] for p in drt_result.diagnostics.scipy_peaks]
+peak_indices = [p['index'] for p in drt_result.diagnostics.scipy_peaks or []]
 
 # 4. Voigt element analysis
 suggestion = analyze_voigt_elements(
@@ -122,9 +123,12 @@ from eis_analysis.io import (
     parse_ocv_curve,
 )
 
+# load_data reads Gamry .DTA only; CSV goes through load_csv_data (load_data
+# on a CSV raises "No ZCURVE section found").
 # Both loaders return a LoadResult: the spectrum, the DTA metadata (None
 # for CSV), and any caveat about the data. Nothing is printed - a caveat
-# such as a truncated sweep is data you can act on or ignore.
+# such as a truncated sweep is data you can act on or ignore. A LoadResult
+# does not unpack: freq, Z = load_data(...) raises TypeError.
 result = load_data('data.DTA')
 frequencies, Z = result.frequencies, result.Z
 for w in result.warnings:
@@ -135,7 +139,7 @@ for w in result.warnings:
 # always None for CSV)
 result.current_thd, result.voltage_thd
 
-# Explicit CSV loading
+# CSV loading (columns freq, Z_re, Z_im; see README for the variants)
 result = load_csv_data('data.csv')
 
 # Parse metadata separately (load_data already puts it on the result)
@@ -217,9 +221,12 @@ result = kramers_kronig_validation(
     frequencies,
     Z,
     mu_threshold=0.85,       # mu metric threshold (default)
-    include_L=True,          # Include series inductance
-    allow_negative=True      # Allow negative R_i (Lin-KK style)
+    max_M=50,                # Upper limit on Voigt elements
+    auto_extend_decades=True,  # Try extending the tau grid past the data
+    extend_decades_range=(0.0, 1.0),
+    include_C=False          # Series capacitance (blocking low-f tail)
 )
+# The model always has a series L and allows negative R_i (Lin-KK).
 
 # result: KKResult dataclass
 result.M                   # Number of Voigt elements used
@@ -233,7 +240,7 @@ result.residuals_real      # Real part residuals (fraction)
 result.residuals_imag      # Imaginary part residuals (fraction)
 result.pseudo_chisqr       # Pseudo chi-squared (Boukamp 1995)
 result.noise_estimate      # Estimated noise [%] (Yrjana & Bobacka 2024)
-result.inductance          # Fitted inductance [H] (if include_L=True)
+result.inductance          # Fitted series inductance [H]
 result.capacitance         # Fitted series capacitance [F] (if include_C=True)
 result.elements            # Fitted elements [R_s, R_1, ..., R_M, L]
 result.tau                 # Time constants [s]
@@ -373,7 +380,11 @@ result = calculate_drt(
 # result: DRTResult dataclass
 result.tau                 # Time constant axis [s]
 result.gamma               # Distribution function gamma(tau) [Ohm]
-result.peaks               # List of dicts with peak information
+result.peaks               # GMM peaks (peak_method='gmm'), list of dicts;
+                           # None with 'scipy' (the default) or when GMM finds
+                           # none - then the maxima are in
+                           # diagnostics.scipy_peaks
+result.diagnostics.n_peaks # Peaks reported, whichever list holds them
 result.Z_reconstructed     # Impedance rebuilt from gamma, L_series, R_inf [Ohm]
 result.R_inf               # High-frequency resistance [Ohm]
 result.L_series            # Series inductance [H], 0 when not modeled
@@ -393,6 +404,12 @@ result.diagnostics.reconstruction_error_rel  # Reconstruction error [%]
 result.diagnostics.rinf               # RinfEstimate dataclass
 result.diagnostics.lambda_sel         # LambdaSelection dataclass
 result.diagnostics.nnls               # NNLSSolution dataclass
+result.diagnostics.scipy_peaks        # Significant maxima (None when the
+                                      # DRT failed, result.success False),
+                                      # list of dicts:
+                                      # index, tau, frequency, R_estimate,
+                                      # delta_chi2, edge_distance_decades,
+                                      # boundary_sensitive, outside_window
 
 # Figure (calculate_drt builds none)
 from eis_analysis.visualization import plot_drt
@@ -416,25 +433,29 @@ gcv = compute_gcv_score(lambda_opt, A, b, L)
 **GMM peak detection:**
 
 ```python
-from eis_analysis.drt import calculate_drt, gmm_peak_detection, GMM_AVAILABLE
+from eis_analysis.drt import calculate_drt, gmm_peak_detection
 
-# Check if GMM is available (requires scikit-learn)
-if GMM_AVAILABLE:
-    result = calculate_drt(
-        frequencies, Z,
-        peak_method='gmm'
-    )
-    peaks_gmm = result.peaks
+result = calculate_drt(
+    frequencies, Z,
+    peak_method='gmm'
+)
+peaks_gmm = result.peaks     # None when GMM finds no peak
 
-    # peaks_gmm is a list of dicts, each containing:
-    # - 'tau': peak position [s]
-    # - 'freq': corresponding frequency [Hz]
-    # - 'gamma': peak height [Ohm]
-    # - 'weight': relative weight
-    # - 'std': peak width (sigma)
+# peaks_gmm is a list of dicts, each containing:
+# - 'tau_center': peak position [s]
+# - 'f_center': corresponding frequency [Hz]
+# - 'tau_bounds': (tau_lower, tau_upper) [s]
+# - 'log_tau_std': peak width (sigma) [decades]
+# - 'weight': fraction of R_pol
+# - 'R_estimate': weight * R_pol [Ohm]
+# - 'edge_distance_decades', 'boundary_sensitive', 'outside_window':
+#   position against the measured tau window
 
-    # Or use gmm_peak_detection directly
-    peaks = gmm_peak_detection(result.tau, result.gamma, n_components_max=5)
+# Or use gmm_peak_detection directly; returns (peaks, model, bic_scores).
+# n_data as calculate_drt passes it (BIC penalty per measured point); the
+# direct call adds no window keys (edge_distance_decades, ...).
+peaks, gmm_model, bic_scores = gmm_peak_detection(
+    result.tau, result.gamma, n_data=len(frequencies))
 
 # Tune GMM sensitivity with BIC threshold
 result = calculate_drt(
@@ -1026,7 +1047,7 @@ result = calculate_drt(
 print(f"R_inf = {result.R_inf:.2f} Ohm")
 print(f"R_pol = {result.R_pol:.2f} Ohm")
 print(f"lambda = {result.lambda_used:.2e}")
-print(f"Found {len(result.peaks)} peaks")
+print(f"Found {result.diagnostics.n_peaks} peaks")
 
 # Show figure
 plot_drt(Z, result)
@@ -1072,7 +1093,7 @@ drt_result = calculate_drt(
 suggestion = analyze_voigt_elements(
     drt_result.tau, drt_result.gamma, frequencies, Z,
     peaks_gmm=drt_result.peaks,
-    peak_indices=[p['index'] for p in drt_result.diagnostics.scipy_peaks]
+    peak_indices=[p['index'] for p in drt_result.diagnostics.scipy_peaks or []]
 )
 
 # Build circuit manually based on analysis
@@ -1119,7 +1140,7 @@ for dta_file in data_dir.glob('*.DTA'):
         plt.close(fig)
 
     # Print summary
-    print(f"  R_inf={result.R_inf:.1f} Ohm, {len(result.peaks)} peaks")
+    print(f"  R_inf={result.R_inf:.1f} Ohm, {result.diagnostics.n_peaks} peaks")
 ```
 
 ### Example 4: Oxide Layer Analysis

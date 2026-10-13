@@ -14,9 +14,9 @@ uv --version
 # 2. venv s nejnovejsim Pythonem
 uv venv ~/venvs/eis --python 3.15
 
-# 3. projekt (editovatelne) + dev nastroje + scikit-learn (GMM)
+# 3. projekt (editovatelne) + dev nastroje
 cd ~/cesta/k/eis_analysis
-uv pip install --python ~/venvs/eis/bin/python -e ".[dev]" scikit-learn
+uv pip install --python ~/venvs/eis/bin/python -e ".[dev]"
 
 # 4. prikaz `eis` z venv (stary skript schovat, pokud existuje)
 [ -e ~/.local/bin/eis ] && mv ~/.local/bin/eis ~/.local/bin/eis.system-python
@@ -67,7 +67,7 @@ rm -rf ~/venvs/eis
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 uv venv $HOME\venvs\eis --python 3.15
 cd C:\cesta\k\eis_analysis
-uv pip install --python $HOME\venvs\eis\Scripts\python.exe -e ".[dev]" scikit-learn
+uv pip install --python $HOME\venvs\eis\Scripts\python.exe -e ".[dev]"
 # prikaz eis: $HOME\venvs\eis\Scripts\eis.exe (pridat Scripts do PATH,
 # nebo aktivovat: $HOME\venvs\eis\Scripts\Activate.ps1)
 ```
