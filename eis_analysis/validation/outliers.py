@@ -87,7 +87,9 @@ class OutlierReport:
         Flagged points, ordered by descending `worst`.
     skipped : list of str
         Methods excluded by the global guard (their own mean residual already
-        exceeds the threshold, so per-point flagging is not meaningful).
+        exceeds the threshold, so per-point flagging is not meaningful), and
+        Lin-KK on a capacitive low-frequency end without the series C
+        (KKResult.capacitive_end: its residuals describe the model).
     """
     points: List[OutlierPoint] = field(default_factory=list)
     skipped: List[str] = field(default_factory=list)
@@ -136,6 +138,9 @@ def _usable_residuals(
     not pair with the frequency grid, or was excluded by the global guard.
     """
     if result is None:
+        return None
+    if getattr(result, 'capacitive_end', False):
+        skipped.append(label)
         return None
 
     res_real = getattr(result, 'residuals_real', None)

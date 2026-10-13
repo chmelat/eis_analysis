@@ -107,6 +107,8 @@ def _run_analysis(args) -> None:
     mask = frequency_mask(data.frequencies, args)
     data = filter_by_frequency(data, args)
     kk_noise = kk_noise_for_fit(kk_result, mask, args.fit_on)
+    kk_note = ("Lin-KK failed on a capacitive low-frequency end; rerun with --kk-series-c"
+               if kk_result is not None and kk_result.capacitive_end else None)
 
     # Visualization
     fig_vis = visualize_data(data.frequencies, data.Z, data.title)
@@ -133,7 +135,7 @@ def _run_analysis(args) -> None:
 
     # Circuit fitting
     fitted_result, _ = run_circuit_fitting(data.frequencies, data.Z_for_fit, args,
-                                           noise_percent=kk_noise)
+                                           noise_percent=kk_noise, noise_note=kk_note)
 
     # Oxide layer analysis
     run_oxide_analysis(

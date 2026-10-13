@@ -113,6 +113,10 @@ class KKResult:
         Weighting scheme of the fit
     warnings : List[str]
         Caveats about the fit (e.g. max_M reached, extension rejected)
+    capacitive_end : bool
+        The test failed without include_C on a capacitive low-frequency end
+        (-Z'' still rising): the residuals and noise_estimate then describe
+        the Voigt chain's failure, not the data. A warning says so.
     error : Optional[str]
         Error message if validation failed
     """
@@ -131,6 +135,7 @@ class KKResult:
     tau: Optional[NDArray[np.float64]] = None
     weighting: str = 'modulus'
     warnings: List[str] = field(default_factory=list)
+    capacitive_end: bool = False
     error: Optional[str] = None
 
     @property
@@ -621,7 +626,7 @@ def lin_kk_native(
     chi2_ps = compute_pseudo_chisqr(Z, Z_fit)
     noise_est = estimate_noise_percent(chi2_ps, len(Z))
 
-    return KKResult(
+    result = KKResult(
         M=M,
         mu=mu,
         Z_fit=Z_fit,
@@ -638,6 +643,28 @@ def lin_kk_native(
         M_lower=M_lower,
         warnings=warnings
     )
+
+    # A capacitive low-frequency end (-Z'' still rising) is what the series C
+    # fixes: blocking/2-electrode cells, Warburg diffusion, an arc continuing
+    # past f_min. Without it the residuals and the noise measure the model,
+    # not the data (a reflective Warburg: 80 of 81 points above 5 %, "noise"
+    # 35 %, against 1.2 % with include_C). The test is the shape of the data,
+    # not of the residuals: a Warburg fails on a few edge points with a 1.5 %
+    # mean, and on a closing end the series C would only absorb drift
+    # (doc/KK_INTUITION.md). Only a failed test: one that passes has a few
+    # edge points at most, and its noise stays near the data's.
+    if not include_C and not result.is_valid:
+        slope = low_frequency_slope(frequencies, Z)
+        if slope < 0:
+            result.capacitive_end = True
+            result.warnings.append(
+                f"The low-frequency end is capacitive (-Z'' still rising, slope "
+                f"{slope:.2f} per decade), which a Voigt chain cannot follow: the "
+                f"residuals and the noise estimate ({noise_est:.1f} %) describe "
+                f"the model, not the data. Rerun with the series capacitance "
+                f"(include_C); if the test still fails with it, the series C "
+                f"was not the cause.")
+    return result
 
 
 def kramers_kronig_validation(
@@ -688,7 +715,9 @@ def kramers_kronig_validation(
         Result object with all diagnostics. Check result.success to verify
         validation completed successfully. Data quality is judged by the
         residuals (result.is_valid); result.mu is only the Lin-KK stop
-        value (expected below mu_threshold on normal termination).
+        value (expected below mu_threshold on normal termination). A failed
+        test on a capacitive low-frequency end without include_C sets
+        result.capacitive_end and carries a warning saying so.
     """
     try:
         return lin_kk_native(

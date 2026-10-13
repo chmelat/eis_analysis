@@ -40,9 +40,14 @@ def kk_noise_for_fit(
     reconstruction on drift-free data, and at 0.15-0.20 against the
     reconstruction under 30 % drift - no reference gives a usable ratio.
 
+    None also when Lin-KK failed on a capacitive low-frequency end without
+    the series C (kk_result.capacitive_end): its noise is then the Voigt
+    chain's misfit (35 % on a reflective Warburg with 1 % noise), and a fit
+    would look adequate against it.
+
     Never raises: a diagnostic must not end the pipeline.
     """
-    if kk_result is None or fit_on != 'original':
+    if kk_result is None or fit_on != 'original' or kk_result.capacitive_end:
         return None
     try:
         return kk_result.noise_estimate_on(mask)
@@ -70,17 +75,21 @@ def noise_adequacy(
         return None
 
 
-def log_noise_adequacy(a: Optional[NoiseAdequacyResult], fit_on: str = 'original') -> None:
+def log_noise_adequacy(a: Optional[NoiseAdequacyResult], fit_on: str = 'original',
+                       note: Optional[str] = None) -> None:
     """Log the fit-to-noise line. Pure formatter over NoiseAdequacyResult.
 
-    Under --fit-on zhit/all says why there is no comparison (see
-    kk_noise_for_fit) - an absent line would read as an oversight.
+    Under --fit-on zhit/all, or with `note` (why the Lin-KK noise was not
+    usable, see kk_noise_for_fit), says why there is no comparison - an
+    absent line would read as an oversight.
     """
     if fit_on != 'original':
         logger.info(f"  Fit vs. noise: not compared (--fit-on {fit_on}: the "
                     "Lin-KK noise does not describe the reconstruction's error)")
         return
     if a is None:
+        if note:
+            logger.info(f"  Fit vs. noise: not compared ({note})")
         return
     if np.isfinite(a.ratio):
         floor = (f", noise floor {NOISE_FLOOR_PERCENT:g}%"

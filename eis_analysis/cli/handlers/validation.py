@@ -29,8 +29,7 @@ from ...validation import (
     ZHITResult,
 )
 from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
-from ...validation.kramers_kronig import (KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD,
-                                          low_frequency_slope)
+from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
 from ...validation.thd import THD_TO_Z_ERROR
 
@@ -91,7 +90,8 @@ def run_kk_validation(
     logger.info(f"  Mean |res_real|: {result.mean_residual_real:.2f}%")
     logger.info(f"  Mean |res_imag|: {result.mean_residual_imag:.2f}%")
     logger.info(f"  Pseudo chi^2: {result.pseudo_chisqr:.2e}")
-    logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%")
+    logger.info(f"  Estimated noise (upper bound): {result.noise_estimate:.2f}%"
+                + (" - not the data's noise, see below" if result.capacitive_end else ""))
     if result.capacitance is not None:
         logger.info(f"  Series C: {result.capacitance:.2e} F")
     for warning in result.warnings:
@@ -111,18 +111,10 @@ def run_kk_validation(
            f"({result.n_above_threshold}/{len(frequencies)} points above "
            f"{KK_RESIDUAL_THRESHOLD}%, allowed {KK_MAX_FRACTION_ABOVE:.0%}; "
            f"max mean |res|={mean_abs_residual:.2f}%)")
-
-    # A capacitive low-frequency end (-Z'' still rising) is what the series C
-    # fixes: blocking/2-electrode cells, Warburg diffusion, an arc continuing
-    # past f_min. The test is the shape of the data, not of the residuals: a
-    # Warburg fails on a few edge points with a 1.5 % mean, and on a closing
-    # end the series C would only absorb drift (doc/KK_INTUITION.md).
-    if not result.is_valid and not args.kk_series_c:
-        slope = low_frequency_slope(frequencies, Z)
-        if slope < 0:
-            logger.info(f"Hint: the low-frequency end is capacitive (-Z'' still "
-                        f"rising, slope {slope:.2f} per decade) - try --kk-series-c. "
-                        f"If the test still fails with it, the series C was not the cause.")
+    # The library's warning above names the API's include_C; a CLI user needs
+    # the flag. The rule and why it holds are in lin_kk_native.
+    if result.capacitive_end:
+        logger.info("Hint: rerun with --kk-series-c (adds the series C).")
 
     return result
 
@@ -367,8 +359,12 @@ def report_outliers(
     log_separator()
 
     for method in report.skipped:
-        logger.info(f"{method}: over half the points exceed {args.max_residual:.1f}% - "
-                    f"the spectrum fails as a whole, per-point flagging skipped")
+        if method == "KK" and kk_result is not None and kk_result.capacitive_end:
+            logger.info("KK: capacitive low-frequency end without --kk-series-c - its "
+                        "residuals describe the model, per-point flagging skipped")
+        else:
+            logger.info(f"{method}: over half the points exceed {args.max_residual:.1f}% - "
+                        f"the spectrum fails as a whole, per-point flagging skipped")
 
     if not report.points:
         return report

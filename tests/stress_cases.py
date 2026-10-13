@@ -330,8 +330,9 @@ def generate_case(family: str, index: int) -> Case:
 
 def capacitive_end(case: Case) -> bool:
     """True when the truth's low-frequency end is capacitive (-Z'' still
-    rising): the rule by which the CLI suggests Lin-KK's series C
-    (cli/handlers/validation.py), applied to the noise-free spectrum. A DC
+    rising): the rule by which Lin-KK flags a failed test for its series C
+    (capacitive_end, validation/kramers_kronig.py), applied to the
+    noise-free spectrum. A DC
     path far below f_min (a small G) does not count: in the window the end
     is capacitive all the same."""
     return bool(low_frequency_slope(case.frequencies, case.Z_clean) < 0)

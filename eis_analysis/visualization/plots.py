@@ -347,7 +347,8 @@ def plot_kk_validation(
 
     _residual_panel(axes[1], frequencies, result, KK_RESIDUAL_THRESHOLD,
                     f"KK residuals (stop mu={result.mu:.3f}, chi^2={result.pseudo_chisqr:.2e}, "
-                    f"noise~{result.noise_estimate:.1f}%)", flagged_frequencies)
+                    + (f"noise~{result.noise_estimate:.1f}%)" if not result.capacitive_end
+                       else "noise n/a: capacitive end)"), flagged_frequencies)
 
     plt.tight_layout()
     return fig

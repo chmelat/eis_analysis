@@ -300,7 +300,8 @@ def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) ->
 def _log_fit_result(result: FitResult,
                     residuals: Optional[ResidualDiagnostics] = None,
                     noise: Optional[NoiseAdequacyResult] = None,
-                    fit_on: str = 'original') -> None:
+                    fit_on: str = 'original',
+                    noise_note: Optional[str] = None) -> None:
     """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape."""
     logger.info("")
     logger.info("Fit results:")
@@ -347,7 +348,7 @@ def _log_fit_result(result: FitResult,
     threshold = quality_thresholds.get(result.quality)
     logger.info(f"  Quality: {result.quality.capitalize()}"
                 + (f" ({threshold})" if threshold else ""))
-    log_noise_adequacy(noise, fit_on)
+    log_noise_adequacy(noise, fit_on, noise_note)
 
     if residuals is not None:
         _log_residual_diagnostics(residuals)
@@ -373,7 +374,8 @@ def run_circuit_fitting(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace,
-    noise_percent: Optional[float] = None
+    noise_percent: Optional[float] = None,
+    noise_note: Optional[str] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
     Run equivalent circuit fitting.
@@ -392,6 +394,9 @@ def run_circuit_fitting(
         Lin-KK noise of these points [%] (kk_noise_for_fit). Without it the
         fit is not compared with the noise. Standard circuits only: a Voigt
         chain is a Lin-KK model itself, its ratio is ~1 by construction.
+    noise_note : str, optional
+        Why noise_percent is None (e.g. Lin-KK failed on a capacitive end);
+        printed in place of the comparison.
 
     Returns
     -------
@@ -433,10 +438,10 @@ def run_circuit_fitting(
     # exactly as before, no comparison table.
     if len(circuit_exprs) == 1:
         return _fit_standard_circuit(frequencies, Z, args, circuit_exprs[0],
-                                     noise_percent=noise_percent)
+                                     noise_percent=noise_percent, noise_note=noise_note)
 
     return _compare_circuits(frequencies, Z, args, circuit_exprs,
-                             noise_percent=noise_percent)
+                             noise_percent=noise_percent, noise_note=noise_note)
 
 
 def _compare_circuits(
@@ -444,7 +449,8 @@ def _compare_circuits(
     Z: NDArray,
     args: argparse.Namespace,
     circuit_exprs: list,
-    noise_percent: Optional[float] = None
+    noise_percent: Optional[float] = None,
+    noise_note: Optional[str] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
     Fit every candidate circuit and return the one BIC selects.
@@ -483,7 +489,7 @@ def _compare_circuits(
             # Figures are saved per candidate, otherwise they overwrite one file
             result, fig = _fit_standard_circuit(
                 frequencies, Z, args, expr, save_suffix=f'fit_{index}',
-                noise_percent=noise_percent
+                noise_percent=noise_percent, noise_note=noise_note
             )
         except EISAnalysisError as e:
             # An unparsable expression must cost its own candidate, not the
@@ -730,7 +736,8 @@ def _fit_standard_circuit(
     args: argparse.Namespace,
     circuit_expr: str,
     save_suffix: str = 'fit',
-    noise_percent: Optional[float] = None
+    noise_percent: Optional[float] = None,
+    noise_note: Optional[str] = None
 ) -> Tuple[Optional[FitResult], Optional[plt.Figure]]:
     """
     Fit using standard circuit with nonlinear optimization.
@@ -822,7 +829,8 @@ def _fit_standard_circuit(
         _log_fit_result(result,
                         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting),
                         noise_adequacy(Z, Z_fit, noise_percent),
-                        getattr(args, 'fit_on', 'original'))
+                        getattr(args, 'fit_on', 'original'),
+                        noise_note)
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

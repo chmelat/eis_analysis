@@ -244,7 +244,12 @@ result.inductance          # Fitted series inductance [H]
 result.capacitance         # Fitted series capacitance [F] (if include_C=True)
 result.elements            # Fitted elements [R_s, R_1, ..., R_M, L]
 result.tau                 # Time constants [s]
-result.warnings            # Caveats (max_M reached, extension rejected)
+result.warnings            # Caveats (max_M reached, extension rejected,
+                           # a failed test on a capacitive low-frequency end
+                           # without include_C)
+result.capacitive_end      # That last case: residuals and noise_estimate
+                           # describe the Voigt chain, not the data - rerun
+                           # with include_C=True before using the noise
 
 # Convenience properties
 result.mean_residual_real  # Mean |res_real| [%]

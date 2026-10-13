@@ -156,7 +156,8 @@ a reziduí Z-HIT, ne podle Z-HIT `is_valid`.
 | G2, G3, G6, H5, H6 (C) | opraveno v dokumentaci: `eis` misto `python3 eis.py` (pruvodce oxid, GCV, GMM); nejistota tloustky z fitu (OXIDE_ANALYSIS_GUIDE, 4); tabulka stitku "Data quality" a rozdil verdiktu KK/Z-HIT (README, Data quality); jmena parametru, stderr a CI (README, Circuit fitting) |
 | G4, H4, F4 (C) | opraveno v CLI: navrzeny obvod s hodnotami (vlozitelny do `--circuit`, s R_inf a seriovym L z DRT); "Analysis quality" -> "Suggestion quality"; hrana lambda rozdelena na dva nezavisle priznaky a dve varovani (mez rozsahu hledani, okraj okna L-krivky). "sparse/spiky" na cistem 2xRC zustava (kalibrace prahu je samostatna uloha) |
 | F2, G5, G7 (C) | otevreno |
-| K1-K9 (kolo 3) | otevreno |
+| K7 (A/C) | opraveno: `lin_kk_native` pri selhanem testu na kapacitnim NF konci bez `include_C` nastavi `KKResult.capacitive_end` a vyhradu ve `warnings` (API i CLI); CLI pak fit se sumem Lin-KK neporovnava a napovi `--kk-series-c`. Test, ktery projde, priznak nenastavi (nanejvys par okrajovych bodu) |
+| K1-K6, K8, K9 (kolo 3) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 
