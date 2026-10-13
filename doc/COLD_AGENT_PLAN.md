@@ -63,12 +63,15 @@ samostatne a po schvaleni); generator dat a pravda ziji v piskovisti.
 ```
 ~/coldbox/                 svet agenta (jeho pracovni adresar)
   .venv/                   python3 -m venv; pip install <wheel z repozitare>
-  docs/                    kopie README.md + vse z doc/, na co odkazuje
-                           README.md nebo doc/PYTHON_API.md
+  docs/                    kopie README.md a vseho, kam z nej vedou relativni
+                           odkazy (tranzitivne), ve stejne strukture
   runs/r1/T1/ ...          data a zadani.md; agent sem pise skripty
-~/coldbox-private/         mimo svet agenta: generator, pravda, tolerance,
-                           debriefy, poznamky k triage
+~/coldbox-private/         mimo svet agenta: setup.sh, generator, pravda,
+                           tolerance, debriefy, poznamky k triage
 ```
+
+`~/coldbox-private/setup.sh` piskoviste (pre)stavi z HEAD repozitare
+(odmitne necommitnute zmeny) a zapise hash do `~/coldbox-private/COMMIT`.
 
 - **Instalace:** wheel z repozitare (`pip wheel . --no-deps -w ...`), do venv
   nainstalovany ne-editable i se zavislostmi. Venv nevidi uzivatelsky
@@ -77,9 +80,11 @@ samostatne a po schvaleni); generator dat a pravda ziji v piskovisti.
   (docstringy jsou podle CLAUDE.md reference API). Vedlejsi efekt: odpadne
   sum prostredi vyvoje (varovani matplotlibu o Axes3D, zastarala metadata
   editable instalace, ktera `pip show` hlasi jako 0.9.2).
-- **Dokumentace:** pravidlo je mechanicke, bez rucniho vyberu: README,
-  `doc/PYTHON_API.md` a soubory, na ktere odkazuji (v0.59.1: 22 souboru).
-  Plany, srovnani, stress test a `tests/` agent nema. Pravidlo odpovida
+- **Dokumentace:** pravidlo je mechanicke, bez rucniho vyberu: README
+  a vse, kam z nej vedou odkazy, i pres dalsi dokumenty (v0.59.1:
+  31 souboru vcetne CHANGELOG, obrazku a `example/example_eis_data.csv`).
+  Tranzitivne, aby v kopii nebyly mrtve odkazy. Plany, srovnani, stress
+  test a `tests/` agent nema (nikdo na ne neodkazuje). Pravidlo odpovida
   realnemu uzivateli: dokumentace, kam ho README posle.
 - **Spusteni agenta:** bezhlavy `claude -p` z `runs/<kolo>/<uloha>/`, jen
   s uzivatelskymi nastavenimi (`--setting-sources user`), vystup do
