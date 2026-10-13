@@ -113,6 +113,39 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
 - Pro dalsi kola staci Haiku (levny, dukladny); ulohy musi vest pres API,
   pokud ma kolo testovat API.
 
+## Kolo 3 (2026-10-13): Python API, Haiku
+
+Piskoviste z f1b1f33 (po opravach B, F5/F6, G2-G6, H4-H6, F4). Ulohy
+vyzaduji funkci v `reseni.py` nad Python API (ne CLI). Cena 0.05-0.09 USD,
+3.5-4.5 min, 21-40 tahu na agenta. Kazdy `reseni.py` jsem spustil sam.
+
+| Id | Data (pravda) | Vysledek `reseni.py` | Proti pravde |
+|---|---|---|---|
+| T5 | 3 vrstvy, eps_r 18, 0.25 cm^2: 30 / 50 / 80 nm | 29.95 +- 0.06 / 50.10 +- 0.08 / 79.96 +- 0.13 nm | ok |
+| T6 | 2 a 3 RC (tau 1e-5 - 0.2 s), R_s 10 | 2 a 3 procesy, vsechna tau a R do 1 %, R_s 10.01 / 9.94 | ok |
+| T7 | X ciste; Y drift \|Z\| +10 %/dek pod 0.5 Hz | X cele; Y od 0.63 Hz | ok, hranice 0.1 dekady |
+| T8 | Randles s Wo (R_W 80, tau 5 s) | Wo, dBIC 985, parametry do 1 % | ok |
+
+Opravene pasti uz nebrzdi: T5 zkusil `load_data` na CSV a rozbaleni
+LoadResult, oboje oznacil za "ocekavane" podle dokumentace; T6 sel rovnou na
+`diagnostics.scipy_peaks`; T8 importoval `compute_information_criteria`
+z `eis_analysis.fitting` se spravnou trojici; T7 rozhodoval podle Lin-KK
+a reziduí Z-HIT, ne podle Z-HIT `is_valid`.
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| K7 | A/C | `kramers_kronig_validation` na spektru s kapacitnim NF koncem (reflexni Wo) bez `include_C`: `is_valid` False, 80/81 bodu nad 5 %, `noise_estimate` 34.7 %, `warnings` prazdne. Napoveda `--kk-series-c` zije jen v CLI handleru; v API zadna. S `include_C=True` sum 1.23 %. Sum 34.7 % jde dal do `compare_fit_to_noise` | T8 |
+| K6 | C | `find_outliers` na T7/Y: Lin-KK ma 6 bodu nad 5 % (verdikt poor), ale hlaseni podezrelych bodu z nich neukaze zadny - pojistka 4x median (median 2 %, prah 8 %). README rika, ze na merenych spektrech pojistka "nic nemeni"; tady hlaseni a verdikt nesouhlasi | T7 |
+| K1 | B | PYTHON_API (fitting, ~835): `R(1000, fixed=True)` -> TypeError; plati `R("1000")` | T5 |
+| K8 | B | PYTHON_API Example 6: `Z_fit = circuit.impedance(frequencies, params)` - `circuit`, `params` nedefinovane (`chain.circuit`, `chain.initial_params`) | T8 |
+| K2 | C | `params_stderr` pevneho parametru je 0.0; dokumentace zmini `inf` (neidentifikovatelny) a `null` (export), pevny ne | T5 |
+| K3 | C | PYTHON_API (rinf): "R_inf_range ... (misses: docstring)" - nesrozumitelne | T6 |
+| K4 | C | vysledky `lambda_probe` (`diagnostics.stability.peak_stability`) v PYTHON_API nepopsane | T6 |
+| K5 | C | `find_outliers`, `OutlierReport`, `OutlierPoint` chybi v PYTHON_API | T7 |
+| K9 | C | Ws a Wo: nazvy ("finite-length" / "finite-space") nerikaji hranici, navic do v0.52.0 byla tanh forma `Wo` (podruhe, po kole 2) | T8 |
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -123,6 +156,7 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
 | G2, G3, G6, H5, H6 (C) | opraveno v dokumentaci: `eis` misto `python3 eis.py` (pruvodce oxid, GCV, GMM); nejistota tloustky z fitu (OXIDE_ANALYSIS_GUIDE, 4); tabulka stitku "Data quality" a rozdil verdiktu KK/Z-HIT (README, Data quality); jmena parametru, stderr a CI (README, Circuit fitting) |
 | G4, H4, F4 (C) | opraveno v CLI: navrzeny obvod s hodnotami (vlozitelny do `--circuit`, s R_inf a seriovym L z DRT); "Analysis quality" -> "Suggestion quality"; hrana lambda rozdelena na dva nezavisle priznaky a dve varovani (mez rozsahu hledani, okraj okna L-krivky). "sparse/spiky" na cistem 2xRC zustava (kalibrace prahu je samostatna uloha) |
 | F2, G5, G7 (C) | otevreno |
+| K1-K9 (kolo 3) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 
