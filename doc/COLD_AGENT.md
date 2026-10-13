@@ -69,3 +69,46 @@ v API/chybejici informace, D chyba agenta.
   pamet, odlozeny vystup nastroju) - `run_agent.sh` ho pred behem maze.
 - Umele ulohy kola 1 byly pro agenta snadne (vse v toleranci). Hodnota kola
   je v nalezech G1-G7, ne ve vysledcich.
+
+## Kolo 2 (2026-10-13): totez s Haiku
+
+Stejna data, zadani a piskoviste (ad2b9dd) jako kolo 1, model Haiku 5.5.
+Cena 0.03-0.05 USD na agenta (Sonnet 0.21-0.36), cas 2.5-4 min (Sonnet
+1-1.5), 16-25 tahu (Sonnet 7-10).
+
+| Id | Agent | Proti pravde |
+|---|---|---|
+| T1 | 50.1 +- 0.2 nm | ok |
+| T2 | 2 procesy; tau 1.20e-4 / 8.95e-2 s; R 120.0 / 299.4; R_s 15.0 +- 0.1 | ok |
+| T3 | mereni_2 cele ok; mereni_1 jen 1 Hz - 1 MHz | ok, vcetne hranice |
+| T4 | 8.000 / 20.07 uF / 59.84 / 149.5 / 1.969 s; Ws proti Wo a Q podle BIC | ok |
+
+Izolace: bod 0 u vsech "neznal"; jen `~/coldbox/`.
+
+Haiku pouzival Python API vic nez Sonnet (T1-T3), proto narazil na pasti
+z kroku 1: F1 (T1, `load_data` na CSV), F3 (T2, `drt.peaks` je None,
+spravne nasel `scipy_peaks`), F5/F6 (T3: `is_valid` True pri `quality`
+0.067 "by ctenare zmatlo"), F4 (T2: rozlisil hranu L-krivky od hrany
+rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha | Overeni |
+|---|---|---|---|---|
+| H1 | B | PYTHON_API Basic Workflow importuje `compute_information_criteria`, `analyze_residuals`, `ResidualDiagnostics` z `eis_analysis` -> ImportError (jsou jen v `eis_analysis.fitting`) | T3, T2 | import |
+| H2 | B | PYTHON_API (validation): `kramers_kronig_validation(..., include_L=True, allow_negative=True)` -> TypeError; signatura ma jen `mu_threshold, max_M, auto_extend_decades, extend_decades_range, include_C` | T3 | inspect |
+| H3 | B | PYTHON_API (drt, ~419): `from eis_analysis.drt import ... GMM_AVAILABLE` - v modulu neni | T3 | hasattr |
+| H4 | C | CLI "Analysis quality: GOOD" (DRT) nedefinovano; u mereni_1 GOOD vedle "Data quality: poor" - dva podobne stitky, ruzny vyznam | T3 | grep README |
+| H5 | C | jmena parametru ve vypisu (`R0`, `R_W0`, `τ_W0`) proti dokumentaci (`R_W`, `tau_W`) | T4 | - |
+| H6 | C | `params_stderr`: nerika, zda 1 sigma a zda je kovariance skalovana rozptylem rezidui | T1 | - |
+
+### Srovnani modelu
+
+- Oba modely vyresily vsechny ulohy. Haiku za sedminu ceny, dvakrat
+  pomaleji, s vic kontrolami (vahy, multistart, lambda-probe, hybrid
+  spektrum v T3) a delsimi zpravami.
+- Haiku nasel vic nalezu typu B (H1-H3), protoze pouzil Python API; Sonnet
+  zustal u CLI. Rozdil je v ceste, ne v schopnosti: pasti API ceka kazdy,
+  kdo pujde pres API.
+- Pro dalsi kola staci Haiku (levny, dukladny); ulohy musi vest pres API,
+  pokud ma kolo testovat API.
