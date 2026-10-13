@@ -300,6 +300,25 @@ from eis_analysis.visualization import plot_zhit_validation
 fig = plot_zhit_validation(frequencies, Z, result)
 ```
 
+**Per-point check (both validations):**
+
+```python
+from eis_analysis.validation import find_outliers
+
+report = find_outliers(frequencies, kk_result, zhit_result, max_residual=5.0)
+report.points    # OutlierPoint list, worst first: frequency [Hz],
+                 # residual_kk and residual_zhit [%] (None where that method
+                 # did not contribute), worst [%], methods ('KK', 'Z-HIT',
+                 # 'KK+Z-HIT')
+report.skipped   # Methods left out: median residual above max_residual (the
+                 # spectrum fails as a whole), or Lin-KK with capacitive_end
+```
+
+A point must also exceed four times its method's median residual (README,
+Data quality), so the list can hold fewer KK points than
+`kk_result.n_above_threshold` counts; the verdict is `is_valid`, the list
+says where.
+
 **Harmonic distortion (Gamry THD option):**
 
 ```python
@@ -344,7 +363,10 @@ est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite
 # est: RinfResult dataclass
 est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound (clipped at 0)
 est.R_inf_upper    # HF bound + 3 sigma of the noise at f_hf: R_s cannot exceed it
-est.R_inf_range    # (lo, hi) meant to hold R_s, the fit's model error included (misses: docstring); est.L: the L to subtract with R_inf
+est.R_inf_range    # (lo, hi) meant to hold R_s, the fit's model error included
+                   # (a fitted range missed R_s in 7 of 878 stress-test
+                   # spectra, see the docstring); est.L: the L to subtract
+                   # with R_inf
 est.method         # 'rlq_fit' | 'hf_bound'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
 est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
@@ -379,7 +401,8 @@ result = calculate_drt(
     r_inf_preset=None,     # Preset R_inf, e.g. estimate_rinf(...).R_inf;
                            # None = HF median
     gmm_bic_threshold=10.0, # BIC threshold for GMM (default: 10.0)
-    lambda_probe=False,     # Peak stability across lambda (optional)
+    lambda_probe=False,     # Peak stability across lambda (optional); results
+                            # in result.diagnostics.stability
     weighting='sqrt',       # Data weighting: 'sqrt' (default), 'uniform',
                             # 'modulus' or 'proportional'
     tau_extend_decades=0.0, # Grid past the slow window end: decades or 'auto'
@@ -414,6 +437,12 @@ result.diagnostics.reconstruction_error_rel  # Reconstruction error [%]
 result.diagnostics.rinf               # RinfEstimate dataclass
 result.diagnostics.lambda_sel         # LambdaSelection dataclass
 result.diagnostics.nnls               # NNLSSolution dataclass
+result.diagnostics.stability          # With lambda_probe=True, else None:
+                                      # StabilityDiagnostics; .peak_stability
+                                      # is a list of PeakStability (tau_ref,
+                                      # R_ref, persistence, n_probes,
+                                      # tau_drift_decades, R_variation_rel,
+                                      # verdict 'stable'/'marginal'/'artifact')
 result.diagnostics.scipy_peaks        # Significant maxima (None when the
                                       # DRT failed, result.success False),
                                       # list of dicts:
@@ -837,10 +866,11 @@ way to get it back.
 **Fixed parameters:**
 
 ```python
-# Fix a parameter using fixed=True
-circuit = R(100) - (R(1000, fixed=True) | C(1e-6))
+# Fix a parameter by quoting its value
+circuit = R(100) - (R("1000") | C(1e-6))
 
-# R(1000) will not change during fit
+# R("1000") will not change during fit; its stderr is 0 and its CI
+# [1000, 1000], and it does not count in result.n_free_params
 result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 ```
 
@@ -854,8 +884,8 @@ result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 | L(value) | L [H] | Z = j*omega*L |
 | Q(Q, n) | Q, n | Z = 1/(Q*(j*omega)^n) |
 | W(sigma) | sigma [Ohm*s^(-1/2)] | Z = sigma*(1-j)/sqrt(omega) |
-| Ws(R, tau) | R [Ohm], tau [s] | Z = R*tanh(u)/u, u = sqrt(j*omega*tau) (finite-length, constant concentration) |
-| Wo(R, tau) | R [Ohm], tau [s] | Z = R*coth(u)/u (finite-space, zero flux) |
+| Ws(R, tau) | R [Ohm], tau [s] | Z = R*tanh(u)/u, u = sqrt(j*omega*tau) (finite-length, transmissive boundary: constant concentration) |
+| Wo(R, tau) | R [Ohm], tau [s] | Z = R*coth(u)/u (finite-space, reflective boundary: zero flux) |
 | Wa(R, tau, gamma) | R [Ohm], tau [s], gamma | Z = R*coth(x)/x, x = (j*omega*tau)^(gamma/2) (anomalous finite-space; gamma = 1 is Wo) |
 | Wat(R, tau, gamma) | R [Ohm], tau [s], gamma | Z = R*tanh(x)/x, x = (j*omega*tau)^(gamma/2) (anomalous finite-length; gamma = 1 is Ws) |
 | K(R, tau) | R [Ohm], tau [s] | Z = R/(1+j*omega*tau) (Voigt) |
@@ -1264,7 +1294,7 @@ print(f"Parameters: {chain.initial_params}")
 print(f"M chosen: {chain.diagnostics.mu_optimization.M}")
 
 # Compute fitted impedance
-Z_fit = circuit.impedance(frequencies, params)
+Z_fit = chain.circuit.impedance(frequencies, chain.initial_params)
 ```
 
 ## API Reference

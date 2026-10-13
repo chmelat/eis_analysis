@@ -157,7 +157,8 @@ a reziduí Z-HIT, ne podle Z-HIT `is_valid`.
 | G4, H4, F4 (C) | opraveno v CLI: navrzeny obvod s hodnotami (vlozitelny do `--circuit`, s R_inf a seriovym L z DRT); "Analysis quality" -> "Suggestion quality"; hrana lambda rozdelena na dva nezavisle priznaky a dve varovani (mez rozsahu hledani, okraj okna L-krivky). "sparse/spiky" na cistem 2xRC zustava (kalibrace prahu je samostatna uloha) |
 | F2, G5, G7 (C) | otevreno |
 | K7 (A/C) | opraveno: `lin_kk_native` pri selhanem testu na kapacitnim NF konci bez `include_C` nastavi `KKResult.capacitive_end` a vyhradu ve `warnings` (API i CLI); CLI pak fit se sumem Lin-KK neporovnava a napovi `--kk-series-c`. Test, ktery projde, priznak nenastavi (nanejvys par okrajovych bodu) |
-| K1-K6, K8, K9 (kolo 3) | otevreno |
+| K1-K5, K8, K9 (kolo 3) | opraveno v dokumentaci: pevny parametr `R("1000")`, jeho stderr 0 a CI; `R_inf_range` bez "(misses: docstring)"; vysledky `lambda_probe` (`diagnostics.stability`); `find_outliers` a `OutlierReport` v PYTHON_API; priklad 6 bez nedefinovanych promennych; Ws/Wo s "transmissive"/"reflective" v tabulkach README a PYTHON_API |
+| K6 (kolo 3) | uzavreno dokumentaci: hlaseni podezrelych bodu muze mit mene KK bodu nez verdikt (pojistka 4x median, zduvodnena na merenych spektrech v outliers.py); verdikt dava `is_valid`, seznam jen lokalizuje. Popsano v PYTHON_API, chovani nezmeneno (rozhodnuti uzivatele 2026-10-13) |
 
 ### F5: studie pravidla platnosti Z-HIT
 
