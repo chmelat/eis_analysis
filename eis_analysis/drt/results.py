@@ -33,7 +33,7 @@ class LambdaSelection:
     gcv_score: Optional[float] = None
     corner_at_edge: bool = False   # L-curve corner at edge of its window and supplied lambda (F7)
     corner_below_gcv: bool = False  # L-curve corner more than a decade below GCV
-    lambda_at_edge: bool = False   # selected lambda hit a bound of the GCV range (F3/F7)
+    lambda_at_edge: bool = False   # selected or GCV lambda at a bound of DRT_LAMBDA_RANGE (F3/F7)
 
 
 @dataclass

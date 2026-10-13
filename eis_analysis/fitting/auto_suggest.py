@@ -142,7 +142,7 @@ def analyze_voigt_elements(
     ...     drt.tau, drt.gamma, freq, Z,
     ...     peak_indices=[p['index'] for p in drt.diagnostics.scipy_peaks])
     >>> print(f"Found {len(suggestion.elements)} Voigt elements")
-    >>> print(f"Analysis quality: {suggestion.quality}")
+    >>> print(f"Suggestion quality: {suggestion.quality}")
 
     See Also
     --------

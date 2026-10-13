@@ -174,7 +174,9 @@ def _select_lambda(A: NDArray, b: NDArray, L: NDArray,
             )
             lambda_gcv = diag.get('lambda_gcv')
             corner_at_edge = diag.get('corner_at_edge', False)
-            at_edge = _at_bound(lambda_opt) or _at_bound(lambda_gcv) or corner_at_edge
+            # A bound of DRT_LAMBDA_RANGE only; the L-curve window edge is
+            # corner_at_edge, reported on its own
+            at_edge = _at_bound(lambda_opt) or _at_bound(lambda_gcv)
             # Always 'hybrid' when this path succeeds - which of the two stages
             # won is hybrid_stage, not a different method. 'gcv' below now means
             # only the fallback after the hybrid search failed.

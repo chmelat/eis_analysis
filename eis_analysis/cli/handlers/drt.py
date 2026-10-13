@@ -371,14 +371,15 @@ def run_voigt_analysis(
             peaks_gmm=drt_result.peaks,
             peak_indices=[p['index'] for p in (drt_result.diagnostics.scipy_peaks or [])]
         )
-        _log_voigt_report(suggestion)
+        _log_voigt_report(suggestion, drt_result.R_inf, drt_result.L_series)
 
     except Exception as e:
         logger.warning(f"Voigt element analysis failed: {e}")
         logger.debug(f"Traceback: {e}", exc_info=True)
 
 
-def _log_voigt_report(suggestion: VoigtSuggestion) -> None:
+def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
+                      L_series: float) -> None:
     """Report the Voigt elements read off the DRT, with how they were chosen."""
     log_separator()
     logger.info("Voigt elements (R||C) from DRT")
@@ -415,10 +416,17 @@ def _log_voigt_report(suggestion: VoigtSuggestion) -> None:
         logger.info(f"  Ratio:                {suggestion.ratio:9.2f}")
     logger.info("")
 
-    logger.info(f"Analysis quality: {suggestion.quality.upper()}")
+    # Graded on the consistency warnings that follow, not on the data
+    logger.info(f"Suggestion quality: {suggestion.quality.upper()}")
     for warning in suggestion.warnings:
         logger.warning(warning)
-    circuit = " - ".join(["R(R_inf)"] + [f"(R(R{i}) | C(C{i}))"
-                                          for i in range(1, len(elements) + 1)])
-    logger.info(f"Suggested circuit: {circuit}")
+    # Values, not symbols, so the line pastes into --circuit as a starting
+    # point - with the R_inf and series L of the DRT the elements came from
+    values = [v for e in elements for v in (e.R, e.C)]
+    if R_inf is not None and all(isfinite(v) for v in [R_inf] + values):
+        parts = ([f"L({L_series:.4g})"] if L_series > 0 else []) + [f"R({R_inf:.4g})"]
+        parts += [f"(R({e.R:.4g}) | C({e.C:.4g}))" for e in elements]
+        logger.info(f"Suggested circuit: {' - '.join(parts)}")
+    else:
+        logger.warning("Suggested circuit: none (an element value is not finite)")
     log_separator()

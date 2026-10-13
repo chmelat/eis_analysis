@@ -56,7 +56,8 @@ def test_healthy_lambda_no_warn():
 
     assert r.diagnostics.n_effective_bins > DRT_MIN_EFFECTIVE_BINS
     assert not any("sparse/spiky" in w for w in r.warnings), r.warnings
-    assert not any("search-range edge" in w for w in r.warnings), r.warnings
+    assert not any("search-range edge" in w or "L-curve corner at the edge" in w
+                   for w in r.warnings), r.warnings
 
 
 def _clean_rc(noise=0.005, seed=0):
@@ -78,4 +79,8 @@ def test_lambda_at_edge_detected():
     assert lam.lambda_at_edge or lam.corner_at_edge, (
         f"expected edge flag; lambda={lam.lambda_value:.2e}"
     )
-    assert any("search-range edge" in w for w in r.warnings), r.warnings
+    # Each flag has its own warning; both can be set at once
+    if lam.corner_at_edge:
+        assert any("L-curve corner at the edge" in w for w in r.warnings), r.warnings
+    if lam.lambda_at_edge:
+        assert any("search-range edge" in w for w in r.warnings), r.warnings

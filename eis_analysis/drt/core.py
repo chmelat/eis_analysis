@@ -43,7 +43,7 @@ from .significance import assess_peak_significance
 from .extension import _solve_with_extension
 from ..fitting.config import (DRT_MIN_EFFECTIVE_BINS,
                              DRT_EDGE_BIN_RPOL_FRACTION, DRT_PEAK_EDGE_DECADES,
-                             DRT_EXTRAPOLATED_RPOL_FRACTION)
+                             DRT_EXTRAPOLATED_RPOL_FRACTION, DRT_LAMBDA_RANGE)
 
 logger = logging.getLogger(__name__)
 
@@ -344,10 +344,12 @@ def calculate_drt(
         )
 
     # === Step 8c: Shape-quality diagnostics (F3) ===
-    # Warn if the DRT is too sparse/spiky for peak-shape analysis, or if
-    # auto-lambda hit the search-range edge (either end: GCV can pin at the
-    # top on very noisy data and then supplies lambda). Advisory
-    # only - gamma and detected peaks are unchanged.
+    # Warn if the DRT is too sparse/spiky for peak-shape analysis, if the
+    # L-curve corner sits on the rim of its window around the GCV lambda, or
+    # if the selected or GCV lambda hit a bound of DRT_LAMBDA_RANGE (either
+    # end: GCV can pin at the top on very noisy data and then supplies
+    # lambda). Both edges can apply at once. Advisory only - gamma and
+    # detected peaks are unchanged.
     n_eff = _effective_bins(gamma_physical)
     if n_eff < DRT_MIN_EFFECTIVE_BINS:
         nnls_result.warnings.append(
@@ -355,10 +357,20 @@ def calculate_drt(
             f"{DRT_MIN_EFFECTIVE_BINS:.0f}); peak-shape analysis may be "
             f"unreliable - consider a higher lambda"
         )
-    if lambda_sel.lambda_at_edge or lambda_sel.corner_at_edge:
+    if lambda_sel.corner_at_edge:
+        nnls_result.warnings.append(
+            f"L-curve corner at the edge of its window (lambda="
+            f"{lambda_sel.lambda_value:.2e}; the window is centred on GCV "
+            f"lambda={lambda_sel.lambda_gcv:.2e}); the true corner may lie "
+            f"further out - DRT shape may be unreliable"
+        )
+    if lambda_sel.lambda_at_edge:
+        gcv = (f", GCV lambda={lambda_sel.lambda_gcv:.2e}"
+               if lambda_sel.lambda_gcv is not None else "")
         nnls_result.warnings.append(
             f"Auto-lambda at search-range edge (lambda="
-            f"{lambda_sel.lambda_value:.2e}); the optimum may lie outside the "
+            f"{lambda_sel.lambda_value:.2e}{gcv}, range {DRT_LAMBDA_RANGE[0]:.0e}-"
+            f"{DRT_LAMBDA_RANGE[1]:.0e}); the optimum may lie outside the "
             f"searched range - DRT shape may be unreliable"
         )
     # A corner below GCV (flagged by the hybrid search) is the unusual

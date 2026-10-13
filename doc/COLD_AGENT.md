@@ -121,7 +121,8 @@ rozsahu podle GCV_IMPLEMENTATION.md), G1 (T1: rozbaleni LoadResult).
 | F5 (A/C) | dokumentovano: `ZHITResult.is_valid` zustava prumer, docstring a PYTHON_API rikaji, ze lokalni drift zredi (studie nize) |
 | F6 (C) | opraveno: pole `ZHITResult.quality` (0-1) odstraneno; `quality_threshold` je prah prumeru pro `is_valid` |
 | G2, G3, G6, H5, H6 (C) | opraveno v dokumentaci: `eis` misto `python3 eis.py` (pruvodce oxid, GCV, GMM); nejistota tloustky z fitu (OXIDE_ANALYSIS_GUIDE, 4); tabulka stitku "Data quality" a rozdil verdiktu KK/Z-HIT (README, Data quality); jmena parametru, stderr a CI (README, Circuit fitting) |
-| F2, F4, G4, G5, G7, H4 (C) | otevreno |
+| G4, H4, F4 (C) | opraveno v CLI: navrzeny obvod s hodnotami (vlozitelny do `--circuit`, s R_inf a seriovym L z DRT); "Analysis quality" -> "Suggestion quality"; hrana lambda rozdelena na dva nezavisle priznaky a dve varovani (mez rozsahu hledani, okraj okna L-krivky). "sparse/spiky" na cistem 2xRC zustava (kalibrace prahu je samostatna uloha) |
+| F2, G5, G7 (C) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 
