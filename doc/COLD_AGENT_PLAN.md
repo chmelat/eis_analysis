@@ -1,75 +1,108 @@
 # Plan: cold agents (uzivatelsky test API a dokumentace agenty bez kontextu)
 
-Stav: navrh (2026-10-10), neschvaleny. Vychozi verze: eis_analysis v0.58.0.
+Stav: navrh v2 (2026-10-13), neschvaleny. Vychozi verze: eis_analysis v0.59.1.
 
 ## Kontext
 
-Inspirace: driftlet (`doc/DRIFTLET_COMPARISON1.md`, bod 3). Verze 0.15.0,
-0.15.1 a 0.16.1 driftletu vzesly hlavne z kol "cold agents": cerstvy agent
-bez kontextu vyvoje dostane realnou ulohu se znamou teoretickou odpovedi
-a k dispozici ma jen pruvodce a dokumentaci. Kazde kolo naslo tiche spatne
-vysledky (0.15.0: pet, napr. o 10-25 % vic fotoproudu) a mista, kde
-dokumentace nebo API sveda k chybe.
+Inspirace: driftlet (CHANGELOG 0.15.0 az 0.16.3). Vetsina jeho oprav
+vzesla z kol "cold agents": cerstvy agent bez kontextu vyvoje dostane
+ucebnicovou ulohu s analytickou odpovedi (pn prechod, GITT, smiseny
+potencial) a k dispozici ma jen pruvodce pro agenty. Vysledky vetsinou
+sedi s teorii; kazde kolo ale naslo tiche spatne vysledky (0.15.0: pet,
+napr. o 10-25 % vic fotoproudu) a mista, kde dokumentace nebo API sveda
+k chybe.
 
 U nas to nic nepokryva. Unit testy a stress test (`doc/STRESS_TEST.md`)
 overuji algoritmy volane spravne. Nikdo neoveruje, jestli se z README
-a `doc/PYTHON_API.md` da spravne volani vubec sestavit: jaky obvod zvolit,
-kterou funkci zavolat, jak cist vysledek, co znamena varovani.
+a navazujici dokumentace da spravne volani vubec sestavit: kterou funkci
+zavolat, s jakymi parametry, jak cist vysledek, co znamena varovani.
 
 **Cil:** zjistit, kde nas uzivatel (clovek nebo LLM agent) s dokumentaci
 a API dojde ke spatnemu vysledku nebo ztrati cas, a kazdy nalez overit
 a roztridit. Vystupem jsou nalezy a navrhy oprav, ne opravy samotne.
 
-**Neni cilem:** automatizace, CI, testovaci framework. Kolo se spousti
-rucne, nalezy se zapisuji do dokumentu. Kod v repozitari nevznika (krome
-pripadnych oprav, kazda samostatne a po schvaleni).
+**Neni cilem:** hledat model k experimentalnim datum (to je vyzkum, ne test
+dokumentace; bez znamene pravdy nalez nejde overit), automatizace, CI,
+testovaci framework. Kolo se spousti rucne, nalezy se zapisuji do
+dokumentu. Kod v repozitari nevznika (krome pripadnych oprav, kazda
+samostatne a po schvaleni); generator dat a pravda ziji v piskovisti.
 
 ## Principy
 
-1. **Studeny start.** Agent nedostane nic z historie vyvoje. Smi cist jen
-   `README.md`, `doc/PYTHON_API.md` a `python3 eis.py --help`. Zdrojaky
-   `eis_analysis/`, `tests/`, ostatni `doc/` a `example/` jsou zakazane.
-   Izolace je mekka (instrukce v zadani): agent ma pristup k celemu disku.
-   Proto v debriefu vypise vsechny soubory, ktere precetl. Porusi-li zakaz,
-   vysledek ulohy se nepocita, nalezy z jeho debriefu jen jako podnet.
-2. **Realna uloha se znamou pravdou.** Zadani je formulovano jako od
-   uzivatele ("urci tloustku oxidu"), ne jako test API ("zavolej
-   `analyze_oxide_layer`"). Pravda je znama (synteticka data z daneho
-   obvodu, nebo realny soubor s drive overenym vysledkem) a ma toleranci.
-   Bez pravdy agent chybu nepozna a vyrobi jen nejake cislo.
-3. **Pravda mimo dosah agenta.** Data dostane jako kopii v pracovnim
-   adresari mimo repozitar (scratchpad), s neutralnim nazvem a **bez
-   hlavicky s parametry** (CSV v `example/` maji pravdu v komentari na
-   prvnim radku). Pravda a tolerance jsou jen v tomto planu, ktery agent
-   cist nesmi.
-4. **Debrief je dulezitejsi nez vysledek.** Agent, ktery narazi, si to
-   obvykle obejde a pokracuje. Pevna sablona debriefu (nize) ho nuti
-   priznat, kde hadal a co obchazel.
-5. **Kazdy nalez overit.** Agent se muze splest sam. Pred zapisem nalezu
+1. **Studeny start v piskovisti.** Agent bezi v adresari mimo repozitar,
+   s vlastni instalaci balicku a kopii uzivatelske dokumentace (viz
+   Piskoviste). Nedostane CLAUDE.md projektu ani pamet projektu: ta obsahuje
+   vysledky vyvoje (napr. volbu obvodu pro ZrO2), ktere by ulohy
+   kontaminovaly. Izolace od zbytku disku je mekka (instrukce v zadani),
+   proto debrief zacina kontrolou (bod 0) a obsahuje seznam prectenych
+   souboru.
+2. **Umela uloha s analytickou pravdou.** Synteticka data ze zname
+   nahradni soustavy, pravda plyne ze vzorce (d = eps0 eps_r A / C,
+   tau = R C). Zadani zni jako od uzivatele ("urci tloustku vrstvy"), ne
+   jako test API ("zavolej `analyze_oxide_layer`"). Bez pravdy agent chybu
+   nepozna a vyrobi jen nejake cislo.
+3. **Pravda mimo dosah agenta.** Data dostane jako CSV `freq, Z_re, Z_im`
+   bez komentare (CSV v `example/` maji pravdu na prvnim radku). Parametry
+   jsou cerstve vygenerovane, ne z `example/`. Pravda, tolerance a generator
+   jsou v `~/coldbox-private/`, ne v tomto planu a ne v repozitari.
+4. **Parametry jine nez vychozi.** Kde ma funkce vychozi hodnotu (eps_r = 22,
+   plocha 1 cm^2), uloha pouzije jinou; jinak test nepozna agenta, ktery
+   parametr vubec nepreda.
+5. **Debrief je dulezitejsi nez vysledek.** Agent, ktery narazi, si to
+   obvykle obejde a pokracuje. Pevna sablona debriefu ho nuti priznat, kde
+   hadal a co obchazel.
+6. **Kazdy nalez overit.** Agent se muze splest sam. Pred zapisem nalezu
    ho reprodukuji (vlastnim volanim nebo ctenim dokumentace); co se
    nereprodukuje, je chyba agenta.
-6. **Metodu nepredepisovat.** Volba metody (DE vs. LM, typ obvodu, lambda)
-   je soucast pozorovani: vede dokumentace k DE u oxidu, jak ho fitujeme
-   my? Jen kde by volba metody ulohu znehodnotila, je v zadani.
+7. **Metodu nepredepisovat.** Volba metody (DRT lambda, KK test, fit) je
+   soucast pozorovani. Jen kde by volba metody ulohu znehodnotila, je
+   v zadani (T4: jen CLI).
 
-## Mechanismus
+## Piskoviste
 
-- Agent = subagent Claude Code (`general-purpose`), kazdy spusten zvlast,
-  bez sdileneho kontextu. Zadani je samostatny text: role, uloha, data,
-  pravidla cteni, sablona debriefu.
-- Model: vychozi. Volitelne jeden agent na slabsim modelu (`sonnet` nebo
-  `haiku`) na stejnou ulohu: simuluje mene zkuseneho uzivatele, a co
-  zvladne slabsi model, je dobre zdokumentovane.
-- Pracovni adresar agenta: vlastni podadresar scratchpadu s daty; skripty
-  pise tam. Repozitar nemeni (`isolation: worktree` neni potreba, agent nema
-  duvod repozitar editovat; pokud ho zmeni, `git status` to ukaze).
-- Paralelne nejvyse 4 agenti (DE fity jsou CPU-heavy, pravidlo max. ctyr
-  procesu).
-- Jazyk zadani: cesky, jako by psal uzivatel. Debrief cesky.
+```
+~/coldbox/                 svet agenta (jeho pracovni adresar)
+  .venv/                   python3 -m venv; pip install <wheel z repozitare>
+  docs/                    kopie README.md + vse z doc/, na co odkazuje
+                           README.md nebo doc/PYTHON_API.md
+  runs/r1/T1/ ...          data a zadani.md; agent sem pise skripty
+~/coldbox-private/         mimo svet agenta: generator, pravda, tolerance,
+                           debriefy, poznamky k triage
+```
+
+- **Instalace:** wheel z repozitare (`pip wheel . --no-deps -w ...`), do venv
+  nainstalovany ne-editable i se zavislostmi. Venv nevidi uzivatelsky
+  site-packages, takze ani editable instalaci odkazujici do repozitare;
+  `help()` a docstringy ma agent k dispozici jako kazdy uzivatel balicku
+  (docstringy jsou podle CLAUDE.md reference API). Vedlejsi efekt: odpadne
+  sum prostredi vyvoje (varovani matplotlibu o Axes3D, zastarala metadata
+  editable instalace, ktera `pip show` hlasi jako 0.9.2).
+- **Dokumentace:** pravidlo je mechanicke, bez rucniho vyberu: README,
+  `doc/PYTHON_API.md` a soubory, na ktere odkazuji (v0.59.1: 22 souboru).
+  Plany, srovnani, stress test a `tests/` agent nema. Pravidlo odpovida
+  realnemu uzivateli: dokumentace, kam ho README posle.
+- **Spusteni agenta:** bezhlavy `claude -p` z `runs/<kolo>/<uloha>/`, jen
+  s uzivatelskymi nastavenimi (`--setting-sources user`), vystup do
+  `~/coldbox-private/<kolo>/<uloha>.md`. Volitelne `--model sonnet`.
+  Presne prepinace (povolene nastroje, rezim opravneni) overit v pilotu.
+  Globalni `~/.claude/CLAUDE.md` se nacte i tak; neobsahuje nic o projektu.
+- **Prostredi v zadani:** cesta k `~/coldbox/.venv/bin/python` a `eis`,
+  `MPLBACKEND=Agg` (zadna okna s grafy).
+- **Obnova pred kolem:** novy wheel a nova kopie docs z daneho commitu;
+  hash commitu do vysledku kola.
+- **Paralelne nejvyse 2 agenti** (stroj ma 4 vlakna; numpy/scipy a fit
+  vlakna sdileji).
+
+### Zadani agenta (kostra)
+
+Role (vyzkumnik, ktery knihovnu vidi poprve), uloha, data, prostredi,
+pravidla: cist jen `~/coldbox/docs/` a `help()` balicku, nevystupovat
+z `~/coldbox/`, nic neinstalovat. Na konec debrief podle sablony.
 
 ### Sablona debriefu (soucast zadani)
 
 ```
+0. Co jsi o teto knihovne vedel predem, a odkud (kontext, soubory)?
 1. Vysledek: hodnota(y), nejistota, jak jsi ji urcil.
 2. Postup: kroky a volani (funkce, parametry, CLI prikazy), v poradi.
 3. Prectene soubory: uplny seznam (cesty).
@@ -81,53 +114,61 @@ pripadnych oprav, kazda samostatne a po schvaleni).
 7. Duvera: veris vysledku? Proc ano/ne?
 ```
 
+Bod 0 je kontrola izolace: zminka o vyvoji projektu (M136, Wa u ZrO2,
+stress test) znamena, ze kontext unikl. Vysledek ulohy se pak nepocita.
+
 ## Ulohy kola 1
 
-Ctyri ulohy pokryvajici hlavni cesty (fit + oxid, DRT, validace, CLI).
-Pravdu a tolerance doplnit v kroku 1 (zde jen zdroj a smysl).
+Ctyri umele ulohy pokryvajici hlavni cesty (oxid, DRT, validace, CLI).
+Konkretni parametry, sum (0.5-1 %, seed) a tolerance se urci v kroku 1
+a zapisou do `~/coldbox-private/`; zde jen typ a smysl. Vsechny prvky
+v okne viditelne, procesy oddelene aspon o 2 dekady.
 
 | Id | Zadani (zkracene) | Data | Pravda | Co testuje |
 |---|---|---|---|---|
-| T1 | "Mereni ZrO2 vrstvy, plocha A cm^2, eps_r = 22. Urci tloustku vrstvy a jeji nejistotu." | stress `anomalous`, vetev ZrO2 (`R-(Wa/Wat|Q|C)`), vybrany pripad se sumem 1 % | d = eps0 eps_r A / C z pravdiveho C | volba obvodu (Wa, C vedle Q), DE, `analyze_oxide_layer` a vyber dominantniho elementu |
-| T2 | "Kolik procesu je ve spektru, jake maji casove konstanty a odpory?" | stress `rc` nebo `cpe`, 2-3 oblouky, sum 0.3-1 % | tau a R oblouku, R_pol | DRT (auto lambda, piky, GMM), cteni `DRTResult`, R_inf |
-| T3 | "Jsou data duveryhodna? Pokud ano, vyhodnot DRT." | `example/EISPOT-test1.DTA` (kopie, prejmenovana) | kapacitni NF konec (Im = -1e6 Ohm pri 3 mHz), DRT bez seriove C nevhodne (`doc/DRIFTLET_COMPARISON.md`, `doc/DRT_RINF_L_ANALYSIS_2026-09-25.md`) | Lin-KK/Z-HIT, `--kk-series-c`, varovani DRT o pile-upu; pozna agent, ze vysledek DRT je nafouknuty? |
-| T4 | "Jen pres CLI: nafituj Randles s difuzi, exportuj vysledky." | `example/diffusion_RpWs_noise1.csv` bez hlavicky (pravda Rs = 10, Rp = 100, R_D = 100 Ohm, tau = 1 s) | parametry z hlavicky | `eis.py --help`, syntaxe obvodu, vyber Ws/Wo/W, export JSON/CSV |
+| T1 | "Dielektricka vrstva, plocha A, eps_r dane (ne 22, A ne 1 cm^2). Urci tloustku a jeji nejistotu." | R_s - (R_f \| C_f) | d = eps0 eps_r A / C_f | fit, `analyze_oxide_layer` (predani eps_r a plochy, jednotky), nejistota d z chyby fitu C (vysledek ji nema) |
+| T2 | "Kolik procesu je ve spektru, jake maji casove konstanty a odpory? Jaky je odpor elektrolytu?" | R_s - (R1 \| C1) - (R2 \| C2), R1 != R2 | 2 procesy, tau_i = R_i C_i, R_i, R_pol, R_inf = R_s | DRT (auto lambda, piky), cteni `DRTResult`, R_inf |
+| T3 | "Dve mereni tehoz vzorku. Ktere je duveryhodne? Pokud nektere jen zcasti, odkud kam?" | A: spektrum jako T2; B: totez s Re(Z) pod f_x zkreslenym (porusuje KK) | A v poradku, B nevalidni pod f_x | Lin-KK/Z-HIT, cteni rezidui a verdiktu, lokalizace vadneho pasma |
+| T4 | "Jen pres CLI: nafituj Randlesuv obvod s konecnou difuzi (transmisivni hranice), vysledky uloz." | R_s - (R_p \| Ws), parametry jine nez v `example/` | parametry generatoru | `eis --help`, syntaxe obvodu, Ws vs Wo vs W, `--save` (JSON/CSV) |
 
-Pripadne T5 (po pilotu, pokud zbyde): Warburgovo spektrum Ag | AgNO3 | Ag
-z driftletu s analytickou pravdou (`doc/DRIFTLET_COMPARISON.md`, mereni A),
-jednotky Ohm*m^2 -> narazi agent na absolutni meze?
+Pozdeji (kolo 2 nebo dal): T1 s Q misto C (pravda C_eff podle
+Hsu-Mansfelda; vsimne si agent rozptylu proti Brugovi?), inverzni smer
+(eps_r ze zname tloustky), R_inf se seriovou L, Warburgovo spektrum
+s analytickou pravdou z driftletu.
 
 ## Kroky
 
-### 1. Priprava uloh a pravdy
+### 1. Piskoviste a pravda
 
-- Vybrat konkretni pripady (`family/index`) pro T1 a T2: v okne viditelne
-  vsechny elementy, sum 1 %, bez L. Zapsat obvod, parametry, frekvencni
-  rozsah do tohoto planu.
-- Pro T1 urcit A a pravdive d; pro T3 shrnout drive overeny stav.
-- Pro kazdou ulohu tolerance: co je "spravne" (napr. d v ramci 2x stderr
-  fitu C, tau oblouku v ramci 0.15 dekady jako Epeak).
-- Vygenerovat data do scratchpadu (CSV `freq, Z_re, Z_im`, bez komentaru).
-- **Overeni:** ulohu vyresim sam pres verejne API podle dokumentace
-  a dostanu pravdu v toleranci. Neda-li se to, uloha je spatne polozena
-  (nebo je to uz nalez) a upravi se pred spustenim agentu.
+- Zalozit `~/coldbox/` a `~/coldbox-private/` podle sekce Piskoviste.
+- Generator v `~/coldbox-private/`: pro kazdou ulohu obvod, parametry,
+  frekvencni rozsah, sum se seedem, tolerance (napr. d v ramci 2x stderr
+  fitu C a nejvyse 5 %, tau v ramci 0.15 dekady jako Epeak, R v ramci 5 %).
+- **Overeni piskoviste:** ve venv `eis_analysis.__file__` lezi ve venv
+  a verze odpovida commitu; `eis --help` bezi.
+- **Overeni uloh:** kazdou ulohu vyresim sam v piskovisti jen z
+  `~/coldbox/docs/` a `help()`, a dostanu pravdu v toleranci. U T3 navic:
+  nase validace B opravdu oznaci a A propusti. Neda-li se to, uloha je
+  spatne polozena (nebo je to uz nalez) a upravi se pred spustenim agentu.
 
 ### 2. Pilot
 
-- Jeden agent na T4 (nejkratsi). Ucel: odladit zadani a sablonu (rozumi
-  agent pravidlum cteni, vyplni debrief, nedela neco jineho).
-- **Overeni:** debrief vyplneny ve vsech bodech, seznam prectenych souboru
-  bez zakazanych. Jinak upravit zadani a pilot opakovat.
+- Jeden agent na T4 (nejkratsi). Ucel: odladit prepinace `claude -p`,
+  zadani a sablonu.
+- **Overeni:** bod 0 debriefu bez znalosti vyvoje; seznam prectenych
+  souboru jen z `~/coldbox/`; debrief vyplneny ve vsech bodech. Jinak
+  upravit a pilot opakovat. Bez splneni se kolo 1 nespousti.
 
 ### 3. Kolo 1
 
-- T1-T4, kazda jednim agentem, nejvyse 4 soucasne. Volitelne druhy agent
-  na T1 (nejslozitejsi) na slabsim modelu.
-- Ulozit kazdy debrief doslovne (scratchpad, pak shrnuti do vysledku).
+- T1-T4, kazda jednim agentem, nejvyse 2 soucasne. Navic T4 na slabsim
+  modelu (`sonnet`): co zvladne slabsi model jen z `--help`, je dobre
+  zdokumentovane.
+- Kazdy debrief ulozit doslovne do `~/coldbox-private/r1/`.
 
 ### 4. Triage
 
-Kazdy nalez overit (princip 5) a zaradit:
+Kazdy nalez overit (princip 6) a zaradit:
 
 | Kategorie | Priklad | Priorita |
 |---|---|---|
@@ -136,9 +177,10 @@ Kazdy nalez overit (princip 5) a zaradit:
 | C: tren v API / chybejici informace | agent hadal, obchazel, varovani nepojmenovalo pricinu | stredni |
 | D: chyba agenta | dokumentace je jasna, agent ji prehledl | bez akce; opakuje-li se u vice agentu, je to C |
 
-Vystup: `doc/COLD_AGENT.md` (jako `doc/STRESS_TEST.md`): kolo, ulohy,
-vysledek proti pravde, nalezy s kategorii a dukazem (citace debriefu,
-reprodukce), navrzena akce.
+Vystup: `doc/COLD_AGENT.md` (jako `doc/STRESS_TEST.md`): kolo, commit,
+ulohy, vysledek proti pravde, nalezy s kategorii a dukazem (citace
+debriefu, reprodukce), navrzena akce. Pravda ulohy se tam zapise az po
+kole (ulohy kola 2 jsou nove).
 
 ### 5. Opravy
 
@@ -148,31 +190,26 @@ jen dokumentace (bez bumpu verze).
 
 ### 6. Kolo 2 (overeni oprav)
 
-Nove agenty (opet bez kontextu) na stejne ulohy, ktere mely nalezy A-C,
-plus pripadne nove ulohy. Nalez je uzavren, kdyz ho druhe kolo nezopakuje.
-Dale jen pri vetsich zmenach API nebo dokumentace (napr. pred minor
-releasem), ne pravidelne.
+Nove agenty (opet bez kontextu, nove piskoviste z noveho commitu) na
+ulohy, ktere mely nalezy A-C, s novymi parametry, plus pripadne nove
+ulohy. Nalez je uzavren, kdyz ho druhe kolo nezopakuje. Dale jen pri
+vetsich zmenach API nebo dokumentace (napr. pred minor releasem).
 
 ## Rizika a omezeni
 
-- **Mekka izolace:** agent muze precist zdrojaky nebo pravdu. Ochrana:
-  data mimo repozitar bez hlavicek, pravda jen v tomto planu, povinny
-  seznam prectenych souboru. Neda se vynutit; spolehnout se na debrief.
-- **Falesne nalezy:** agent nahlasi chybu, ktera neni. Ochrana: princip 5.
-- **Pokryti podle uloh:** agent najde jen to, kam ho uloha zavede. Ctyri
-  ulohy pokryvaji hlavni cesty, ne vse (Voigt chain, THD, export grafu
-  nepokryto zamerne).
-- **Cena:** kazdy agent desitky minut a odpovidajici spotrebu tokenu; DE
-  fit oxidu na RK3588 minuty. Kolo 1 = pilot + 4 agenti.
+- **Mekka izolace:** agent muze vyjit z `~/coldbox/` a najit repozitar.
+  Ochrana: nema duvod (vse potrebne je v piskovisti), bod 0 a seznam
+  prectenych souboru v debriefu. Neda se vynutit.
+- **Falesne nalezy:** agent nahlasi chybu, ktera neni. Ochrana: princip 6.
+- **Umele ulohy jsou lehci nez realita:** nepokryji volbu modelu ani
+  realna data (zamerne, viz Cil). Nalezy jsou dolni mez.
+- **Pokryti podle uloh:** agent najde jen to, kam ho uloha zavede (Voigt
+  chain, THD, export grafu nepokryto).
+- **Siroka dokumentace:** 22 souboru proti jednomu pruvodci driftletu
+  (`llms.txt` se spustitelnymi sablonami). Ztraci-li se agenti v ni, je to
+  nalez C; samostatny pruvodce pro agenty jen pokud to kolo ukaze.
+- **Cena:** kazdy agent desitky minut a odpovidajici spotreba tokenu.
+  Kolo 1 = pilot + 5 agentu.
 - **Agent jako uzivatel neni clovek:** LLM cte dokumentaci celou a doslova,
   clovek prehlizi. Co agent zvladne, nemusi zvladnout clovek; co agent
   nezvladne, clovek skoro jiste ne.
-
-## Otevrene otazky (rozhodnuti uzivatele)
-
-1. Sada uloh T1-T4 (a T5), nebo jine? Hlavne T1: chceme overit spis cestu
-   k tloustce, nebo i k permitivite (eps z C pri znamem d)?
-2. Ma agent smet cist cely `doc/`, nebo jen `README.md` a `PYTHON_API.md`?
-   Realny uzivatel knihovny vidi cely adresar; uzsi vyber testuje hlavni
-   dokumentaci prisneji.
-3. Slabsi model pro jednu ulohu ano/ne.
