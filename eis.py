@@ -107,8 +107,12 @@ def _run_analysis(args) -> None:
     mask = frequency_mask(data.frequencies, args)
     data = filter_by_frequency(data, args)
     kk_noise = kk_noise_for_fit(kk_result, mask, args.fit_on)
-    kk_note = ("Lin-KK failed on a capacitive low-frequency end; rerun with --kk-series-c"
-               if kk_result is not None and kk_result.capacitive_end else None)
+    kk_note = None
+    if kk_result is not None and kk_result.capacitive_end:
+        # The noise of the rerun with the series C (kk_noise_for_fit); the
+        # note names it, or says why there is none
+        kk_note = ("Lin-KK with the series C" if kk_result.with_series_c is not None else
+                   "Lin-KK failed on a capacitive low-frequency end; rerun with --kk-series-c")
 
     # Visualization
     fig_vis = visualize_data(data.frequencies, data.Z, data.title)

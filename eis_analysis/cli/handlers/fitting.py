@@ -302,7 +302,8 @@ def _log_fit_result(result: FitResult,
                     residuals: Optional[ResidualDiagnostics] = None,
                     noise: Optional[NoiseAdequacyResult] = None,
                     fit_on: str = 'original',
-                    noise_note: Optional[str] = None) -> None:
+                    noise_note: Optional[str] = None,
+                    noise_source: Optional[str] = None) -> None:
     """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape."""
     logger.info("")
     logger.info("Fit results:")
@@ -360,7 +361,7 @@ def _log_fit_result(result: FitResult,
     threshold = quality_thresholds.get(result.quality)
     logger.info(f"  Quality: {result.quality.capitalize()}"
                 + (f" ({threshold})" if threshold else ""))
-    log_noise_adequacy(noise, fit_on, noise_note)
+    log_noise_adequacy(noise, fit_on, noise_note, noise_source)
 
     if residuals is not None:
         _log_residual_diagnostics(residuals)
@@ -407,8 +408,9 @@ def run_circuit_fitting(
         fit is not compared with the noise. Standard circuits only: a Voigt
         chain is a Lin-KK model itself, its ratio is ~1 by construction.
     noise_note : str, optional
-        Why noise_percent is None (e.g. Lin-KK failed on a capacitive end);
-        printed in place of the comparison.
+        With noise_percent None: why (e.g. Lin-KK failed on a capacitive end),
+        printed in place of the comparison. With noise_percent: the Lin-KK
+        run it came from, if not the plain one (e.g. 'Lin-KK with the series C').
 
     Returns
     -------
@@ -842,7 +844,9 @@ def _fit_standard_circuit(
                         _residual_diagnostics(frequencies, Z, Z_fit, args.weighting),
                         noise_adequacy(Z, Z_fit, noise_percent),
                         getattr(args, 'fit_on', 'original'),
-                        noise_note)
+                        # noise_note is a reason without a noise, a source with one
+                        noise_note if noise_percent is None else None,
+                        noise_note if noise_percent is not None else None)
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

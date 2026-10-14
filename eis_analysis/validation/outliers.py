@@ -89,7 +89,8 @@ class OutlierReport:
         Methods excluded by the global guard (their own mean residual already
         exceeds the threshold, so per-point flagging is not meaningful), and
         Lin-KK on a capacitive low-frequency end without the series C
-        (KKResult.capacitive_end: its residuals describe the model).
+        (KKResult.capacitive_end: its residuals describe the model) when the
+        rerun with the series C is missing; with it, its residuals are used.
     """
     points: List[OutlierPoint] = field(default_factory=list)
     skipped: List[str] = field(default_factory=list)
@@ -140,8 +141,12 @@ def _usable_residuals(
     if result is None:
         return None
     if getattr(result, 'capacitive_end', False):
-        skipped.append(label)
-        return None
+        # The residuals describe the Voigt chain's misfit of the end; the
+        # rerun with the series C describes the data (and locates drift)
+        result = getattr(result, 'with_series_c', None)
+        if result is None:
+            skipped.append(label)
+            return None
 
     res_real = getattr(result, 'residuals_real', None)
     res_imag = getattr(result, 'residuals_imag', None)

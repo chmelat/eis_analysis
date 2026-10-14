@@ -117,6 +117,11 @@ class KKResult:
         The test failed without include_C on a capacitive low-frequency end
         (-Z'' still rising): the residuals and noise_estimate then describe
         the Voigt chain's failure, not the data. A warning says so.
+    with_series_c : Optional[KKResult]
+        With capacitive_end: the same test rerun with include_C. Its
+        residuals and noise describe the data, so the per-point check and
+        the fit-to-noise comparison use them in place of these. None when
+        not run, or when the rerun raised.
     error : Optional[str]
         Error message if validation failed
     """
@@ -136,7 +141,14 @@ class KKResult:
     weighting: str = 'modulus'
     warnings: List[str] = field(default_factory=list)
     capacitive_end: bool = False
+    with_series_c: Optional['KKResult'] = None
     error: Optional[str] = None
+
+    @property
+    def series_c_passes(self) -> Optional[bool]:
+        """Does the test pass with the series C? False: drift or another
+        violation beyond the shape of the end. None without the rerun."""
+        return None if self.with_series_c is None else self.with_series_c.is_valid
 
     @property
     def success(self) -> bool:
@@ -653,17 +665,45 @@ def lin_kk_native(
     # mean, and on a closing end the series C would only absorb drift
     # (doc/KK_INTUITION.md). Only a failed test: one that passes has a few
     # edge points at most, and its noise stays near the data's.
+    # The slope alone also fires on drift (a phase drifting below 1 Hz bends
+    # -Z'' upward on a closing arc), so the test is rerun with the series C
+    # and kept: drift of |Z| or phase still fails it (14-16 % residuals at
+    # the end of synthetic blocking cells), and its residuals then show where.
+    # The flag stays either way - on a blocking cell with drift the noise
+    # without C is ~50 %, the model's, not the data's.
     if not include_C and not result.is_valid:
         slope = low_frequency_slope(frequencies, Z)
         if slope < 0:
             result.capacitive_end = True
+            try:
+                result.with_series_c = lin_kk_native(
+                    frequencies, Z, mu_threshold=mu_threshold, max_M=max_M,
+                    include_L=include_L, include_C=True, fit_type=fit_type,
+                    weighting=weighting, auto_extend_decades=auto_extend_decades,
+                    extend_decades_range=extend_decades_range)
+            except (ValueError, np.linalg.LinAlgError) as exc:
+                # One more parameter than the run that succeeded: on very few
+                # points it may not fit. The flag alone still holds.
+                logger.debug(f"Lin-KK rerun with the series C failed: {exc}")
+            with_C = result.with_series_c
+            if with_C is None:
+                advice = "Rerun with the series capacitance (include_C)."
+            elif with_C.is_valid:
+                advice = (f"With the series capacitance (include_C) the test "
+                          f"passes, noise {with_C.noise_estimate:.1f} %.")
+            else:
+                advice = (f"The test fails with the series capacitance (include_C) "
+                          f"as well, noise {with_C.noise_estimate:.1f} %: the data "
+                          f"violate KK beyond the shape of the end - drift or "
+                          f"another violation.")
             result.warnings.append(
                 f"The low-frequency end is capacitive (-Z'' still rising, slope "
                 f"{slope:.2f} per decade), which a Voigt chain cannot follow: the "
                 f"residuals and the noise estimate ({noise_est:.1f} %) describe "
-                f"the model, not the data. Rerun with the series capacitance "
-                f"(include_C); if the test still fails with it, the series C "
-                f"was not the cause.")
+                f"the model, not the data. {advice}")
+            if with_C is not None:
+                result.warnings += [f"With the series capacitance: {w}"
+                                    for w in with_C.warnings if w not in result.warnings]
     return result
 
 
@@ -717,7 +757,9 @@ def kramers_kronig_validation(
         residuals (result.is_valid); result.mu is only the Lin-KK stop
         value (expected below mu_threshold on normal termination). A failed
         test on a capacitive low-frequency end without include_C sets
-        result.capacitive_end and carries a warning saying so.
+        result.capacitive_end, carries a warning saying so, and reruns the
+        test with include_C into result.with_series_c (result.series_c_passes
+        is its verdict): use its residuals and noise there.
     """
     try:
         return lin_kk_native(

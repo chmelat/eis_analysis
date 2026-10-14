@@ -340,7 +340,8 @@ def plot_kk_validation(
     ax1.plot(Z_fit_plot.real, -Z_fit_plot.imag, '-', label='KK fit', linewidth=2)
     ax1.set_xlabel("Z' [Ohm]")
     ax1.set_ylabel("-Z'' [Ohm]")
-    ax1.set_title(f"Kramers-Kronig fit in real domain (M={result.M})")
+    ax1.set_title(f"Kramers-Kronig fit in real domain (M={result.M}"
+                  + (", series C)" if result.capacitance is not None else ")"))
     ax1.legend()
     ax1.grid(True, alpha=PLOT_GRID_ALPHA)
     ax1.set_aspect('equal', adjustable='datalim')

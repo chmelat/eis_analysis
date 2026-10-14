@@ -248,8 +248,12 @@ result.warnings            # Caveats (max_M reached, extension rejected,
                            # a failed test on a capacitive low-frequency end
                            # without include_C)
 result.capacitive_end      # That last case: residuals and noise_estimate
-                           # describe the Voigt chain, not the data - rerun
-                           # with include_C=True before using the noise
+                           # describe the Voigt chain, not the data
+result.with_series_c       # ...so the test is rerun with include_C=True:
+                           # a KKResult whose residuals and noise describe
+                           # the data (None if the rerun raised)
+result.series_c_passes     # Its verdict: False = drift or another violation
+                           # beyond the end's shape; None = no rerun
 
 # Convenience properties
 result.mean_residual_real  # Mean |res_real| [%]
@@ -312,6 +316,7 @@ report.points    # OutlierPoint list, worst first: frequency [Hz],
                  # 'KK+Z-HIT')
 report.skipped   # Methods left out: median residual above max_residual (the
                  # spectrum fails as a whole), or Lin-KK with capacitive_end
+                 # and no with_series_c (with it, its residuals are used)
 ```
 
 A point must also exceed four times its method's median residual (README,

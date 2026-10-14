@@ -56,7 +56,7 @@ def run_kk_validation(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: no_kk, mu_threshold, auto_extend, extend_decades_max,
-        kk_series_c)
+        kk_series_c; optional: fit_on)
 
     Returns
     -------
@@ -114,7 +114,17 @@ def run_kk_validation(
     # The library's warning above names the API's include_C; a CLI user needs
     # the flag. The rule and why it holds are in lin_kk_native.
     if result.capacitive_end:
-        logger.info("Hint: rerun with --kk-series-c (adds the series C).")
+        uses = ("the per-point check, the KK plot and Fit vs. noise"
+                if getattr(args, 'fit_on', 'original') == 'original'
+                else "the per-point check and the KK plot") + " below use that run"
+        if result.series_c_passes is None:
+            logger.info("Hint: rerun with --kk-series-c (adds the series C).")
+        elif result.series_c_passes:
+            logger.info(f"With --kk-series-c the test passes; {uses}. Rerun with "
+                        f"it to make it the result above.")
+        else:
+            logger.warning(f"With --kk-series-c the test fails as well (drift or "
+                           f"another violation); {uses}.")
 
     return result
 
@@ -359,7 +369,8 @@ def report_outliers(
     log_separator()
 
     for method in report.skipped:
-        if method == "KK" and kk_result is not None and kk_result.capacitive_end:
+        if (method == "KK" and kk_result is not None and kk_result.capacitive_end
+                and kk_result.with_series_c is None):
             logger.info("KK: capacitive low-frequency end without --kk-series-c - its "
                         "residuals describe the model, per-point flagging skipped")
         else:
@@ -404,7 +415,8 @@ def plot_validation(
     Drawn after report_outliers, so the figure is written once with the
     markers. Only the points THIS method flagged are marked: a band on the KK
     panel at a frequency where the KK residual is 0.3% would contradict the
-    table's `flagged by` column.
+    table's `flagged by` column. On a capacitive end the KK panel shows the
+    rerun with the series C, whose residuals the table used.
 
     Parameters
     ----------
@@ -417,6 +429,9 @@ def plot_validation(
     args : argparse.Namespace
         CLI arguments (uses: save, format)
     """
+    with_C = getattr(kk_result, 'with_series_c', None)
+    if getattr(kk_result, 'capacitive_end', False) and with_C is not None:
+        kk_result = with_C
     for result, plot, method, suffix in ((kk_result, plot_kk_validation, 'KK', 'kk'),
                                          (zhit_result, plot_zhit_validation, 'Z-HIT', 'zhit')):
         if result is None or not result.success:

@@ -40,14 +40,17 @@ def kk_noise_for_fit(
     reconstruction on drift-free data, and at 0.15-0.20 against the
     reconstruction under 30 % drift - no reference gives a usable ratio.
 
-    None also when Lin-KK failed on a capacitive low-frequency end without
-    the series C (kk_result.capacitive_end): its noise is then the Voigt
-    chain's misfit (35 % on a reflective Warburg with 1 % noise), and a fit
-    would look adequate against it.
+    On a capacitive low-frequency end without the series C
+    (kk_result.capacitive_end) the noise is that of the rerun with it
+    (kk_result.with_series_c): without C it is the Voigt chain's misfit (35 %
+    on a reflective Warburg with 1 % noise), and a fit would look adequate
+    against it. None when that rerun is missing.
 
     Never raises: a diagnostic must not end the pipeline.
     """
-    if kk_result is None or fit_on != 'original' or kk_result.capacitive_end:
+    if kk_result is not None and kk_result.capacitive_end:
+        kk_result = kk_result.with_series_c
+    if kk_result is None or fit_on != 'original':
         return None
     try:
         return kk_result.noise_estimate_on(mask)
@@ -76,12 +79,13 @@ def noise_adequacy(
 
 
 def log_noise_adequacy(a: Optional[NoiseAdequacyResult], fit_on: str = 'original',
-                       note: Optional[str] = None) -> None:
+                       note: Optional[str] = None, source: Optional[str] = None) -> None:
     """Log the fit-to-noise line. Pure formatter over NoiseAdequacyResult.
 
     Under --fit-on zhit/all, or with `note` (why the Lin-KK noise was not
     usable, see kk_noise_for_fit), says why there is no comparison - an
-    absent line would read as an oversight.
+    absent line would read as an oversight. `source` names the Lin-KK run
+    the noise came from, if not the plain one.
     """
     if fit_on != 'original':
         logger.info(f"  Fit vs. noise: not compared (--fit-on {fit_on}: the "
@@ -95,7 +99,7 @@ def log_noise_adequacy(a: Optional[NoiseAdequacyResult], fit_on: str = 'original
         floor = (f", noise floor {NOISE_FLOOR_PERCENT:g}%"
                  if a.noise_percent < NOISE_FLOOR_PERCENT else "")
         logger.info(f"  Fit vs. noise: {a.fit_noise_percent:.2f}% vs "
-                    f"{a.noise_percent:.2f}% (Lin-KK, same points{floor}), "
+                    f"{a.noise_percent:.2f}% ({source or 'Lin-KK'}, same points{floor}), "
                     f"ratio {a.ratio:.1f} (limit {FIT_NOISE_RATIO_WARN:g})")
     for warning in a.warnings:
         logger.warning(f"  {warning}")
