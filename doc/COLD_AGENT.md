@@ -196,6 +196,40 @@ bez akce (D nebo opakovane zname): sparse/spiky DRT na cistych datech (F4),
 tichy default plochy 1 cm^2 u CSV (dokumentovano, vypis "assuming"),
 `initial_guess` v poradi `param_labels`, `warnings` vs `all_warnings`.
 
+## Kolo 5, krok 1 (2026-10-14): slozitejsi obvody, Haiku
+
+Piskoviste z 0b54101 (v0.60.0), behy kola 4 smazany. Ulohy maji kratkou
+cestu, ktera vede ke spatne odpovedi (pocet piku DRT, R_inf z VF konce,
+R_pol z DRT), a spravnou, ke ktere vede varovani nebo fit
+(`~/coldbox-private/gen_r5.py`). Zadani T9 je zneni T2, T10 a T12 jen
+jina otazka. Cena 0.18 USD celkem, 4-6 min, 21-27 tahu. Bod 0 vsude "ne".
+
+| Id | Data (pravda) | Kratka cesta | Vysledek agenta | Proti pravde |
+|---|---|---|---|---|
+| T9 | R_s 15 - ZARC(200, 1 ms, 0.85) - ZARC(150, 6.3 ms, 0.80), 0.8 dek. od sebe | DRT: 1 pik, bez varovani | 2 procesy (BIC: 1 oblouk +474), tau 0.99 / 5.9 ms, R 193 / 158, R_s 14.96; sam: korelace R1-R2 -0.999 | ok |
+| T10 | L 1 uH - R_s 5 - (30, tau 0.3 us) - (300, 0.3 s) | Re(Z) na 1 MHz 11.6, HF median 17.5 | R_s 5.0 +- 0.4 (fit s L 5.20 +- 0.16), median i horni mez odmitl | ok |
+| T12 | R_s 12 - (150, 1 ms) - (800, 5 s), okno 0.1 Hz - 100 kHz | DRT R_pol 425 (s varovanim) | 2 procesy, R_pol 966 +- 14, R2 jako extrapolace za okno | ok |
+
+Vsichni tri vzali kratkou cestu, videli, ze nesedi, a dosli fitem
+a porovnanim kandidatu ke spravne odpovedi.
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| M1 | A | Vychozi R_inf (median 5 VF bodu) muze lezet nad Re(Z) na f_max: T10 17.48 Ohm proti 11.62 na 1 MHz (pravda 5). Bez varovani; DRT bezi s nim, "Suggestion quality: GOOD", navrzeny obvod `R(17.48) - ...`. U pasivniho systemu je Re(Z(f_max)) horni mez R_inf (tak ji bere `--ri-fit`) | T10 |
+| M2 | C | DRT slouci dva procesy 0.6-1 dekadu od sebe do jednoho piku bez varovani (T9: 1 pik, BIC chce 2 s dBIC 474); `MODEL_SELECTION_AIC_BIC.md` radi "let DRT tell you how many processes there are". Jen `--lambda-probe` rekne "not stable" | T9 |
+| M3 | C | Navrzeny obvod se vypise i pri vlastnim "Inconsistency": T12 `R(425.5)` s kvalitou ACCEPTABLE vedle "sum(R_i) = 425.5 vs R_pol = 180.2" (pravda 950); T10 dedi horni mez R_inf 11.62 jako odpor | T12, T10 |
+| M4 | C | `--save` do neexistujiciho adresare: `!! Error saving figure` u kazdeho grafu, nic se neulozi, exit 0 | T12 |
+| M5 | C | `--drt-inductance auto` prida L jen pri Im(Z) > 0 v horni dekade; T10 ma L 1 uH zakryte rychlym obloukem (fit s L: dBIC 459) - DRT L neuvede a README to nerozlisuje od "zadna indukcnost" | T10 |
+| M6 | C | `--voigt-chain --voigt-auto-M` vypise "Allow negative R_i: True" bez `--voigt-allow-negative`; README rika, ze bez nej se zaporne R_i odstrani (iterace mu je pripousti, vysledek ne) | T9 |
+| M7 | C | `RINF_ESTIMATION.md` odkazuje na `archive/AUDIT_ri_fit_2026-09-25.md` a `doc/STRESS_TEST.md` jako na cesty, ne odkazy; v dokumentaci, kam README vede, nejsou | T10 |
+| M8 | C | "R_pol (from data)" neni v README ani PYTHON_API definovano (T12: 180 Ohm pri pravde 950) | T12 |
+
+Drobnosti bez akce: knihovni varovani jmenuje `include_C` (CLI hned pod nim
+pise `--kk-series-c`), `KK: M=23` neni pocet procesu, `parse_circuit_expression`
+neni top-level (dokumentovano).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -213,6 +247,7 @@ tichy default plochy 1 cm^2 u CSV (dokumentovano, vypis "assuming"),
 | K6 (kolo 3) | uzavreno dokumentaci: hlaseni podezrelych bodu muze mit mene KK bodu nez verdikt (pojistka 4x median, zduvodnena na merenych spektrech v outliers.py); verdikt dava `is_valid`, seznam jen lokalizuje. Popsano v PYTHON_API, chovani nezmeneno (rozhodnuti uzivatele 2026-10-13) |
 | L1-L5 (kolo 4) | opraveno v dokumentaci: README "Finding the valid frequency range" - konec behu je dolni mez rezu, ne zacatek driftu (namereno na 4 driftech: 0.1 dek. pod az 1.2 dek. nad vyssim koncem), rez na nebo nad vyssim koncem, opakovane mereni jako nejlepsi lokalizace; PYTHON_API `compare_fit_to_noise` bere sum z `kk.with_series_c` na kapacitnim konci (T8: pomer 1.05 misto 0.027); priklad Voigt elementu pres atributy; README `--voigt-chain` bez "nonlinear refinement"; `stderr_note` i s "covariance not usable" |
 | L6-L11 (kolo 4) | opraveno: README - casove konstanty jen pro par R/G s C/Q (Randles bez radku, R1*C0 rucne), jmena parametru jsou pozice, oblouky srovnavat podle tau, lambda az o dekadu za DRT_LAMBDA_RANGE (i PYTHON_API); `OxideAnalysisResult.element_label` (parametr dominantniho prvku ve fitu, navod na nejistotu v OXIDE guide uz bez pevneho C0); `--save` s `--analyze-oxide` zapise `<prefix>_oxide.json` (`oxide_result_record`, `save_oxide_result`); priklad DE se `seed` a `archive_check` |
+| M1-M8 (kolo 5) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 
