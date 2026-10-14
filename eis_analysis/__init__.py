@@ -73,6 +73,9 @@ from .fitting import (
     DiffEvoDiagnostics,
     # Voigt chain linear fitting
     fit_voigt_chain_linear,
+    # Time constants of the arcs
+    arc_time_constants,
+    ArcTimeConstant,
 )
 
 # Analysis
@@ -129,6 +132,8 @@ __all__ = [
     'DiffEvoResult',
     'DiffEvoDiagnostics',
     'fit_voigt_chain_linear',
+    'arc_time_constants',
+    'ArcTimeConstant',
     # Analysis
     'analyze_oxide_layer',
     'local_exponent',

@@ -25,6 +25,7 @@ from ...fitting import (
     FitResult,
     MultistartResult,
     DiffEvoResult,
+    arc_time_constants,
 )
 from ...fitting.voigt_chain import MuOptimization
 from ...fitting.diagnostics import (compute_fit_metrics, compute_significance,
@@ -335,6 +336,17 @@ def _log_fit_result(result: FitResult,
         else:
             low, high = ci_low[i], ci_high[i]
             logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  [95% CI: {low:.2e}, {high:.2e}]{sig}")
+
+    # The time constant is what a reader of an arc asks for first, and its
+    # error needs the covariance (R and C are correlated)
+    arcs = arc_time_constants(result)
+    if arcs:
+        logger.info("  Time constants:")
+        for arc in arcs:
+            err = (f" +/- {arc.tau_stderr:.2e}" if arc.tau_stderr is not None
+                   else f" (no stderr: {arc.stderr_note})")
+            logger.info(f"    {arc.elements:11s} tau = {arc.tau:.2e} s{err}  "
+                        f"(f = {arc.frequency:.2e} Hz)")
 
     # Fit quality
     logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")

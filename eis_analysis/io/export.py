@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from ..fitting import FitResult
+from ..fitting import FitResult, arc_time_constants
 from ..fitting.diagnostics import compute_information_criteria
 from ..version import __version__
 
@@ -117,6 +117,15 @@ def fit_result_record(
         'n_points': len(frequencies),
         'f_range_Hz': [_finite(float(np.min(frequencies))), _finite(float(np.max(frequencies)))],
         'parameters': parameters,
+        # Derived from the parameters above: the (R|C) and (R|Q) arcs
+        'time_constants': [
+            {'elements': arc.elements,
+             'tau_s': _finite(arc.tau),
+             'stderr_s': None if arc.tau_stderr is None else _finite(arc.tau_stderr),
+             'stderr_note': arc.stderr_note,
+             'f_Hz': _finite(arc.frequency)}
+            for arc in arc_time_constants(result)
+        ],
         'metrics': {
             'fit_error_rel_pct': _finite(result.fit_error_rel),
             'fit_error_abs_ohm': _finite(result.fit_error_abs),

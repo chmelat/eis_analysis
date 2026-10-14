@@ -578,6 +578,28 @@ result.diagnostics     # FitDiagnostics dataclass
 result.all_warnings    # List of all warnings (convenience property)
 ```
 
+### Time constants of the arcs (`arc_time_constants`)
+
+```python
+from eis_analysis.fitting import arc_time_constants
+
+for arc in arc_time_constants(result):   # result of a fit (.best_result for
+                                         # multistart and DE)
+    arc.elements     # 'R1|C0', 'R2|Q0': the arc by its parameter labels
+    arc.tau          # [s]: R*C, or (R*Q)^(1/n) for a CPE (the ZARC peak,
+                     #   = R*C_eff with the Hsu-Mansfeld C_eff)
+    arc.tau_stderr   # [s], delta method on the covariance (R and C are
+                     #   correlated); None without a covariance or with a
+                     #   parameter at a bound
+    arc.stderr_note  # why tau_stderr is None ('no covariance',
+                     #   'n0 at its upper bound'), else None
+    arc.frequency    # 1/(2*pi*tau) [Hz], where -Z'' peaks
+```
+
+An arc is a parallel pair of one R (or G) and one C or Q. A C or Q beside a longer
+branch is not: in the Randles `C_dl | (R_ct - Ws)` the DC resistance beside
+C_dl includes R_W. A `K` has tau as a parameter.
+
 ### Are the residuals noise? (`analyze_residuals`)
 
 The fit error says how large the residuals are, not what shape they have. A
