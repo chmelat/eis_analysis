@@ -372,7 +372,9 @@ def report_outliers(
     logger.warning(f"Suspicious points ({len(report.points)}, residual > "
                    f"{args.max_residual:.1f}%, see --max-residual):")
     logger.warning(f"  {'f [Hz]':>10}  {'KK [%]':>8}  {'Z-HIT [%]':>10}   flagged by")
-    for p in report.points:
+    # By frequency, not worst first: a run from one end of the spectrum, and
+    # where it stops, is what tells drift from an isolated defect
+    for p in sorted(report.points, key=lambda p: p.frequency):
         kk = f"{p.residual_kk:8.2f}" if p.residual_kk is not None else f"{'-':>8}"
         zhit = f"{p.residual_zhit:10.2f}" if p.residual_zhit is not None else f"{'-':>10}"
         logger.warning(f"  {p.frequency:10.3e}  {kk}  {zhit}   {p.methods}")

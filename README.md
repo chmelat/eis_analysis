@@ -824,6 +824,28 @@ The pass/fail verdict differs between the two. Lin-KK fails when more than 5 % o
 
   Interpretation: an isolated point with good neighbours is usually a genuine defect (interference, contact, bubble). A systematic trend toward the lowest frequencies is usually sample drift - a real property of a non-stationary measurement, not a bad point, and deleting it hides the problem instead of fixing it.
 
+#### Finding the valid frequency range
+
+Lin-KK and Z-HIT always validate the full spectrum, whatever `--f-min`/`--f-max` say (see [Input data and frequency range](#input-data-and-frequency-range)). The range worth analysing is read from their output and then set by hand:
+
+1. Both `Data quality:` lines pass and no `Suspicious points` table appears: use the whole spectrum.
+2. In the table (listed by frequency) look for a contiguous run from one end. A run from the low end is drift of a non-stationary sample, one from the high end a lead or instrument artifact. Isolated points with clean neighbours are defects; leave them, the list is diagnostic.
+3. Find where the run stops in the residual plots (`--save`: `_kk`, `_zhit`), not in the table: it lists only points above `--max-residual` *and* four times the method's median, and lowering `--max-residual` does not reveal more, because the median guard stays binding. Of the two plots, the run in the Lin-KK residuals reaches the true boundary. Z-HIT's residual is local and close to the size of the drift, but drift smaller than its own reconstruction error (a few percent) is invisible to it, so its run stops earlier. Lin-KK is one global fit: besides the run from the end it can raise isolated points in the middle of the spectrum - the same drift spread out, not a second bad range.
+4. Cut there with `--f-min` (`--f-max` at the high end). The KK and Z-HIT sections do not change; the cut shows in R_inf, the DRT, the fit and its `Fit vs. noise` line.
+5. Where only `|Z|` drifts and the phase is sound, `--fit-on zhit` keeps the low frequencies instead of cutting them (see [Z-HIT as a correction](#z-hit-as-a-correction---fit-on)).
+
+Example: a spectrum (10 mHz - 1 MHz) whose Re(Z) drifts by 15 % per decade below 1 Hz. Lin-KK `poor` (24 of 81 points above 5 %), Z-HIT `marginal` (mean 4.7 %). The table lists Z-HIT points from 10 mHz (25 %) to 0.25 Hz (9 %). In the plots, the Lin-KK residual stays at 6-10 % from the low end up to 1 Hz and below 5 % above it, except four isolated points of 5-6 % between 0.5 and 2.5 kHz; the Z-HIT residual is back within its own error (below 5 %, median 1.5 %) from 0.4 Hz. The drift starts at 1 Hz: with `--f-min 1` the fit error of the true circuit drops from 2.9 % to 0.65 %, while the validation sections print what they printed before.
+
+When the two validations disagree:
+
+| What the output shows | Likely cause | What to do |
+|---|---|---|
+| Both flag a run from the low end; Lin-KK's run reaches higher | Drift (non-stationary sample) | `--f-min` at the end of Lin-KK's run, or `--fit-on zhit` |
+| Both flag a run from the high end | Lead or instrument artifact | `--f-max` |
+| Lin-KK fails across the spectrum with the `--kk-series-c` hint, Z-HIT clean | Capacitive (blocking) low-frequency end the Voigt chain cannot model; the data are fine | `--kk-series-c` |
+| Lin-KK fails with the `--kk-series-c` hint, but Z-HIT shows a run from the low end | Drift the test reads as a capacitive end (seen with a drifting phase) | Treat as drift: `--f-min` |
+| A single point flagged by both | Defect (interference, contact, bubble) | Nothing; Lin-KK may still pass |
+
 ### Voigt chain (automatic circuit)
 
 - `--voigt-chain` - Use automatic Voigt chain fitting. Linear regression for R_i and tau_i estimation, then nonlinear refinement.
