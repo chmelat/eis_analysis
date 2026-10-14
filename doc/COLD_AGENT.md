@@ -146,6 +146,56 @@ a reziduí Z-HIT, ne podle Z-HIT `is_valid`.
 | K5 | C | `find_outliers`, `OutlierReport`, `OutlierPoint` chybi v PYTHON_API | T7 |
 | K9 | C | Ws a Wo: nazvy ("finite-length" / "finite-space") nerikaji hranici, navic do v0.52.0 byla tanh forma `Wo` (podruhe, po kole 2) | T8 |
 
+## Kolo 4 (2026-10-14): T1-T8 znovu, nove parametry, Haiku
+
+Piskoviste z cefa1f8 (po G5, F2, G7, K7 a opakovani Lin-KK se seriovym C),
+stare behy smazany. Zadani beze zmeny krome cisel (T1, T5); vsechny
+parametry a seedy nove (`~/coldbox-private/gen_r4.py`), protoze README nese
+T3 z kola 1 jako priklad. T3 a T7 prohodily spatny soubor, T7 driftuje ve
+fazi (5 deg/dek pod 2 Hz) misto v \|Z\| - spousti `series_c_passes=False`.
+Cena 0.41 USD celkem (0.03-0.10), 2-5 min, 16-25 tahu. Bod 0 vsude "ne",
+zadna zminka o vyvoji. `reseni.py` T5-T8 jsem spustil sam.
+
+| Id | Data (pravda) | Vysledek | Proti pravde |
+|---|---|---|---|
+| T1 | eps_r 9.5, 0.8 cm^2: d = 35.0 nm | 35.0 +- 0.06 nm (stat.), +- 0.5 nm metodicka | ok |
+| T2 | R_s 22 - (60 \| 0.4 uF) - (450 \| 150 uF) | 2 procesy, tau 24.0 us / 67.6 ms, R 60.1 / 450.1, R_s 22.00 | ok |
+| T3 | m1 ciste; m2 Re +25 %/dek pod 0.3 Hz | m1 cele; m2 od 1.6 Hz (beh Lin-KK), ze srovnani s m1 0.4 Hz | ok, hranice o 0.7 dek. vys (konzervativne) |
+| T4 | Randles Ws (R_W 220, tau 0.8 s), jen CLI | Ws (Wo dAIC 1007), 5 parametru do 0.5 % | ok |
+| T5 | 3 vrstvy, eps_r 12, 0.4 cm^2: 25 / 60 / 110 nm | 24.96 / 59.90 / 109.92 nm | ok |
+| T6 | 2 a 3 RC (tau 3e-6 - 6e-2 s), R_s 18 | 2 a 3 procesy, tau i R do 1.5 %, R_s 17.96; tau_stderr z `arc_time_constants` | ok |
+| T7 | Y ciste; X faze -5 deg/dek pod 2 Hz | Y cele; X od 0.4 Hz (tabulka), z grafu odhad 1-2 Hz | ok, tabulkova hranice o 0.7 dek. niz |
+| T8 | Randles Wo (R_W 120, tau 3 s) | Wo, dBIC 1028, 5 parametru do 0.5 % | ok |
+
+Nove funkce se osvedcily: T7 precetl `series_c_passes=False` a varovani
+"drift or another violation" spravne a `find_outliers` mu sam dal rezidua
+behu s C; T8 pouzil `include_C=True` na zaklade varovani; T6 vzal nejistoty
+tau z `arc_time_constants`; T3 a T7 postupovali podle "Finding the valid
+frequency range".
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| L1 | B | README "Finding the valid frequency range", krok 3: "the run in the Lin-KK residuals reaches the true boundary" neplati obecne. T3: souvisly beh Lin-KK konci na 0.4 Hz, za mezerou body nad 5 % az do 1.26 Hz (agent vzal 1.6 Hz), Z-HIT 0.16 Hz, pravda 0.3 Hz. T7 (faze 5 deg/dek): Z-HIT konci na 0.13 Hz, Lin-KK s C nema beh, pravda 2 Hz. Konec behu je dolni mez rezu, ne zacatek driftu (0.1 dek. pod az 1.2 dek. nad vyssim koncem) | T3, T7 |
+| L2 | A/C | PYTHON_API `compare_fit_to_noise`: priklad predava `kk.noise_estimate`; na kapacitnim konci je to sum Voigtova retezce (37.7 %), ne dat. T8 dostal pomer 0.03 ("vypadalo dobre") a zachranilo ho jen varovani KK. Priklad ma brat `kk.with_series_c`, kdyz `kk.capacitive_end` | T8 |
+| L3 | B | PYTHON_API (~960, Voigt elements): `elem['id']`, `elem['tau']` -> `TypeError: 'VoigtElement' object is not subscriptable`; plati atributy (`elem.tau`) | T6 |
+| L4 | B | README (Voigt chain, ~608 a `--voigt-chain`, ~853): "then nonlinear refinement"; CLI vypise "Using linear result (no nonlinear optimization)" a zadny nelinearni krok neudela | T2 |
+| L5 | B | PYTHON_API `arc.stderr_note` uvadi jen 'no covariance' a 'n0 at its upper bound'; kod vraci i 'covariance not usable' | T2 |
+| L6 | C | README (time constants, ~509): "every (R\|C) and (R\|Q) arc" - u Randlese `(R - Ws \| C)` je `time_constants` prazdne (zamerne, C vedle delsi vetve), README to nerika | T4 |
+| L7 | C | OXIDE_ANALYSIS_GUIDE 4 (nejistota): `param_labels.index('C0')` jen pro jediny C; `OxideAnalysisResult` neuvadi label dominantniho prvku, ve vicecelnem obvodu ho uzivatel nenajde | T1 |
+| L8 | C | Tloustka (oxid) neni v `--save` JSON/CSV, jen v konzoli | T1 |
+| L9 | C | PYTHON_API (DE): `seed` a `archive_check` chybi v prikladu i popisu, i kdyz jsou v podpisu (multistart `rng` je) | T8 |
+| L10 | C | PYTHON_API (`find_optimal_lambda_gcv`, ~469): "searches DRT_LAMBDA_RANGE = (1e-10, 1e-2)", ale `calculate_drt` na T6/B vrati GCV i vybranou lambda 5.97e-11, pod spodni mezi (varovani "at search-range edge" je) | T6 |
+| L11 | C | Stitky parametru jsou pozice v obvodu; dva clanky (R\|C) si pri fitu muzou vymenit hodnoty (T3: R1 = 452 misto 60) - porovnavat podle tau. Nezmineno | T3 |
+
+Nereprodukovano: T2 hlasil degenerovany lokalni 3RC fit (cond 3e31,
+stderr inf) bez varovani; vlastni 3RC fit na T2 da cond 1e30 a varovani
+"Rank-deficient Jacobian ... Non-identifiable parameter(s)". Drobnosti
+bez akce (D nebo opakovane zname): sparse/spiky DRT na cistych datech (F4),
+tichy default plochy 1 cm^2 u CSV (dokumentovano, vypis "assuming"),
+`initial_guess` v poradi `param_labels`, `warnings` vs `all_warnings`.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -161,6 +211,8 @@ a reziduí Z-HIT, ne podle Z-HIT `is_valid`.
 | K7 (A/C) | opraveno: `lin_kk_native` pri selhanem testu na kapacitnim NF konci bez `include_C` nastavi `KKResult.capacitive_end` a vyhradu ve `warnings` (API i CLI); CLI pak fit se sumem Lin-KK neporovnava a napovi `--kk-series-c`. Test, ktery projde, priznak nenastavi (nanejvys par okrajovych bodu) |
 | K1-K5, K8, K9 (kolo 3) | opraveno v dokumentaci: pevny parametr `R("1000")`, jeho stderr 0 a CI; `R_inf_range` bez "(misses: docstring)"; vysledky `lambda_probe` (`diagnostics.stability`); `find_outliers` a `OutlierReport` v PYTHON_API; priklad 6 bez nedefinovanych promennych; Ws/Wo s "transmissive"/"reflective" v tabulkach README a PYTHON_API |
 | K6 (kolo 3) | uzavreno dokumentaci: hlaseni podezrelych bodu muze mit mene KK bodu nez verdikt (pojistka 4x median, zduvodnena na merenych spektrech v outliers.py); verdikt dava `is_valid`, seznam jen lokalizuje. Popsano v PYTHON_API, chovani nezmeneno (rozhodnuti uzivatele 2026-10-13) |
+| L1-L5 (kolo 4) | opraveno v dokumentaci: README "Finding the valid frequency range" - konec behu je dolni mez rezu, ne zacatek driftu (namereno na 4 driftech: 0.1 dek. pod az 1.2 dek. nad vyssim koncem), rez na nebo nad vyssim koncem, opakovane mereni jako nejlepsi lokalizace; PYTHON_API `compare_fit_to_noise` bere sum z `kk.with_series_c` na kapacitnim konci (T8: pomer 1.05 misto 0.027); priklad Voigt elementu pres atributy; README `--voigt-chain` bez "nonlinear refinement"; `stderr_note` i s "covariance not usable" |
+| L6-L11 (kolo 4) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 
