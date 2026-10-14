@@ -233,9 +233,19 @@ branches** in the `Parallel` and any resistance enclosing that `Parallel`
   element, its DC resistance - it is part of the same parallel combination;
 - for a relaxation in series inside the branch, nothing - it is a separate
   arc, shorted by its own capacitance at this element's frequency;
-- for `W`, `L` and any other element, nothing (a short). For a Warburg this
-  is a deliberate simplification: the DC-exact infinity would hide the
+- for a Warburg or Gerischer directly across the element (a branch of its
+  own, or inside a relaxation directly across), its DC limit: `W`, `Wo` and
+  `Wa` block DC (they add nothing), `Ws` and `Wat` pass it through `R_W`, `GE`
+  through `sigma`. In the ZrO2 model `(G|Wa|Q|C)` the `C` and the `Q` see
+  `1/G`;
+- for a Warburg or Gerischer in series inside a branch - also inside a
+  relaxation there, as `Wa` in `Q_ox | (R_ox - (Q_dl | Wa))` - and for `L` and
+  any other element, nothing (a short). For a Warburg in series this is a
+  deliberate simplification: the DC-exact infinity would hide the
   charge-transfer arc.
+  Before v0.60.3 a Warburg directly across counted as a short too, which gave
+  the capacitive siblings of a `Wa` a parallel resistance of 0 and dropped a
+  `Q` beside it from the candidates.
 
 So in the Randles circuit `Q | (R_ct - W)` the `Q` sees `R_ct`, and in the
 porous-oxide model `Q_ox | (R_ox - (Q_dl | R_ct))` the outer `Q_ox` sees

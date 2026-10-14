@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from ..fitting.circuit_elements import R, C, G, Q, K, CC, DQ, YG
+from ..fitting.circuit_elements import R, C, G, Q, K, CC, DQ, YG, W, Ws, Wo, Wa, Wat, GE
 from ..fitting.circuit_builder import Series, Parallel
 from .config import BRUG_RS_MIN_OHM
 from .oxide_window import _cc_capacitance_regime
@@ -355,6 +355,15 @@ def _branch_resistance(node, across: bool = True) -> float:
     inside the branch is a separate arc, shorted by its own capacitance at
     this element's frequency: Q_ox in Q_ox | (R_ox - (Q_dl | R_ct)) sees R_ox,
     not R_ox + R_ct - unless it blocks DC, which blocks the branch.
+
+    A Warburg or Gerischer directly across the element - a sibling branch,
+    or inside a relaxation that is - counts with its DC limit too: W
+    (semi-infinite), Wo and Wa (reflective) block DC, Ws and Wat
+    (transmissive) pass it through R_W, GE through sigma. In C | Wa | G, C
+    sees 1/G; the fallback below gave every capacitive sibling of a Wa a
+    parallel resistance of 0 and so dropped a Q beside it. Inside a
+    relaxation in series in the branch it stays a short, like the
+    relaxation itself: Q_ox in Q_ox | (R_ox - (Q_dl | Wa)) sees R_ox.
     """
     if isinstance(node, (C, Q, CC, YG)):
         return np.inf
@@ -370,12 +379,21 @@ def _branch_resistance(node, across: bool = True) -> float:
         elif isinstance(node, DQ):
             R_dc = node.R_pol
         else:
+            # A relaxation in series passes that on: a Warburg inside it is
+            # part of a separate arc, not across this element
             R_dc = _parallel_combination(
-                [_branch_resistance(e) for e in node.elements])
+                [_branch_resistance(e, across) for e in node.elements])
         return R_dc if across or R_dc == np.inf else 0.0
-    # ponytail: every other element counts as a short. Exact for L; W, Ws, Wo
-    # are the semi-infinite W at the arc's frequency, so R_ct - W keeps R_ct
-    # (their DC limits, inf or R_W, belong to the slower diffusion). Ceiling:
+    if across and isinstance(node, (W, Ws, Wa)):
+        # Wo subclasses Ws (but reflects), Wat subclasses Wa (but transmits)
+        transmissive = isinstance(node, (Ws, Wat)) and not isinstance(node, Wo)
+        return node.params[0] if transmissive else np.inf
+    if across and isinstance(node, GE):
+        return node.params[0]      # Z(omega -> 0) = sigma
+    # ponytail: every other element counts as a short. Exact for L; a
+    # Warburg (W, Ws, Wo, Wa, Wat) or GE in series inside a branch is the
+    # semi-infinite W at the arc's frequency, so R_ct - W keeps R_ct (their
+    # DC limits, inf or R_W, belong to the slower diffusion). Ceiling:
     # an element that blocks DC or adds resistance at the arc's frequency and
     # is not listed above is misread - add it above if that matters.
     return 0.0
