@@ -151,6 +151,13 @@ def log_comparison(scores: List[ModelScore], n_points: int, weighting: str) -> N
             f"{score.result.condition_number:>8.1e}{flag}"
         )
 
+    # A truncated expression cannot tell candidates apart; the full ones,
+    # by their -c number, below the table
+    if any(len(s.expression) > width for s in scores):
+        logger.info("")
+        for score in scores:
+            logger.info(f"  -c {score.candidate}: {score.expression}")
+
     logger.info("")
     logger.info("  dAIC/dBIC < 2: indistinguishable, 4-7: noticeable, "
                 "> 10: decisive")

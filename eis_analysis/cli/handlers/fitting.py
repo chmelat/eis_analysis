@@ -44,6 +44,14 @@ from .fit_noise import noise_adequacy, log_noise_adequacy
 
 logger = logging.getLogger(__name__)
 
+# The weight each --weighting puts on a point, for the log lines
+_WEIGHTING_LABELS = {
+    'uniform': 'uniform (w=1)',
+    'sqrt': 'sqrt (w=1/sqrt|Z|)',
+    'modulus': 'modulus (w=1/|Z|)',
+    'proportional': 'proportional (w=1/|Z|^2)',
+}
+
 
 def _mark_zhit_fit(fig: plt.Figure, args: argparse.Namespace) -> None:
     """
@@ -136,7 +144,7 @@ def _log_diffevo_diagnostics(diffevo_result: DiffEvoResult) -> None:
     logger.info(f"  Max iterations: {diag.maxiter}")
     logger.info(f"  Tolerance: {diag.tol}")
     logger.info(f"  Workers: {diag.workers}")
-    logger.info(f"  Weighting: {diag.weighting} (w=1/|Z|)")
+    logger.info(f"  Weighting: {_WEIGHTING_LABELS.get(diag.weighting, diag.weighting)}")
 
     # Get params info from best_result
     result = diffevo_result.best_result
@@ -527,17 +535,11 @@ def _compare_circuits(
 def _log_mu_optimization(mu_opt: MuOptimization,
                          diag: VoigtChainDiagnostics) -> None:
     """Report the mu search behind the element count."""
-    weighting_labels = {
-        'uniform': 'uniform (w=1)',
-        'sqrt': 'sqrt (w=1/sqrt|Z|)',
-        'modulus': 'modulus (w=1/|Z|)',
-        'proportional': 'proportional (w=1/|Z|^2)'
-    }
     logger.info("Step 1: Auto-optimizing M using mu metric (Lin-KK)")
     logger.info(f"  mu threshold: {diag.mu_threshold}")
     logger.info(f"  Max M: {diag.max_M}")
     logger.info(f"  Fit type: {diag.fit_type}")
-    logger.info(f"  Weighting: {weighting_labels.get(diag.weighting, diag.weighting)}")
+    logger.info(f"  Weighting: {_WEIGHTING_LABELS.get(diag.weighting, diag.weighting)}")
     logger.info(f"  Include L: {diag.include_L}")
     logger.info("  Allow negative R_i: True")
     logger.info("")
