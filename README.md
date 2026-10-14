@@ -502,7 +502,10 @@ it causes in `|Z|` anywhere in the measured window, `S = max |dln|Z|/dlnP|`:
 Names are the parameter type with its count from the left of the expression,
 from 0: in `R(10) - (R(100) - Ws(50, 1) | C(1e-6))` the series resistor is
 `R0`, the charge-transfer resistor `R1`, the Warburg `R_W0` and `τ_W0`, the
-capacitor `C0`; the JSON `label` field uses the same names. `+/-` is one standard error from the
+capacitor `C0`; the JSON `label` field uses the same names. Names follow
+positions, not processes: two arcs in series are interchangeable, and a fit
+may return them in either order (`R1` = 452 Ohm where the start had 60), so
+match arcs between fits by their time constants, not by name. `+/-` is one standard error from the
 covariance scaled by the residual variance, s^2 = RSS/(n - p); the 95 % CI
 uses the t-distribution, in log space for positive scale parameters (R, C, Q,
 tau), so it is asymmetric there. Both assume random residuals (see below).
@@ -510,7 +513,11 @@ Below the parameters, every (R|C) and (R|Q) arc (G = 1/R in place of R
 included) gets its time constant - `tau = R*C`, or `(R*Q)^(1/n)` for a CPE -
 with a standard error from the covariance and the frequency 1/(2 pi tau) where
 its -Z'' peaks. With a parameter at a bound, or without a covariance, the
-stderr is left out and the line says why.
+stderr is left out and the line says why. An arc is a parallel pair of exactly
+one R (or G) and one C or Q: in the example above `C0` has the branch
+`R1 - Ws` beside it and gets no line, because the resistance beside it at DC
+includes `R_W`, so R*C would not be the charge-transfer time constant
+(`R1 * C0` is, by hand).
 
 This is a different question from the standard error. A wide CI has two very
 different causes - the parameter is irrelevant, or it is strongly correlated
@@ -778,7 +785,7 @@ the fit reports `Global search contributed nothing` - see
 
 ### DRT analysis
 
-- `--lambda`, `-l` (default: auto GCV) - Regularization parameter for DRT. Without this parameter, automatic selection using GCV (Generalized Cross-Validation) and L-curve method is used. It weighs the roughness integral of gamma against the mean squared residual, so the same value means the same smoothing for any `--n-tau` and frequency range; typical values are 1e-9 to 1e-3, higher for noisier data. Higher values = smoother DRT, lower = more detail but also noise. Note: on low-noise data auto-lambda may drive lambda toward 0, giving a sparse/spiky DRT that is unreliable for peak-shape analysis; the tool reports the effective bin count (N_eff) and warns when the DRT is too sparse, when lambda lands at the edge of the search range (1e-10 to 1e-2), or when the L-curve corner lands at the edge of its own window, a few decades around the GCV lambda, so the true corner may lie further out — set `--lambda` manually (e.g. 1e-6) in that case.
+- `--lambda`, `-l` (default: auto GCV) - Regularization parameter for DRT. Without this parameter, automatic selection using GCV (Generalized Cross-Validation) and L-curve method is used. It weighs the roughness integral of gamma against the mean squared residual, so the same value means the same smoothing for any `--n-tau` and frequency range; typical values are 1e-9 to 1e-3, higher for noisier data. Higher values = smoother DRT, lower = more detail but also noise. Note: on low-noise data auto-lambda may drive lambda toward 0, giving a sparse/spiky DRT that is unreliable for peak-shape analysis; the tool reports the effective bin count (N_eff) and warns when the DRT is too sparse, when lambda lands at the edge of the search range (1e-10 to 1e-2; a minimum at an end is refined one decade further, so the value may lie down to 1e-11 or up to 1e-1), or when the L-curve corner lands at the edge of its own window, a few decades around the GCV lambda, so the true corner may lie further out — set `--lambda` manually (e.g. 1e-6) in that case.
 - `--drt-weighting` (default: sqrt) - Weighting of the DRT least-squares term: `sqrt` (1/sqrt|Z|), `modulus` (1/|Z|, best when noise is proportional to |Z|), `proportional` (1/|Z|^2) or `uniform` (unweighted, the behaviour before 0.38). Independent of `--weighting`, which applies to circuit fitting only.
 - `--drt-inductance` (default: auto) - Series inductance `j*omega*L` in the DRT model: `auto` adds it when the top frequency decade has a point with Im(Z) > 0, `on` always, `off` never (the behaviour before 0.41). Without it an inductive high-frequency end deforms gamma.
 - `--tau-extend` (default: 0) - Extend the tau grid this many decades past the slow end of the measured window, or `auto` to extend only when that resolves a slow-end pile-up and the low-frequency end is not capacitive. Peaks past the window are marked as extrapolated and the share of R_pol past the window is reported.
@@ -887,7 +894,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ...
+- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

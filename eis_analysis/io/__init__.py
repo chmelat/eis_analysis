@@ -12,7 +12,7 @@ from .gamry import (
 from .csv_loading import load_csv_data
 from .spectrum import LoadResult
 from .synthetic import generate_synthetic_data
-from .export import fit_result_record, save_fit_result
+from .export import fit_result_record, save_fit_result, oxide_result_record, save_oxide_result
 
 __all__ = [
     'load_data',
@@ -25,4 +25,6 @@ __all__ = [
     'generate_synthetic_data',
     'fit_result_record',
     'save_fit_result',
+    'oxide_result_record',
+    'save_oxide_result',
 ]

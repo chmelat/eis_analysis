@@ -1,9 +1,10 @@
 """
-Export of a circuit fit result to machine-readable files.
+Export of a circuit fit result and an oxide analysis to machine-readable files.
 
 The console output of a fit is for reading; this is for the next program:
 a JSON record of the parameters and statistics, and a CSV of the data with
-the fitted curve that opens in any spreadsheet and loads back into eis.
+the fitted curve that opens in any spreadsheet and loads back into eis. The
+oxide analysis gets a JSON record of its own.
 """
 
 import json
@@ -12,12 +13,14 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from ..analysis import OxideAnalysisResult
 from ..fitting import FitResult, arc_time_constants
 from ..fitting.diagnostics import compute_information_criteria
 from ..version import __version__
 
 # Raise on any change a reader of an older record would misread
 FIT_EXPORT_FORMAT_VERSION = 1
+OXIDE_EXPORT_FORMAT_VERSION = 1
 
 # Headers chosen so load_csv_data reads the data columns and skips the fit:
 # 'fit' is one of its words that rule a column out.
@@ -195,3 +198,74 @@ def save_fit_result(
     with open(json_path, 'w', encoding='utf-8') as f:
         f.write(text)
     return json_path, csv_path
+
+
+def oxide_result_record(
+    result: OxideAnalysisResult,
+    context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    JSON-ready record of an oxide analysis (analyze_oxide_layer or
+    estimate_permittivity).
+
+    Parameters
+    ----------
+    result : OxideAnalysisResult
+        The analysis
+    context : dict, optional
+        How it came about (input file, direction, ...). Stored as given.
+
+    Returns
+    -------
+    record : dict
+        Units in the key names; None (JSON null) for a value the analysis
+        did not produce or that is not finite.
+    """
+    def num(x: Optional[float]) -> Optional[float]:
+        return None if x is None else _finite(float(x))
+
+    return {
+        'format': 'eis_analysis.oxide',
+        'format_version': OXIDE_EXPORT_FORMAT_VERSION,
+        'eis_analysis_version': __version__,
+        'context': context or {},
+        'mode': result.mode,
+        'element_type': result.element_type,
+        # Its first parameter in the fit record's 'parameters' (label field)
+        'element_label': result.element_label,
+        'element_R_ohm': num(result.element_R),
+        'element_tau_s': num(result.element_tau),
+        'selection_reason': result.selection_reason,
+        'epsilon_r': num(result.epsilon_r),
+        'area_cm2': num(result.area_cm2),
+        'capacitance_F': num(result.capacitance),
+        'capacitance_specific_F_cm2': num(result.capacitance_specific),
+        'capacitance_brug_F': num(result.capacitance_brug),
+        'thickness_nm': num(result.thickness_nm),
+        'thickness_brug_nm': num(result.thickness_brug_nm),
+        'thickness_pl_nm': num(result.thickness_pl_nm),
+        'permittivity': num(result.permittivity),
+        'permittivity_brug': num(result.permittivity_brug),
+        'permittivity_pl': num(result.permittivity_pl),
+        'rho_delta_ohm_cm': num(result.rho_delta_ohm_cm),
+        'warnings': list(result.warnings),
+    }
+
+
+def save_oxide_result(prefix: str, record: Dict[str, Any]) -> str:
+    """
+    Write an oxide record to ``{prefix}.json``.
+
+    Serialized before the file is opened, so a record that does not
+    serialize (TypeError, ValueError) leaves no truncated file; an OSError
+    is raised if the file cannot be written.
+
+    Returns
+    -------
+    json_path : str
+    """
+    text = json.dumps(record, indent=2, ensure_ascii=False, allow_nan=False) + '\n'
+    json_path = f"{prefix}.json"
+    with open(json_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return json_path

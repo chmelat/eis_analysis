@@ -210,6 +210,15 @@ result2, _ = fit_equivalent_circuit(f2, Z2, circuit,    # or a start for
 
 `parse_circuit_expression` lives in `eis_analysis.cli.utils`.
 
+An oxide result has a record of its own (`results_oxide.json` in the CLI):
+
+```python
+from eis_analysis.io import oxide_result_record, save_oxide_result
+
+json_path = save_oxide_result('results_oxide',
+                              oxide_result_record(oxide, context={'input': 'data.DTA'}))
+```
+
 ### eis_analysis.validation
 
 **Kramers-Kronig validation (Lin-KK):**
@@ -466,7 +475,9 @@ fig = plot_drt(Z, result)
 from eis_analysis.drt import find_optimal_lambda_gcv, compute_gcv_score
 
 # A, b, L: the weighted DRT system that calculate_drt builds internally.
-# Searches DRT_LAMBDA_RANGE = (1e-10, 1e-2) by default; lambda is
+# Searches DRT_LAMBDA_RANGE = (1e-10, 1e-2) by default; a minimum at an
+# end of it is refined one decade further, so lambda_opt may lie in
+# 1e-11 - 1e-1 (calculate_drt then warns "at search-range edge"). lambda is
 # dimensionless (see doc/GCV_IMPLEMENTATION.md).
 lambda_opt, gcv_min = find_optimal_lambda_gcv(A, b, L)
 
@@ -789,7 +800,11 @@ de_result, Z_fit = fit_circuit_diffevo(
     tol=0.01,                    # Convergence tolerance
     workers=1,                   # Parallelization (-1 = all CPUs)
     weighting='modulus',
-    use_analytic_jacobian=True   # Analytic Jacobian for refinement
+    use_analytic_jacobian=True,  # Analytic Jacobian for refinement
+    seed=None,                   # int for a reproducible run
+    archive_check=True           # Refine early candidates against local
+                                 # minima and ambiguous models (~30 extra
+                                 # least_squares runs)
 )
 
 # de_result: DiffEvoResult dataclass
@@ -991,6 +1006,8 @@ result.thickness_nm          # Oxide thickness [nm]
 result.element_type          # 'C', 'K', 'Q', 'CC', 'DQ', 'YG', or 'estimate'
 result.element_R             # Resistance of dominant element [Ohm]
 result.element_tau           # Time constant [s]
+result.element_label         # Its first parameter in the fit's param_labels
+                             # ('C1', 'Q0'); None without a fit
 result.thickness_pl_nm       # Power-law (Hirschorn-Orazem) comparison, or None
 ```
 

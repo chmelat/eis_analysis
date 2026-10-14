@@ -48,6 +48,7 @@ class OxideAnalysisResult:
     element_R: Optional[float]  # Parallel resistance [Ω] (None: no DC path beside it)
     element_tau: Optional[float] # Time constant [s]
     element_params: Dict[str, Any]  # All element parameters (+ 'type', flags)
+    element_label: Optional[str] = None  # its first parameter in FitResult.param_labels ('C1'); None without a fit
     # Brug (2D) comparison values - set only for a dominant Q element
     # when a series resistance is present in the circuit
     capacitance_brug: Optional[float] = None          # Brug C_eff [F]
@@ -207,6 +208,7 @@ def _extract_capacitance(
                     'element_tau': tau,
                     # A copy: tau and delta_nm must not leak into `candidates`
                     'element_params': dict(dominant, tau=tau),
+                    'element_label': dominant.get('label'),
                     'mode': 'circuit',
                     'candidates': elements,
                     'selection_reason': selection_reason,
@@ -358,6 +360,7 @@ def analyze_oxide_layer(
         element_R=extracted['element_R'],
         element_tau=extracted['element_tau'],
         element_params=extracted['element_params'],
+        element_label=extracted.get('element_label'),
         capacitance_brug=extracted['C_eff_brug'],
         capacitance_specific_brug=C_specific_brug,
         thickness_brug_nm=d_brug_nm,
@@ -468,6 +471,7 @@ def estimate_permittivity(
         element_R=extracted['element_R'],
         element_tau=extracted['element_tau'],
         element_params=extracted['element_params'],
+        element_label=extracted.get('element_label'),
         capacitance_brug=extracted['C_eff_brug'],
         capacitance_specific_brug=C_specific_brug,
         permittivity=epsilon_r,

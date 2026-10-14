@@ -20,6 +20,7 @@ from ...analysis import (
 )
 from ...analysis.config import DEFAULT_AREA_CM2, DEFAULT_EPSILON_R
 from ...fitting import FitResult
+from ...io import oxide_result_record, save_oxide_result
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def run_oxide_analysis(
         Complex impedance [Ohm]
     args : argparse.Namespace
         CLI arguments (uses: analyze_oxide, epsilon_r, thickness, area,
-        rho_delta)
+        rho_delta; optional: save, input)
     fitted_result : FitResult or None
         Circuit fitting result
     metadata : dict or None
@@ -86,6 +87,7 @@ def run_oxide_analysis(
             rho_delta_ohm_cm=args.rho_delta
         )
         _print_oxide_section(oxide, "Permittivity estimation from known thickness")
+        direction = 'permittivity'
     else:
         oxide = analyze_oxide_layer(
             frequencies, Z,
@@ -96,6 +98,20 @@ def run_oxide_analysis(
             rho_delta_ohm_cm=args.rho_delta
         )
         _print_oxide_section(oxide, "Oxide layer analysis")
+        direction = 'thickness'
+
+    if oxide is not None and getattr(args, 'save', None):
+        # The console section is for reading; the JSON is for the next program
+        try:
+            path = save_oxide_result(
+                f"{args.save}_oxide",
+                oxide_result_record(oxide, {'input': getattr(args, 'input', None),
+                                            'estimated': direction}))
+        except Exception as e:
+            logger.warning(f"Oxide result export failed: {e}")
+            logger.debug("Traceback:", exc_info=True)
+        else:
+            logger.info(f"Saved: {path}")
 
 
 def _print_candidates(oxide: OxideAnalysisResult) -> None:

@@ -44,10 +44,14 @@ def _find_capacitive_elements(
     which is how the dielectric element is identified downstream. A CC entry
     additionally carries the capacitance the measured window determines (see
     `_cc_capacitance_regime`), which is why `frequencies` is needed here.
+    Every entry has 'label': its first parameter's name in
+    FitResult.param_labels ('C1', 'Q0'), to find its stderr there.
     """
-    results = []
+    results: List[Dict[str, Any]] = []
+    labels = _leaf_labels(circuit)
 
     def traverse(node, R_parallel: Optional[float]) -> None:
+        n_before = len(results)
         if isinstance(node, Parallel):
             for i, elem in enumerate(node.elements):
                 # The resistance beside an element: its sibling branches
@@ -196,8 +200,37 @@ def _find_capacitive_elements(
                 'alpha': alpha_val,
             })
 
+        if not isinstance(node, (Parallel, Series)) and len(results) > n_before:
+            results[-1]['label'] = labels.get(id(node))
+
     traverse(circuit, None)
     return results
+
+
+def _leaf_labels(circuit) -> Dict[int, str]:
+    """Each element (by id) -> its first parameter's indexed label.
+
+    Indexed as fit_equivalent_circuit indexes FitResult.param_labels: the
+    parameter type with its count from the left, 'R0', 'C1', 'Q0'.
+    """
+    raw = circuit.get_param_labels()
+    indexed = [f"{label}{raw[:i].count(label)}" for i, label in enumerate(raw)]
+    out: Dict[int, str] = {}
+    offset = 0
+
+    def walk(node) -> None:
+        nonlocal offset
+        if isinstance(node, (Series, Parallel)):
+            for elem in node.elements:
+                walk(elem)
+            return
+        n = len(node.get_all_params())
+        if n:
+            out[id(node)] = indexed[offset]
+        offset += n
+
+    walk(circuit)
+    return out
 
 
 def _element_size(element: Dict[str, Any]) -> float:

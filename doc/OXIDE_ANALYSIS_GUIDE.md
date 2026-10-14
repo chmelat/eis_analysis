@@ -396,11 +396,12 @@ where:
 ```
 
 **Uncertainty.** `OxideAnalysisResult` carries no uncertainty of the
-thickness; propagate it from the fit. For a dominant C, d is proportional to
-1/C, so the relative errors are equal:
+thickness; propagate it from the fit. `oxide.element_label` names the
+dominant element's parameter in the fit, whatever the circuit. For a dominant
+C, d is proportional to 1/C, so the relative errors are equal:
 
 ```python
-i = result.param_labels.index('C0')        # the dominant C's label in the fit
+i = result.param_labels.index(oxide.element_label)   # the dominant C in the fit
 d_err = oxide.thickness_nm * result.params_stderr[i] / result.params_opt[i]
 ```
 
