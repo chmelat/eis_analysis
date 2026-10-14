@@ -423,7 +423,7 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
     # Values, not symbols, so the line pastes into --circuit as a starting
     # point - with the R_inf and series L of the DRT the elements came from
     values = [v for e in elements for v in (e.R, e.C)]
-    if R_inf is not None and all(isfinite(v) for v in [R_inf] + values):
+    if R_inf is not None and all(isfinite(v) for v in [R_inf, L_series] + values):
         parts = ([f"L({L_series:.4g})"] if L_series > 0 else []) + [f"R({R_inf:.4g})"]
         parts += [f"(R({e.R:.4g}) | C({e.C:.4g}))" for e in elements]
         logger.info(f"Suggested circuit: {' - '.join(parts)}")

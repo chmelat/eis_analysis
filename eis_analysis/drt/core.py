@@ -365,14 +365,24 @@ def calculate_drt(
             f"further out - DRT shape may be unreliable"
         )
     if lambda_sel.lambda_at_edge:
-        gcv = (f", GCV lambda={lambda_sel.lambda_gcv:.2e}"
-               if lambda_sel.lambda_gcv is not None else "")
-        nnls_result.warnings.append(
-            f"Auto-lambda at search-range edge (lambda="
-            f"{lambda_sel.lambda_value:.2e}{gcv}, range {DRT_LAMBDA_RANGE[0]:.0e}-"
-            f"{DRT_LAMBDA_RANGE[1]:.0e}); the optimum may lie outside the "
-            f"searched range - DRT shape may be unreliable"
-        )
+        search_range = f"range {DRT_LAMBDA_RANGE[0]:.0e}-{DRT_LAMBDA_RANGE[1]:.0e}"
+        if DRT_LAMBDA_RANGE[0] < lambda_sel.lambda_value < DRT_LAMBDA_RANGE[1]:
+            # Only the GCV stage hit the bound; the L-curve then moved inside
+            nnls_result.warnings.append(
+                f"GCV lambda at search-range edge (GCV lambda="
+                f"{lambda_sel.lambda_gcv:.2e}, {search_range}); the selected "
+                f"lambda={lambda_sel.lambda_value:.2e} comes from an L-curve "
+                f"window centred there - DRT shape may be unreliable"
+            )
+        else:
+            gcv = (f", GCV lambda={lambda_sel.lambda_gcv:.2e}"
+                   if lambda_sel.lambda_gcv is not None else "")
+            nnls_result.warnings.append(
+                f"Auto-lambda at search-range edge (lambda="
+                f"{lambda_sel.lambda_value:.2e}{gcv}, {search_range}); the "
+                f"optimum may lie outside the searched range - DRT shape may "
+                f"be unreliable"
+            )
     # A corner below GCV (flagged by the hybrid search) is the unusual
     # direction: the two criteria genuinely disagree and GCV's lambda was
     # taken without the L-curve's support. A corner above GCV is the expected
