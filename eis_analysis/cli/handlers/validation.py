@@ -29,7 +29,7 @@ from ...validation import (
     ZHITResult,
 )
 from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
-from ...validation.kramers_kronig import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
+from ...validation.kk_result import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
 from ...validation.thd import THD_TO_Z_ERROR
 

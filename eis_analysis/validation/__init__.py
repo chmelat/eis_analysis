@@ -5,14 +5,11 @@ Data validation module for EIS analysis.
 from .kramers_kronig import (
     kramers_kronig_validation,
     lin_kk_native,
-    KKResult,
-    LinKKResult,
-    compute_pseudo_chisqr,
-    estimate_noise_percent,
     low_frequency_slope,
-    find_optimal_extend_decades,
-    reconstruct_impedance,
 )
+from .kk_result import KKResult, LinKKResult
+from .kk_grid import find_optimal_extend_decades, reconstruct_impedance
+from .noise import compute_pseudo_chisqr, estimate_noise_percent
 from .zhit import (
     zhit_validation,
     zhit_reconstruct_magnitude,

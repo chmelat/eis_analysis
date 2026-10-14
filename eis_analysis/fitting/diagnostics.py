@@ -16,7 +16,7 @@ from .config import (FIT_QUALITY_EXCELLENT_ERROR, FIT_QUALITY_GOOD_ERROR,
                      FIT_QUALITY_ACCEPTABLE_ERROR, FIT_NOISE_RATIO_WARN,
                      NOISE_FLOOR_PERCENT)
 from .jacobian import circuit_jacobian
-from ..validation.kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
+from ..validation.noise import compute_pseudo_chisqr, estimate_noise_percent
 
 logger = logging.getLogger(__name__)
 

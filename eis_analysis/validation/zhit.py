@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from numpy.typing import NDArray
 from scipy.integrate import cumulative_trapezoid
 
-from .kramers_kronig import compute_pseudo_chisqr, estimate_noise_percent
+from .noise import compute_pseudo_chisqr, estimate_noise_percent
 
 logger = logging.getLogger(__name__)
 

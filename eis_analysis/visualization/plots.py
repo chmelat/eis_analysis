@@ -325,7 +325,8 @@ def plot_kk_validation(
         Nyquist plot with a dense fit curve (left) and residuals with the
         +-KK_RESIDUAL_THRESHOLD lines that `is_valid` counts against (right).
     """
-    from ..validation.kramers_kronig import KK_RESIDUAL_THRESHOLD, reconstruct_impedance
+    from ..validation.kk_result import KK_RESIDUAL_THRESHOLD
+    from ..validation.kk_grid import reconstruct_impedance
 
     freq_plot = np.logspace(np.log10(frequencies.min()), np.log10(frequencies.max()), 300)
     # lin_kk_native(include_L=False) leaves no L at the end of elements

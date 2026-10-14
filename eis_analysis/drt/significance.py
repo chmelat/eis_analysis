@@ -27,7 +27,7 @@ from .estimation import _peak_basins
 from .linear_system import _reconstruct
 from .gcv import DRT_NNLS_MAXITER_FACTOR
 from ..fitting.config import DRT_PEAK_DCHI2_MIN
-from ..validation.kramers_kronig import compute_pseudo_chisqr
+from ..validation.noise import compute_pseudo_chisqr
 
 
 @dataclass

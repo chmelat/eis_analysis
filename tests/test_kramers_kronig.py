@@ -25,7 +25,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from eis_analysis.io import load_data
-from eis_analysis.validation.kramers_kronig import (
+from eis_analysis.validation import (
     compute_pseudo_chisqr,
     estimate_noise_percent,
     reconstruct_impedance,
