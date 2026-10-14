@@ -4,6 +4,22 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.60.3 (2026-10-14)
+
+### Fixed
+
+- **Oxide analysis: a Warburg or Gerischer beside the capacitive element
+  counted as a short.** The parallel resistance of a candidate element took
+  every element it did not know as 0 Ohm. In the ZrO2 model
+  `L-R0-(G|Wa|Q|C)` the `C` therefore got R = 0 and no time constant, and
+  the `Q` beside it was dropped as having "no parallel resistance". A
+  Warburg or Gerischer directly in the Parallel (also inside a relaxation
+  directly across) now counts with its DC limit: `W`, `Wo` and `Wa` block
+  DC, `Ws` and `Wat` pass `R_W`, `GE` passes sigma. On the re-measured 21 d
+  ZrO2 sample the `C` now sees 1/G = 1.4 GOhm (tau = 104 s); the permittivity
+  is unchanged. Inside a branch in series (Randles `C_dl | (R_ct - W)`) a
+  Warburg stays a short, as documented, so `C_dl` keeps `R_ct`.
+
 ## Version 0.60.2 (2026-10-14)
 
 From cold-agent round 5, step 2 (`doc/COLD_AGENT.md`): a coated metal with
