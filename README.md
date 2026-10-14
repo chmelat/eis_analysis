@@ -605,7 +605,7 @@ is the intuitive introduction: two worked repairs, and the limits.
 
 ### Voigt chain (automatic circuit)
 
-Automatic Voigt chain estimation using linear regression for initial guess, then nonlinear refinement.
+Automatic Voigt chain: R_i at fixed, log-spaced tau_i by linear regression. The linear result is the fit; no nonlinear refinement follows.
 
 ```bash
 # Basic Voigt chain
@@ -830,17 +830,17 @@ Lin-KK and Z-HIT always validate the full spectrum, whatever `--f-min`/`--f-max`
 
 1. Both `Data quality:` lines pass and no `Suspicious points` table appears: use the whole spectrum.
 2. In the table (listed by frequency) look for a contiguous run from one end. A run from the low end is drift of a non-stationary sample, one from the high end a lead or instrument artifact. Isolated points with clean neighbours are defects; leave them, the list is diagnostic.
-3. Find where the run stops in the residual plots (`--save`: `_kk`, `_zhit`), not in the table: it lists only points above `--max-residual` *and* four times the method's median, and lowering `--max-residual` does not reveal more, because the median guard stays binding. Of the two plots, the run in the Lin-KK residuals reaches the true boundary. Z-HIT's residual is local and close to the size of the drift, but drift smaller than its own reconstruction error (a few percent) is invisible to it, so its run stops earlier. Lin-KK is one global fit: besides the run from the end it can raise isolated points in the middle of the spectrum - the same drift spread out, not a second bad range.
-4. Cut there with `--f-min` (`--f-max` at the high end). The KK and Z-HIT sections do not change; the cut shows in R_inf, the DRT, the fit and its `Fit vs. noise` line.
+3. Find where the run stops in the residual plots (`--save`: `_kk`, `_zhit`), not in the table: it lists only points above `--max-residual` *and* four times the method's median, and lowering `--max-residual` does not reveal more, because the median guard stays binding. A run stops where the drift falls below what that test resolves, not where the drift starts, so its end is a lower bound for the cut. Z-HIT's residual is local and close to the size of the drift, but drift smaller than its own reconstruction error (a few percent) is invisible to it; Lin-KK's run usually reaches higher. Lin-KK is one global fit: past its run it can raise isolated points further up the spectrum - the same drift spread out, not a second bad range.
+4. Cut with `--f-min` (`--f-max` at the high end) at or above the higher of the two run ends. How far above, the spectrum does not tell: on four synthetic drifts the drift started from 0.1 decade below that end (Re drift of 25 %/decade) to 1.2 decades above it (a phase drift of 5 deg/decade, which no run reached). A repeat measurement locates the start best: where the two spectra part. The KK and Z-HIT sections do not change with the cut; it shows in R_inf, the DRT, the fit and its `Fit vs. noise` line.
 5. Where only `|Z|` drifts and the phase is sound, `--fit-on zhit` keeps the low frequencies instead of cutting them (see [Z-HIT as a correction](#z-hit-as-a-correction---fit-on)).
 
-Example: a spectrum (10 mHz - 1 MHz) whose Re(Z) drifts by 15 % per decade below 1 Hz. Lin-KK `poor` (24 of 81 points above 5 %), Z-HIT `marginal` (mean 4.7 %). The table lists Z-HIT points from 10 mHz (25 %) to 0.25 Hz (9 %). In the plots, the Lin-KK residual stays at 6-10 % from the low end up to 1 Hz and below 5 % above it, except four isolated points of 5-6 % between 0.5 and 2.5 kHz; the Z-HIT residual is back within its own error (below 5 %, median 1.5 %) from 0.4 Hz. The drift starts at 1 Hz: with `--f-min 1` the fit error of the true circuit drops from 2.9 % to 0.65 %, while the validation sections print what they printed before.
+Example: a spectrum (10 mHz - 1 MHz) whose Re(Z) drifts by 15 % per decade below 1 Hz. Lin-KK `poor` (24 of 81 points above 5 %), Z-HIT `marginal` (mean 4.7 %). The table lists Z-HIT points from 10 mHz (25 %) to 0.25 Hz (9 %). In the plots, the Lin-KK residual stays at 6-10 % from the low end up to 1 Hz and below 5 % above it, except four isolated points of 5-6 % between 0.5 and 2.5 kHz; the Z-HIT residual is back within its own error (below 5 %, median 1.5 %) from 0.4 Hz. The higher run end is Lin-KK's, 1 Hz, and here the drift starts exactly there: with `--f-min 1` the fit error of the true circuit drops from 2.9 % to 0.65 %, while the validation sections print what they printed before.
 
 When the two validations disagree:
 
 | What the output shows | Likely cause | What to do |
 |---|---|---|
-| Both flag a run from the low end; Lin-KK's run reaches higher | Drift (non-stationary sample) | `--f-min` at the end of Lin-KK's run, or `--fit-on zhit` |
+| Both flag a run from the low end; Lin-KK's run usually reaches higher | Drift (non-stationary sample) | `--f-min` at or above the higher run end, or `--fit-on zhit` |
 | Both flag a run from the high end | Lead or instrument artifact | `--f-max` |
 | Lin-KK fails across the spectrum but passes with `--kk-series-c`, Z-HIT clean | Capacitive (blocking) low-frequency end the Voigt chain cannot model; the data are fine | `--kk-series-c` |
 | Lin-KK fails on a capacitive end and with `--kk-series-c` as well | Drift of \|Z\| or phase; Z-HIT usually shows it as a run from the low end | Treat as drift: `--f-min` |
@@ -850,7 +850,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 
 ### Voigt chain (automatic circuit)
 
-- `--voigt-chain` - Use automatic Voigt chain fitting. Linear regression for R_i and tau_i estimation, then nonlinear refinement.
+- `--voigt-chain` - Use automatic Voigt chain fitting: linear regression for R_i at fixed, log-spaced tau_i; the linear result is used as is (no nonlinear refinement).
 - `--voigt-n-per-decade` (default: 3) - Number of time constants per decade for Voigt chain. Higher = finer coverage but more parameters.
 - `--voigt-extend-decades` (default: 0.0) - Extend tau range by N decades beyond data limits. Useful if you expect processes outside measured range.
 - `--voigt-prune-threshold` (default: 0.01) - Threshold for removing small R_i (as fraction of R_pol). Elements with R_i < threshold * R_pol are removed.

@@ -597,7 +597,8 @@ for arc in arc_time_constants(result):   # result of a fit (.best_result for
                      #   correlated); None without a covariance or with a
                      #   parameter at a bound
     arc.stderr_note  # why tau_stderr is None ('no covariance',
-                     #   'n0 at its upper bound'), else None
+                     #   'n0 at its upper bound', 'covariance not
+                     #   usable'), else None
     arc.frequency    # 1/(2*pi*tau) [Hz], where -Z'' peaks
 ```
 
@@ -660,7 +661,11 @@ from eis_analysis.fitting import compare_fit_to_noise
 from eis_analysis.validation import kramers_kronig_validation
 
 kk = kramers_kronig_validation(freq, Z)
-a = compare_fit_to_noise(Z, Z_fit, kk.noise_estimate)
+# On a capacitive low-frequency end the plain run's noise is the Voigt
+# chain's misfit (tens of %), and any fit would look adequate against it;
+# the rerun with the series C describes the data
+ref = kk.with_series_c if kk.capacitive_end and kk.with_series_c is not None else kk
+a = compare_fit_to_noise(Z, Z_fit, ref.noise_estimate)
 
 a.fit_noise_percent   # the fit's residual as noise [%]
 a.ratio               # fit / max(noise, NOISE_FLOOR_PERCENT); ~1 for a correct model
@@ -672,7 +677,7 @@ Pass the measured `Z` the circuit was fitted to - what Lin-KK saw. A fit to a
 Z-HIT reconstruction has no usable reference: the Lin-KK noise does not
 describe the reconstruction's own error, and the CLI does not compare it. If
 the fit covers only part of the validated spectrum, use the Lin-KK noise of
-those points, `kk.noise_estimate_on(mask)` with `mask` selecting them from
+those points, `ref.noise_estimate_on(mask)` with `mask` selecting them from
 the validated frequencies. Non-finite input gives `ratio = nan` and
 `adequate = True` with a warning - a missing comparison is no evidence of a
 misfit.
@@ -957,7 +962,7 @@ suggestion = analyze_voigt_elements(
 # The CLI's report block is cli/handlers/drt.py; a library caller reads
 # the fields directly
 for elem in suggestion.elements:
-    print(f"Element {elem['id']}: tau={elem['tau']:.2e} s, R={elem['R']:.1f} Ohm, C={elem['C']:.2e} F")
+    print(f"Element {elem.id}: tau={elem.tau:.2e} s, R={elem.R:.1f} Ohm, C={elem.C:.2e} F")
 ```
 
 **Note:**
