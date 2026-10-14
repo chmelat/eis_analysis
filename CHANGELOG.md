@@ -4,6 +4,100 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.60.0 (2026-10-14)
+
+Most of this release comes from four rounds of cold agents
+(`doc/COLD_AGENT.md`): agents without project context solved synthetic
+tasks with a known answer from the documentation alone, and every finding
+was reproduced before it was fixed.
+
+### Changed - BREAKING
+
+- **`fit_circuit_multistart` and `fit_circuit_diffevo` take
+  `(frequencies, Z, circuit, ...)`**, like `fit_equivalent_circuit` (was
+  `(circuit, frequencies, Z, ...)`). A call in the old order raises a
+  `TypeError` that names the new order instead of failing inside the fit.
+
+  Migration: `fit_circuit_multistart(circuit, f, Z, ...)` ->
+  `fit_circuit_multistart(f, Z, circuit, ...)`, the same for
+  `fit_circuit_diffevo`.
+- **`ZHITResult.quality` removed.** It was 1 - mean/threshold (0-1) beside a
+  `quality_threshold` in percent and repeated `mean_residual_mag`.
+  Migration: read `mean_residual_mag` [%].
+- **CLI wording** (for scripts that read the output): the Voigt suggestion's
+  "Analysis quality" is "Suggestion quality" (it grades the suggestion, not
+  the data); the lambda-edge warning is split into "Auto-lambda at
+  search-range edge", "GCV lambda at search-range edge" and "L-curve corner
+  at the edge of its window"; the suspicious-points table is listed by
+  frequency instead of largest residual first, so a run from one end of the
+  spectrum, and where it stops, is readable.
+
+### Added
+
+- **Time constants of the arcs.** `arc_time_constants(result)` /
+  `ArcTimeConstant` (top level and `eis_analysis.fitting`): tau = R*C, or
+  (R*Q)^(1/n) for a CPE, for every parallel pair of one R (or G) with one C
+  or Q, with a delta-method stderr from the fit covariance (Monte Carlo over
+  50 noise realisations: ratio 0.86-1.12), the peak frequency, and
+  `stderr_note` where there is no stderr. The CLI prints them under the
+  parameters; `--save` writes them to the fit JSON (`time_constants`). A C
+  beside a longer branch (Randles `C_dl | (R_ct - W)`) and a pair nested
+  directly in another Parallel get none: R*C is not their time constant.
+- **Lin-KK reruns itself with the series C on a capacitive low-frequency
+  end.** A failed test with -Z'' still rising at f_min sets
+  `KKResult.capacitive_end` and a warning that the residuals and the noise
+  then describe the Voigt chain, not the data (a reflective Warburg: 35 %
+  "noise" against 1.2 % with the series C). The rerun with `include_C` is
+  kept as `KKResult.with_series_c`, `series_c_passes` is its verdict, and the
+  per-point check, the KK plot and `Fit vs. noise` (labelled `Lin-KK with
+  the series C`) use it. The CLI suggests `--kk-series-c` only when the
+  rerun passes; when it fails as well, the warning names drift. Without the
+  rerun, a phase drifting below 1 Hz - which bends -Z'' upward even on a
+  closing arc - got the `--kk-series-c` hint and was dropped from the
+  per-point check.
+- **Oxide result as a file, and its element in the fit.**
+  `OxideAnalysisResult.element_label` names the dominant element's
+  parameter in the fit (`'C1'`, `'Q0'`), so the thickness uncertainty
+  recipe of the oxide guide works for any circuit; `--save` with
+  `--analyze-oxide` writes `<prefix>_oxide.json` (`oxide_result_record`,
+  `save_oxide_result` in `eis_analysis.io`).
+- **Paste-ready suggested circuit.** The DRT's "Suggested circuit" carries
+  values, with the R_inf and series L of the DRT, so it pastes into
+  `--circuit`; none when a value (L included) is not finite.
+
+### Fixed
+
+- **A lambda in mid-range was reported at the search-range edge.**
+  `lambda_at_edge` also held the L-curve corner at the rim of its own
+  window; the two are now separate flags with separate warnings, and the
+  message says when only the GCV stage sat at the edge.
+
+### Documentation
+
+- README, "Finding the valid frequency range": how to read the valid range
+  from Lin-KK and Z-HIT (a run from one end, its end in the residual plots
+  as a lower bound for `--f-min`, measured on four drifts), what to do when
+  the two disagree, and a known limit - drift of Re(Z) alone on a blocking
+  end passes both and still biases the CPE exponent.
+- README: how fit parameters are named (positions, not processes - match
+  arcs by tau), what `+/-` and the CI are, the `Data quality` labels and how
+  the Lin-KK and Z-HIT verdicts differ (Z-HIT `is_valid` is a mean that
+  dilutes low-frequency drift), the Voigt chain is linear only, an auto
+  lambda can lie one decade beyond `DRT_LAMBDA_RANGE`.
+- `doc/PYTHON_API.md` and the oxide guide: every example runs (top-level
+  imports, Lin-KK parameters, GMM peak keys, `result.peaks` on the scipy
+  path, `LoadResult`, fixed parameters `R("1000")`, Voigt elements by
+  attribute, DE `seed`); `compare_fit_to_noise` takes the noise of
+  `with_series_c` on a capacitive end; `find_outliers`, lambda-probe
+  results and the oxide thickness uncertainty are documented.
+- `doc/COLD_AGENT.md`: plan, sandbox and rounds 1-4.
+
+### Internal
+
+- `validation/kramers_kronig.py` (781 lines) is split into `noise.py`
+  (pseudo chi^2 and noise, shared with Z-HIT, the fit and the DRT),
+  `kk_result.py` and `kk_grid.py`; no behaviour change.
+
 ## Version 0.59.1 (2026-10-13)
 
 ### Fixed
