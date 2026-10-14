@@ -78,21 +78,27 @@ def arc_time_constants(result: FitResult) -> List[ArcTimeConstant]:
 
     arcs = []
 
-    def walk(node, offset: int) -> int:
+    def walk(node, offset: int, in_parallel: bool = False) -> int:
         """Collect the arcs under node; return the offset past its parameters."""
         if isinstance(node, (Series, Parallel)):
             starts = []
             for elem in node.elements:
                 starts.append(offset)
-                offset = walk(elem, offset)
-            if isinstance(node, Parallel) and len(node.elements) == 2:
+                offset = walk(elem, offset, isinstance(node, Parallel))
+            # A Parallel directly inside a Parallel (the builder does not
+            # always flatten them) has its R and C beside the other branches
+            # too: R*C is not its time constant
+            if isinstance(node, Parallel) and len(node.elements) == 2 and not in_parallel:
                 arc = _arc(node.elements, starts, params, labels, result)
                 if arc is not None:
                     arcs.append(arc)
             return offset
         return offset + len(node.get_all_params())
 
-    walk(result.circuit, 0)
+    # _arc drops a non-finite tau; numpy's overflow and divide warnings on
+    # the way there would only clutter the fit output
+    with np.errstate(over='ignore', under='ignore', divide='ignore', invalid='ignore'):
+        walk(result.circuit, 0)
     return arcs
 
 
