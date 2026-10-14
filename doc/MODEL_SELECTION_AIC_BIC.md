@@ -377,8 +377,10 @@ as designed.
    the circuit your data actually supports
 ```
 
-Practical order of work: let DRT tell you **how many processes there are**,
-write down 2-4 physically defensible circuits, fit them in one run, read
+Practical order of work: let DRT give a **first count of processes** - a
+lower bound, since processes up to about a decade apart can merge into one
+peak -, write down 2-4 physically defensible circuits, among them one with an
+element more than the peaks suggest, fit them in one run, read
 `dBIC`, then check `cond` **and the at-the-bound warnings** on the winner
 before believing its parameters.
 

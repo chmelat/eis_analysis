@@ -388,13 +388,19 @@ solved together with gamma (lambda is selected with it in the system).
 `--drt-inductance auto` (default) adds it only when the top decade has a point
 with Im(Z) > 0; `on` forces it, with a warning if it then finds an L on a
 non-inductive end, and `off` gives the DRT of versions before 0.41. The fitted L
-is printed in the DRT section.
+is printed in the DRT section. An inductance hidden under an arc still open at
+f_max - Im(Z) < 0 at the top despite the cable - is not detected by `auto`;
+a circuit fit with an `L` element shows it (cold-agent task T10: 1 uH, dBIC 459).
 
 By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
 f_max. A median more than 5 % above the two highest points (with Im(Z) <= 0)
 reaches into an arc still open there; the first of them, an upper bound of
 R_inf, is used instead, with a warning. Use `--ri-fit` when the spectrum has not flattened.
+`R_pol (from data)` is the median Re(Z) of the (up to 5) lowest-frequency
+points minus R_inf: a lower bound when an arc is still open at f_min
+(cold-agent task T12: 180 Ohm, true 950), as is `R_pol (from DRT integral)`;
+only a fit can extrapolate past the window.
 
 A local maximum of gamma counts as a peak only if the data need it. The DRT is
 refitted with gamma forced to fall monotonically from the nearest taller peak
@@ -409,7 +415,10 @@ threshold, this keeps a resolved process three orders smaller in R next to a
 large one and drops the lobes regularization splits one broad process into:
 on 248 synthetic spectra (0-3 % noise) no spurious peak, against 114 with the
 threshold. What it cannot do is separate what the DRT does not: two ZARCs
-half a decade apart give one maximum, and a broad process on the flank of a
+up to about a decade apart can give one maximum (cold-agent task T9: two
+processes 0.8 decade apart, one peak, while BIC preferred two by 474), so the
+peak count is a lower bound - fit one element more to check. A broad process
+on the flank of a
 response heaped against the slow end of the window is reported as part of
 it. The test is calibrated for `--drt-weighting sqrt` (default) and
 `modulus`; under `uniform` and `proportional` the solved problem departs from
@@ -725,9 +734,6 @@ A span of n above 0.1 over the determined points raises a warning. Spectra
 without a blocking layer (several closed arcs) give n near 0 and little
 information.
 
-Example: on ZrO2-on-Zr spectra the map showed a minimum of 0.52 at 0.25 Hz,
-a rise to ~0.72 at both ends, and led to the `L-R0-(G|Wa|Q|C)` model.
-
 ---
 
 ## CLI Reference
@@ -866,7 +872,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 - `--voigt-allow-negative` - Allow negative R_i values (Lin-KK style). Otherwise negative elements are removed.
 - `--voigt-no-inductance` - Do not include series inductance L in model.
 - `--voigt-fit-type` (default: complex) - Fit type: `complex` (default, real+imag), `real` (real part only), `imag` (imaginary part only).
-- `--voigt-auto-M` - Automatically optimize number of M elements using mu metric.
+- `--voigt-auto-M` - Automatically optimize number of M elements using mu metric. The M search is a Lin-KK fit and allows negative R_i whatever `--voigt-allow-negative` says (the CLI prints `Allow negative R_i: True` for it); the final chain follows the flag.
 - `--voigt-mu-threshold` (default: 0.85) - Mu threshold value for `--voigt-auto-M`.
 - `--voigt-max-M` (default: 50) - Maximum number of M elements for `--voigt-auto-M`.
 - `--no-voigt-info` - Do not display detailed Voigt chain fitting info.
@@ -896,7 +902,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
+- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

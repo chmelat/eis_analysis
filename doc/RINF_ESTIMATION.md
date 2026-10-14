@@ -100,7 +100,7 @@ capacitive and mixed high-frequency ends alike.
 
 All points with `f >= f_max / 10**RINF_FIT_DECADES`, `RINF_FIT_DECADES = 2`.
 One decade resolves an arc just above f_max slightly better but scatters about
-ten times more under 1 % noise; see `archive/AUDIT_ri_fit_2026-09-25.md`. The window
+ten times more under 1 % noise; see [archive/AUDIT_ri_fit_2026-09-25.md](archive/AUDIT_ri_fit_2026-09-25.md). The window
 must hold at least `RINF_FIT_MIN_POINTS = 5` points (5 free parameters,
 10 real residuals), otherwise the fallback below is used.
 
@@ -178,7 +178,7 @@ outside its range, on 39 of 1417 spectra; with it R_s is outside on 7 of 878
 accepted fits, 5 of them by under 3 % at 1-3 % noise, the others on ends
 far from closing (oxide/35: phase -84 deg at f_max, 16 % high). The median
 half-width stays 5 %, since on a closed end both windows agree; 90 % stay
-within 11.5 % (`doc/STRESS_TEST.md`, known limit 7). R_inf itself is the
+within 11.5 % ([STRESS_TEST.md](STRESS_TEST.md), known limit 7). R_inf itself is the
 2-decade fit either way: one decade resolves an open arc better but
 scatters ten times more under noise.
 
