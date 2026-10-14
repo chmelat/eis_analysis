@@ -392,7 +392,9 @@ is printed in the DRT section.
 
 By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
 points, which assumes the spectrum has already flattened onto the real axis at
-f_max. Use `--ri-fit` when it has not.
+f_max. A median more than 5 % above the two highest points (with Im(Z) <= 0)
+reaches into an arc still open there; the first of them, an upper bound of
+R_inf, is used instead, with a warning. Use `--ri-fit` when the spectrum has not flattened.
 
 A local maximum of gamma counts as a peak only if the data need it. The DRT is
 refitted with gamma forced to fall monotonically from the nearest taller peak

@@ -370,7 +370,7 @@ more detailed diagnostics (M, mu, inductance).
 **R_inf estimation, R-L-(R|Q) fit over the top two decades:**
 
 ```python
-from eis_analysis.rinf_estimation import estimate_rinf, hf_median
+from eis_analysis.rinf_estimation import estimate_rinf, hf_median, hf_r_inf
 
 est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite point
 
@@ -390,8 +390,12 @@ est.fit            # FitResult, params_opt = [R_s, L, R_k, Q, n]; None if no fit
 est.f_window, est.Z_window  # data of the fit window
 est.warnings       # why the fallback was used, dropped non-finite points
 
-R_inf, n = hf_median(frequencies, Z)  # the DRT's default R_inf: median of Re(Z)
-                                      # over the top points
+R_inf, n = hf_median(frequencies, Z)  # median of Re(Z) over the top points
+R_inf, warning = hf_r_inf(frequencies, Z)  # the DRT's default: that median, or
+                                      # Re(Z) at the top capacitive point when the
+                                      # median lies >5 % above the two top points
+                                      # (warning says why; 'hf_bound' in
+                                      # diagnostics.rinf.method)
 
 from eis_analysis.visualization import plot_rinf_fit
 fig = plot_rinf_fit(est)

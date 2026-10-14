@@ -247,7 +247,8 @@ neni top-level (dokumentovano).
 | K6 (kolo 3) | uzavreno dokumentaci: hlaseni podezrelych bodu muze mit mene KK bodu nez verdikt (pojistka 4x median, zduvodnena na merenych spektrech v outliers.py); verdikt dava `is_valid`, seznam jen lokalizuje. Popsano v PYTHON_API, chovani nezmeneno (rozhodnuti uzivatele 2026-10-13) |
 | L1-L5 (kolo 4) | opraveno v dokumentaci: README "Finding the valid frequency range" - konec behu je dolni mez rezu, ne zacatek driftu (namereno na 4 driftech: 0.1 dek. pod az 1.2 dek. nad vyssim koncem), rez na nebo nad vyssim koncem, opakovane mereni jako nejlepsi lokalizace; PYTHON_API `compare_fit_to_noise` bere sum z `kk.with_series_c` na kapacitnim konci (T8: pomer 1.05 misto 0.027); priklad Voigt elementu pres atributy; README `--voigt-chain` bez "nonlinear refinement"; `stderr_note` i s "covariance not usable" |
 | L6-L11 (kolo 4) | opraveno: README - casove konstanty jen pro par R/G s C/Q (Randles bez radku, R1*C0 rucne), jmena parametru jsou pozice, oblouky srovnavat podle tau, lambda az o dekadu za DRT_LAMBDA_RANGE (i PYTHON_API); `OxideAnalysisResult.element_label` (parametr dominantniho prvku ve fitu, navod na nejistotu v OXIDE guide uz bez pevneho C0); `--save` s `--analyze-oxide` zapise `<prefix>_oxide.json` (`oxide_result_record`, `save_oxide_result`); priklad DE se `seed` a `archive_check` |
-| M1-M8 (kolo 5) | otevreno |
+| M1 (kolo 5) | opraveno: vychozi R_inf (DRT i `calculate_rpol` Voigt navrhu, `hf_r_inf`) omezen shora Re(Z) v nejvyssim kapacitnim bode, kdyz median lezi o vic nez 5 % nad obema nejvyssimi kapacitnimi body (jeden zakmit na f_max ho nespusti), s varovanim; T10 17.48 -> 11.62 Ohm. Na plochem konci se nezapne (0/300 pri 0.1-3 % sumu); v `example/` u dvou souboru s otevrenym obloukem nahore |
+| M2-M8 (kolo 5) | otevreno |
 
 ### F5: studie pravidla platnosti Z-HIT
 

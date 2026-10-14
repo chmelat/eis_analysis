@@ -57,7 +57,26 @@ f_max — an inductive tail from the cabling, or a charge-transfer arc that is
 not yet closed — the median of Re(Z) is biased, because Re(Z) has not reached
 its limit. That is the case `--ri-fit` addresses.
 
-Implementation: `hf_median()` in `eis_analysis/rinf_estimation/estimate.py`.
+**Guard:** with an arc still open at f_max the median reaches back into it and
+can exceed Re(Z) at f_max, which for a passive system is an upper bound of
+R_inf. When the median lies more than `HF_MEDIAN_ABOVE_BOUND_MAX` = 5 % (of
+the median) above both of the two highest points with Im(Z) <= 0, it is
+replaced by the first of them (the `--ri-fit` fallback bound, floored at 0),
+with a DRT warning; `RinfEstimate.method` is then `'hf_bound'`. Two points,
+because a single low glitch at f_max must not replace the median that was
+taken to resist it. Cold-agent task T10 (fast arc at 0.5 MHz, L = 1 uH,
+R_s = 5 Ohm): median 17.5 Ohm, top points 11.6 and 14.1, R_inf 11.6. On flat
+ends the guard stays off: 0 of 300 synthetic spectra at each of 0.1, 1, 2 and
+3 % noise. In `example/` it fires on `real_gamry_example.DTA` (1402 -> 826
+Ohm) and `example_eis_data.csv` (336 -> 291), whose tops are open arcs, not on
+`EISPOT-test1.DTA` (median 6 % above the top point, 3.5 % above the second).
+The bound is still an upper bound; `--ri-fit` or a fit with the series
+elements determines R_s. `calculate_rpol` (R_pol of the Voigt suggestion)
+uses the same R_inf.
+
+Implementation: `hf_median()`, `hf_bound()` and `hf_r_inf()` (the guard) in
+`eis_analysis/utils/impedance.py`; `hf_median` and `hf_r_inf` are exported from
+`eis_analysis.rinf_estimation`.
 `--ri-fit` does not fall back to it (see "Fallback" below).
 
 ---

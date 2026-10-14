@@ -12,7 +12,22 @@ sort_by_frequency : Sort impedance data by frequency in ascending order
 
 import numpy as np
 from numpy.typing import NDArray
-from typing import Tuple
+from typing import Optional, Tuple
+
+
+# HF median: up to 5 highest points, but no more than 10 % of the spectrum,
+# so short spectra do not reach down into the arc.
+HF_MEDIAN_MAX_POINTS = 5
+
+# Re(Z) at the top capacitive point (hf_bound) is an upper bound of R_inf for
+# a passive system. On a flat end the HF median lies within the noise of it;
+# one more than 5 % above both of the two top capacitive points reaches into
+# an arc still open there (cold-agent T10: median 17.5 Ohm, top points 11.6
+# and 14.1, R_s 5). Two points, not one: a single low glitch at f_max must
+# not replace the median it was taken to resist. 5 % is the
+# RINF_REL_STDERR_MAX margin: at 1 % noise the median of 5 points and one
+# point differ by ~1.2 % (1 sigma).
+HF_MEDIAN_ABOVE_BOUND_MAX = 0.05
 
 
 def calculate_rpol(
@@ -23,7 +38,9 @@ def calculate_rpol(
     """
     Calculate polarization resistance R_pol = R_dc - R_inf.
 
-    Uses median of n_avg edge points for robustness against outliers.
+    R_dc is the median of the n_avg lowest-frequency points, R_inf that of
+    the highest ones (hf_r_inf: capped at the top capacitive point where an
+    arc is still open there).
 
     Parameters
     ----------
@@ -32,8 +49,8 @@ def calculate_rpol(
     Z : ndarray of complex
         Complex impedance [Ω] (N points)
     n_avg : int, optional
-        Number of points for averaging at each end of spectrum (default: 5)
-        Automatically limited to max(1, len(frequencies) // 10)
+        Number of low-frequency points for R_dc (default: 5), limited to
+        max(1, len(frequencies) // 10); the top uses HF_MEDIAN_MAX_POINTS
 
     Returns
     -------
@@ -73,12 +90,12 @@ def calculate_rpol(
     # Automatically limit n_avg to be reasonable for small datasets
     n_avg = min(n_avg, max(1, len(frequencies) // 10))
 
-    # Find indices of n_avg highest and lowest frequencies
-    high_freq_indices = np.argsort(frequencies)[-n_avg:]
+    # Indices of the n_avg lowest frequencies
     low_freq_indices = np.argsort(frequencies)[:n_avg:]
 
-    # Use median of real part of impedance
-    R_inf = np.median(Z.real[high_freq_indices])
+    # Median of Re(Z) at each end; at the top capped where an arc is still
+    # open (hf_r_inf), as the DRT does, so both see the same R_inf
+    R_inf, _ = hf_r_inf(frequencies, Z)
     R_dc = np.median(Z.real[low_freq_indices])
 
     # Polarization resistance
@@ -112,3 +129,53 @@ def sort_by_frequency(
     """
     sort_idx = np.argsort(frequencies)
     return frequencies[sort_idx], Z[sort_idx]
+
+
+def hf_median(frequencies: NDArray, Z: NDArray) -> Tuple[float, int]:
+    """Median of Re(Z) over the highest frequencies.
+
+    Returns ``(R_inf, n_points)``; see HF_MEDIAN_MAX_POINTS.
+    """
+    n = min(HF_MEDIAN_MAX_POINTS, max(1, len(frequencies) // 10))
+    idx = np.argsort(frequencies)[-n:]
+    return float(np.median(Z.real[idx])), n
+
+
+def hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float, int]:
+    """Re(Z) at the highest frequency with Im(Z) <= 0, f_max if there is none.
+
+    Returns ``(R, f, index)``. Every point of the R-L-(R|Q) model is an upper bound
+    of R_s; this one is the first below an inductive top, where lead
+    artifacts can pull Re(Z) below R_s (redoxED flow cell: 0.168 Ohm at the
+    Im = 0 crossing, 0.003 and -0.064 Ohm above it). On a capacitive top it
+    is f_max, the tightest bound.
+    """
+    order = np.argsort(frequencies)[::-1]
+    capacitive = np.flatnonzero(Z.imag[order] <= 0)
+    i = order[capacitive[0]] if capacitive.size else order[0]
+    return float(Z.real[i]), float(frequencies[i]), int(i)
+
+
+def hf_r_inf(frequencies: NDArray, Z: NDArray) -> Tuple[float, Optional[str]]:
+    """R_inf from the top of the spectrum: the HF median, unless it overshoots.
+
+    A median more than HF_MEDIAN_ABOVE_BOUND_MAX (of the median) above the two
+    highest points with Im(Z) <= 0 reaches into an arc still open there; then
+    hf_bound, floored at 0, is returned - still an upper bound of R_inf.
+
+    Returns ``(R_inf, warning)``, warning None when the median is used.
+    """
+    median, _ = hf_median(frequencies, Z)
+    order = np.argsort(frequencies)[::-1]
+    top = order[Z.imag[order] <= 0][:2]
+    margin = HF_MEDIAN_ABOVE_BOUND_MAX * abs(median)
+    if len(top) < 2 or not all(median - Z.real[i] > margin for i in top):
+        return median, None
+    bound, f_bound, _ = hf_bound(frequencies, Z)
+    where = ("f_max" if f_bound == float(np.max(frequencies))
+             else f"{f_bound:.3g} Hz, the highest point with Im(Z) <= 0")
+    return max(bound, 0.0), (
+        f"HF median R_inf = {median:.4g} Ohm lies above Re(Z) = {bound:.4g} Ohm at "
+        f"{where}, an upper bound of R_inf: an arc is still open at the top of the "
+        f"spectrum. Using the bound, still an upper bound; a fit with the series "
+        f"elements (or --ri-fit) can determine R_s")

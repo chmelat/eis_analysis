@@ -22,6 +22,7 @@ from numpy.typing import NDArray
 
 from ..fitting import FitResult, L, Q, R, fit_equivalent_circuit
 from ..fitting.bounds import PARAMETER_BOUNDS
+from ..utils.impedance import hf_bound, hf_median  # noqa: F401 (hf_median: public here)
 
 # Fit window: f >= f_max / 10**RINF_FIT_DECADES. Two decades is the compromise
 # measured in doc/archive/AUDIT_ri_fit_2026-09-25.md: one decade resolves an arc just
@@ -39,10 +40,6 @@ RINF_FIT_MIN_POINTS = 5
 # 0.2-3.6 %, non-determinable ones (arc above f_max, strongly open CPE arc,
 # model mismatch) start at 14 %: 5 % leaves a ~2x margin on both sides.
 RINF_REL_STDERR_MAX = 0.05
-
-# HF median: up to 5 highest points, but no more than 10 % of the spectrum,
-# so short spectra do not reach down into the arc.
-HF_MEDIAN_MAX_POINTS = 5
 
 # Range of the window fit, relative to the window's impedance: every term from
 # min|Z|/RINF_BOUND_RANGE to max|Z|*RINF_BOUND_RANGE over the window. Above
@@ -108,7 +105,7 @@ class RinfResult:
     """
     R_inf: float  # [Ohm]
     method: str  # 'rlq_fit' | 'hf_bound'
-    R_inf_hf: float  # HF upper bound of R_inf, see _hf_bound [Ohm]
+    R_inf_hf: float  # HF upper bound of R_inf, see hf_bound [Ohm]
     # R_inf_hf + RINF_BOUND_NOISE_SIGMAS x the noise at f_hf, clipped at 0:
     # what R_s cannot exceed even if f_hf is noisy. With no fit to read the
     # noise from: R_inf_hf, or when it is <= 0 and bounds nothing, the larger
@@ -166,31 +163,6 @@ class RinfResult:
         if self.method == 'rlq_fit' and self.fit is not None:
             return float(self.fit.params_opt[1])
         return 0.0
-
-
-def hf_median(frequencies: NDArray, Z: NDArray) -> Tuple[float, int]:
-    """Median of Re(Z) over the highest frequencies.
-
-    Returns ``(R_inf, n_points)``; see HF_MEDIAN_MAX_POINTS.
-    """
-    n = min(HF_MEDIAN_MAX_POINTS, max(1, len(frequencies) // 10))
-    idx = np.argsort(frequencies)[-n:]
-    return float(np.median(Z.real[idx])), n
-
-
-def _hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float, int]:
-    """Re(Z) at the highest frequency with Im(Z) <= 0, f_max if there is none.
-
-    Returns ``(R, f, index)``. Every point of the R-L-(R|Q) model is an upper bound
-    of R_s; this one is the first below an inductive top, where lead
-    artifacts can pull Re(Z) below R_s (redoxED flow cell: 0.168 Ohm at the
-    Im = 0 crossing, 0.003 and -0.064 Ohm above it). On a capacitive top it
-    is f_max, the tightest bound.
-    """
-    order = np.argsort(frequencies)[::-1]
-    capacitive = np.flatnonzero(Z.imag[order] <= 0)
-    i = order[capacitive[0]] if capacitive.size else order[0]
-    return float(Z.real[i]), float(frequencies[i]), int(i)
 
 
 def _window_range(f: NDArray, Z: NDArray) -> Dict[str, Tuple[float, float]]:
@@ -282,7 +254,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     -------
     RinfResult
         `R_inf` is the fitted R_s if its relative stderr is at most
-        RINF_REL_STDERR_MAX, otherwise the HF upper bound of `_hf_bound`
+        RINF_REL_STDERR_MAX, otherwise the HF upper bound of `hf_bound`
         (reason in `warnings`).
 
     Raises
@@ -312,7 +284,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     window = frequencies >= frequencies.max() / 10**RINF_FIT_DECADES
     f_win, Z_win = frequencies[window], Z[window]
 
-    R_hf, f_hf, i_hf = _hf_bound(frequencies, Z)
+    R_hf, f_hf, i_hf = hf_bound(frequencies, Z)
     # R_s >= 0, so a negative bound is no bound: the point is dominated by
     # noise (Re Z < 0 where |noise| > Re Z) or an artifact. 0 is then the
     # tightest bound the data support; R_inf_hf keeps the measured value.

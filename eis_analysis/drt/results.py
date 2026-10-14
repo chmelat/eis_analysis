@@ -15,9 +15,10 @@ from numpy.typing import NDArray
 class RinfEstimate:
     """Result of R_inf estimation."""
     R_inf: float
-    method: str  # 'preset', 'median'
+    method: str  # 'preset', 'median', 'hf_bound' (median capped at the top capacitive point)
     R_inf_median: Optional[float] = None  # For comparison
     n_points_used: Optional[int] = None
+    warning: Optional[str] = None  # why the median was not used
 
 
 @dataclass

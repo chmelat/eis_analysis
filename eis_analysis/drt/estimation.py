@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from .results import RinfEstimate
 from ..fitting.config import DRT_INDUCTANCE_DECADES, DRT_PEAK_EDGE_DECADES
-from ..rinf_estimation import hf_median
+from ..utils.impedance import hf_median, hf_r_inf
 
 logger = logging.getLogger(__name__)
 
@@ -223,10 +223,16 @@ def _effective_bins(gamma: NDArray) -> float:
 
 def _estimate_r_inf(frequencies: NDArray, Z: NDArray,
                     r_inf_preset: Optional[float] = None) -> RinfEstimate:
-    """R_inf from the caller (preset) or the HF median, with the median kept for comparison."""
+    """R_inf from the caller (preset) or the top of the spectrum (hf_r_inf:
+    the HF median, capped where an arc is still open there), with the median
+    kept for comparison."""
     R_inf_median, n_median = hf_median(frequencies, Z)
     if r_inf_preset is not None:
         return RinfEstimate(R_inf=r_inf_preset, method='preset',
                             R_inf_median=R_inf_median)
+    R_inf, warning = hf_r_inf(frequencies, Z)
+    if warning:
+        return RinfEstimate(R_inf=R_inf, method='hf_bound', R_inf_median=R_inf_median,
+                            n_points_used=1, warning=warning)
     return RinfEstimate(R_inf=R_inf_median, method='median',
                         R_inf_median=R_inf_median, n_points_used=n_median)

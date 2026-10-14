@@ -32,6 +32,13 @@ def _log_rinf_estimation(rinf) -> None:
     logger.info("R_inf estimation (high-frequency resistance)")
     log_separator()
 
+    if rinf.method == 'hf_bound':
+        # The why is a DRT warning, printed with the others
+        logger.info("Method: Re(Z) at the top capacitive point, an upper bound "
+                    "(--ri-fit for an R-L-(R|Q) fit)")
+        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm (HF median {rinf.R_inf_median:.3f} Ohm "
+                    f"lies above it)")
+        return
     logger.info("Method: Median of HF points (--ri-fit for an R-L-(R|Q) fit)")
     logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
 

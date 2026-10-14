@@ -191,6 +191,9 @@ def calculate_drt(
                               lambda_reg, auto_lambda)
     n_grid = len(matrices.tau)
     tau_window = matrices.tau_window
+    # Before the failure return: why R_inf is not the median holds either way
+    if rinf_est.warning:
+        nnls_result.warnings.append(rinf_est.warning)
 
     if not nnls_result.success:
         return DRTResult(
