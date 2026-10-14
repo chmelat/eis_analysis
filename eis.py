@@ -31,6 +31,7 @@ All logic has been refactored into separate modules for maintainability.
 """
 
 import logging
+import os
 
 import matplotlib.pyplot as plt
 
@@ -160,6 +161,16 @@ def main():
     # Parse arguments and setup
     args = parse_arguments()
     setup_logging(args)
+
+    # Every --save output goes under one prefix; a missing directory failed
+    # each of them separately and the run still exited 0
+    save_dir = os.path.dirname(args.save) if args.save else ''
+    if save_dir:
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Cannot create the --save directory {save_dir}: {e}")
+            exit(1)
 
     try:
         _run_analysis(args)

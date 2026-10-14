@@ -968,7 +968,8 @@ suggestion = analyze_voigt_elements(
 
 # suggestion is a VoigtSuggestion:
 #   .elements       list of VoigtElement (.id, .tau, .freq, .R, .C, .warnings)
-#   .quality        'good', 'acceptable', 'uncertain' or 'poor'
+#   .quality        'good', 'acceptable', 'uncertain' or 'poor' (always
+#                   'poor' when sum(R_i) and R_pol differ by more than 2x)
 #   .total_R        sum of the element resistances [Ohm]
 #   .R_pol, .R_inf  from the data [Ohm]
 #   .ratio          total_R / R_pol

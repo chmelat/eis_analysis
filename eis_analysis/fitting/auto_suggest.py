@@ -62,7 +62,9 @@ class VoigtSuggestion:
     warnings : list of str
         Caveats about the analysis. `quality` is derived from how many
         there are, which is why a dropped peak is not one of them - see
-        `excluded_peaks`.
+        `excluded_peaks` - and is 'poor' whenever sum(R_i) and R_pol differ
+        beyond RPOL_RATIO_WARNING_THRESHOLD_LOW/HIGH (the Inconsistency
+        warning).
     excluded_peaks : list of str
         Why individual peaks were dropped, one entry each
     """
@@ -310,16 +312,22 @@ def analyze_voigt_elements(
             warnings=elem_warnings))
 
     # Consistency check: sum of R_i should be close to R_pol
+    inconsistent = False
     if total_R_from_peaks > 0:
         ratio = R_pol_data / total_R_from_peaks
         if ratio < RPOL_RATIO_WARNING_THRESHOLD_LOW or ratio > RPOL_RATIO_WARNING_THRESHOLD_HIGH:
+            inconsistent = True
             warnings.append(
                 f"Inconsistency: sum(R_i) = {total_R_from_peaks:.1f} Ohm "
                 f"vs R_pol = {R_pol_data:.1f} Ohm"
             )
 
-    # Quality assessment
-    if len(warnings) == 0:
+    # Quality assessment. Elements that miss R_pol by more than the ratio
+    # thresholds do not describe the spectrum, whatever else holds (cold-agent
+    # T12: 425 vs 180 Ohm, a slow arc past f_min, was "acceptable").
+    if inconsistent:
+        quality = 'poor'
+    elif len(warnings) == 0:
         quality = 'good'
     elif len(warnings) <= 2:
         quality = 'acceptable'
