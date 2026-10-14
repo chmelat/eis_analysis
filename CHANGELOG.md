@@ -4,6 +4,30 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.60.2 (2026-10-14)
+
+From cold-agent round 5, step 2 (`doc/COLD_AGENT.md`): a coated metal with
+corrosion in its pores, described physically, not as a circuit.
+
+### Fixed
+
+- **The DE block logs the weighting actually used.** It printed `(w=1/|Z|)`
+  after every `--weighting`, e.g. `uniform (w=1/|Z|)`; it now shows each
+  weighting's own formula, as the mu search does.
+- **Long circuits stay readable in the comparison table.** Expressions too
+  long for the table were cut to `...`, so nested candidates could not be
+  told apart; the full expressions are then listed below it by `-c` number.
+
+### Documentation
+
+- `doc/CIRCUIT_PARSER.md`: the nested model of a coated metal with pores,
+  `R_s - (Q_c | (R_po - (Q_dl | (R_ct - W))))`, and how it differs from the
+  series form; the two agree only where the time constants lie far apart
+  (on the T11 spectrum the series form still gave all parameters within 2 %,
+  BIC preferred the nested one by 3.1).
+- README: no `--de` option (it is `--optimizer de`).
+- `doc/COLD_AGENT.md`: round 5, step 2.
+
 ## Version 0.60.1 (2026-10-14)
 
 From cold-agent round 5 (`doc/COLD_AGENT.md`): circuits where the short path
