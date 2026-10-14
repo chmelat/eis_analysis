@@ -39,8 +39,8 @@ def _fit(optimizer, circuit, freq, Z):
     if optimizer == 'single':
         return fit_equivalent_circuit(freq, Z, circuit)[0]
     if optimizer == 'de':
-        return fit_circuit_diffevo(circuit, freq, Z, maxiter=30, seed=0)[0].best_result
-    return fit_circuit_multistart(circuit, freq, Z, n_restarts=2)[0].best_result
+        return fit_circuit_diffevo(freq, Z, circuit, maxiter=30, seed=0)[0].best_result
+    return fit_circuit_multistart(freq, Z, circuit, n_restarts=2)[0].best_result
 
 
 OPTIMIZERS = ['single', 'de', 'multistart']

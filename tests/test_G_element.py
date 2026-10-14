@@ -134,7 +134,7 @@ def test_de_converges_with_G_like_it_does_with_R():
                                    + 1j * rng.standard_normal(len(FREQ)))
 
     start = R(1) - (G(1) | C(1e-12)) - (G(1) | C(1e-12))
-    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=42)
+    result, _ = fit_circuit_diffevo(FREQ, Z, start, seed=42)
 
     assert [lab for lab in result.diagnostics.log_search_params
             if lab.startswith('G')] == ['G0', 'G1']

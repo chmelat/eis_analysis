@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, OptimizeWarning
 
 from .circuit import FitResult, FitDiagnostics, Circuit
+from .circuit_builder import CompositeCircuit
+from .circuit_elements import CircuitElement
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
                      log_search_bounds,
                      validate_fixed_params)
@@ -210,9 +212,9 @@ class DiffEvoResult:
 
 
 def fit_circuit_diffevo(
-    circuit: Circuit,
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complexfloating],
+    circuit: Circuit,
     strategy: int = DEFAULT_DE_STRATEGY,
     popsize: int = 15,
     maxiter: int = 1000,
@@ -228,12 +230,12 @@ def fit_circuit_diffevo(
 
     Parameters
     ----------
-    circuit : Circuit
-        Circuit object with initial parameter guesses
     frequencies : ndarray
         Frequency array [Hz]
     Z : ndarray
         Complex impedance data [Ohm]
+    circuit : Circuit
+        Circuit object with initial parameter guesses
     strategy : int, optional
         DE strategy: 1='randtobest1bin', 2='best1bin', 3='rand1bin'
         (default: 3, see DEFAULT_DE_STRATEGY)
@@ -268,6 +270,11 @@ def fit_circuit_diffevo(
     strategy_name = DE_STRATEGIES.get(strategy, DE_STRATEGIES[DEFAULT_DE_STRATEGY])
     diag_warnings = []
 
+    # The circuit came first until 0.59; a call in that order would fail deep
+    # inside with a message about the fit, not about the arguments
+    if isinstance(frequencies, (CircuitElement, CompositeCircuit)):
+        raise TypeError("fit_circuit_diffevo takes (frequencies, Z, circuit, ...): "
+                        "the circuit is the third argument")
     # Get initial guess from circuit definition
     initial_guess_full = list(circuit.get_all_params())
 

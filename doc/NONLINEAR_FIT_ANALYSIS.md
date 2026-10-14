@@ -386,7 +386,7 @@ from eis_analysis.fitting import fit_circuit_multistart, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
 result, Z_fit = fit_circuit_multistart(
-    circuit, freq, Z,
+    freq, Z, circuit,
     n_restarts=10,
     scale=2.0
 )
@@ -409,7 +409,7 @@ from eis_analysis.fitting import fit_circuit_diffevo, R, C
 
 circuit = R(100) - (R(5000) | C(1e-6))
 result, Z_fit = fit_circuit_diffevo(
-    circuit, freq, Z,
+    freq, Z, circuit,
     strategy=1,      # randtobest1bin
     popsize=15,
     maxiter=1000

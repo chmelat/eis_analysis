@@ -57,7 +57,7 @@ def _fit(maxiter):
     the cache keeps it at one DE per distinct maxiter.
     """
     result, _ = fit_circuit_diffevo(
-        make_circuit(), FREQ, true_impedance(), seed=42, maxiter=maxiter
+        FREQ, true_impedance(), make_circuit(), seed=42, maxiter=maxiter
     )
     return result
 
@@ -129,7 +129,7 @@ def test_fixed_param_excluded_from_log_search():
     """The mask lives in free-parameter space; labels must still line up."""
     Z = true_impedance()
     circuit = R("7") - (R(1e5) | Q(1e-6, 0.9))
-    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
+    result, _ = fit_circuit_diffevo(FREQ, Z, circuit, seed=42, maxiter=100)
 
     assert result.diagnostics.log_search_params == ['R1', 'Q0']
     assert result.best_result.params_opt[0] == 7.0

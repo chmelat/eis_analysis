@@ -91,7 +91,7 @@ def test_best_start_index_parallel_completion_order(monkeypatch):
     _install_deterministic_mocks(monkeypatch, errors, sleeps)
 
     result, _ = ms.fit_circuit_multistart(
-        _FakeCircuit(), freq, Z, n_restarts=4, parallel=True, max_workers=4
+        freq, Z, _FakeCircuit(), n_restarts=4, parallel=True, max_workers=4
     )
 
     assert result.diagnostics.best_start_index == 3
@@ -107,7 +107,7 @@ def test_best_start_index_sequential(monkeypatch):
     _install_deterministic_mocks(monkeypatch, errors, sleeps={})
 
     result, _ = ms.fit_circuit_multistart(
-        _FakeCircuit(), freq, Z, n_restarts=4, parallel=False
+        freq, Z, _FakeCircuit(), n_restarts=4, parallel=False
     )
 
     assert result.diagnostics.best_start_index == 2
@@ -123,7 +123,7 @@ def test_best_start_index_initial_fit_wins(monkeypatch):
     _install_deterministic_mocks(monkeypatch, errors, sleeps={})
 
     result, _ = ms.fit_circuit_multistart(
-        _FakeCircuit(), freq, Z, n_restarts=4, parallel=True, max_workers=4
+        freq, Z, _FakeCircuit(), n_restarts=4, parallel=True, max_workers=4
     )
 
     assert result.diagnostics.best_start_index == 1
@@ -159,7 +159,7 @@ def test_best_result_circuit_holds_best_params(monkeypatch):
 
     circuit = _RecordingCircuit()
     result, _ = ms.fit_circuit_multistart(
-        circuit, freq, Z, n_restarts=4, parallel=False
+        freq, Z, circuit, n_restarts=4, parallel=False
     )
 
     assert result.best_result.params_opt[0] == pytest.approx(2.0)
@@ -184,7 +184,7 @@ def test_parallel_restarts_do_not_share_circuit(monkeypatch):
 
     circuit = _RecordingCircuit()
     result, _ = ms.fit_circuit_multistart(
-        circuit, freq, Z, n_restarts=4, parallel=True, max_workers=4
+        freq, Z, circuit, n_restarts=4, parallel=True, max_workers=4
     )
 
     circuits = [r.circuit for r in result.all_results]
@@ -214,7 +214,7 @@ def test_rng_makes_restarts_reproducible():
 
     def restarts(rng):
         circuit = parse_circuit_expression("R(20) - (R(2000)|C(3e-6)) - (R(200)|Q(3e-5,0.7))")
-        result, _ = ms.fit_circuit_multistart(circuit, f, Z, n_restarts=4, rng=rng)
+        result, _ = ms.fit_circuit_multistart(f, Z, circuit, n_restarts=4, rng=rng)
         return np.array([r.params_opt for r in result.all_results])
 
     np.random.seed(123)

@@ -65,7 +65,7 @@ def standard_fit():
     each otherwise, and there were eight of them.
     """
     result, Z_fit = fit_circuit_diffevo(
-        make_circuit(), FREQ, true_impedance(), seed=42, maxiter=200
+        FREQ, true_impedance(), make_circuit(), seed=42, maxiter=200
     )
     return result, Z_fit
 
@@ -107,7 +107,7 @@ def test_costfunction_is_picklable():
 def test_recovers_parameters_on_noise_free_data():
     Z = true_impedance()
     result, _ = fit_circuit_diffevo(
-        make_circuit(), FREQ, Z, seed=42, maxiter=300
+        FREQ, Z, make_circuit(), seed=42, maxiter=300
     )
     recovered = np.asarray(result.best_result.params_opt, dtype=float)
     np.testing.assert_allclose(recovered, TRUE, rtol=0.05)
@@ -137,8 +137,8 @@ def test_return_contract():
 
 def test_seed_makes_runs_reproducible():
     Z = true_impedance()
-    r1, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
-    r2, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=7, maxiter=200)
+    r1, _ = fit_circuit_diffevo(FREQ, Z, make_circuit(), seed=7, maxiter=200)
+    r2, _ = fit_circuit_diffevo(FREQ, Z, make_circuit(), seed=7, maxiter=200)
     np.testing.assert_array_equal(
         np.asarray(r1.best_result.params_opt, dtype=float),
         np.asarray(r2.best_result.params_opt, dtype=float),
@@ -152,7 +152,7 @@ def test_seed_makes_runs_reproducible():
 def test_strategy_reflected_in_diagnostics():
     Z = true_impedance()
     result, _ = fit_circuit_diffevo(
-        make_circuit(), FREQ, Z, seed=42, maxiter=100, strategy=2
+        FREQ, Z, make_circuit(), seed=42, maxiter=100, strategy=2
     )
     assert result.strategy == 'best1bin'
     assert result.diagnostics.strategy == 'best1bin'
@@ -161,7 +161,7 @@ def test_strategy_reflected_in_diagnostics():
 def test_numeric_jacobian_path():
     Z = true_impedance()
     result, _ = fit_circuit_diffevo(
-        make_circuit(), FREQ, Z, seed=42, maxiter=200,
+        FREQ, Z, make_circuit(), seed=42, maxiter=200,
         use_analytic_jacobian=False
     )
     assert result.diagnostics.jacobian_type == 'numeric'
@@ -177,7 +177,7 @@ def test_fixed_param_stays_constant():
     true = [10.0, 5000.0, 1e-6]
     Z = make_circuit(true).impedance(FREQ, true)
     circuit = R("10") - (R(5000) | C(1e-6))
-    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=300)
+    result, _ = fit_circuit_diffevo(FREQ, Z, circuit, seed=42, maxiter=300)
     params = np.asarray(result.best_result.params_opt, dtype=float)
     assert params[0] == pytest.approx(10.0)            # fixed, unchanged
     np.testing.assert_allclose(params[1:], true[1:], rtol=0.05)  # free recovered
@@ -186,7 +186,7 @@ def test_fixed_param_stays_constant():
 def test_fixed_param_indices_in_diagnostics():
     Z = make_circuit([10.0, 5000.0, 1e-6]).impedance(FREQ, [10.0, 5000.0, 1e-6])
     circuit = R("10") - (R(5000) | C(1e-6))
-    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=42, maxiter=100)
+    result, _ = fit_circuit_diffevo(FREQ, Z, circuit, seed=42, maxiter=100)
     assert result.diagnostics.n_fixed_params == 1
     assert result.diagnostics.fixed_param_indices == [0]
 
@@ -250,7 +250,7 @@ def test_refinement_failure_falls_back_with_valid_covariance(monkeypatch):
 
     monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares_normalized', boom)
     Z = true_impedance()
-    result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
+    result, _ = fit_circuit_diffevo(FREQ, Z, make_circuit(), seed=42, maxiter=100)
     warns = result.diagnostics.warnings
     assert any('Refinement failed' in w for w in warns)
     # Covariance computed at the DE point -> finite standard errors.
@@ -267,7 +267,7 @@ def test_refinement_failure_reported_honestly(monkeypatch):
 
     monkeypatch.setattr('eis_analysis.fitting.diffevo.least_squares_normalized', boom)
     Z = true_impedance()
-    result, _ = fit_circuit_diffevo(make_circuit(), FREQ, Z, seed=42, maxiter=100)
+    result, _ = fit_circuit_diffevo(FREQ, Z, make_circuit(), seed=42, maxiter=100)
 
     diag = result.diagnostics
     assert diag.refinement_improved is False
@@ -320,6 +320,6 @@ def test_initial_guess_outside_bounds_does_not_crash_de():
              ).impedance(freq, CPE_TRUE)
 
         circuit = R(CPE_TRUE[0]) - (R(CPE_TRUE[1]) | Q(CPE_TRUE[2], n_guess))
-        result, _ = fit_circuit_diffevo(circuit, freq, Z, seed=0)
+        result, _ = fit_circuit_diffevo(freq, Z, circuit, seed=0)
         recovered = np.asarray(result.best_result.params_opt, dtype=float)
         np.testing.assert_allclose(recovered, CPE_TRUE, rtol=0.01, err_msg=f'n_guess={n_guess}')

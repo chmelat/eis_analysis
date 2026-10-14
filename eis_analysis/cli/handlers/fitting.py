@@ -795,8 +795,8 @@ def _fit_standard_circuit(
         if args.optimizer == 'de':
             # Differential Evolution global optimization
             diffevo_result, Z_fit = fit_circuit_diffevo(
-                circuit,
                 frequencies, Z,
+                circuit,
                 strategy=args.de_strategy,
                 popsize=args.de_popsize,
                 maxiter=args.de_maxiter,
@@ -816,8 +816,8 @@ def _fit_standard_circuit(
             # (use default) or a positive int
             n_restarts = args.multistart if args.multistart else 16
             multistart_result, Z_fit = fit_circuit_multistart(
-                circuit,
                 frequencies, Z,
+                circuit,
                 n_restarts=n_restarts,
                 scale=args.multistart_scale,
                 weighting=args.weighting,

@@ -42,7 +42,7 @@ def _synthesize(expression, noise=0.02, seed=0):
 def _fit(expression, Z):
     """Fit one candidate with DE and return its FitResult."""
     result, _ = fit_circuit_diffevo(
-        parse_circuit_expression(expression), FREQ, Z, seed=0
+        FREQ, Z, parse_circuit_expression(expression), seed=0
     )
     return result.best_result
 
@@ -158,9 +158,9 @@ def test_n_free_params_counts_free_parameters():
         if optimizer == 'single':
             result = fit_equivalent_circuit(FREQ, Z, circuit)[0]
         elif optimizer == 'de':
-            result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
+            result = fit_circuit_diffevo(FREQ, Z, circuit, maxiter=30, seed=0)[0].best_result
         else:
-            result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
+            result = fit_circuit_multistart(FREQ, Z, circuit, n_restarts=2)[0].best_result
 
         assert result.n_free_params == 4, optimizer
 
@@ -174,9 +174,9 @@ def test_n_free_params_excludes_fixed_parameters():
         if optimizer == 'single':
             result = fit_equivalent_circuit(FREQ, Z, circuit)[0]
         elif optimizer == 'de':
-            result = fit_circuit_diffevo(circuit, FREQ, Z, maxiter=30, seed=0)[0].best_result
+            result = fit_circuit_diffevo(FREQ, Z, circuit, maxiter=30, seed=0)[0].best_result
         else:
-            result = fit_circuit_multistart(circuit, FREQ, Z, n_restarts=2)[0].best_result
+            result = fit_circuit_multistart(FREQ, Z, circuit, n_restarts=2)[0].best_result
 
         assert result.n_free_params == 3, optimizer
 

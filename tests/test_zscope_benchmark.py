@@ -117,7 +117,7 @@ def _fit(name, noise):
         Z = Z + rng.normal(0.0, sigma) + 1j * rng.normal(0.0, sigma)
 
     circuit = parse_circuit_expression(CIRCUITS[name][0])
-    result, _ = fit_circuit_diffevo(circuit, FREQ, Z, seed=0)
+    result, _ = fit_circuit_diffevo(FREQ, Z, circuit, seed=0)
     return result.best_result
 
 

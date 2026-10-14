@@ -16,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
 from .circuit import fit_equivalent_circuit, FitResult, Circuit
+from .circuit_builder import CompositeCircuit
+from .circuit_elements import CircuitElement
 from .bounds import generate_simple_bounds
 from .diagnostics import compute_information_criteria
 
@@ -169,9 +171,9 @@ def perturb_log_uniform(
 
 
 def fit_circuit_multistart(
-    circuit: Circuit,
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complexfloating],
+    circuit: Circuit,
     n_restarts: int = 10,
     scale: float = 2.0,
     weighting: str = 'modulus',
@@ -185,12 +187,12 @@ def fit_circuit_multistart(
 
     Parameters
     ----------
-    circuit : Circuit
-        Circuit object with initial parameter guesses
     frequencies : ndarray
         Frequency array [Hz]
     Z : ndarray
         Complex impedance data [Ohm]
+    circuit : Circuit
+        Circuit object with initial parameter guesses
     n_restarts : int, optional
         Total number of optimization starts (default: 10)
     scale : float, optional
@@ -216,6 +218,11 @@ def fit_circuit_multistart(
     Z_fit : ndarray
         Best fit impedance
     """
+    # The circuit came first until 0.59; a call in that order would fail deep
+    # inside with a message about the fit, not about the arguments
+    if isinstance(frequencies, (CircuitElement, CompositeCircuit)):
+        raise TypeError("fit_circuit_multistart takes (frequencies, Z, circuit, ...): "
+                        "the circuit is the third argument")
     all_results: List[FitResult] = []
     all_errors: List[Optional[float]] = []
     result_indices: List[int] = []  # start_idx aligned with all_results

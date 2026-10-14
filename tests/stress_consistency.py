@@ -184,8 +184,8 @@ def check_F(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
                                'parameter moved from the truth'))
 
     # F2: multistart from truth x U(0.3, 3) is no worse than the truth
-    ms, Z_fit = fit_circuit_multistart(case.circuit(fit_start(case)), case.frequencies,
-                                       case.Z, rng=case.rng(MULTISTART))
+    ms, Z_fit = fit_circuit_multistart(case.frequencies, case.Z,
+                                       case.circuit(fit_start(case)), rng=case.rng(MULTISTART))
     best = ms.best_result
     row = _cost_row(case, 'F2', Z_fit, F2_RTOL, best.fit_error_rel)
     f2_ok = row[2] == 'pass'
@@ -222,8 +222,8 @@ def check_G(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     if case.index % DE_EVERY:
         return
     seed = int(case.rng(DE).integers(2 ** 31))
-    de, Z_fit = fit_circuit_diffevo(case.circuit(de_start(case)), case.frequencies,
-                                    case.Z, seed=seed)
+    de, Z_fit = fit_circuit_diffevo(case.frequencies, case.Z,
+                                    case.circuit(de_start(case)), seed=seed)
     rows.append(_cost_row(case, 'G', Z_fit, G_RTOL, de.best_result.fit_error_rel))
 
 

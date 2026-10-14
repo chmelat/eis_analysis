@@ -150,7 +150,7 @@ def test_trapped_run_is_repaired_and_reported(monkeypatch):
     Z = truth.impedance(FREQ, truth.get_all_params())
     for seed in range(10):
         start = parse_circuit_expression("R(5)-(R(50)|Wo(50,0.3))")
-        result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=seed, strategy=1)
+        result, _ = fit_circuit_diffevo(FREQ, Z, start, seed=seed, strategy=1)
         if result.diagnostics.de_error > 1.0:             # DE itself was trapped
             break
     else:
@@ -170,7 +170,7 @@ def test_correct_fit_is_left_alone():
     truth = parse_circuit_expression("R(10)-(R(200)|C(2e-5))")
     Z0 = truth.impedance(FREQ, truth.get_all_params())
     Z = Z0 + 0.01 * np.abs(Z0) * (rng.standard_normal(len(FREQ)) + 1j * rng.standard_normal(len(FREQ)))
-    result, _ = fit_circuit_diffevo(parse_circuit_expression("R(1)-(R(1)|C(1e-6))"), FREQ, Z, seed=0)
+    result, _ = fit_circuit_diffevo(FREQ, Z, parse_circuit_expression("R(1)-(R(1)|C(1e-6))"), seed=0)
     diag = result.diagnostics
     assert diag.archive_candidates > 0 and not diag.archive_used
     assert not any("Ambiguous" in w or "local minimum" in w for w in diag.warnings)
@@ -193,7 +193,7 @@ def test_ambiguity_reported_only_for_an_acceptable_fit(monkeypatch, truth, expec
     monkeypatch.setattr(diffevo, "choose", choose_with_alternative)
     tc = parse_circuit_expression(truth)
     Z = tc.impedance(FREQ, tc.get_all_params())
-    result, _ = fit_circuit_diffevo(parse_circuit_expression("R(1)-(R(1)|C(1e-6))"), FREQ, Z, seed=0)
+    result, _ = fit_circuit_diffevo(FREQ, Z, parse_circuit_expression("R(1)-(R(1)|C(1e-6))"), seed=0)
     assert (result.final_error < 5.0) == expect_warning
     assert any("Ambiguous" in w for w in result.diagnostics.warnings) == expect_warning
 
@@ -203,7 +203,7 @@ def test_archive_check_runs_with_workers():
     truth = parse_circuit_expression("R(10)-(R(100)|Wo(100,1))")
     Z = truth.impedance(FREQ, truth.get_all_params())
     start = parse_circuit_expression("R(5)-(R(50)|Wo(50,0.3))")
-    result, _ = fit_circuit_diffevo(start, FREQ, Z, seed=1, strategy=1, workers=2)
+    result, _ = fit_circuit_diffevo(FREQ, Z, start, seed=1, strategy=1, workers=2)
     assert result.diagnostics.archive_checked and result.diagnostics.archive_candidates > 0
     assert result.final_error < 0.01
 
@@ -211,8 +211,8 @@ def test_archive_check_runs_with_workers():
 def test_archive_check_can_be_switched_off():
     truth = parse_circuit_expression("R(10)-(R(200)|C(2e-5))")
     Z = truth.impedance(FREQ, truth.get_all_params())
-    result, _ = fit_circuit_diffevo(parse_circuit_expression("R(1)-(R(1)|C(1e-6))"),
-                                    FREQ, Z, seed=0, archive_check=False)
+    result, _ = fit_circuit_diffevo(FREQ, Z, parse_circuit_expression("R(1)-(R(1)|C(1e-6))"),
+                                    seed=0, archive_check=False)
     diag = result.diagnostics
     assert not diag.archive_checked and diag.archive_candidates == 0
 

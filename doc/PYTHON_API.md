@@ -95,7 +95,7 @@ result, Z_fit = fit_equivalent_circuit(frequencies, Z, circuit)
 
 # 6b. Or multi-start optimization (more robust)
 ms_result, Z_fit = fit_circuit_multistart(
-    circuit, frequencies, Z,
+    frequencies, Z, circuit,
     n_restarts=10,
     weighting='modulus'
 )
@@ -731,9 +731,9 @@ result.diagnostics.warnings            # List of general warnings
 from eis_analysis.fitting import fit_circuit_multistart
 
 ms_result, Z_fit = fit_circuit_multistart(
-    circuit,
     frequencies,
     Z,
+    circuit,
     n_restarts=10,               # Number of restarts
     scale=2.0,                   # Perturbation = 2 sigma
     weighting='modulus',
@@ -770,9 +770,9 @@ ms_result.diagnostics.all_errors          # List of all errors
 from eis_analysis.fitting import fit_circuit_diffevo
 
 de_result, Z_fit = fit_circuit_diffevo(
-    circuit,
     frequencies,
     Z,
+    circuit,
     strategy=3,                  # 1=randtobest1bin, 2=best1bin, 3=rand1bin (default)
     popsize=15,                  # Population = popsize * number of parameters
     maxiter=1000,                # Max generations
@@ -1256,9 +1256,9 @@ circuit = R(100) - (R(500) | Q(1e-6, 0.9)) - (R(2000) | Q(1e-5, 0.85))
 
 # Differential evolution - better for global minimum
 de_result, Z_fit = fit_circuit_diffevo(
-    circuit,
     frequencies,
     Z,
+    circuit,
     strategy=3,                  # rand1bin (default)
     popsize=15,                  # Population size multiplier
     maxiter=1000,                # Max generations
@@ -1280,7 +1280,7 @@ print(f"Quality: {result.quality}")
 
 # Comparison with multi-start
 ms_result, Z_fit_ms = fit_circuit_multistart(
-    circuit, frequencies, Z,
+    frequencies, Z, circuit,
     n_restarts=20,
     weighting='modulus'
 )

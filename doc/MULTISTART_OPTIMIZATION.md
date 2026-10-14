@@ -320,7 +320,7 @@ circuit = R(100) - (R(5000) | C(1e-6))
 
 # Multi-start optimalizace
 result, Z_fit = fit_circuit_multistart(
-    circuit, freq, Z,
+    freq, Z, circuit,
     n_restarts=10,      # Počet startů
     scale=2.0,          # Perturbace = 2 sigma
     weighting='sqrt',   # Vážení
@@ -638,7 +638,7 @@ from eis_analysis.fitting import fit_circuit_multistart, R, C
 circuit = R(100) - (R(5000) | C(1e-6))
 
 result, Z_fit = fit_circuit_multistart(
-    circuit, freq, Z,
+    freq, Z, circuit,
     n_restarts=20,
     scale=2.0
 )
