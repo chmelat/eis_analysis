@@ -208,6 +208,32 @@ by case. The run above passes it (largest rise: 31 against 28, allowed
 33.3). `tests/test_stress_check.py` covers the rule. The baseline now holds
 this run's 187 failures and rates.
 
+## New spectra after the 10 F capacitance bound, 2026-10-14 (v0.60.3)
+
+`--check` against the 2026-10-10 baseline failed on 2 new failures
+(52 new, 50 of them counted, 41 gone). Both bisect to `ad39632` (C and Q
+bound 0.1 -> 10, v0.58.3), which does not touch Z-HIT: the generator
+rejects a draw within the library's bound margin (`bound_violations`), so
+a wider bound changes which draws pass, the random stream moves on
+differently and a case index holds another spectrum. rc/221 was one arc
+on 40 points, now three on 53 with C = 0.105 F (outside the old bound);
+anomalous/50 now has Q = 0.046 (within the old bound's decade margin).
+The baseline compared partly different spectra; a change of
+`PARAMETER_BOUNDS` needs a new baseline.
+
+Full run on the new spectra, 1658 s, written as the baseline (198
+failures):
+
+- rc/221 zhit:D, mean 4.03 %, 1.06x allowed: three arcs and L at 1 %
+  noise, limit 5.
+- anomalous/50 fit:G, DE ends at 1.096x the truth's cost, 1.1x allowed:
+  30 points at 1 % noise, the first G failure (1 of 300), limit 9.
+- Epeak rc/28, Z-HIT D rc/83 and Iclosed cpe/85 as before.
+- Rates within their allowance: F2 at zero noise 19/353 (before 17/353),
+  F3 0.895, 0.898, 0.916 (0.898, 0.897, 0.904), Ifit 0.990, 0.942, 0.791,
+  0.610 (0.989, 0.968, 0.802, 0.635), M 0.979, 0.946, 0.909 (0.978, 0.947,
+  0.910).
+
 ## Bugs found and fixed
 
 The first full run (before the fixes) had 1190 failed checks.
@@ -315,7 +341,9 @@ On exact data Z-HIT is within 3.2 % of |Z| in 99 % of the cases. The
 second-order term assumes the phase varies slowly in ln omega; where it
 swings within a few points it does not hold: rc/83 (R_s 0.0115 Ohm in
 front of a 3.8 Ohm arc, with L: the phase turns from capacitive to
-inductive) 15 %, rc/64 (35 points, with L) 5.4 %.
+inductive) 15 %, rc/64 (35 points, with L) 5.4 %. Z-HIT D fails
+on rc/83 and on rc/221 (three arcs and L, 1 % noise, 1.06x the
+allowance).
 
 The phase derivative is taken unsmoothed, which multiplies the phase noise
 by ~gamma / d(ln omega) (gamma = -pi/6): ~1.6x at 10 points/decade, ~3x at
@@ -406,4 +434,6 @@ A multistart from truth x U(0.3, 3) ends in a local minimum in 2.3 % of
 the fits, most in `anomalous`, `cpe` and `diffusion`; all identifiability
 classes have some (tight 5, medium 5, loose 3, weak 8, normal 5, no
 class 22). The linearized 95 % CI holds the truth in 0.90 of the
-parameters at every noise level, below the nominal 0.95.
+parameters at every noise level, below the nominal 0.95. DE from a start
+up to two decades off (G) failed once in 300: anomalous/50 (Q in parallel
+with R-Wa, 30 points, 1 % noise) ends at 1.096x the truth's cost.
