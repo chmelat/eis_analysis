@@ -632,6 +632,26 @@ R(10) - ((R(100) - W(50)) | Q(1e-4, 0.8))
 
 Structure: R_s - ((R_ct - W) || Q_dl)
 
+### Coated metal with pores (nested)
+
+```python
+R(20) - (Q(2e-8, 0.9) | (R(3000) - (Q(5e-6, 0.8) | (R(2e4) - W(2e3)))))
+```
+
+Structure: R_s - (Q_c || (R_po - (Q_dl || (R_ct - W)))): the coating
+capacitance Q_c beside the electrolyte in its pores (R_po), which leads to the
+metal at the pore bottom with its double layer Q_dl, charge transfer R_ct and
+diffusion W. The double layer sits *inside* the pore branch, behind R_po.
+
+The series form `R(20) - (R(3000) | Q(2e-8, 0.9)) - ((R(2e4) - W(2e3)) | Q(5e-6, 0.8))`
+is a different circuit. The two agree only where the coating and the
+double-layer time constants lie far apart, so that one element of each pair
+is a short or an open in the other's range. On a synthetic coated metal with
+1 % noise (cold-agent task T11: 26 us against ~0.1 s, R_po = 3 kOhm, R_ct =
+20 kOhm) the series form still recovered all parameters within 2 %, and BIC
+preferred the nested one by 3.1; the closer the time constants, the more the
+two sets of parameters part. Fit both (`--circuit` twice) and let BIC decide.
+
 ### Two Voigt Elements (oxide layer)
 
 ```python

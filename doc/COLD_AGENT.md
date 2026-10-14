@@ -230,6 +230,34 @@ Drobnosti bez akce: knihovni varovani jmenuje `include_C` (CLI hned pod nim
 pise `--kk-series-c`), `KK: M=23` neni pocet procesu, `parse_circuit_expression`
 neni top-level (dokumentovano).
 
+## Kolo 5, krok 2 (2026-10-14): T11, povlak s pory, Haiku
+
+Piskoviste z d0db5e0 (v0.60.1, po opravach M1-M8), behy kroku 1 smazany.
+Zadani popisuje fyziku (povlak s pory, koroze na dne poru s
+semi-nekonecnou difuzi), ne obvod (`~/coldbox-private/gen_r5b.py`).
+Cena 0.10 USD, 7.5 min, 30 tahu. Bod 0 "ne".
+
+| Id | Data (pravda) | Vysledek agenta | Proti pravde |
+|---|---|---|---|
+| T11 | R_s 20 - (Q_c 2e-8, 0.92 \| (R_po 3000 - (Q_dl 5e-6, 0.80 \| (R_ct 2e4 - W sigma 2000)))), sum 1 % | seriovy model `R_s - (R_p \| Q_c) - ((R_ct - W) \| Q_dl)`: R_s 19.88, R_po 2940, Q_c 2.03e-8 / 0.920, Q_dl 5.08e-6 / 0.797, R_ct 20080, sigma 1991; C misto Q a model bez W zamitl (dBIC > 530), overil multistartem, vahami a f_min | ok, vsech 8 do 2 % |
+
+Vnoreny model povlaku agent nezkusil. Pri oddelenych casovych konstantach
+(26 us proti ~0.1 s) a R_po << R_ct se s nim seriovy prakticky kryje;
+jinde by parametry nesedely.
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| M9 | B | README (~501): "With `--circuit` or `--de`" - prepinac `--de` neexistuje (je `--optimizer de`) | T11 |
+| M10 | B | CLI blok DE vypise `Weighting: <vaha> (w=1/\|Z\|)` pro kazdou vahu (`cli/handlers/fitting.py:139` ma vzorec natvrdo), napr. `uniform (w=1/\|Z\|)`; jinde CLI pouziva spravnou tabulku (fitting.py:531, 585) | T11 |
+| M11 | C | Dokumentace nema vnoreny model povlaku s pory (`R_s - (Q_c \| (R_po - (Q_dl \| (R_ct - W))))`) ani rozdil proti seriovemu; agent sestavil seriovy | T11 |
+| M12 | C | Tabulka porovnani kandidatu zkracuje vyrazy obvodu (`R(20)-(R(2800)\|Q(1e-8, 0.9))-((R(30...`); `DE error` pred zpresnenim vedle `Fit error` bez vysvetleni | T11 |
+
+Bez akce: `LoadResult` caveat (PYTHON_API hned pod popisem ukazuje
+`result.warnings` - chyba agenta), helper pro C_eff obecneho Q (mimo
+analyzu oxidu) - pozadavek, ne chyba.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -249,6 +277,7 @@ neni top-level (dokumentovano).
 | L6-L11 (kolo 4) | opraveno: README - casove konstanty jen pro par R/G s C/Q (Randles bez radku, R1*C0 rucne), jmena parametru jsou pozice, oblouky srovnavat podle tau, lambda az o dekadu za DRT_LAMBDA_RANGE (i PYTHON_API); `OxideAnalysisResult.element_label` (parametr dominantniho prvku ve fitu, navod na nejistotu v OXIDE guide uz bez pevneho C0); `--save` s `--analyze-oxide` zapise `<prefix>_oxide.json` (`oxide_result_record`, `save_oxide_result`); priklad DE se `seed` a `archive_check` |
 | M1 (kolo 5) | opraveno: vychozi R_inf (DRT i `calculate_rpol` Voigt navrhu, `hf_r_inf`) omezen shora Re(Z) v nejvyssim kapacitnim bode, kdyz median lezi o vic nez 5 % nad obema nejvyssimi kapacitnimi body (jeden zakmit na f_max ho nespusti), s varovanim; T10 17.48 -> 11.62 Ohm. Na plochem konci se nezapne (0/300 pri 0.1-3 % sumu); v `example/` u dvou souboru s otevrenym obloukem nahore |
 | M2-M8 (kolo 5) | opraveno: M3 navrh s "Inconsistency" (sum R_i vs R_pol za faktorem 2) ma kvalitu poor (T12: drive ACCEPTABLE); M4 `--save` vytvori chybejici adresar, nevytvoritelny skonci chybou s exit 1; dokumentace: M2 pocet piku DRT je dolni mez (procesy do ~1 dekady splynou, T9), MODEL_SELECTION radi kandidata s prvkem navic; M5 L pod obloukem otevrenym na f_max auto nenajde; M6 hledani M v `--voigt-auto-M` pripousti zaporna R_i vzdy; M7 RINF_ESTIMATION odkazuje na audit a STRESS_TEST.md jako odkazy; M8 definice "R_pol (from data)" a ze je dolni mez pri oblouku otevrenem na f_min |
+| M9-M12 (kolo 5) | opraveno: M9 README bez `--de`; M10 blok DE vypisuje vzorec zvolene vahy (sdilena tabulka `_WEIGHTING_LABELS`); M11 CIRCUIT_PARSER ukazuje vnoreny model povlaku a jeho rozdil proti seriovemu (T11: BIC pro vnoreny o 3.1); M12 zkracene vyrazy v tabulce porovnani se pod ni vypisou cele podle `-c` (cast "DE error" byla chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
 
