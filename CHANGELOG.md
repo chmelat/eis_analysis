@@ -4,6 +4,45 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.60.1 (2026-10-14)
+
+From cold-agent round 5 (`doc/COLD_AGENT.md`): circuits where the short path
+gives the wrong answer - two arcs 0.8 decade apart, a fast arc at f_max with
+cable inductance, a slow arc past f_min.
+
+### Fixed
+
+- **The default R_inf no longer exceeds Re(Z) at f_max.** With an arc still
+  open at the top of the spectrum the median of the five highest Re(Z)
+  reaches into it: 17.5 Ohm where Re(Z) at 1 MHz was 11.6 and R_s 5, with no
+  warning, and the DRT and the suggested circuit used it. When the median
+  lies more than 5 % above both of the two highest points with Im(Z) <= 0,
+  the first of them - an upper bound of R_inf for a passive system - is used
+  instead (floored at 0), with a warning; a single glitch at f_max does not
+  trigger it. The DRT (`RinfEstimate.method = 'hf_bound'`) and the R_pol of
+  the Voigt suggestion share the rule (`hf_r_inf`, exported from
+  `eis_analysis.rinf_estimation`; `hf_median` and `hf_bound` now live in
+  `utils/impedance.py`). Flat ends are unaffected (0 of 300 synthetic spectra
+  at 0.1-3 % noise); in `example/` the DRT of `real_gamry_example.DTA` now
+  starts from 826 instead of 1402 Ohm, `example_eis_data.csv` from 291
+  instead of 336.
+- **A Voigt suggestion that misses R_pol is graded "poor".** Elements whose
+  sum differs from R_pol by more than 2x were "acceptable" beside their own
+  Inconsistency warning (a slow arc past f_min: 425 vs 180 Ohm).
+- **`--save` creates its directory.** A missing one failed every output and
+  the run still exited 0; a path that cannot be created now stops the run
+  with exit 1.
+
+### Documentation
+
+- The DRT peak count is a lower bound: processes up to about a decade apart
+  merge into one peak; model selection includes a candidate with one element
+  more. `R_pol (from data)` is defined, and is a lower bound with an arc open
+  at f_min. `--drt-inductance auto` misses an L under an arc open at f_max.
+  The `--voigt-auto-M` search allows negative R_i regardless of the flag.
+- `doc/COLD_AGENT.md`: round 5, step 1. The ZrO2 example of the local CPE
+  exponent is removed from the README.
+
 ## Version 0.60.0 (2026-10-14)
 
 Most of this release comes from four rounds of cold agents
