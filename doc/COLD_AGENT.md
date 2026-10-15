@@ -358,6 +358,40 @@ jako nalez: "95% CI u tau" (README rika CI u parametru, u casovych konstant
 jen stderr - nejednoznacne cteni), zkracene obvody v tabulce porovnani (M12:
 cele se vypisuji pod tabulkou - chyba agenta).
 
+## Kolo 6, krok 4 (2026-10-15): T13 znovu s Haiku a `--exclude-flagged`
+
+Puvodni T13 (seed 6112, stejna data jako v kroku 1), Haiku. Piskoviste
+z 878b498: `--exclude-flagged`, kontrola po bodech ho doporucuje, README bez
+prikladu T13/T14, bez CHANGELOG a `ROBUST_LOSS_SOFT_L1.md` (`setup.sh`,
+`EXCLUDED`). Cena 0.11 USD, 7.4 min, 29 tahu. Bod 0 "ne".
+
+| | Haiku, krok 1 | Haiku, krok 4 | Opus, krok 3 | Pravda |
+|---|---|---|---|---|
+| R1 / R2 [Ohm] | 142 +- 8 / 38 +- 8 | 104.9 +- 3.8 / 75.1 +- 3.8 | 105 / 75 | 100 / 80 |
+| tau1 / tau2 [ms] | 1.18 / 5.7 | 1.02 / 3.31 | 1.02 / 3.31 | 1.00 / 3.16 |
+| R_s [Ohm] | 2.004 | 2.001 | 2.001 | 2.0 |
+
+Postup: fit na vsech bodech dal 142/38 jako v kroku 1; pak `--exclude-flagged
+kk` (z doporuceni kontroly po bodech) jako hlavni vysledek, BIC kandidatu na
+ponechanych bodech (2 CPE proti 1 o 764), stabilita pres `--f-min 0.1`,
+v API `frequencies_flagged_by`. Rozdeleni R1/R2 oznacil za zavisle na
+vyrazenych bodech (systematika +-35 Ohm), bod 0.03 Hz v nejnizsi dekade
+overil oriznutim a doporucil opakovane mereni. Varovani bez nastroje (kroky
+1-2) Haiku necetl jako vyzvu k cinu; jmenovany prepinac ano, za desetinu
+ceny Opus.
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| Q1 | C | README u `--exclude-flagged` nerikal, ze `kk`/`both` nejde s `--no-kk` (agent narazil na chybu parseru) | T13 |
+
+Bez akce (chyba agenta): `drt.peaks` je pri `peak_method='scipy'` None -
+priklad v PYTHON_API pouziva `gmm` a pro scipy `diagnostics.scipy_peaks`
+(F3); DE 1.64 % -> 0.45 % po doladeni bez varovani - radek `Improvement (SSR)`
+to vypisuje. Opakovane: "Suggestion quality: GOOD" u navrhu, ktery fit
+odmitne (P2).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -383,6 +417,7 @@ cele se vypisuji pod tabulkou - chyba agenta).
 | P1-P4 (kolo 6, krok 2) | otevrene |
 | O1 (kolo 6, krok 3) | zdokumentovano (README, Per-point residual check: Z-HIT rozmaze vadny bod do sousedu, proto `--exclude-flagged` bere vychozi body od Lin-KK) |
 | O2-O6 (kolo 6, krok 3) | otevrene |
+| Q1 (kolo 6, krok 4) | opraveno v README (popis `--exclude-flagged`) |
 | N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) dal otevreny |
 | N5, N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
