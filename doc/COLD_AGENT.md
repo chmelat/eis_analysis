@@ -418,7 +418,7 @@ odmitne (P2).
 | O1 (kolo 6, krok 3) | zdokumentovano (README, Per-point residual check: Z-HIT rozmaze vadny bod do sousedu, proto `--exclude-flagged` bere vychozi body od Lin-KK) |
 | O2-O6 (kolo 6, krok 3) | otevrene |
 | Q1 (kolo 6, krok 4) | opraveno v README (popis `--exclude-flagged`) |
-| N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) dal otevreny |
+| N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) odlozen 2026-10-15: prepinac to pokryva (`ROBUST_LOSS_SOFT_L1.md`, 4.3) |
 | N5, N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT

@@ -3,8 +3,9 @@
 Datum: 2026-09-01, aktualizace 2026-10-10 a 2026-10-15
 Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0; sekce 4.1-4.2
 na 508c06a (v0.60.3 a nevydané změny kola 6)
-Stav návrhu: otevřený (neimplementováno), od 2026-10-15 zvolené řešení
-nálezů cold agentů T13/T14 místo detekce vadných bodů a nového fitu (4.2)
+Stav návrhu: **odloženo (2026-10-15)**, neimplementováno. Nálezy cold
+agentů T13/T14 řeší přepínač `--exclude-flagged` (878b498, sekce 4.3);
+soft-L1 se vrátí na pořad při podmínkách v 4.3
 Souvisí s: `doc/ZSCOPE_COMPARISON.md` (položka "Robustní loss + sandwich
 kovariance", priorita vysoká), `doc/WEIGHTING_AND_STATISTICS.md`,
 `doc/STRESS_TEST.md` (pokrytí CI), `eis_analysis/validation/outliers.py`,
@@ -33,6 +34,12 @@ na vadné body upozorní. Soft-L1 v prototypu vrátí výsledek k pravdě (107/7
 místo 142/38 při pravdě 100/80). Alternativa - detekovat vadné body
 z reziduí fitu a fitovat bez nich (N3) - fungovala také, ale byla zamítnuta
 (sekce 4.2).
+
+**Odloženo 2026-10-15 (sekce 4.3):** jednodušší alternativa, přepínač
+`--exclude-flagged`, který vyřadí body z kontroly po bodech, vyřešila T13
+i se slabším agentem (Haiku: 105/75) a nechává statistiku fitu
+standardní. Soft-L1 by navíc přinesl jen potlačení vadných bodů, které
+kontrola nevypíše; to dnes neodůvodňuje zásah do jádra.
 
 ---
 
@@ -240,6 +247,57 @@ s vadnými body i bez) se hodí k ověření soft-L1, a poznatek, že tvar
 reziduí fitu nejmenších čtverců nerozliší vadné body od špatného modelu.
 
 ---
+
+### 4.3 Odloženo: `--exclude-flagged` jako alternativa (2026-10-15)
+
+Přepínač `--exclude-flagged {kk,both,any}` (878b498, README "Per-point
+residual check") vyřadí body, které vypíše kontrola po bodech
+(`validation/outliers.py`; výchozí `kk`: body od Lin-KK, protože Z-HIT
+rozmaže vadný bod do sousedů), ze všeho za validací, stejnou maskou jako
+`--f-min/--f-max`. Kontrola po bodech a varování u reziduí ho jmenují.
+
+Výsledky (cold agenti, `doc/COLD_AGENT.md`, kolo 6):
+
+| úloha | fit všech bodů | `--exclude-flagged kk` | soft-L1 (prototyp, 4.1) | pravda |
+|---|---|---|---|---|
+| T13 | 142 / 38 | 105 / 75 (5 bodů) | 107 / 73 | 100 / 80 |
+| T14 | 150 / 60 | 123 / 87 (2 body) | 128 / 82 | 120 / 90 |
+
+Haiku, který v krocích 1-2 vadné body ponechal (jen varování), s
+přepínačem vyřešil T13 za 0.11 USD (krok 4); Opus si stejný zásah dřív
+skriptoval sám.
+
+Proč stačí (zatím):
+
+| | `--exclude-flagged` | soft-L1 |
+|---|---|---|
+| body, které kontrola vypíše | vyřadí | potlačí |
+| body, které kontrola nevypíše (T14: 4 ze 6, chyba ~10-20x šum) | zůstanou, táhnou dál | potlačí |
+| drift v nejnižší dekádě | varuje, rozhodne uživatel | potichu potlačí, drift zamaskuje (sekce 5) |
+| +- a CI, AIC/BIC, poměr fit/šum | zůstávají standardní | sandwich, robustní srovnání modelů, nová definice (sekce 6, 7) |
+| zásah do kódu | hotovo (maska rozsahu analýzy) | šest míst v jádru vč. DE a archivu, past ve scipy (sekce 7) |
+| průhlednost | výpis vyřazených bodů, záznam v JSON fitu | plynulé váhy |
+
+Přínos soft-L1 navíc je tedy jen v bodech, které jsou na detekci malé, ale
+fit ještě táhnou. Na T14 i tak stačilo vyřadit dva největší. Případ
+rezistoru 11 MOhm (sekce 2: jeden bod o 80 %) pokryje přepínač také - takový
+bod je nad absolutním prahem 5 %. Na měřených spektrech v repozitáři (ZrO2,
+EISPOT-test1) převažuje nesoulad modelu, ne vadné body.
+
+Vrátit se k soft-L1, když:
+
+- se na měřených datech ukáže, že po `--exclude-flagged` zůstává podstatné
+  vychýlení od bodů, které kontrola nevypíše (shluky síťového rušení, mnoho
+  menších vadných bodů, chyba jen ve fázi);
+- měření na kalibračních spektrech (fit všech bodů / `--exclude-flagged kk`
+  / soft-L1, chyba parametrů; generátor vadných bodů, špatné obvody
+  a prototyp soft-L1 z kola 6 v `~/coldbox-private/r6/calib/`, mimo
+  repozitář) ukáže velký rozdíl mezi druhou a třetí variantou - zatím
+  neprovedeno;
+- bude potřeba sandwich kovariance tak jako tak (pokrytí CI 0.90 i bez
+  vadných bodů, sekce 6) - pak odpadne velká část ceny.
+
+Zbytek dokumentu (sekce 5-7) zůstává jako připravený návrh implementace.
 
 ## 5. Co soft-L1 neřeší
 
