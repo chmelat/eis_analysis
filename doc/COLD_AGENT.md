@@ -258,6 +258,38 @@ Bez akce: `LoadResult` caveat (PYTHON_API hned pod popisem ukazuje
 `result.warnings` - chyba agenta), helper pro C_eff obecneho Q (mimo
 analyzu oxidu) - pozadavek, ne chyba.
 
+## Kolo 6 (2026-10-15): T13, ZARC s ridkymi vadnymi body, Haiku
+
+Piskoviste z d2ed640 (v0.60.3). Uloha od uzivatele: dva blizke oblouky,
+maly R_s, vetsina bodu presna, asi 6 % bodu s vetsi chybou
+(`~/coldbox-private/gen_r6.py`, seed 6112 vybran z 20 jako nejzretelnejsi).
+Zadani je zneni T2 s "vse s nejistotami". Cena 0.09 USD, 9 min, 24 tahu.
+Bod 0 "ne".
+
+| Id | Data (pravda) | Kratka cesta | Vysledek agenta | Proti pravde |
+|---|---|---|---|---|
+| T13 | R_s 2 - ZARC(100, 1 ms, 0.85) - ZARC(80, 3.16 ms, 0.80), 0.5 dek. od sebe, sum 0.1 %; 5 z 81 bodu (20 kHz, 6.3 kHz, 31.6 Hz, 15.8 Hz, 0.03 Hz) navic s chybou sigma 2.5 % na Re i Im | KK "excellent", sum 0.70 %, podezrely jen bod 0.03 Hz ("often sample drift"); DE fit 2 ZARC: R 141.5 +- 7.7 / 37.9 +- 7.8, Fit vs. noise 1.0 | 2 procesy (BIC), R_s 2.004 +- 0.004, R 142 +- 8 / 38 +- 8, tau 1.18 / 5.7 ms; zavislost na f_min si vsiml (f >= 1 Hz: ~110 / 70) a rozdeleni R oznacil za nespolehlive, vadne body nehledal | pocet procesu a R_s ok; R1/R2 a tau2 spatne, 5 sigma mimo uvedenou nejistotu |
+
+Spravna cesta: rezidua fitu nad 5x median oznaci presne pet vadnych bodu,
+fit bez nich da R 104.9 +- 3.8 / 75.1 +- 3.8, tau 1.02 / 3.31 ms. Fit
+startovany z pravdy skonci ve stejnem vychylenem minimu jako DE: chyba je
+v datech, ne v hledani minima.
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| N1 | A | `KKResult.noise_estimate` (RMS pres pseudo chi^2) s peti vadnymi body 0.70 %, bez nich 0.10 %. Proto KK "excellent" a `Fit vs. noise` 1.0; se sumem 0.10 % by fit (0.45 %) byl 4.5x nad sumem a CLI by varovalo. Odhad z medianu rezidui KK je 0.20 % | T13 |
+| N2 | A/C | `find_outliers`: rezidua Lin-KK radi pet vadnych bodu presne na prvni mista (2-5 %, 9-20x median 0.24 %), ale absolutni prah 5 % je propusti; oznacen jen bod 0.03 Hz pres Z-HIT, a hlaseni ho vysvetli driftem | T13 |
+| N3 | C | Varovani "Residuals are not random" nabizi jen chybejici prvek nebo malo prvku, izolovane vadne body ne. Agent zkusil treti oblouk (BIC +10) | T13 |
+| N4 | C | Dokumentace neukazuje, jak vyradit jednotlive body a fitovat znovu; CLI ma jen `--f-min/--f-max`, soft-L1 (`ROBUST_LOSS_SOFT_L1.md`) je neimplementovany navrh | T13 |
+| N5 | C | CLI nema `--seed` pro DE (API `seed=` ano) | T13 |
+| N6 | B | PYTHON_API "Fit result export": ukazka vola `parse_circuit_expression` bez importu (odkud, rika az text pod ni) | T13 |
+| N7 | D | S `--no-kk` radek `Fit vs. noise` beze slova chybi; README (Are the residuals noise?) to rika ("With `--no-kk` the line is absent") - chyba agenta | T13 |
+
+Bez akce: vztah `RinfResult` a `RinfEstimate`, R_inf z DRT (2.038, median
+VF bodu na ocasu ZARC s n < 1) proti R_s z fitu (2.004).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -278,6 +310,8 @@ analyzu oxidu) - pozadavek, ne chyba.
 | M1 (kolo 5) | opraveno: vychozi R_inf (DRT i `calculate_rpol` Voigt navrhu, `hf_r_inf`) omezen shora Re(Z) v nejvyssim kapacitnim bode, kdyz median lezi o vic nez 5 % nad obema nejvyssimi kapacitnimi body (jeden zakmit na f_max ho nespusti), s varovanim; T10 17.48 -> 11.62 Ohm. Na plochem konci se nezapne (0/300 pri 0.1-3 % sumu); v `example/` u dvou souboru s otevrenym obloukem nahore |
 | M2-M8 (kolo 5) | opraveno: M3 navrh s "Inconsistency" (sum R_i vs R_pol za faktorem 2) ma kvalitu poor (T12: drive ACCEPTABLE); M4 `--save` vytvori chybejici adresar, nevytvoritelny skonci chybou s exit 1; dokumentace: M2 pocet piku DRT je dolni mez (procesy do ~1 dekady splynou, T9), MODEL_SELECTION radi kandidata s prvkem navic; M5 L pod obloukem otevrenym na f_max auto nenajde; M6 hledani M v `--voigt-auto-M` pripousti zaporna R_i vzdy; M7 RINF_ESTIMATION odkazuje na audit a STRESS_TEST.md jako odkazy; M8 definice "R_pol (from data)" a ze je dolni mez pri oblouku otevrenem na f_min |
 | M9-M12 (kolo 5) | opraveno: M9 README bez `--de`; M10 blok DE vypisuje vzorec zvolene vahy (sdilena tabulka `_WEIGHTING_LABELS`); M11 CIRCUIT_PARSER ukazuje vnoreny model povlaku a jeho rozdil proti seriovemu (T11: BIC pro vnoreny o 3.1); M12 zkracene vyrazy v tabulce porovnani se pod ni vypisou cele podle `-c` (cast "DE error" byla chyba agenta) |
+| N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
+| N3-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
 
