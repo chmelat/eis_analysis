@@ -381,8 +381,10 @@ cele se vypisuji pod tabulkou - chyba agenta).
 | N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
 | N3 (kolo 6) | detekce izolovanych bodu z rezidui fitu a novy fit bez nich (N3) zkousena a zamitnuta (kolo 6, krok 2; vetev smazana); v `main` napoveda ve varovani `Residuals are not random`. Reseni: soft-L1 (`--robust-loss`) podle `doc/ROBUST_LOSS_SOFT_L1.md`, neimplementovano |
 | P1-P4 (kolo 6, krok 2) | otevrene |
-| O1-O6 (kolo 6, krok 3) | otevrene |
-| N4-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
+| O1 (kolo 6, krok 3) | zdokumentovano (README, Per-point residual check: Z-HIT rozmaze vadny bod do sousedu, proto `--exclude-flagged` bere vychozi body od Lin-KK) |
+| O2-O6 (kolo 6, krok 3) | otevrene |
+| N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) dal otevreny |
+| N5, N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
 

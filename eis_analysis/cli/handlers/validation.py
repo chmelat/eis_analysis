@@ -12,10 +12,12 @@ Data validation handlers for the EIS CLI.
 import argparse
 import logging
 from dataclasses import replace
-from typing import Optional
+from typing import List, Optional
 
+import numpy as np
 from numpy.typing import NDArray
 
+from ..data_handling import frequency_mask
 from ..logging import log_separator
 from ..utils import EISAnalysisError, LoadedData, save_figure
 from ...validation import (
@@ -31,7 +33,7 @@ from ...validation import (
 from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
 from ...validation.kk_result import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
-from ...validation.outliers import _ISOLATED_POINT_FACTOR
+from ...validation.outliers import _ISOLATED_POINT_FACTOR, LOWEST_DECADE_FACTOR
 from ...validation.thd import THD_TO_Z_ERROR
 
 logger = logging.getLogger(__name__)
@@ -348,7 +350,7 @@ def report_outliers(
     zhit_result : ZHITResult or None
         Result from run_zhit_validation
     args : argparse.Namespace
-        CLI arguments (uses: max_residual)
+        CLI arguments (uses: max_residual, exclude_flagged)
 
     Returns
     -------
@@ -397,13 +399,92 @@ def report_outliers(
     # diffusion or oxide spectrum (where the relative criterion of
     # find_outliers raises its false flags) rather than bad points; deleting
     # them would hide the problem instead of fixing it.
-    f_min = float(min(frequencies))
-    if any(p.frequency < f_min * 10 for p in report.points):
+    low_limit = LOWEST_DECADE_FACTOR * float(min(frequencies))
+    if any(p.frequency < low_limit for p in report.points):
         logger.warning("  Note: deviations at the lowest frequencies are often "
                        "sample drift or the Lin-KK chain missing the end of the "
                        "spectrum, not bad points")
 
+    # Cold agents T13/T14: an agent quoted this list and kept the points; one
+    # that left them out got the right answer. Name the switch that does it -
+    # only for KK points above the lowest decade, where they are not drift by
+    # the note above.
+    if (getattr(args, 'exclude_flagged', None) is None
+            and any(f >= low_limit for f in report.frequencies_flagged_by('kk'))):
+        logger.warning("  Isolated bad points pull the analysis: rerun with "
+                       "--exclude-flagged kk to leave the KK-flagged points out of "
+                       "everything after validation")
+
     return report
+
+
+def select_excluded(
+    frequencies: NDArray,
+    report: OutlierReport,
+    kk_result: Optional[KKResult],
+    zhit_result: Optional[ZHITResult],
+    args: argparse.Namespace
+) -> Optional[List[float]]:
+    """
+    The points --exclude-flagged leaves out, logged; None without the option.
+
+    Only flagged points inside --f-min/--f-max count (the range filter drops
+    the others anyway), and the lowest decade is that of the analysis range.
+
+    Parameters
+    ----------
+    frequencies : ndarray
+        Frequency array [Hz] the validations ran on
+    report : OutlierReport
+        Result from report_outliers
+    kk_result, zhit_result : KKResult or ZHITResult or None
+        The validations behind the report (to tell "flagged nothing" from
+        "did not run")
+    args : argparse.Namespace
+        CLI arguments (uses: exclude_flagged, f_min, f_max)
+
+    Returns
+    -------
+    list of float or None
+        Frequencies [Hz] to leave out, possibly empty
+    """
+    mode = getattr(args, 'exclude_flagged', None)
+    if mode is None:
+        return None
+    log_separator()
+    logger.info(f"Excluded points (--exclude-flagged {mode})")
+    log_separator()
+
+    # A method that did not run or that the per-point check skipped flags
+    # nothing; saying "nothing to exclude" then would read as a clean check
+    needed = {'kk': ["KK"], 'both': ["KK", "Z-HIT"], 'any': ["KK", "Z-HIT"]}[mode]
+    results = {"KK": kk_result, "Z-HIT": zhit_result}
+    missing = []
+    for m in needed:
+        result = results[m]
+        if result is None or not result.success or m in report.skipped:
+            missing.append(m)
+    if missing and (mode != 'any' or len(missing) == len(needed)):
+        logger.warning(f"The per-point check of {' and '.join(missing)} did not run or "
+                       f"was skipped (see above): no point excluded")
+        return []
+
+    in_range = frequency_mask(np.asarray(frequencies), args)
+    kept = np.asarray(frequencies)[in_range]
+    excluded = [f for f in report.frequencies_flagged_by(mode)
+                if kept.size and f in kept]
+    if not excluded:
+        logger.info("The per-point check flagged no such point in the analysis range: "
+                    "nothing excluded")
+        return []
+    logger.info(f"Leaving out {len(excluded)} point(s): "
+                + ", ".join(f"{f:.3e}" for f in excluded) + " Hz")
+    low = [f for f in excluded if f < LOWEST_DECADE_FACTOR * float(kept.min())]
+    if low:
+        logger.warning(f"  {len(low)} of them in the lowest decade of the analysis range ("
+                       + ", ".join(f"{f:.3e}" for f in low) + " Hz): if the deviations "
+                       "there are drift, raise --f-min above them instead")
+    return excluded
 
 
 def plot_validation(

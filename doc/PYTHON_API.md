@@ -332,6 +332,10 @@ report.points    # OutlierPoint list, worst first: frequency [Hz],
 report.skipped   # Methods left out: median residual above max_residual (the
                  # spectrum fails as a whole), or Lin-KK with capacitive_end
                  # and no with_series_c (with it, its residuals are used)
+report.frequencies_flagged_by('kk')   # [Hz], ascending: 'kk' flagged by
+                 # Lin-KK, 'both' by both, 'any' all - what the CLI's
+                 # --exclude-flagged leaves out; drop them from the arrays
+                 # with ~np.isin(frequencies, ...) and refit
 ```
 
 A point must also exceed four times its method's median residual (README,

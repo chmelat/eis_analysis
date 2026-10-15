@@ -36,6 +36,21 @@ noise.
   with the median-based noise it would call every fit of a drifting
   spectrum inadequate (real_gamry_example: 4.84 % against 0.79 %).
 
+- **`--exclude-flagged {kk,both,any}`: leave the flagged points out.** The
+  points the per-point residual check lists - with `kk` those Lin-KK
+  flagged, recommended since Z-HIT smears one bad point into its neighbours -
+  are left
+  out of everything after validation, through the same mask as
+  `--f-min/--f-max` (the fit-to-noise comparison uses the Lin-KK noise of the
+  points kept). The run lists them, warns when some lie in the lowest decade
+  (drift; `--f-min` is the cut there) or when the check it needs did not
+  run, and the fit JSON records them. The per-point check and the residual
+  warning name the switch while it is not in use. Cold agents
+  that read the warnings kept the points; one that removed them by hand got
+  the right answer (T14: R1/R2 123/87 Ohm with the switch, 150/60 without,
+  true 120/90). `OutlierReport.frequencies_flagged_by(mode)` gives the same
+  selection in Python.
+
 ### Changed
 
 - **The `Residuals are not random` warning names isolated bad points as a

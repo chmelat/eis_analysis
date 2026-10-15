@@ -110,6 +110,8 @@ def _save_fit_data(
             'fit_on': getattr(args, 'fit_on', 'original'),
             'f_min': getattr(args, 'f_min', None),
             'f_max': getattr(args, 'f_max', None),
+            'exclude_flagged': getattr(args, 'exclude_flagged', None),
+            'excluded_frequencies': getattr(args, 'excluded_frequencies', None),
         }
         record = fit_result_record(frequencies, Z, Z_fit, result, args.weighting, context)
         paths = save_fit_result(f"{args.save}_{save_suffix}", record,
@@ -255,8 +257,13 @@ def _residual_diagnostics(
         return None
 
 
-def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
-    """Log the residual shape tests. Pure formatter over ResidualDiagnostics."""
+def _log_residual_diagnostics(d: Optional[ResidualDiagnostics],
+                              suggest_exclude: bool = True) -> None:
+    """Log the residual shape tests. Pure formatter over ResidualDiagnostics.
+
+    `suggest_exclude` False when --exclude-flagged already ran: naming it
+    again would send the reader in a loop instead of to the model.
+    """
     if d is None:
         return
     if d.real is None or d.imag is None:
@@ -297,9 +304,11 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
                    "plot shows where.")
     # Cold agent T13: 5 bad points among 81 failed the runs test of the right
     # circuit, and the agent added an element. The per-point check lists them.
-    logger.warning("    Isolated bad points fail it too: if the per-point residual "
-                   "check lists points,")
-    logger.warning("    refit without them before changing the model.")
+    if suggest_exclude:
+        logger.warning("    Isolated bad points fail it too: if the per-point residual "
+                       "check lists points,")
+        logger.warning("    refit without them (--exclude-flagged kk) before changing "
+                       "the model.")
 
 
 def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) -> str:
@@ -316,7 +325,8 @@ def _log_fit_result(result: FitResult,
                     noise: Optional[NoiseAdequacyResult] = None,
                     fit_on: str = 'original',
                     noise_note: Optional[str] = None,
-                    noise_source: Optional[str] = None) -> None:
+                    noise_source: Optional[str] = None,
+                    suggest_exclude: bool = True) -> None:
     """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape."""
     logger.info("")
     logger.info("Fit results:")
@@ -377,7 +387,7 @@ def _log_fit_result(result: FitResult,
     log_noise_adequacy(noise, fit_on, noise_note, noise_source)
 
     if residuals is not None:
-        _log_residual_diagnostics(residuals)
+        _log_residual_diagnostics(residuals, suggest_exclude)
         # Here, not in _log_residual_diagnostics: --voigt-chain shares that
         # block but prints no uncertainties. s^2 (J^T J)^-1 assumes independent
         # residuals from a correct model; a missing element breaks both.
@@ -415,7 +425,10 @@ def run_circuit_fitting(
     args : argparse.Namespace
         CLI arguments (uses: no_fit, input, circuit, voigt_chain, weighting,
                        optimizer, multistart, de_*, fit_on, save, format;
-                       optional: f_min, f_max)
+                       optional: f_min, f_max, exclude_flagged, and
+                       excluded_frequencies - the points select_excluded
+                       chose, set on args by the pipeline (eis.py) for the
+                       fit JSON)
     noise_percent : float, optional
         Lin-KK noise of these points [%] (kk_noise_for_fit). Without it the
         fit is not compared with the noise. Standard circuits only: a Voigt
@@ -740,7 +753,8 @@ def _fit_voigt_chain(
     # The Voigt chain is where "too few elements" is directly actionable:
     # --voigt-auto-M or a larger --voigt-n-per-decade is the fix.
     _log_residual_diagnostics(
-        _residual_diagnostics(frequencies, Z, Z_fit, args.weighting))
+        _residual_diagnostics(frequencies, Z, Z_fit, args.weighting),
+        getattr(args, 'exclude_flagged', None) is None)
 
     _save_fit_data(frequencies, Z, Z_fit, result, args, 'fit')
 
@@ -853,7 +867,8 @@ def _fit_standard_circuit(
                         getattr(args, 'fit_on', 'original'),
                         # noise_note is a reason without a noise, a source with one
                         noise_note if noise_percent is None else None,
-                        noise_note if noise_percent is not None else None)
+                        noise_note if noise_percent is not None else None,
+                        getattr(args, 'exclude_flagged', None) is None)
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

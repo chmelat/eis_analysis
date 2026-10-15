@@ -48,6 +48,12 @@ logger = logging.getLogger(__name__)
 # lands at 29%, flagging 1 point instead of 17).
 _METHOD_BASELINE_FACTOR = 4.0
 
+# Points below this multiple of the lowest analysed frequency (the lowest
+# decade) are where a flagged deviation is often sample drift rather than a bad
+# point. The CLI says so under the per-point list and when --exclude-flagged
+# leaves such points out; one constant, so both name the same points.
+LOWEST_DECADE_FACTOR = 10.0
+
 # A Lin-KK point far above the median residual is flagged even under the
 # absolute threshold: at 0.1 % noise a point 2-5 % off is 20-50 sigma and pulls
 # a fit (cold agent T13: 5 such points among 81, R1/R2 of two close arcs
@@ -118,6 +124,25 @@ class OutlierReport:
     """
     points: List[OutlierPoint] = field(default_factory=list)
     skipped: List[str] = field(default_factory=list)
+
+    def frequencies_flagged_by(self, mode: str = 'kk') -> List[float]:
+        """
+        Frequencies [Hz] of the flagged points, ascending, by flagging method.
+
+        Parameters
+        ----------
+        mode : {'kk', 'both', 'any'}
+            'kk': flagged by Lin-KK (alone or with Z-HIT) - the default for
+            excluding points, because Z-HIT smears one bad point into its
+            neighbours (it rebuilds |Z| from the integrated phase; cold agent
+            T14: 3 of the 5 listed points were neighbours flagged by Z-HIT
+            alone). 'both': flagged by both methods. 'any': every listed point.
+        """
+        accept = {'kk': ("KK", "KK+Z-HIT"), 'both': ("KK+Z-HIT",),
+                  'any': ("KK", "Z-HIT", "KK+Z-HIT")}
+        if mode not in accept:
+            raise ValueError(f"mode must be one of {sorted(accept)}, got '{mode}'")
+        return sorted(p.frequency for p in self.points if p.methods in accept[mode])
 
 
 def residual_percent(

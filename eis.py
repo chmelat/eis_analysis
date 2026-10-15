@@ -52,6 +52,7 @@ from eis_analysis.cli import (
     run_zhit_validation,
     apply_zhit_reconstruction,
     report_outliers,
+    select_excluded,
     report_thd,
     plot_validation,
     run_rinf_estimation,
@@ -103,10 +104,17 @@ def _run_analysis(args) -> None:
     # the reconstruction was computed on it and stays aligned with it.
     data = apply_zhit_reconstruction(data, zhit_result, args)
 
+    # --exclude-flagged: the points the per-point check lists leave the
+    # analysis region like the range outside --f-min/--f-max. Kept on args
+    # (documented in run_circuit_fitting) for the fit export, which records
+    # them; threading them through every fitting path would cost more.
+    excluded = select_excluded(data.frequencies, report, kk_result, zhit_result, args)
+    args.excluded_frequencies = excluded
+
     # Filter to the analysis region. The Lin-KK noise ran on the full
     # spectrum; the fit is compared with it on the points it is fitted to.
-    mask = frequency_mask(data.frequencies, args)
-    data = filter_by_frequency(data, args)
+    mask = frequency_mask(data.frequencies, args, excluded)
+    data = filter_by_frequency(data, args, excluded)
     kk_noise = kk_noise_for_fit(kk_result, mask, args.fit_on)
     kk_note = None
     if kk_result is not None and kk_result.capacitive_end:

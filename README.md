@@ -575,10 +575,9 @@ when neighbouring points share a systematic offset. `runs p` is a runs test
 against the median: the p-value that this many sign changes could come from
 independent residuals. A quality of `Good` alongside that warning is not a
 contradiction - the fit is close, and still the wrong model. A few isolated
-bad points fail the runs test as well, while `rho1` stays near 0 (two arcs at
-0.1 % noise, 5 of 81 points off by 2-5 %: rho1 -0.08 / +0.01, runs p 2e-8 /
-0.04); the per-point residual check of the validation then lists them, and a
-fit without them is the repair, not another element.
+bad points fail the runs test as well, while `rho1` stays near 0; the
+per-point residual check of the validation then lists them, and a fit
+without them is the repair, not another element.
 
 `Fit vs. noise` compares the *size* of the misfit with what the data resolve.
 Both the circuit fit and Lin-KK are turned into a noise level by the same
@@ -593,7 +592,9 @@ cancels it. That is also why the example above can show 0.8 next to
 non-random residuals: Lin-KK rates that spectrum `poor`, and the circuit
 misfit is the drift every KK-compliant model leaves. The noise is taken from
 the Lin-KK run of the full spectrum, restricted to the `--f-min/--f-max`
-points. Under `--fit-on zhit` and `--fit-on all` the line says `not
+points and without those `--exclude-flagged` leaves out. Leaving bad points
+out lowers that noise, but not to the data's: the Lin-KK chain was fitted with
+them and keeps part of their pull on the neighbours. Under `--fit-on zhit` and `--fit-on all` the line says `not
 compared`: the fit runs on the Z-HIT reconstruction, whose own error (up to
 ~3 % around relaxations) the Lin-KK noise of the measurement does not
 describe, and a correct circuit would land at 2-5 or near 0 depending on the
@@ -602,12 +603,9 @@ drift. With `--no-kk` the line is absent; `--voigt-chain` does not print it
 
 The cancellation fails when a few isolated bad points carry most of the
 noise: they enter the Lin-KK noise and the circuit fit alike, and the fit
-they pull still lands at ~1. Two arcs 0.5 decade apart at 0.1 % noise with 5
-of 81 points off by 2-5 %: Lin-KK noise 0.70 % (0.10 % without those
-points), the fit at 0.45 %, ratio 1.0 - against the true noise it would be
-4.5. The KK block then warns that the noise estimate is dominated by a few
-points, with the estimate from the median residual (0.20 %), when the two
-differ by more than a factor 2, and the per-point check lists the points
+they pull still lands at ~1. The KK block then warns that the noise
+estimate is dominated by a few points, with the estimate from the median
+residual, when the two differ by more than a factor 2, and the per-point check lists the points
 that stand out individually (a smooth misfit at one end raises the warning
 without single points).
 
@@ -764,6 +762,7 @@ information.
   - R1 = 800 kΩ, Q1 = (3e-5 S·s^n, n=0.43)
 - `--f-min` - Minimum frequency [Hz]. Data below this value will be cut off. Useful for removing noise at low frequencies.
 - `--f-max` - Maximum frequency [Hz]. Data above this value will be cut off. Useful for removing artifacts at high frequencies.
+- `--exclude-flagged {kk,both,any}` - Leave the points the per-point residual check lists (see `--max-residual`) out of everything after validation - R_inf, DRT, Voigt analysis, circuit fit, oxide analysis - the way `--f-min`/`--f-max` leave a range out; validation itself still runs on the full spectrum. `kk` (recommended) takes the points Lin-KK flagged, `both` those flagged by Lin-KK and Z-HIT, `any` every listed point; only points inside `--f-min`/`--f-max` count. The run lists the points left out, warns when some lie in the lowest decade of the analysis range (there they are often drift, and raising `--f-min` is the honest cut), says so when the check it needs did not run, and `--save` records them in the fit JSON (`context.excluded_frequencies`). Every point at a listed frequency goes, also a repeated one.
 
   Both cuts apply to R_inf estimation, DRT and circuit fitting only. Kramers-Kronig
   and Z-HIT always run on the full measured spectrum: they are integral relations
@@ -854,9 +853,11 @@ The pass/fail verdict differs between the two. Lin-KK fails when more than 5 % o
 
   Two guards keep the list meaningful. A point must also exceed four times the median residual *of that method*, because a residual is the sum of the data error and the method's own reconstruction error, and Z-HIT's is the larger of the two (on measured spectra this changes nothing - the absolute threshold stays binding). And a method whose *median* residual already exceeds the threshold is skipped entirely - over half its points would be flagged, so the spectrum fails as a whole, which the `Data quality:` line already reports. The median rather than the mean: a handful of genuine outliers pulls a mean over the threshold and would switch the report off exactly when it has something to say.
 
-  On a low-noise spectrum a point a few percent off is many times the noise and pulls a fit, yet stays under 5 %. A Lin-KK point is therefore also listed, whatever `--max-residual`, when its residual exceeds 8 times the median Lin-KK residual. Example: two arcs 0.5 decade apart at 0.1 % noise, 5 of 81 points off by 2-5 %: the 5 % threshold lists one of them, the second criterion all five and no other point, and a fit of the right circuit to all points splits the polarisation resistance 142/38 Ohm instead of 100/80. Calibrated on stress-test spectra: it finds two thirds of the bad points 20-40 times the noise and 84 % of the larger ones, and flags a clean spectrum in 8 % of cases at 0.1 % noise, 1 % at 0.3 % and none from 1 % on. Those false flags lie at the low-frequency end, where the Lin-KK chain misses the end of a diffusion or oxide spectrum. Off on noise-free synthetic data (median residual under 0.05 %), when Lin-KK uses more elements than half the points (on a sparse grid the chain passes through most points and the median collapses), and for Z-HIT.
+  On a low-noise spectrum a point a few percent off is many times the noise and pulls a fit, yet stays under 5 %. A Lin-KK point is therefore also listed, whatever `--max-residual`, when its residual exceeds 8 times the median Lin-KK residual. Calibrated on stress-test spectra: it finds two thirds of the bad points 20-40 times the noise and 84 % of the larger ones, and flags a clean spectrum in 8 % of cases at 0.1 % noise, 1 % at 0.3 % and none from 1 % on. Those false flags lie at the low-frequency end, where the Lin-KK chain misses the end of a diffusion or oxide spectrum. Off on noise-free synthetic data (median residual under 0.05 %), when Lin-KK uses more elements than half the points (on a sparse grid the chain passes through most points and the median collapses), and for Z-HIT.
 
   Interpretation: an isolated point with good neighbours is usually a genuine defect (interference, contact, bubble). A systematic trend toward the lowest frequencies is usually sample drift - a real property of a non-stationary measurement, not a bad point, and deleting it hides the problem instead of fixing it.
+
+  Leaving the points out: `--exclude-flagged kk` reruns everything after validation without the points Lin-KK flagged, and the check suggests it whenever Lin-KK flags a point above the lowest decade. Lin-KK rather than Z-HIT: Z-HIT rebuilds |Z| from the integrated phase and smears one bad point into its neighbours, so it lists the neighbours of a bad point that Lin-KK lists alone. On close arcs a few bad points can move the split of the polarisation resistance by tens of percent while the fit still reads 1.0x the noise. Points the check does not list stay in, and so does their pull.
 
 #### Finding the valid frequency range
 

@@ -78,6 +78,15 @@ Examples:
                           help='Minimum frequency [Hz] - data below will be cut off')
     io_group.add_argument('--f-max', type=float, default=None,
                           help='Maximum frequency [Hz] - data above will be cut off')
+    # A required value, not nargs='?': an optional value would take the
+    # input file name in `eis --exclude-flagged data.DTA`
+    io_group.add_argument('--exclude-flagged', default=None, metavar='{kk,both,any}',
+                          choices=['kk', 'both', 'any'],
+                          help='Leave the points the per-point residual check lists out of '
+                               'everything after validation (R_inf, DRT, fit): kk = flagged '
+                               'by Lin-KK (recommended), both = by Lin-KK and Z-HIT, any = '
+                               'every listed point. Validation still runs on the full '
+                               'spectrum')
 
     io_group.add_argument('--save', '-s', type=str, default=None,
                           help='Save plots and fit results (JSON, CSV) with this prefix')
@@ -338,6 +347,18 @@ Examples:
             f"--fit-on {args.fit_on} needs the Z-HIT reconstruction; "
             "drop --no-zhit"
         )
+
+    # --exclude-flagged takes its points from the per-point check, which needs
+    # the validation that flags them
+    if args.exclude_flagged in ('kk', 'both') and args.no_kk:
+        parser.error(f"--exclude-flagged {args.exclude_flagged} needs the points Lin-KK "
+                     "flags; drop --no-kk (or use --exclude-flagged any with Z-HIT)")
+    if args.exclude_flagged == 'both' and args.no_zhit:
+        parser.error("--exclude-flagged both needs the points Z-HIT flags as well; "
+                     "drop --no-zhit (or use --exclude-flagged kk)")
+    if args.exclude_flagged == 'any' and args.no_kk and args.no_zhit:
+        parser.error("--exclude-flagged needs the per-point check of Lin-KK or Z-HIT; "
+                     "drop --no-kk or --no-zhit")
 
     # --fit-on zhit corrects the data the circuit fit reads, and nothing else.
     # With --no-fit there is no such reader, so the flag would only print a

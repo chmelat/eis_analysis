@@ -10,7 +10,7 @@ Contains:
 import argparse
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -217,9 +217,11 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
 # =============================================================================
 
 def frequency_mask(frequencies: NDArray[np.float64],
-                   args: argparse.Namespace) -> NDArray[np.bool_]:
+                   args: argparse.Namespace,
+                   excluded: Optional[Sequence[float]] = None) -> NDArray[np.bool_]:
     """
-    The --f-min/--f-max selection as a mask over `frequencies`.
+    The --f-min/--f-max selection, less the `excluded` points
+    (--exclude-flagged), as a mask over `frequencies`.
 
     The one definition of the analysis range: filter_by_frequency applies it,
     and the pipeline uses it to restrict full-spectrum results (Lin-KK noise)
@@ -230,12 +232,17 @@ def frequency_mask(frequencies: NDArray[np.float64],
         mask &= (frequencies >= args.f_min)
     if args.f_max is not None:
         mask &= (frequencies <= args.f_max)
+    if excluded:
+        # The excluded frequencies are copied from this very array
+        # (OutlierReport), so exact equality is safe
+        mask &= ~np.isin(frequencies, excluded)
     return mask
 
 
 def filter_by_frequency(
     data: LoadedData,
-    args: argparse.Namespace
+    args: argparse.Namespace,
+    excluded: Optional[Sequence[float]] = None
 ) -> LoadedData:
     """
     Filter data by frequency range.
@@ -248,6 +255,10 @@ def filter_by_frequency(
         Parsed command line arguments. Uses:
         - args.f_min: Minimum frequency [Hz] or None
         - args.f_max: Maximum frequency [Hz] or None
+    excluded : sequence of float, optional
+        Frequencies [Hz] left out (--exclude-flagged), from select_excluded,
+        which also logs them. Every point at such a frequency goes - a
+        spectrum measuring one frequency twice loses both copies.
 
     Returns
     -------
@@ -259,7 +270,7 @@ def filter_by_frequency(
     EISAnalysisError
         If no data remains after filtering
     """
-    if args.f_min is None and args.f_max is None:
+    if args.f_min is None and args.f_max is None and not excluded:
         return data
 
     # Own section header so the filter output is not visually attached to the
@@ -273,7 +284,7 @@ def filter_by_frequency(
     Z = data.Z
     original_count = len(frequencies)
 
-    mask = frequency_mask(frequencies, args)
+    mask = frequency_mask(frequencies, args, excluded)
     if args.f_min is not None:
         logger.info(f"Applying f_min = {args.f_min} Hz")
     if args.f_max is not None:
@@ -295,7 +306,8 @@ def filter_by_frequency(
 
     if filtered_count == 0:
         raise EISAnalysisError(
-            "No data remaining after filtering! Check --f-min and --f-max."
+            "No data remaining after filtering! Check --f-min, --f-max and "
+            "--exclude-flagged."
         )
 
     logger.info(f"Analysis frequency range: {frequencies.min():.2e} - "
