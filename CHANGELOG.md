@@ -36,6 +36,13 @@ noise.
   with the median-based noise it would call every fit of a drifting
   spectrum inadequate (real_gamry_example: 4.84 % against 0.79 %).
 
+### Changed
+
+- **The `Residuals are not random` warning names isolated bad points as a
+  cause.** They fail the runs test as well, and the trend/structure reading
+  alone pointed at a missing element; the warning now says to refit without
+  the points the per-point check lists before changing the model.
+
 ## Version 0.60.3 (2026-10-14)
 
 ### Fixed

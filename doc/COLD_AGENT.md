@@ -311,7 +311,8 @@ VF bodu na ocasu ZARC s n < 1) proti R_s z fitu (2.004).
 | M2-M8 (kolo 5) | opraveno: M3 navrh s "Inconsistency" (sum R_i vs R_pol za faktorem 2) ma kvalitu poor (T12: drive ACCEPTABLE); M4 `--save` vytvori chybejici adresar, nevytvoritelny skonci chybou s exit 1; dokumentace: M2 pocet piku DRT je dolni mez (procesy do ~1 dekady splynou, T9), MODEL_SELECTION radi kandidata s prvkem navic; M5 L pod obloukem otevrenym na f_max auto nenajde; M6 hledani M v `--voigt-auto-M` pripousti zaporna R_i vzdy; M7 RINF_ESTIMATION odkazuje na audit a STRESS_TEST.md jako odkazy; M8 definice "R_pol (from data)" a ze je dolni mez pri oblouku otevrenem na f_min |
 | M9-M12 (kolo 5) | opraveno: M9 README bez `--de`; M10 blok DE vypisuje vzorec zvolene vahy (sdilena tabulka `_WEIGHTING_LABELS`); M11 CIRCUIT_PARSER ukazuje vnoreny model povlaku a jeho rozdil proti seriovemu (T11: BIC pro vnoreny o 3.1); M12 zkracene vyrazy v tabulce porovnani se pod ni vypisou cele podle `-c` (cast "DE error" byla chyba agenta) |
 | N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
-| N3-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
+| N3 (kolo 6) | zatim jen napoveda ve varovani `Residuals are not random` (odkaz na kontrolu po bodech). Uplne reseni (izolovane body z rezidui fitu, novy fit bez nich, kalibrace) odlozeno ve vetvi `n3-isolated-refit`: rozhodne opakovani T13 s novym seedem nad N1 + N2 + napovedou |
+| N4-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
 

@@ -295,6 +295,11 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics]) -> None:
                    "Structure left after")
     logger.warning("    it means the right elements, too few of them - the residual "
                    "plot shows where.")
+    # Cold agent T13: 5 bad points among 81 failed the runs test of the right
+    # circuit, and the agent added an element. The per-point check lists them.
+    logger.warning("    Isolated bad points fail it too: if the per-point residual "
+                   "check lists points,")
+    logger.warning("    refit without them before changing the model.")
 
 
 def _significance_suffix(significance: Optional[NDArray[np.float64]], i: int) -> str:

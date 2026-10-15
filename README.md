@@ -564,6 +564,8 @@ few percent while its residuals march smoothly across the spectrum. Both
 !     A trend means an element is missing or of the wrong type. Structure left
 !     after it means the right elements, too few of them - the residual plot
 !     shows where.
+!     Isolated bad points fail it too: if the per-point residual check lists
+!     points, refit without them before changing the model.
 !     The +/- and CIs above assume random residuals; with these they are too
 !     narrow.
 ```
@@ -572,7 +574,11 @@ few percent while its residuals march smoothly across the spectrum. Both
 when neighbouring points share a systematic offset. `runs p` is a runs test
 against the median: the p-value that this many sign changes could come from
 independent residuals. A quality of `Good` alongside that warning is not a
-contradiction - the fit is close, and still the wrong model.
+contradiction - the fit is close, and still the wrong model. A few isolated
+bad points fail the runs test as well, while `rho1` stays near 0 (two arcs at
+0.1 % noise, 5 of 81 points off by 2-5 %: rho1 -0.08 / +0.01, runs p 2e-8 /
+0.04); the per-point residual check of the validation then lists them, and a
+fit without them is the repair, not another element.
 
 `Fit vs. noise` compares the *size* of the misfit with what the data resolve.
 Both the circuit fit and Lin-KK are turned into a noise level by the same
