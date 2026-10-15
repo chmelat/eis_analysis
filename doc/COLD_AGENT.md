@@ -319,6 +319,45 @@ v `doc/ROBUST_LOSS_SOFT_L1.md`, 4.1-4.2.
 | P3 | C | `--ri-fit` vypise L = 2.5e-15 nH bez nejistoty; RINF_ESTIMATION nerika, jak cist L ~ 0 | T14 |
 | P4 | C | Vyznamnost S = 6.1 u exponentu n; tabulka ve WEIGHTING_AND_STATISTICS 3.7 hodnoty nad 1 nevysvetluje | T14 |
 
+## Kolo 6, krok 3 (2026-10-15): T13 a T14 s Opus
+
+Tytez ulohy a data jako v krocich 1 a 2, model Opus misto Haiku. Piskoviste
+z 508c06a (stejny kod jako HEAD, starsi `ROBUST_LOSS_SOFT_L1.md` bez
+pribehu T13), bez CHANGELOG. Pro T14 navic z kopie README v piskovisti
+vymazan popis pripadu T13 (tri pasaze s cisly: dva oblouky 0.5 dek., 5 z 81
+bodu, 142/38 proti 100/80, sum 0.70 proti 0.10 %); obecny mechanismus
+(varovani N1, kriterium 8x median, rho1 ~ 0 se zamitnutym runs testem jsou
+izolovane body) zustal. Puvodni kopie `~/coldbox-private/r6/README.sandbox.orig.md`.
+
+| Id | README | Cena, cas, tahy | Vysledek agenta | Proti pravde |
+|---|---|---|---|---|
+| T13 | s pripadem T13 | 1.16 USD, 6 min, 22 | vyradil 5 bodu z kontroly po bodech vlastnim filtrem CSV, Lin-KK pak sum 0.10 % a zadny dalsi bod; R 105 +- 4 / 75 +- 4, tau 1.021 / 3.31 ms, R_s 2.0008; citlivost na vahu (proportional 121/59) uvedl | ok, vse v toleranci |
+| T14 | bez pripadu T13 | 1.00 USD, 6 min, 18 | vyradil jen 2 body oznacene Lin-KK (17.8 Hz, 14.7 kHz), 3 body jen ze Z-HIT vyhodnotil jako sousedy; R 123 +- 11 / 87 +- 11, tau 2.02 / 8.2 ms, R_s 3.000; systematicky rozptyl R1 123-150 podle vahy a vyrazeni uvedl | ok, vse v toleranci |
+
+Bod 0 u obou "ne". Agent T13 si prikladu v README vsiml a napsal, ze ho
+nepouzil; T14 bez prikladu dopadl stejne, takze k vyrazeni bodu vedl obecny
+text (varovani N1, seznam N2, veta o izolovanych bodech), ne priklad. Oba
+cetli README cele, T14 nic jineho. Haiku na tez dokumentaci (kroky 1-2)
+varovani citoval a body nevyradil: dokumentace ted staci silnemu ctenari,
+vysledek ale zavisi na rucnim zasahu, ktery CLI neumi (N4) - argument pro
+soft-L1 (`doc/ROBUST_LOSS_SOFT_L1.md`).
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| O1 | C | Jeden vadny bod Z-HIT rozmaze do sousedu (T14: KK oznaci 17.8 Hz, Z-HIT 14.7 a 21.5 Hz; KK 14.7 kHz, Z-HIT 17.8 kHz); README u kontroly po bodech to nerika, agent to odvodil sam | T14 |
+| O2 | C | Radek parametru pise `[at upper bound - CI not meaningful]` (`cli/handlers/fitting.py:345`) i pro hodnotu o dekadu pod mezi (Q2 = 1.37, mez 10; `classify_bound_status` meri 1 dekadu), varovani pod nim totez nazve "near upper bound" | T14 |
+| O3 | C | `_fit.json`: pole `covariance` bez popisku a README nerika jeho poradi (je podle `parameters`); chybi navod na nejistotu odvozene veliciny (R1 + R2 pri korelaci -1), kterou si oba agenti spocitali sami | T13, T14 |
+| O4 | C | Pojmenovani oblouku zavisi na vaze: s `modulus` je R1 rychly proces, se `sqrt`/`uniform` pomaly (L11; doklad pro `doc/BLOCK_ORDER_PLAN.md`) | T13, T14 |
+| O5 | C | `proportional`: README "emphasizes high-frequency", PYTHON_API "emphasizes low-impedance region" (w = 1/\|Z\|^2 je to druhe; vysoke frekvence jen u typickeho spektra) | T13 |
+| O6 | C | Titulek grafu DRT ukazuje lambda v plne presnosti (`visualization/drt.py:83, 86`, `lambda = 0.00011396899106368631`) | T13, T14 |
+
+Opakovane: CLI nema vyrazeni jednotlivych bodu (N4, oba). Nereprodukovano
+jako nalez: "95% CI u tau" (README rika CI u parametru, u casovych konstant
+jen stderr - nejednoznacne cteni), zkracene obvody v tabulce porovnani (M12:
+cele se vypisuji pod tabulkou - chyba agenta).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -342,6 +381,7 @@ v `doc/ROBUST_LOSS_SOFT_L1.md`, 4.1-4.2.
 | N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
 | N3 (kolo 6) | detekce izolovanych bodu z rezidui fitu a novy fit bez nich (N3) zkousena a zamitnuta (kolo 6, krok 2; vetev smazana); v `main` napoveda ve varovani `Residuals are not random`. Reseni: soft-L1 (`--robust-loss`) podle `doc/ROBUST_LOSS_SOFT_L1.md`, neimplementovano |
 | P1-P4 (kolo 6, krok 2) | otevrene |
+| O1-O6 (kolo 6, krok 3) | otevrene |
 | N4-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
