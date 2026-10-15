@@ -290,6 +290,35 @@ v datech, ne v hledani minima.
 Bez akce: vztah `RinfResult` a `RinfEstimate`, R_inf z DRT (2.038, median
 VF bodu na ocasu ZARC s n < 1) proti R_s z fitu (2.004).
 
+## Kolo 6, krok 2 (2026-10-15): T14, totez s N1 + N2 + napovedou, Haiku
+
+Overeni, zda N1, N2 a napoveda ve varovani `Residuals are not random`
+(508c06a) staci, nebo je treba N3 (izolovane body z rezidui fitu a novy fit
+bez nich). Jine parametry nez T13, ktere README ted cituje
+(`~/coldbox-private/gen_r6b.py`, seed 6201 vybran ze 40 podle vychyleni
+fitu). Piskoviste z 508c06a, poprve bez CHANGELOG (prani uzivatele: zapisuje
+nalezy predchozich kol). Cena 0.05 USD, 4 min, 25 tahu. Bod 0 "ne".
+
+| Id | Data (pravda) | Kratka cesta | Vysledek agenta | Proti pravde |
+|---|---|---|---|---|
+| T14 | R_s 3 - ZARC(120, 2 ms, 0.82) - ZARC(90, 7.96 ms, 0.78), 0.6 dek., 97 bodu, sum 0.15 %; 6 bodu (38 kHz, 14.7 kHz, 17.8 Hz, 0.26, 0.1, 0.046 Hz) s chybou sigma 2.5 % | KK: varovani N1 (sum 0.72 proti 0.29 % z medianu); kontrola po bodech 5 bodu, z nich 2 vadne (3 sousedy oznacil Z-HIT); runs test fit nezamitne (p 0.024), napoveda se nevypise; fit 150/60 | 2 procesy (BIC), R_s 3.00, R 149.9 +- 10.6 / 59.8 +- 10.7, tau2 11.8 ms; varovani N1 citoval, "Podezrele body z kontroly po bodech jsem nevyrazoval" | pocet procesu a R_s ok; R1/R2 a tau2 spatne jako u T13 |
+
+N3 z vetve na tychz datech a agentove vlastnim prikazu (multistart, 2x R|Q):
+5 ze 6 vadnych bodu, zadny dobry, novy fit 121.5 +- 5.5 / 88.5 +- 5.5.
+Uzivatel N3 presto zamitl: ladene a overene na jednom modelu vadnych bodu
+(stejnem jako T13 a T14), slozite. Prototyp soft-L1 dava 107/73 (T13)
+a 128/82 (T14) a spatny model nezamaskuje; navrh, cisla a duvody
+v `doc/ROBUST_LOSS_SOFT_L1.md`, 4.1-4.2.
+
+### Nove nalezy (overeno ctenim dokumentace a vystupu)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| P1 | B | PYTHON_API Basic Workflow: po `fit_circuit_multistart` blok vysledku cte `result` z predchoziho jednoducheho fitu misto `ms_result.best_result` | T14 |
+| P2 | C | "Suggestion quality: GOOD" u navrhu s jednim prvkem, ktery fit odmitne (fit/sum 2.4); dokumentace nerika, ze kvalita meri jen shodu souctu R s R_pol | T14 |
+| P3 | C | `--ri-fit` vypise L = 2.5e-15 nH bez nejistoty; RINF_ESTIMATION nerika, jak cist L ~ 0 | T14 |
+| P4 | C | Vyznamnost S = 6.1 u exponentu n; tabulka ve WEIGHTING_AND_STATISTICS 3.7 hodnoty nad 1 nevysvetluje | T14 |
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -311,7 +340,8 @@ VF bodu na ocasu ZARC s n < 1) proti R_s z fitu (2.004).
 | M2-M8 (kolo 5) | opraveno: M3 navrh s "Inconsistency" (sum R_i vs R_pol za faktorem 2) ma kvalitu poor (T12: drive ACCEPTABLE); M4 `--save` vytvori chybejici adresar, nevytvoritelny skonci chybou s exit 1; dokumentace: M2 pocet piku DRT je dolni mez (procesy do ~1 dekady splynou, T9), MODEL_SELECTION radi kandidata s prvkem navic; M5 L pod obloukem otevrenym na f_max auto nenajde; M6 hledani M v `--voigt-auto-M` pripousti zaporna R_i vzdy; M7 RINF_ESTIMATION odkazuje na audit a STRESS_TEST.md jako odkazy; M8 definice "R_pol (from data)" a ze je dolni mez pri oblouku otevrenem na f_min |
 | M9-M12 (kolo 5) | opraveno: M9 README bez `--de`; M10 blok DE vypisuje vzorec zvolene vahy (sdilena tabulka `_WEIGHTING_LABELS`); M11 CIRCUIT_PARSER ukazuje vnoreny model povlaku a jeho rozdil proti seriovemu (T11: BIC pro vnoreny o 3.1); M12 zkracene vyrazy v tabulce porovnani se pod ni vypisou cele podle `-c` (cast "DE error" byla chyba agenta) |
 | N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
-| N3 (kolo 6) | zatim jen napoveda ve varovani `Residuals are not random` (odkaz na kontrolu po bodech). Uplne reseni (izolovane body z rezidui fitu, novy fit bez nich, kalibrace) odlozeno ve vetvi `n3-isolated-refit`: rozhodne opakovani T13 s novym seedem nad N1 + N2 + napovedou |
+| N3 (kolo 6) | detekce izolovanych bodu z rezidui fitu a novy fit bez nich (N3) zkousena a zamitnuta (kolo 6, krok 2; vetev smazana); v `main` napoveda ve varovani `Residuals are not random`. Reseni: soft-L1 (`--robust-loss`) podle `doc/ROBUST_LOSS_SOFT_L1.md`, neimplementovano |
+| P1-P4 (kolo 6, krok 2) | otevrene |
 | N4-N6 (kolo 6) | otevrene (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT

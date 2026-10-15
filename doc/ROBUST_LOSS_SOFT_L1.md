@@ -1,11 +1,14 @@
 # Robustní ztrátová funkce (soft-L1): proč ji zavést
 
-Datum: 2026-09-01, aktualizace 2026-10-10
-Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0
-Stav návrhu: otevřený (neimplementováno, nezamítnuto)
+Datum: 2026-09-01, aktualizace 2026-10-10 a 2026-10-15
+Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0; sekce 4.1-4.2
+na 508c06a (v0.60.3 a nevydané změny kola 6)
+Stav návrhu: otevřený (neimplementováno), od 2026-10-15 zvolené řešení
+nálezů cold agentů T13/T14 místo detekce vadných bodů a nového fitu (4.2)
 Souvisí s: `doc/ZSCOPE_COMPARISON.md` (položka "Robustní loss + sandwich
 kovariance", priorita vysoká), `doc/WEIGHTING_AND_STATISTICS.md`,
-`doc/STRESS_TEST.md` (pokrytí CI), `eis_analysis/validation/outliers.py`
+`doc/STRESS_TEST.md` (pokrytí CI), `eis_analysis/validation/outliers.py`,
+`doc/COLD_AGENT.md` (kolo 6)
 
 ---
 
@@ -22,6 +25,14 @@ medián chyby parametru zhoršil z 0.10 % na 0.12 %.
 
 Doporučení: zavést `loss='soft_l1'` jako volitelný režim fitování
 (`--robust-loss`), s `f_scale` odvozeným z MAD reziduí prvního průchodu.
+
+Dva cold agenti (2026-10-15, sekce 4.1) ukázali, že nejde jen o jeden vadný
+bod u rezistoru: u dvou blízkých oblouků posune 5-6 % vadných bodů rozdělení
+polarizačního odporu o 25-50 %, a agent to neopraví, ani když ho knihovna
+na vadné body upozorní. Soft-L1 v prototypu vrátí výsledek k pravdě (107/73
+místo 142/38 při pravdě 100/80). Alternativa - detekovat vadné body
+z reziduí fitu a fitovat bez nich (N3) - fungovala také, ale byla zamítnuta
+(sekce 4.2).
 
 ---
 
@@ -151,6 +162,83 @@ aby mohla být zapnutá i rutinně.
 dvanáctkrát menší. Přitom 10 % není nerealistické číslo - stačí síťové
 rušení plus pár bodů na okrajích rozsahu.
 
+### 4.1 Blízké oblouky a řídké vadné body (cold agenti T13, T14)
+
+Úlohy kola 6 (`doc/COLD_AGENT.md`), pravda a generátor v
+`~/coldbox-private/gen_r6.py` a `gen_r6b.py`:
+
+| úloha | data | vadné body |
+|---|---|---|
+| T13 | R_s 2 - ZARC(100, 1 ms, 0.85) - ZARC(80, 3.16 ms, 0.80), 81 bodů, šum 0.1 % | 5, Gauss sigma 2.5 % na Re i Im |
+| T14 | R_s 3 - ZARC(120, 2 ms, 0.82) - ZARC(90, 7.96 ms, 0.78), 97 bodů, šum 0.15 % | 6, totéž |
+
+Oblouky jsou 0.5, resp. 0.6 dekády od sebe, takže R1 a R2 jsou silně
+antikorelované (r = -0.9996 u T14) a jejich součet je určený dobře, ale
+rozdělení ne. Pár vadných bodů pak rozdělení posune daleko za uvedenou
+nejistotu, přestože fit sedí "na šum" (poměr fit/šum 1.0, protože odhad
+šumu Lin-KK obsahuje tytéž body):
+
+| fit dvou ZARC | T13: R1 / R2 [Ohm] | T14: R1 / R2 [Ohm] |
+|---|---|---|
+| pravda | 100 / 80 | 120 / 90 |
+| nejmenší čtverce (dnes) | 142 +- 8 / 38 +- 8 | 150 +- 11 / 60 +- 11 |
+| soft-L1, f_scale = 1.4826 MAD | 107 / 73 | 128 / 82 |
+| nejmenší čtverce bez vadných bodů | 105 / 75 | 122 / 89 |
+| nejmenší čtverce, stejná data bez vadných bodů | - | 127 / 83 |
+
+Soft-L1 dostane fit zpět na úroveň, kterou omezuje šum (poslední řádek:
+čistá data T14 dávají 127/83, fit bez vadných bodů má nejistotu R +-5.5). Prototyp:
+`scipy.optimize.least_squares(loss='soft_l1')` na reziduích s vahou 1/|Z|,
+start z fitu nejmenších čtverců, `f_scale` z jeho reziduí; není to
+implementace podle sekce 7 (bez DE, bez kovariance).
+
+**Špatný model se nezamaskuje.** Fit jednoho ZARC (chybí oblouk) má
+rezidua robustního fitu stejně strukturovaná jako u nejmenších čtverců:
+rho1 0.68 / 0.80 (T13) a 0.87 / 0.72 (T14), správný model -0.02 / +0.02
+a -0.04 / -0.02. Stávající diagnostika tvaru reziduí
+(`fitting/residual_diagnostics.py`) tedy na robustním fitu čte model
+správně. Na nejmenších čtvercích to nejde: správný model stažený vadnými
+body nechá na ostatních bodech hladký nesoulad (T13: rho1 0.74 / 0.55 po
+vynechání vadných bodů), stejně jako by ho nechal špatný model. Netestováno:
+nesoulad omezený na pár bodů na kraji okna (chybějící L, sériové C), který
+by soft-L1 mohl potlačit jako vadné body (sekce 5).
+
+**Upozornění nestačí.** Oba agenti (Haiku) určili počet procesů a R_s
+správně, R1/R2 ne. Agent T14 měl k dispozici varování, že odhad šumu táhne
+pár bodů (0.72 % proti 0.29 % z mediánu), i seznam podezřelých bodů
+z kontroly po bodech, obojí citoval, a body nevyřadil: "Podezřelé body
+z kontroly po bodech jsem nevyřazoval." Uživatel, který má z výstupu
+udělat ruční zásah, ho neudělá. Robustní režim musí být jedním
+přepínačem, na který varování přímo ukážou (sekce 7).
+
+### 4.2 Proč ne detekce vadných bodů a nový fit (N3, zamítnuto)
+
+Alternativa zkoušená 2026-10-15 (větev `n3-isolated-refit`, smazána):
+z reziduí fitu vybrat body nad 6x medián |dZ|/|Z|, jen pokud jsou rezidua
+jinak ve tvaru šumu (|rho1| < 0.3), fit bez nich zopakovat a podle tvaru
+jeho reziduí rozhodnout, zda šlo jen o vadné body, nebo i o špatný model.
+Na T14 dala 122/89, tedy správný výsledek přímo v agentově výstupu.
+
+Zamítnuta, protože:
+
+- **Složitost:** tři kalibrované prahy (faktor 6, |rho1| 0.3, kritérium
+  nového fitu), fit uvnitř diagnostiky, výpis v CLI se třemi větvemi, ~260
+  řádků a nové veřejné API.
+- **Verdikt chybuje v obou směrech:** správný model označil za správný
+  v 88 % případů, špatný model zakrytý vadnými body odhalil v 86 %.
+- **Kalibrace a ověření stály na jednom modelu vadných bodů:** 6 % bodů
+  rovnoměrně, Gauss sigma 2.5 %, šum úměrný |Z| - na tomtéž modelu jako
+  T13 a T14, takže úspěch na T14 nebyl nezávislý. Shluky (síťové rušení),
+  jeden velký bod, chyba jen ve fázi, těžké chvosty a konstantní šum
+  netestovány.
+- **Soft-L1 je standardní estimátor** (Huber 1964), ne heuristika laděná
+  na vlastní úloze. Nevyžaduje rozhodnutí "vadný bod, nebo model" a podle
+  4.1 dělá totéž (107/73 proti 105/75 u T13).
+
+Zůstává z toho: kalibrační skripty (stress spektra, tři špatné obvody,
+s vadnými body i bez) se hodí k ověření soft-L1, a poznatek, že tvar
+reziduí fitu nejmenších čtverců nerozliší vadné body od špatného modelu.
+
 ---
 
 ## 5. Co soft-L1 neřeší
@@ -166,6 +254,13 @@ diagnostika, ne jiná ztrátová funkce.
 **Špatný model.** Fit `R()-L()` na data, jejichž `|Z|` klesá, selže s jakoukoli
 ztrátovou funkcí, protože model takový průběh neumí vytvořit. Robustní ztráta
 neopraví strukturální nesoulad.
+
+**Lokální nesoulad modelu.** Chybí-li prvek, jehož projev je omezen na pár
+bodů na kraji okna (sériová L na nejvyšších frekvencích, sériové C na
+nejnižších), soft-L1 může tyto body potlačit stejně jako vadné a fit pak
+vypadá správně. Výpis bodů se sníženou vahou (sekce 7) to musí ukázat:
+souvislá řada bodů na kraji okna je model nebo drift, ne vadné body.
+Ověřit (viz Ověření).
 
 **Většinovou kontaminaci.** Soft-L1 má bod zvratu výrazně lepší než nula, ale
 ne 50 %. Když je vadná většina bodů, "odlehlé" jsou najednou ty dobré. Na to
@@ -289,6 +384,18 @@ fitu by měl uvést, že režim byl aktivní, a kolik bodů dostalo váhu pod
 nějakou hranicí - to je zároveň diagnostika, která ukáže, které body ztráta
 potlačila.
 
+Varování, která dnes na vadné body upozorňují, mají `--robust-loss` jmenovat
+(sekce 4.1: agent upozornění četl a nic neudělal): varování Lin-KK, že odhad
+šumu táhne pár bodů (`kramers_kronig.py`, `NOISE_DOMINATED_RATIO`),
+seznam podezřelých bodů (`cli/handlers/validation.py`, `report_outliers`)
+a varování "Residuals are not random" (`cli/handlers/fitting.py`).
+
+Dál zasáhne robustní ztráta do míst, která dnes počítají se součtem
+čtverců: srovnání kandidátů AIC/BIC (`model_comparison.py`) musí v robustním
+režimu porovnávat robustní cenu, poměr fit/šum (`compare_fit_to_noise`)
+a `fit_error_rel` odpovídají kvadratické ztrátě a je třeba rozhodnout, zda je
+počítat ze všech bodů, nebo jen z bodů s plnou vahou.
+
 ### Ověření
 
 Prototyp použitý pro čísla v tomto dokumentu reprodukuje
@@ -296,6 +403,19 @@ Prototyp použitý pro čísla v tomto dokumentu reprodukuje
 `'linear'` (stejná vážení, stejný analytický Jacobián, stejné meze, `x_scale`
 i metrika chyby). To je minimální podmínka, aby byla čísla porovnatelná; při
 implementaci by měl stejnou roli plnit regresní test.
+
+Ověření naslepo (poučení z 4.2): `f_scale` a hranici pro výpis bodů se
+sníženou vahou určit na jednom typu kontaminace a ověřit na mechanismech,
+na kterých se nic neladilo - shluky sousedních bodů (síťové rušení),
+jeden bod o 10-30 %, chyba jen ve fázi nebo jen v |Z|, těžké chvosty
+(Studentovo t), konstantní absolutní šum, drift spolu s vadnými body,
+chybějící prvek na kraji okna. Kritéria stanovit předem, např.: na
+čistých datech se parametry nezhorší nad 0.12 % mediánové chyby (sekce 4),
+s vadnými body je robustní fit blíž pravdě než nejmenší čtverce aspoň
+v 80 % případů, špatný model zůstane ve tvaru reziduí viditelný. Reálná
+data se známými vadami: rezistor 11 MOhm (sekce 2), ZrO2 21 d z 16.7.2026
+s body označenými THD. Nakonec cold agent na úloze, kterou nenavrhl autor
+implementace.
 
 ---
 
