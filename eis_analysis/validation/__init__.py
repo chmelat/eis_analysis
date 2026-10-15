@@ -9,7 +9,7 @@ from .kramers_kronig import (
 )
 from .kk_result import KKResult, LinKKResult
 from .kk_grid import find_optimal_extend_decades, reconstruct_impedance
-from .noise import compute_pseudo_chisqr, estimate_noise_percent
+from .noise import compute_pseudo_chisqr, estimate_noise_percent, estimate_noise_percent_median
 from .zhit import (
     zhit_validation,
     zhit_reconstruct_magnitude,
@@ -34,6 +34,7 @@ __all__ = [
     'LinKKResult',
     'compute_pseudo_chisqr',
     'estimate_noise_percent',
+    'estimate_noise_percent_median',
     'low_frequency_slope',
     'find_optimal_extend_decades',
     'reconstruct_impedance',

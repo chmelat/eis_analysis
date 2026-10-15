@@ -249,13 +249,19 @@ result.residuals_real      # Real part residuals (fraction)
 result.residuals_imag      # Imaginary part residuals (fraction)
 result.pseudo_chisqr       # Pseudo chi-squared (Boukamp 1995)
 result.noise_estimate      # Estimated noise [%] (Yrjana & Bobacka 2024)
+result.noise_estimate_median  # The same from the median residual: a few large
+                           # residuals do not move it. Above 2x apart a
+                           # warning says a few points dominate noise_estimate
+result.sparse_fit          # M > N/2: the chain passes through most points,
+                           # the median is meaningless (no warning, and no
+                           # relative criterion in find_outliers)
 result.inductance          # Fitted series inductance [H]
 result.capacitance         # Fitted series capacitance [F] (if include_C=True)
 result.elements            # Fitted elements [R_s, R_1, ..., R_M, L]
 result.tau                 # Time constants [s]
 result.warnings            # Caveats (max_M reached, extension rejected,
                            # a failed test on a capacitive low-frequency end
-                           # without include_C)
+                           # without include_C, noise dominated by a few points)
 result.capacitive_end      # That last case: residuals and noise_estimate
                            # describe the Voigt chain, not the data
 result.with_series_c       # ...so the test is rerun with include_C=True:
@@ -331,7 +337,9 @@ report.skipped   # Methods left out: median residual above max_residual (the
 A point must also exceed four times its method's median residual (README,
 Data quality), so the list can hold fewer KK points than
 `kk_result.n_above_threshold` counts; the verdict is `is_valid`, the list
-says where.
+says where. A Lin-KK point over 8 times the median Lin-KK residual is listed
+under `max_residual` as well (isolated bad points on a low-noise spectrum),
+so the list can also hold KK points `is_valid` does not count.
 
 **Harmonic distortion (Gamry THD option):**
 

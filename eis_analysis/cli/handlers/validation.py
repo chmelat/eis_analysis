@@ -31,6 +31,7 @@ from ...validation import (
 from ...visualization import plot_kk_validation, plot_zhit_validation, plot_thd
 from ...validation.kk_result import KK_MAX_FRACTION_ABOVE, KK_RESIDUAL_THRESHOLD
 from ...validation.zhit import _quality_label
+from ...validation.outliers import _ISOLATED_POINT_FACTOR
 from ...validation.thd import THD_TO_Z_ERROR
 
 logger = logging.getLogger(__name__)
@@ -381,7 +382,8 @@ def report_outliers(
         return report
 
     logger.warning(f"Suspicious points ({len(report.points)}, residual > "
-                   f"{args.max_residual:.1f}%, see --max-residual):")
+                   f"{args.max_residual:.1f}% (see --max-residual) or KK residual > "
+                   f"{_ISOLATED_POINT_FACTOR:g}x its median):")
     logger.warning(f"  {'f [Hz]':>10}  {'KK [%]':>8}  {'Z-HIT [%]':>10}   flagged by")
     # By frequency, not worst first: a run from one end of the spectrum, and
     # where it stops, is what tells drift from an isolated defect
@@ -391,12 +393,15 @@ def report_outliers(
         logger.warning(f"  {p.frequency:10.3e}  {kk}  {zhit}   {p.methods}")
 
     # Deviations in the lowest decade are usually sample drift (a real,
-    # non-stationary measurement) rather than bad points, and deleting them
-    # would hide the problem instead of fixing it.
+    # non-stationary measurement) or the Voigt chain missing the end of a
+    # diffusion or oxide spectrum (where the relative criterion of
+    # find_outliers raises its false flags) rather than bad points; deleting
+    # them would hide the problem instead of fixing it.
     f_min = float(min(frequencies))
     if any(p.frequency < f_min * 10 for p in report.points):
         logger.warning("  Note: deviations at the lowest frequencies are often "
-                       "sample drift, not bad points")
+                       "sample drift or the Lin-KK chain missing the end of the "
+                       "spectrum, not bad points")
 
     return report
 

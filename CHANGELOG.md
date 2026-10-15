@@ -4,6 +4,38 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+From cold-agent round 6 (`doc/COLD_AGENT.md`): two arcs 0.5 decade apart at
+0.1 % noise, 5 of 81 points off by 2-5 %. Lin-KK rated the data
+`excellent`, the per-point check listed one of the five points (as drift),
+and a fit pulled by them (R 142/38 Ohm instead of 100/80) read 1.0x the
+noise.
+
+### Fixed
+
+- **Isolated bad points under 5 % are listed.** `find_outliers` (and the
+  CLI per-point check) also flags a Lin-KK point whose residual exceeds 8
+  times the median Lin-KK residual, whatever `max_residual`. On the spectrum
+  above it lists exactly the five points. Calibrated on stress-test spectra
+  (README, Data quality); its false flags sit at the low-frequency end,
+  which the CLI note now attributes to drift or to the Lin-KK chain missing
+  the end of the spectrum. Off for Z-HIT, on noise-free data, and when
+  Lin-KK uses more elements than half the points (new
+  `KKResult.sparse_fit`: the chain then passes through most points and the
+  median says nothing about the noise).
+
+### Added
+
+- **A noise estimate carried by a few points is reported.** `KKResult` gets
+  `noise_estimate_median` (from the median residual, new
+  `estimate_noise_percent_median`), and a warning when `noise_estimate`
+  exceeds it by more than 2x (not on a sparse fit): the fit-to-noise ratio,
+  which divides by `noise_estimate`, can then pass a fit those points pull
+  (above: 0.70 % against 0.20 %). The ratio itself is unchanged on purpose:
+  with the median-based noise it would call every fit of a drifting
+  spectrum inadequate (real_gamry_example: 4.84 % against 0.79 %).
+
 ## Version 0.60.3 (2026-10-14)
 
 ### Fixed

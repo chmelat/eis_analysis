@@ -48,6 +48,30 @@ logger = logging.getLogger(__name__)
 # lands at 29%, flagging 1 point instead of 17).
 _METHOD_BASELINE_FACTOR = 4.0
 
+# A Lin-KK point far above the median residual is flagged even under the
+# absolute threshold: at 0.1 % noise a point 2-5 % off is 20-50 sigma and pulls
+# a fit (cold agent T13: 5 such points among 81, R1/R2 of two close arcs
+# 142/38 instead of 100/80) while the threshold lets all of them through.
+# Calibration (stress-test spectra, 6 families x 40, own noise 0.1-3 %, 6 % of
+# the points given an extra error; detection by error size in units of the
+# noise sigma, and spectra without bad points that get a false flag):
+#
+#   factor   10-20x   20-40x   >40x    false, 0.1 % / 0.3 % / 1 % noise
+#     4       0.85     0.93    0.97         0.30 / 0.14 / 0.07
+#     6       0.58     0.82    0.92         0.11 / 0.04 / 0.00
+#     8       0.31     0.67    0.84         0.08 / 0.01 / 0.00
+#    10       0.13     0.50    0.73         0.05 / 0.01 / 0.00
+#
+# 8: the false flags drop to the 0.1 % level, and those sit in the lowest
+# fifth of the points (37 of 52 in the lowest 5 %), where the Voigt chain
+# misses the end of a diffusion or oxide spectrum; the CLI note on deviations
+# in the lowest decade covers most of them. Off on a sparse fit
+# (KKResult.sparse_fit, 9 % of these spectra): no loss of detection.
+# The chain absorbs part of each bad point, so detection stays below what the
+# factor alone would give. Lin-KK only: the Z-HIT residual is a smoothed,
+# integrated quantity whose scatter this was not measured on.
+_ISOLATED_POINT_FACTOR = 8.0
+
 
 @dataclass
 class OutlierPoint:
@@ -180,18 +204,40 @@ def _usable_residuals(
 def _flagged(
     r: Optional[NDArray[np.float64]],
     max_residual: float,
-    n_points: int
+    n_points: int,
+    relative: bool = False
 ) -> NDArray[np.bool_]:
     """
     Per-point flag mask for one method: over the absolute threshold AND over
-    the method's own baseline (see _METHOD_BASELINE_FACTOR).
+    the method's own baseline (see _METHOD_BASELINE_FACTOR). With `relative`,
+    also over _ISOLATED_POINT_FACTOR x the median alone.
 
     Non-finite residuals never flag a point (NaN comparisons are False).
     """
     if r is None:
         return np.zeros(n_points, dtype=bool)
-    baseline = _METHOD_BASELINE_FACTOR * np.nanmedian(r)
-    return (r > max_residual) & (r > baseline)
+    median = np.nanmedian(r)
+    flagged = (r > max_residual) & (r > _METHOD_BASELINE_FACTOR * median)
+    if relative:
+        flagged |= r > _ISOLATED_POINT_FACTOR * median
+    return flagged
+
+
+def _relative_applies(kk_result) -> bool:
+    """
+    Does the relative criterion apply to this Lin-KK run? Not when its
+    median residual is below the noise floor (noise-free synthetic data) or
+    the chain has more elements than half the points (KKResult.sparse_fit):
+    then the median says nothing about the noise. The run is the one whose
+    residuals are used: with_series_c on a capacitive end. A stand-in without
+    sparse_fit (not a KKResult) gets the absolute criterion only.
+    """
+    from ..fitting.config import NOISE_FLOOR_PERCENT
+    if getattr(kk_result, 'capacitive_end', False):
+        kk_result = kk_result.with_series_c
+    if kk_result is None or getattr(kk_result, 'sparse_fit', True):
+        return False
+    return bool(kk_result.noise_estimate_median >= NOISE_FLOOR_PERCENT)
 
 
 def find_outliers(
@@ -212,7 +258,7 @@ def find_outliers(
     zhit_result : ZHITResult, optional
         Result of Z-HIT validation. None if it did not run.
     max_residual : float, optional
-        Flagging threshold [%] (default: 5.0, the same number as
+        Absolute flagging threshold [%] (default: 5.0, the same number as
         KK_RESIDUAL_THRESHOLD). Note this metric combines both residual
         components, so it runs up to sqrt(2) larger than the per-point
         max(|res_real|, |res_imag|) that `KKResult.is_valid` counts - the two
@@ -235,6 +281,13 @@ def find_outliers(
     keeps a method that reconstructs the spectrum poorly from filling the list
     with its own artifacts.
 
+    A Lin-KK point is also flagged below the threshold when its residual is
+    over _ISOLATED_POINT_FACTOR (8) x the median Lin-KK residual: on a
+    low-noise spectrum a point a few percent off is many sigma away and pulls
+    a fit. Not when the median is below the noise floor
+    (NOISE_FLOOR_PERCENT, noise-free synthetic data), not on a sparse fit
+    (KKResult.sparse_fit), not for Z-HIT.
+
     A method whose MEDIAN residual is already over the threshold is dropped
     into `skipped` instead: over half its points would be flagged, which is a
     global failure rather than a list of local ones.
@@ -251,7 +304,7 @@ def find_outliers(
     if r_kk is None and r_zhit is None:
         return report
 
-    bad_kk = _flagged(r_kk, max_residual, n)
+    bad_kk = _flagged(r_kk, max_residual, n, relative=_relative_applies(kk_result))
     bad_zhit = _flagged(r_zhit, max_residual, n)
 
     # `worst` counts only the methods that actually flagged the point.

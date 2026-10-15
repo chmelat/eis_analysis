@@ -8,7 +8,7 @@ from typing import List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from .noise import estimate_noise_percent
+from .noise import estimate_noise_percent, estimate_noise_percent_median
 
 
 # is_valid counts the points whose larger residual component, max(|res_real|,
@@ -113,6 +113,24 @@ class KKResult:
     def success(self) -> bool:
         """Check if KK validation completed successfully."""
         return self.Z_fit is not None and self.residuals_real is not None
+
+    @property
+    def sparse_fit(self) -> bool:
+        """More Voigt elements than half the points (M > N/2): the chain
+        passes almost through most points, so the median residual collapses
+        and says nothing about the noise. On a clean two-arc spectrum with
+        10-12 points (M = N - 2) a residual over 8x the median then appears
+        on most runs; on the stress-test spectra 9 % are sparse."""
+        return self.residuals_real is not None and self.M > len(self.residuals_real) / 2
+
+    @property
+    def noise_estimate_median(self) -> float:
+        """Noise [%] from the median residual (estimate_noise_percent_median):
+        unlike noise_estimate not moved by a few large residuals. nan if
+        validation failed."""
+        if self.residuals_real is None or self.residuals_imag is None:
+            return float('nan')
+        return estimate_noise_percent_median(self.residuals_real, self.residuals_imag)
 
     @property
     def mean_residual_real(self) -> float:

@@ -23,6 +23,22 @@ from .kk_grid import (EXTEND_N_EVALUATIONS, _chi2_lower_M,
 
 logger = logging.getLogger(__name__)
 
+# noise_estimate / noise_estimate_median above which a few points dominate the
+# noise estimate (KKResult warning). Gaussian residuals give ~1.0. Calibration
+# (stress-test spectra, 6 families x 40, own noise; share of spectra above):
+#
+#   noise   clean   + 6 % bad points, sigma 1 / 2.5 / 5 %
+#   0.1 %   0.07         0.38 / 0.81 / 0.82
+#   0.3 %   0.00         0.01 / 0.15 / 0.65
+#   1 %     0.00         0.00 / 0.00 / 0.02
+#
+# 2.5 halves the clean 0.1 % share (0.03) and loses a third of the detections
+# (0.57, 0.34 at 0.3 %/5 %). The clean cases above 2 are all a Lin-KK misfit
+# of the low-frequency end (diffusion, oxide, anomalous), where "a few points
+# dominate" is true as well. Example files: 0.97-1.24 with noise, T13 3.4,
+# EISPOT-M136113-4 2.9, real_gamry_example (drift) 6.3.
+NOISE_DOMINATED_RATIO = 2.0
+
 
 def low_frequency_slope(
     frequencies: NDArray[np.float64],
@@ -255,6 +271,26 @@ def lin_kk_native(
             if with_C is not None:
                 result.warnings += [f"With the series capacitance: {w}"
                                     for w in with_C.warnings if w not in result.warnings]
+
+    # A few large residuals (isolated bad points, local drift, or the chain
+    # missing the very end of the spectrum) inflate the mean-square noise but
+    # not the median. The fit-to-noise comparison divides by the former and
+    # then passes a fit those points pulled (cold agent T13: 0.70 % against
+    # 0.10 % without the 5 bad points, ratio 1.0 instead of 4.5). Not on a
+    # capacitive end: its warning already says the noise is the model's. Not
+    # on a sparse fit (KKResult.sparse_fit): its median says nothing.
+    from ..fitting.config import NOISE_FLOOR_PERCENT
+    noise_median = result.noise_estimate_median
+    if (not result.capacitive_end and not result.sparse_fit and np.isfinite(noise_est)
+            and noise_median >= NOISE_FLOOR_PERCENT
+            and noise_est > NOISE_DOMINATED_RATIO * noise_median):
+        result.warnings.append(
+            f"The noise estimate ({noise_est:.2f} %) is dominated by a few points: "
+            f"from the median residual it is {noise_median:.2f} %. Isolated bad "
+            f"points, local drift or a local misfit of the Voigt chain (usually at "
+            f"an end of the spectrum); the per-point residual check lists the "
+            f"points that stand out individually. Compared with {noise_est:.2f} %, "
+            f"a fit those points pull can still look adequate.")
     return result
 
 

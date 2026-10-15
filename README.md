@@ -594,6 +594,17 @@ describe, and a correct circuit would land at 2-5 or near 0 depending on the
 drift. With `--no-kk` the line is absent; `--voigt-chain` does not print it
 (it is a Lin-KK model itself).
 
+The cancellation fails when a few isolated bad points carry most of the
+noise: they enter the Lin-KK noise and the circuit fit alike, and the fit
+they pull still lands at ~1. Two arcs 0.5 decade apart at 0.1 % noise with 5
+of 81 points off by 2-5 %: Lin-KK noise 0.70 % (0.10 % without those
+points), the fit at 0.45 %, ratio 1.0 - against the true noise it would be
+4.5. The KK block then warns that the noise estimate is dominated by a few
+points, with the estimate from the median residual (0.20 %), when the two
+differ by more than a factor 2, and the per-point check lists the points
+that stand out individually (a smooth misfit at one end raises the warning
+without single points).
+
 The shape is reported as two measurements rather than as one verdict, because
 residuals commonly carry both at once and each asks for a different repair:
 
@@ -836,6 +847,8 @@ The pass/fail verdict differs between the two. Lin-KK fails when more than 5 % o
 - `--max-residual` (default: 5.0) - Residual threshold for flagging an individual point as suspicious [%]. Applies to both KK and Z-HIT: once the validations have run (either one alone is enough), points whose relative deviation `|Z - Z_fit| / |Z|` exceeds this value in *either* method are listed with the frequency, both residuals, and which method flagged them. Each residual plot is then marked with the points *its own* method flagged - a band on the KK panel at a frequency KK considers fine would contradict the `flagged by` column. The two methods are complementary - Lin-KK fits both impedance components and is sensitive to phase errors, Z-HIT reconstructs the magnitude from the phase and is sensitive to magnitude errors and drift. Nothing is removed or down-weighted; the list is diagnostic. Higher values = less sensitive.
 
   Two guards keep the list meaningful. A point must also exceed four times the median residual *of that method*, because a residual is the sum of the data error and the method's own reconstruction error, and Z-HIT's is the larger of the two (on measured spectra this changes nothing - the absolute threshold stays binding). And a method whose *median* residual already exceeds the threshold is skipped entirely - over half its points would be flagged, so the spectrum fails as a whole, which the `Data quality:` line already reports. The median rather than the mean: a handful of genuine outliers pulls a mean over the threshold and would switch the report off exactly when it has something to say.
+
+  On a low-noise spectrum a point a few percent off is many times the noise and pulls a fit, yet stays under 5 %. A Lin-KK point is therefore also listed, whatever `--max-residual`, when its residual exceeds 8 times the median Lin-KK residual. Example: two arcs 0.5 decade apart at 0.1 % noise, 5 of 81 points off by 2-5 %: the 5 % threshold lists one of them, the second criterion all five and no other point, and a fit of the right circuit to all points splits the polarisation resistance 142/38 Ohm instead of 100/80. Calibrated on stress-test spectra: it finds two thirds of the bad points 20-40 times the noise and 84 % of the larger ones, and flags a clean spectrum in 8 % of cases at 0.1 % noise, 1 % at 0.3 % and none from 1 % on. Those false flags lie at the low-frequency end, where the Lin-KK chain misses the end of a diffusion or oxide spectrum. Off on noise-free synthetic data (median residual under 0.05 %), when Lin-KK uses more elements than half the points (on a sparse grid the chain passes through most points and the median collapses), and for Z-HIT.
 
   Interpretation: an isolated point with good neighbours is usually a genuine defect (interference, contact, bubble). A systematic trend toward the lowest frequencies is usually sample drift - a real property of a non-stationary measurement, not a bad point, and deleting it hides the problem instead of fixing it.
 
