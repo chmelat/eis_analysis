@@ -79,6 +79,11 @@ noise.
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
 
+- **README says what to report after `--exclude-flagged`** (Per-point
+  residual check): the fit without the points with its own +/- and the
+  frequencies left out; the shift between the two fits is the pull of the
+  points, not an uncertainty or a range; a shift beyond the standard error
+  means unlisted points may still pull (cold-agent T14).
 - **The suggested circuit says what its quality checks.** A note under it:
   the quality compares sum(R_i) with R_pol only, close peaks merge, the
   elements are ideal C - fit it, one with an element more and one with Q,
