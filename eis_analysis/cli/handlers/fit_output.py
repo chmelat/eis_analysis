@@ -329,11 +329,13 @@ def _log_fit_result(result: FitResult,
                     noise_note: Optional[str] = None,
                     noise_source: Optional[str] = None,
                     suggest_exclude: bool = True,
-                    n_excluded: int = 0) -> None:
+                    n_excluded: int = 0,
+                    n_flagged_kept: int = 0) -> None:
     """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape.
 
-    `n_excluded` is the number of points --exclude-flagged left out; with any,
-    a note says how to report the fit.
+    `n_excluded` is the number of points --exclude-flagged left out,
+    `n_flagged_kept` the number of KK-flagged points a fit without it keeps;
+    with either, a note says which fit to report.
     """
     logger.info("")
     logger.info("Fit results:")
@@ -431,5 +433,14 @@ def _log_fit_result(result: FitResult,
         logger.info("  not an uncertainty to quote as a range; a shift beyond the +/- means "
                     "points the")
         logger.info("  check did not list may still pull.")
+    # Cold-agent A/B (T13, T14, 12 runs): all computed the fit without the
+    # points, but 7 reported this one or a range of both - the note above
+    # sits only under the other fit
+    if n_flagged_kept:
+        logger.warning(f"  This fit includes the {n_flagged_kept} point(s) Lin-KK flagged "
+                       "above the lowest decade.")
+        logger.warning("  Report the fit without them (--exclude-flagged kk) with its +/-, "
+                       "not this one")
+        logger.warning("  and not a range of both.")
 
     log_separator()

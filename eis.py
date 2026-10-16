@@ -53,6 +53,7 @@ from eis_analysis.cli import (
     apply_zhit_reconstruction,
     report_outliers,
     select_excluded,
+    flagged_in_fit,
     report_thd,
     plot_validation,
     run_rinf_estimation,
@@ -110,6 +111,8 @@ def _run_analysis(args) -> None:
     # them; threading them through every fitting path would cost more.
     excluded = select_excluded(data.frequencies, report, kk_result, zhit_result, args)
     args.excluded_frequencies = excluded
+    # Without --exclude-flagged: the flagged points the fit keeps, for its note
+    args.flagged_in_fit = flagged_in_fit(data.frequencies, report, args)
 
     # Filter to the analysis region. The Lin-KK noise ran on the full
     # spectrum; the fit is compared with it on the points it is fitted to.

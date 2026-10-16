@@ -487,6 +487,41 @@ def select_excluded(
     return excluded
 
 
+def flagged_in_fit(
+    frequencies: NDArray,
+    report: OutlierReport,
+    args: argparse.Namespace
+) -> List[float]:
+    """
+    The KK-flagged points a fit without --exclude-flagged keeps, for its note.
+
+    The points the per-point check names --exclude-flagged kk for: inside
+    --f-min/--f-max and above the lowest decade of that range (below it they
+    are often drift). Empty with --exclude-flagged, which left them out.
+
+    Parameters
+    ----------
+    frequencies : ndarray
+        Frequency array [Hz] the validations ran on
+    report : OutlierReport
+        Result from report_outliers
+    args : argparse.Namespace
+        CLI arguments (uses: exclude_flagged, f_min, f_max)
+
+    Returns
+    -------
+    list of float
+        Frequencies [Hz], possibly empty
+    """
+    if getattr(args, 'exclude_flagged', None) is not None:
+        return []
+    kept = np.asarray(frequencies)[frequency_mask(np.asarray(frequencies), args)]
+    if not kept.size:
+        return []
+    low_limit = LOWEST_DECADE_FACTOR * float(kept.min())
+    return [f for f in report.frequencies_flagged_by('kk') if f in kept and f >= low_limit]
+
+
 def plot_validation(
     frequencies: NDArray,
     Z: NDArray,

@@ -65,7 +65,8 @@ def run_circuit_fitting(
                        optional: f_min, f_max, exclude_flagged, and
                        excluded_frequencies - the points select_excluded
                        chose, set on args by the pipeline (eis.py) for the
-                       fit JSON)
+                       fit JSON - and flagged_in_fit, the KK-flagged points a
+                       fit without --exclude-flagged keeps, for its note)
     noise_percent : float, optional
         Lin-KK noise of these points [%] (kk_noise_for_fit). Without it the
         fit is not compared with the noise. Standard circuits only: a Voigt
@@ -293,7 +294,8 @@ def _fit_standard_circuit(
                         noise_note if noise_percent is None else None,
                         noise_note if noise_percent is not None else None,
                         getattr(args, 'exclude_flagged', None) is None,
-                        len(getattr(args, 'excluded_frequencies', None) or []))
+                        len(getattr(args, 'excluded_frequencies', None) or []),
+                        len(getattr(args, 'flagged_in_fit', None) or []))
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

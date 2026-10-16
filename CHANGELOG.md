@@ -6,6 +6,16 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Changed
+
+- **A fit that keeps flagged points says so.** Without `--exclude-flagged`,
+  while Lin-KK flagged points above the lowest decade of the analysis range,
+  a warning under the circuit fit names their number and says to report the
+  fit without them, not this one and not a range of both. In an A/B run of
+  cold agents (T13, T14, 12 runs) all computed the fit without the points,
+  but 7 reported the one with them or a range of both; the note after
+  `--exclude-flagged` sat only under the other fit.
+
 ### Added
 
 - **The sum of the arc resistances with its uncertainty.** Two or more
