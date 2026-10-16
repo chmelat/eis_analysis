@@ -392,6 +392,41 @@ priklad v PYTHON_API pouziva `gmm` a pro scipy `diagnostics.scipy_peaks`
 to vypisuje. Opakovane: "Suggestion quality: GOOD" u navrhu, ktery fit
 odmitne (P2).
 
+## Kolo 6, krok 5 (2026-10-16): T14 znovu s Haiku a `--exclude-flagged`
+
+Puvodni T14 (seed 6201, stejna data jako v kroku 2), Haiku. Piskoviste
+z 58b510f: `--exclude-flagged`, `--seed`, opravy P2-P4, O3, O4; README bez
+prikladu T13/T14, bez CHANGELOG a `ROBUST_LOSS_SOFT_L1.md`. Cena 0.10 USD,
+4.5 min, 26 tahu. Bod 0 "ne".
+
+| | Haiku, krok 2 | Haiku, krok 5 | Opus, krok 3 | Pravda |
+|---|---|---|---|---|
+| R1 / R2 [Ohm] | 149.9 +- 10.6 / 59.8 +- 10.7 | 123.2 +- 10.6 / 86.6 +- 10.7 | 123 / 87 | 120 / 90 |
+| tau1 / tau2 [ms] | 2.26 / 11.8 | 2.02 / 8.2 | 2.02 / 8.2 | 2.00 / 7.96 |
+| R_s [Ohm] | 3.00 | 2.999 | 3.000 | 3.0 |
+
+Postup: vychozi beh (varovani N1 a napoveda `--exclude-flagged kk`),
+porovnani 4 kandidatu (BIC: 2 CPE, jeden oblouk o 327 hur), treti oblouk
+(S = 0.005, BIC +14.6), pak `--exclude-flagged kk` jako hlavni vysledek
+a beh na vsech bodech jako citlivost; `--lambda-probe`. Nejistotu R1 + R2
+(0.2 Ohm pri korelaci -1) spocital z `covariance` v JSON (O3), `--seed`
+pouzil a overil bitovou shodu dvou behu. Vysledek v toleranci, stejny jako
+Opus. Chyby agenta: posun rozdeleni udava "60-70 Ohm" (je 27); vychylky
+~2 % v 0.04-0.3 Hz videl (tri vadne body, ktere kontrola po bodech
+nevypise), nevyradil je.
+
+### Nove nalezy (overeno)
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| R1 | C | Varovani `Residuals are not random` vypise trend (p 0.84 / 0.34) a strukturu (power 0.06), oba nevyznamne, a nerekne, ze ho spustil runs test (Re p = 1e-3); agent to cetl jako rozpor (beh se 3 oblouky) | T14 |
+| R2 | C | CLI vypise `Suggestion quality: GOOD` a `Suggested circuit: R(3.032) - (R(209.6) \| C(1.403e-05))` bez poznamky; fit ho zamitne (BIC o 327). README to od P2 rika, vystup ne | T14 |
+| R3 | C | README u `--exclude-flagged` rika, ze par bodu posune rozdeleni R o desitky procent, ale ne, kterou variantu reportovat | T14 |
+| R4 | C | README u `--lambda-probe` nerika, ze stabilni pik muze byt slouceni dvou procesu (STABLE neurcuje pocet procesu) | T14 |
+
+Bez akce: DE 2.0 % -> 0.45 % po doladeni bez varovani (opakovane z kroku
+4; radek `Improvement (SSR)` to vypisuje).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -424,6 +459,7 @@ odmitne (P2).
 | N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) odlozen 2026-10-15: prepinac to pokryva (`ROBUST_LOSS_SOFT_L1.md`, 4.3) |
 | N6 (kolo 6) | opraveno v dokumentaci: ukazka "Fit result export" importuje `parse_circuit_expression` |
 | N5 (kolo 6) | opraveno: CLI `--seed N` pro DE i multistart (N7 je chyba agenta) |
+| R1-R4 (kolo 6, krok 5) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 
