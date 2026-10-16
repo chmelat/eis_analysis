@@ -11,7 +11,9 @@ working.
               plot_validation
 - rinf:       run_rinf_estimation
 - drt:        run_drt_analysis, run_voigt_analysis
-- fitting:    run_circuit_fitting
+- fitting:    run_circuit_fitting (standard fit and candidate comparison;
+              its console report and files in fit_output, the
+              --voigt-chain path in voigt_fit)
 - fit_noise:  kk_noise_for_fit
 - oxide:      run_oxide_analysis
 - local_exponent: run_local_exponent

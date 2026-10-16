@@ -281,7 +281,7 @@ def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
     Nothing is suppressed any more - the reader tells the parts apart from the
     p-value and the power, which is why those two numbers are on the line.
     """
-    from eis_analysis.cli.handlers.fitting import _log_residual_diagnostics
+    from eis_analysis.cli.handlers.fit_output import _log_residual_diagnostics
 
     noise_part = 0.3 * np.sin(2 * np.pi * LOG_FREQ / 1.5) + _noise(11, scale=1.5)
     drift_part = 30 * np.tanh((LOG_FREQ - 1.5) / 2)
@@ -301,7 +301,7 @@ def test_a_noise_part_reports_numbers_that_disown_themselves(caplog):
 
 def test_cli_wrapper_survives_a_broken_diagnostic():
     """A diagnostic failure must never cost the user a converged fit."""
-    from eis_analysis.cli.handlers import fitting as handler
+    from eis_analysis.cli.handlers import fit_output as handler
 
     broken = np.array([1.0, 2.0])               # length mismatch -> raises
     assert handler._residual_diagnostics(FREQ, FLAT_Z, broken, 'modulus') is None

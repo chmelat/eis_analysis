@@ -79,6 +79,15 @@ noise.
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
 
+### Internal
+
+- `cli/handlers/fitting.py` (882 lines) is split into `fit_output.py`
+  (console report, fit JSON/CSV and figure), `voigt_fit.py` (the
+  `--voigt-chain` path) and `fitting.py` (dispatch, standard fit, candidate
+  comparison). CLI output is identical; the fit report and the Voigt-chain
+  report now log under `eis_analysis.cli.handlers.fit_output` and
+  `...voigt_fit` instead of `...fitting`.
+
 ## Version 0.60.3 (2026-10-14)
 
 ### Fixed

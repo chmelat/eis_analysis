@@ -106,7 +106,7 @@ ktere stavi `FitResult`:
 
 Multistart vola `fit_equivalent_circuit`, takze dostane kanonicke poradi
 automaticky (a jeho srovnani startu bude konzistentni). Cesta v
-`cli/handlers/fitting.py:677` (Voigt) zamenitelne bloky v tomto smyslu
+`cli/handlers/voigt_fit.py` (Voigt) zamenitelne bloky v tomto smyslu
 nema - overit a pripadne vynechat.
 
 Vse, co se pocita az potom - `bound_status`, `params_at_bounds`,

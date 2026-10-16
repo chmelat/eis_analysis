@@ -446,7 +446,7 @@ Varování, která dnes na vadné body upozorňují, mají `--robust-loss` jmeno
 (sekce 4.1: agent upozornění četl a nic neudělal): varování Lin-KK, že odhad
 šumu táhne pár bodů (`kramers_kronig.py`, `NOISE_DOMINATED_RATIO`),
 seznam podezřelých bodů (`cli/handlers/validation.py`, `report_outliers`)
-a varování "Residuals are not random" (`cli/handlers/fitting.py`).
+a varování "Residuals are not random" (`cli/handlers/fit_output.py`).
 
 Dál zasáhne robustní ztráta do míst, která dnes počítají se součtem
 čtverců: srovnání kandidátů AIC/BIC (`model_comparison.py`) musí v robustním

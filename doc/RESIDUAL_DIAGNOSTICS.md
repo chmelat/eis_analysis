@@ -7,7 +7,7 @@ model is finished or merely close.
 
 CLI usage is in [README.md](../README.md). The implementation
 is `analyze_residuals` in `eis_analysis/fitting/residual_diagnostics.py`, the
-printing in `eis_analysis/cli/handlers/fitting.py`.
+printing in `eis_analysis/cli/handlers/fit_output.py`.
 
 ---
 

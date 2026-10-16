@@ -223,7 +223,7 @@ def test_namespace_without_input_options_keeps_the_fit(spectrum, tmp_path, monke
 
 
 def test_unexpected_export_error_keeps_the_fit(spectrum, tmp_path, monkeypatch):
-    import eis_analysis.cli.handlers.fitting as handler
+    import eis_analysis.cli.handlers.fit_output as handler
 
     def broken(*args, **kwargs):
         raise IndexError("boom")
