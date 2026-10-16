@@ -504,7 +504,8 @@ zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
 | R4 (kolo 6, krok 5) | opraveno v README (`--lambda-probe`): STABLE vylucuje artefakt regularizace, ne slouceni dvou procesu; na T14 zustane 1 pik i pri lambda 1e-8 |
 | S1 (kolo 6, krok 6) | opraveno: pod fitem s vyloucenymi body (`--exclude-flagged`) poznamka v CLI - reportovat fit s +/- a vynechanymi frekvencemi, posun proti fitu se vsemi body neni nejistota ani rozpeti (standardni obvody, ne `--voigt-chain`) |
 | S2 (kolo 6, krok 6) | opraveno v README: nadpis "Voigt chain (model-free fit)" misto "Automatic circuit suggestion" s odkazem na `Suggested circuit` z DRT; sekce Voigt chain - retezec je hladky popis spektra, M sleduje sum a hustotu bodu, cist z nej R_s a R_pol |
-| S3-S5 (kolo 6, krok 6) | otevrene |
+| S3 (kolo 6, krok 6) | opraveno v README (R_inf): co je "flat", zaviraji se oblouk necha median o par % vys bez varovani (T13: 2.038 vs 2.000), `--ri-fit` kdyz na R_inf zalezi; R_s z fitu obvodu na nem nezavisi. Prah -Z''/Z' v CLI nekalibrovan, nedelano |
+| S4, S5 (kolo 6, krok 6) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 

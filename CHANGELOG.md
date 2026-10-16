@@ -15,6 +15,11 @@ Complete change history for all project versions.
   "Voigt chain (model-free fit)" and points to the DRT's `Suggested
   circuit`; the Voigt chain section says M follows the noise and the point
   density and what to read from the chain (R_s, R_pol).
+- **README says when the default R_inf is off and when it matters.** A
+  closing arc at f_max leaves the HF median a few percent high without a
+  warning (cold-agent T13: 2.038 against 2.000 Ohm, -Z''/Z' 4 % at 1 MHz);
+  `--ri-fit` when R_inf matters. A circuit fit's R_s does not depend on it;
+  R_inf feeds the DRT, R_pol and the suggested circuit.
 
 ## Version 0.61.0 (2026-10-16)
 

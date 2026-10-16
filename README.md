@@ -401,6 +401,13 @@ points, which assumes the spectrum has already flattened onto the real axis at
 f_max. A median more than 5 % above the two highest points (with Im(Z) <= 0)
 reaches into an arc still open there; the first of them, an upper bound of
 R_inf, is used instead, with a warning. Use `--ri-fit` when the spectrum has not flattened.
+Flat means -Z'' at f_max small against Re(Z) and Re(Z) no longer falling. A
+closing arc (a CPE tail, -Z''/Z' of a few percent at f_max) leaves the median
+a few percent high without a warning - the warning needs 5 %. When R_inf
+matters, run `--ri-fit`: one small fit, printed next to the HF bound, and the
+DRT section states its difference from the HF median. With a circuit fit,
+R_s is a fit parameter and depends on neither; R_inf feeds the DRT, R_pol and
+the suggested circuit.
 `R_pol (from data)` is the median Re(Z) of the (up to 5) lowest-frequency
 points minus R_inf: a lower bound when an arc is still open at f_min
 (cold-agent task T12: 180 Ohm, true 950), as is `R_pol (from DRT integral)`;
