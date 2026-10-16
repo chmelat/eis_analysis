@@ -193,7 +193,8 @@ columns in the order of `parameters`, in the parameters' own units (not log);
 a fixed parameter has a zero row. The uncertainty of a derived quantity needs
 the off-diagonal terms: for two arcs fitted close together R1 and R2 are
 often correlated near -1, and stderr(R1 + R2) = sqrt(c11 + c22 + 2 c12) is
-then far below either stderr (`time_constants` does this for tau).
+then far below either stderr (`time_constants` does this for tau,
+`arc_resistance_sums` for the sum of the arc resistances).
 Values without meaning are `null`:
 the uncertainty of a fixed or at-bound parameter, dof and AIC/BIC of the
 linear Voigt chain (no free-parameter count), and any inf or NaN, so the
@@ -633,6 +634,21 @@ for arc in arc_time_constants(result):   # result of a fit (.best_result for
                      #   'n0 near its upper bound', 'covariance not
                      #   usable'), else None
     arc.frequency    # 1/(2*pi*tau) [Hz], where -Z'' peaks
+```
+
+```python
+from eis_analysis.fitting import arc_resistance_sums
+
+for s in arc_resistance_sums(result):   # one per series chain with >= 2 arcs
+    s.elements       # 'R1 + R2' (a G arc as '1/G0')
+    s.R              # the sum [Ohm]
+    s.stderr         # [Ohm], delta method on the full covariance; None
+                     #   without a covariance or with an R near a bound
+    s.stderr_note    # why stderr is None, else None
+    s.stderr_parts   # stderr of each R alone
+    s.split_less_certain  # s.stderr below all of them: the sum is
+                     #   determined, the split between the arcs is not
+    s.correlation    # of the two R for exactly two arcs, else None
 ```
 
 An arc is a parallel pair of one R (or G) and one C or Q. A C or Q beside a longer

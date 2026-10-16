@@ -92,7 +92,8 @@ from .residual_diagnostics import (
 # Import Voigt element analysis from DRT
 from .auto_suggest import analyze_voigt_elements, VoigtSuggestion, VoigtElement
 
-from .time_constants import arc_time_constants, ArcTimeConstant
+from .time_constants import (arc_time_constants, ArcTimeConstant,
+                             arc_resistance_sums, ArcResistanceSum)
 
 # Import Voigt chain linear fitting
 from .voigt_chain import (
@@ -124,6 +125,8 @@ from .diffevo import (
 __all__ = [
     'arc_time_constants',
     'ArcTimeConstant',
+    'arc_resistance_sums',
+    'ArcResistanceSum',
     # Circuit elements
     'R',
     'C',

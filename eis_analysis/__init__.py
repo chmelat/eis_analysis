@@ -76,6 +76,8 @@ from .fitting import (
     # Time constants of the arcs
     arc_time_constants,
     ArcTimeConstant,
+    arc_resistance_sums,
+    ArcResistanceSum,
 )
 
 # Analysis
@@ -134,6 +136,8 @@ __all__ = [
     'fit_voigt_chain_linear',
     'arc_time_constants',
     'ArcTimeConstant',
+    'arc_resistance_sums',
+    'ArcResistanceSum',
     # Analysis
     'analyze_oxide_layer',
     'local_exponent',

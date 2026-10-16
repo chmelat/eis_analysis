@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..analysis import OxideAnalysisResult
-from ..fitting import FitResult, arc_time_constants
+from ..fitting import FitResult, arc_time_constants, arc_resistance_sums
 from ..fitting.diagnostics import compute_information_criteria
 from ..version import __version__
 
@@ -128,6 +128,19 @@ def fit_result_record(
              'stderr_note': arc.stderr_note,
              'f_Hz': _finite(arc.frequency)}
             for arc in arc_time_constants(result)
+        ],
+        # Sum of the arc resistances per series chain: with close arcs R1
+        # and R2 are correlated near -1 and the sum is the determined number
+        'arc_resistance_sums': [
+            {'elements': s.elements,
+             'R_Ohm': _finite(s.R),
+             'stderr_Ohm': None if s.stderr is None else _finite(s.stderr),
+             'stderr_note': s.stderr_note,
+             'stderr_parts_Ohm': (None if s.stderr_parts is None
+                                  else [_finite(v) for v in s.stderr_parts]),
+             'correlation': None if s.correlation is None else _finite(s.correlation),
+             'split_less_certain': s.split_less_certain}
+            for s in arc_resistance_sums(result)
         ],
         'metrics': {
             'fit_error_rel_pct': _finite(result.fit_error_rel),

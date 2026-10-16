@@ -548,7 +548,13 @@ stderr is left out and the line says why. An arc is a parallel pair of exactly
 one R (or G) and one C or Q: in the example above `C0` has the branch
 `R1 - Ws` beside it and gets no line, because the resistance beside it at DC
 includes `R_W`, so R*C would not be the charge-transfer time constant
-(`R1 * C0` is, by hand).
+(`R1 * C0` is, by hand). Two or more arcs in series also get the sum of
+their resistances (under `Arc resistances in series:`) with its standard error, `R1 + R2  R = ... +/- ...`, and
+for two the correlation of R1 and R2. Close arcs are correlated near -1:
+each R is then poorly determined and the sum is not (the line says `the
+split is less certain than the sum`), so the sum is the number to report.
+Every (R|C) and (R|Q) pair of the chain counts, also one without a time
+constant; with G = 0 the chain blocks DC and no sum is printed.
 
 This is a different question from the standard error. A wide CI has two very
 different causes - the parameter is irrelevant, or it is strongly correlated
@@ -951,7 +957,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance in the order of the parameters (see [doc/PYTHON_API.md](doc/PYTHON_API.md), Fit result export, for the uncertainty of a sum like R1 + R2), warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
+- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs and the sum of the arc resistances, fit metrics with AIC/BIC, covariance in the order of the parameters (see [doc/PYTHON_API.md](doc/PYTHON_API.md), Fit result export, for the uncertainty of a sum like R1 + R2), warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

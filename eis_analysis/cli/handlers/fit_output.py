@@ -21,6 +21,7 @@ from ...fitting import (
     MultistartResult,
     DiffEvoResult,
     arc_time_constants,
+    arc_resistance_sums,
 )
 from ...fitting.diagnostics import NoiseAdequacyResult
 from ...fitting.residual_diagnostics import (
@@ -377,6 +378,20 @@ def _log_fit_result(result: FitResult,
                    else f" (no stderr: {arc.stderr_note})")
             logger.info(f"    {arc.elements:11s} tau = {arc.tau:.2e} s{err}  "
                         f"(f = {arc.frequency:.2e} Hz)")
+    # The sum of the arc resistances in series: with close arcs R1 and R2 are
+    # correlated near -1, each is poorly determined and the sum is not - the
+    # number cold agents (T13, T14) computed by hand from the covariance
+    sums = arc_resistance_sums(result)
+    if sums:
+        logger.info("  Arc resistances in series:")
+    for s in sums:
+        if s.stderr is None:
+            logger.info(f"    {s.elements:11s} R = {s.R:.4e} Ohm (no stderr: {s.stderr_note})")
+            continue
+        notes = ([f"corr {s.correlation:+.2f}"] if s.correlation is not None else []) + \
+            (["the split is less certain than the sum"] if s.split_less_certain else [])
+        note = f"  ({': '.join(notes)})" if notes else ""
+        logger.info(f"    {s.elements:11s} R = {s.R:.4e} Ohm +/- {s.stderr:.2e}{note}")
 
     # Fit quality
     logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")

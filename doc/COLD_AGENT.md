@@ -505,7 +505,8 @@ zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
 | S1 (kolo 6, krok 6) | opraveno: pod fitem s vyloucenymi body (`--exclude-flagged`) poznamka v CLI - reportovat fit s +/- a vynechanymi frekvencemi, posun proti fitu se vsemi body neni nejistota ani rozpeti (standardni obvody, ne `--voigt-chain`) |
 | S2 (kolo 6, krok 6) | opraveno v README: nadpis "Voigt chain (model-free fit)" misto "Automatic circuit suggestion" s odkazem na `Suggested circuit` z DRT; sekce Voigt chain - retezec je hladky popis spektra, M sleduje sum a hustotu bodu, cist z nej R_s a R_pol |
 | S3 (kolo 6, krok 6) | opraveno v README (R_inf): co je "flat", zaviraji se oblouk necha median o par % vys bez varovani (T13: 2.038 vs 2.000), `--ri-fit` kdyz na R_inf zalezi; R_s z fitu obvodu na nem nezavisi. Prah -Z''/Z' v CLI nekalibrovan, nedelano |
-| S4, S5 (kolo 6, krok 6) | otevrene |
+| S4 (kolo 6, krok 6) | opraveno: `arc_resistance_sums` - soucet odporu oblouku v serii s nejistotou z cele kovariance a korelaci R1/R2; CLI radek pod casovymi konstantami ("the split is less certain than the sum", kdyz je stderr souctu pod stderr kazdeho R), JSON `arc_resistance_sums`. T13 180.00 +- 0.04, T14 209.84 +- 0.16 |
+| S5 (kolo 6, krok 6) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 

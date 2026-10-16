@@ -6,6 +6,16 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Added
+
+- **The sum of the arc resistances with its uncertainty.** Two or more
+  (R|C)/(R|Q) arcs in series get a line under the time constants, `R1 + R2
+  R = ... Ohm +/- ...`, with the R1/R2 correlation for two; the fit JSON
+  has `arc_resistance_sums`, the API `arc_resistance_sums(result)`. Close
+  arcs are correlated near -1, so each R is poorly determined and the sum is
+  not (cold-agent T13: R1 104.9 +- 3.8, R2 75.2 +- 3.8, sum 180.00 +- 0.04).
+  Agents computed it by hand from the covariance in three runs.
+
 ### Documentation
 
 - **README: the Voigt chain is not a circuit of the processes.** The quick
