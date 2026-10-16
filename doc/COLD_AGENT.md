@@ -459,7 +459,8 @@ Bez akce: DE 2.0 % -> 0.45 % po doladeni bez varovani (opakovane z kroku
 | N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) odlozen 2026-10-15: prepinac to pokryva (`ROBUST_LOSS_SOFT_L1.md`, 4.3) |
 | N6 (kolo 6) | opraveno v dokumentaci: ukazka "Fit result export" importuje `parse_circuit_expression` |
 | N5 (kolo 6) | opraveno: CLI `--seed N` pro DE i multistart (N7 je chyba agenta) |
-| R1-R4 (kolo 6, krok 5) | otevrene |
+| R1 (kolo 6, krok 5) | opraveno: varovani `Residuals are not random` ma prvni radek `runs test: p = ... (fails below 0.01)` - spoustec; README a RESIDUAL_DIAGNOSTICS s nim. Vyklad "runs propadne, trend a struktura nevyznamne = izolovane body" v CLI ne (chybi prah nevyznamneho trendu) |
+| R2-R4 (kolo 6, krok 5) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 

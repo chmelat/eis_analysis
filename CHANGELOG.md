@@ -79,6 +79,12 @@ noise.
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
 
+- **The `Residuals are not random` warning names its trigger.** Its first
+  line is the runs test (`runs test: p = ... (fails below 0.01)`); trend and
+  structure below it only describe the shape. With both insignificant and
+  the trigger unnamed, the warning read as contradicting itself (cold-agent
+  T14).
+
 ### Internal
 
 - `cli/handlers/fitting.py` (882 lines) is split into `fit_output.py`

@@ -568,6 +568,7 @@ few percent while its residuals march smoothly across the spectrum. Both
   Fit vs. noise: 3.96% vs 4.84% (Lin-KK, same points), ratio 0.8 (limit 2)
   Residuals: rho1 = +0.91 / +0.90 (Re/Im), runs p = 1.9e-13 / 3.1e-14
 !   Residuals are not random (Re/Im, 7.1 decade window):
+!     runs test: p = 1.9e-13 / 3.1e-14 (fails below 0.01)
 !     trend:     +0.65 / -0.11 per decade, span 4.6 / 0.8 (p = 1.1e-30 / 2.1e-01)
 !     structure: amplitude 0.84 / 0.22 (power 0.90 / 0.48, noise < 0.2)
 !     A trend means an element is missing or of the wrong type. Structure left
@@ -582,7 +583,9 @@ few percent while its residuals march smoothly across the spectrum. Both
 `rho1` is the lag-1 autocorrelation, ~0 for independent residuals and near 1
 when neighbouring points share a systematic offset. `runs p` is a runs test
 against the median: the p-value that this many sign changes could come from
-independent residuals. A quality of `Good` alongside that warning is not a
+independent residuals. It alone raises the warning (below 0.01 in Re or Im),
+which repeats it on its first line; trend and structure below only describe
+the shape, so both can come out insignificant. A quality of `Good` alongside that warning is not a
 contradiction - the fit is close, and still the wrong model. A few isolated
 bad points fail the runs test as well, while `rho1` stays near 0; the
 per-point residual check of the validation then lists them, and a fit

@@ -25,6 +25,7 @@ from ...fitting import (
 from ...fitting.diagnostics import NoiseAdequacyResult
 from ...fitting.residual_diagnostics import (
     MIN_PERIODOGRAM_POWER,
+    RUNS_P_THRESHOLD,
     ResidualDiagnostics,
     analyze_residuals,
 )
@@ -282,6 +283,12 @@ def _log_residual_diagnostics(d: Optional[ResidualDiagnostics],
     # and the p-value and power to see whether each is there at all.
     logger.warning(f"  Residuals are not random "
                    f"(Re/Im, {d.window_decades:.1f} decade window):")
+    # The runs test is what raised the warning; trend and structure below only
+    # describe the shape. Cold agent T14: with both insignificant and no
+    # trigger named, the warning read as contradicting itself.
+    logger.warning(
+        f"    runs test: p = {_fmt_pair(d.real.runs_p, d.imag.runs_p, '.1e')} "
+        f"(fails below {RUNS_P_THRESHOLD})")
     span_re, span_im = (abs(s.slope) * d.window_decades for s in (d.real, d.imag))
     logger.warning(
         f"    trend:     {_fmt_pair(d.real.slope, d.imag.slope, '+.2g')} per decade, "

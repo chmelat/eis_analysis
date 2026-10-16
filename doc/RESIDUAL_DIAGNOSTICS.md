@@ -208,6 +208,7 @@ Every `--circuit` and `--voigt-chain` fit ends with:
 ```
   Residuals: rho1 = +0.99 / +0.99 (Re/Im), runs p = 8.3e-17 / 5.4e-16
 !   Residuals are not random (Re/Im, 7.0 decade window):
+!     runs test: p = 8.3e-17 / 5.4e-16 (fails below 0.01)
 !     trend:     -2.2 / -2.3 per decade, span 15 / 16 (p = 7.6e-04 / 1.6e-03)
 !     structure: amplitude 14 / 17 (power 0.73 / 0.89, noise < 0.2)
 !     A trend means an element is missing or of the wrong type. Structure left after
@@ -294,6 +295,7 @@ Data from two RC branches with close time constants, fitted with one branch:
   Fit error: 3.74% (rel)
   Residuals: rho1 = +0.90 / +0.87 (Re/Im), runs p = 4.9e-09 / 6.8e-06
 !   Residuals are not random (Re/Im, 7.0 decade window):
+!     runs test: p = 4.9e-09 / 6.8e-06 (fails below 0.01)
 !     trend:     -0.1 / -0.0081 per decade, span 0.73 / 0.056 (p = 1.0e-01 / 8.9e-01)
 !     structure: amplitude 0.92 / 0.88 (power 0.33 / 0.34, noise < 0.2)
 ```
@@ -318,6 +320,7 @@ Data with a Warburg diffusion tail, fitted without one:
   Fit error: 11.35% (rel)
   Residuals: rho1 = +0.92 / +0.93 (Re/Im), runs p = 3.0e-12 / 6.8e-11
 !   Residuals are not random (Re/Im, 7.0 decade window):
+!     runs test: p = 3.0e-12 / 6.8e-11 (fails below 0.01)
 !     trend:     -0.66 / +1.3 per decade, span 4.6 / 8.9 (p = 1.1e-04 / 1.0e-11)
 !     structure: amplitude 3.5 / 3.9 (power 0.75 / 0.89, noise < 0.2)
 ```
