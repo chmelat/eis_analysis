@@ -93,7 +93,7 @@ R_s is the estimate of R_inf. `j*omega*L` absorbs the cable/lead inductance and
 the (R|Q) element the high-frequency end of the first arc, including a
 depressed (CPE) one, so neither distorts the extrapolation to omega -> infinity.
 One nonlinear fit (`fit_equivalent_circuit`, modulus weighting, the standard
-parameter bounds, so L >= 1 pH and 0.3 <= n <= 1) covers inductive,
+bounds below, so L >= 0 and 0.3 <= n <= 1) covers inductive,
 capacitive and mixed high-frequency ends alike.
 
 ### Window
@@ -258,6 +258,12 @@ R-L-(R|Q) fit, 506-3.99e+04 Hz (20 points): R_inf = 1.082 +- 0.011 Ohm (1 %)
 HF upper bound: Re(Z) = 1.355 Ohm at 3.99e+04 Hz
 Using R_inf = 1.082 Ohm (fit)
 ```
+
+`L` is printed without an uncertainty: it is there to absorb the cabling,
+not to be reported. A value like `L = 2.5e-15 nH` is L = 0, its lower bound:
+the window shows no inductance (its top points are capacitive) and the fit
+switched the term off. That is a result, not a failure. The fit's own
+uncertainty of L, if needed, is `est.fit.params_stderr[1]` in the API.
 
 The DRT stage then skips its own `R_inf estimation` section and states the
 value where it uses it, with a comparison against the HF median. The diagnostic

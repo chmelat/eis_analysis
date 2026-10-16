@@ -31,6 +31,10 @@ Pro jeden fit to nevadi. Vadi to pri srovnani fitu rady spekter (oxidove
 serie, export do CSV/JSON a dalsi zpracovani): "R1" v jednom souboru muze
 byt jiny fyzikalni proces nez "R1" ve druhem.
 
+Cold-agent kolo 6 (T13, T14, nalez O4): na tomtez spektru byl s vahou
+`modulus` R1 rychly proces, se `sqrt`/`uniform` pomaly - stitky meni i
+volba vahy. README to od 2026-10-16 rika (porovnavat podle tau).
+
 Uz se to jednou projevilo: `tests/test_zscope_benchmark.py` ma vlastni
 `_canonical()`, ktery vetve `Two_TimeConstants` radi podle tau pred
 srovnanim, protoze fit je na ZScope 2 % datech vratil prohozene

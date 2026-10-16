@@ -415,11 +415,11 @@ odmitne (P2).
 | N1, N2 (kolo 6) | opraveno (Unreleased): `find_outliers` oznaci Lin-KK bod nad 8x medianem rezidui i pod `max_residual`, mimo ridkou mrizku `sparse_fit` M > N/2 (T13: presne 5 bodu; kalibrace na stress spektrech v README); `KKResult.noise_estimate_median` a varovani, kdyz `noise_estimate` je vic nez 2x vetsi (T13: 0.70 vs 0.20 %); poznamka CLI k NF bodum zminuje i nesoulad Lin-KK na konci spektra |
 | N3 (kolo 6) | detekce izolovanych bodu z rezidui fitu a novy fit bez nich (N3) zkousena a zamitnuta (kolo 6, krok 2; vetev smazana); v `main` napoveda ve varovani `Residuals are not random`. Reseni: soft-L1 (`--robust-loss`) podle `doc/ROBUST_LOSS_SOFT_L1.md`, neimplementovano |
 | P1 (kolo 6, krok 2) | opraveno v dokumentaci: PYTHON_API Basic Workflow bere po multistartu `result = ms_result.best_result` |
-| P2-P4 (kolo 6, krok 2) | otevrene |
+| P2-P4 (kolo 6, krok 2) | opraveno v dokumentaci: P2 README a PYTHON_API - kvalita navrhu hodnoti jen bilanci sum(R_i) vs R_pol a pocet varovani, ne fit; P3 RINF_ESTIMATION - L = 0 je dolni mez (zadna indukcnost v okne), opravena mez `L >= 0` (psalo 1 pH); P4 README a WEIGHTING_AND_STATISTICS 3.7 - S > 1 cist jen proti prahu 0.01, velikost neradi parametry |
 | O1 (kolo 6, krok 3) | zdokumentovano (README, Per-point residual check: Z-HIT rozmaze vadny bod do sousedu, proto `--exclude-flagged` bere vychozi body od Lin-KK) |
 | O5, O6 (kolo 6, krok 3) | opraveno: O5 README u `proportional` "low-\|Z\| points" (vysoke frekvence jen u typickeho spektra), PYTHON_API stejne; O6 titulek grafu DRT pise lambda na 3 platne cislice |
 | O2 (kolo 6, krok 3) | opraveno: radek parametru pise `[near ... bound]` jako varovani pod nim (kriterium 1 dekada beze zmeny, hodnotu meze uvadi varovani) |
-| O3, O4 (kolo 6, krok 3) | otevrene |
+| O3, O4 (kolo 6, krok 3) | opraveno v dokumentaci: O3 PYTHON_API (Fit result export) - poradi a jednotky `covariance`, nejistota R1 + R2 z mimodiagonalniho clenu; O4 README - poradi oblouku se muze zmenit i s vahou a behem DE, porovnavat podle tau (kanonicke poradi dal `BLOCK_ORDER_PLAN.md`, neimplementovano) |
 | Q1 (kolo 6, krok 4) | opraveno v README (popis `--exclude-flagged`) |
 | N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) odlozen 2026-10-15: prepinac to pokryva (`ROBUST_LOSS_SOFT_L1.md`, 4.3) |
 | N6 (kolo 6) | opraveno v dokumentaci: ukazka "Fit result export" importuje `parse_circuit_expression` |

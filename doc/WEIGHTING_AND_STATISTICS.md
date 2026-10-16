@@ -484,7 +484,7 @@ would not be comparable between parameters.
 | ~1 | the parameter dominates the impedance somewhere in the window |
 | 0.01 - 1 | contributes, but never dominates |
 | < `SIGNIFICANCE_NEGLIGIBLE` (0.01) | the element may be omitted from the model |
-| > 1 | only for parameters entering non-linearly (see below) |
+| > 1 | only for parameters entering non-linearly, e.g. a CPE exponent n: the parameter matters, the size is not a share of \|Z\| (see below) |
 
 For an element entering linearly the value is bounded by 1. A series resistor
 has `dZ/dR = 1`, so the expression reduces to
@@ -506,7 +506,10 @@ d ln|Z| / d ln(alpha) = -alpha * ln(omega/omega_0)
 
 which grows without bound away from the normalisation frequency - three
 decades away at alpha ~ 0.9 gives about 6. Not an error; the "fraction of |Z|"
-reading simply does not apply there.
+reading simply does not apply there. Read such a value only against the 0.01
+threshold: S = 6 for n says n matters in the window, not that it matters six
+times more than an R at S = 1. Its size grows with the distance of the window
+from omega = 1 rad/s, where the CPE parameterisation puts the normalisation.
 
 **Edge cases:**
 - A **zero prefactor** - `R = 0` in a Voigt element, `sigma = 0` in a Warburg -

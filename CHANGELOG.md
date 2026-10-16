@@ -35,7 +35,11 @@ noise.
   `parse_circuit_expression`; Basic Workflow reads the multi-start result
   from `ms_result.best_result`; `proportional` weighting emphasizes low-|Z|
   points (README said high frequencies, which holds only for a typical
-  spectrum).
+  spectrum). Suggestion quality grades the R bookkeeping, not the fit;
+  `--ri-fit` L = 0 is its lower bound (RINF_ESTIMATION said 1 pH);
+  significance above 1 is read only against 0.01; the fit JSON
+  `covariance` follows `parameters` (with the stderr of R1 + R2); arc
+  names can swap with the weighting too.
 
 ### Added
 

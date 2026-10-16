@@ -188,7 +188,13 @@ json_path, csv_path = save_fit_result('results_fit', record, frequencies, Z, Z_f
 
 The record holds the fitted circuit (`str(result.circuit)`), every parameter (`value`, `stderr`,
 `ci95`, `significance`, `status`), the metrics including dof and AIC/BIC,
-the covariance matrix and the warnings. Values without meaning are `null`:
+the covariance matrix and the warnings. `covariance` is square, its rows and
+columns in the order of `parameters`, in the parameters' own units (not log);
+a fixed parameter has a zero row. The uncertainty of a derived quantity needs
+the off-diagonal terms: for two arcs fitted close together R1 and R2 are
+often correlated near -1, and stderr(R1 + R2) = sqrt(c11 + c22 + 2 c12) is
+then far below either stderr (`time_constants` does this for tau).
+Values without meaning are `null`:
 the uncertainty of a fixed or at-bound parameter, dof and AIC/BIC of the
 linear Voigt chain (no free-parameter count), and any inf or NaN, so the
 file is strict JSON. The CSV has `freq_Hz, Z_real_Ohm, Z_imag_Ohm,
@@ -981,7 +987,9 @@ suggestion = analyze_voigt_elements(
 # suggestion is a VoigtSuggestion:
 #   .elements       list of VoigtElement (.id, .tau, .freq, .R, .C, .warnings)
 #   .quality        'good', 'acceptable', 'uncertain' or 'poor' (always
-#                   'poor' when sum(R_i) and R_pol differ by more than 2x)
+#                   'poor' when sum(R_i) and R_pol differ by more than 2x,
+#                   else by the number of warnings); it grades the R
+#                   bookkeeping, not whether the circuit fits - fit it
 #   .total_R        sum of the element resistances [Ohm]
 #   .R_pol, .R_inf  from the data [Ohm]
 #   .ratio          total_R / R_pol

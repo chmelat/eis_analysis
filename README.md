@@ -423,7 +423,12 @@ response heaped against the slow end of the window is reported as part of
 it. The test is calibrated for `--drt-weighting sqrt` (default) and
 `modulus`; under `uniform` and `proportional` the solved problem departs from
 the chi^2 it measures and it is less reliable. The suggested Voigt elements
-are built from exactly these peaks.
+are built from exactly these peaks. Their `Suggestion quality` checks the
+bookkeeping, not the fit: `POOR` when sum(R_i) and R_pol differ by more than
+2x, otherwise `GOOD`, `ACCEPTABLE` or `UNCERTAIN` by the number of warnings
+(none, 1-2, more). A `GOOD` suggestion can still fail as a circuit - one
+element standing in for two close processes adds up to R_pol just as well -
+so fit it and read `Fit vs. noise`.
 
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md), [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)
 
@@ -515,8 +520,10 @@ from 0: in `R(10) - (R(100) - Ws(50, 1) | C(1e-6))` the series resistor is
 `R0`, the charge-transfer resistor `R1`, the Warburg `R_W0` and `τ_W0`, the
 capacitor `C0`; the JSON `label` field uses the same names. Names follow
 positions, not processes: two arcs in series are interchangeable, and a fit
-may return them in either order (`R1` = 452 Ohm where the start had 60), so
-match arcs between fits by their time constants, not by name. `+/-` is one standard error from the
+may return them in either order (`R1` = 452 Ohm where the start had 60) - also
+for the same spectrum fitted with another `--weighting` or another DE run
+(without `--seed`) - so match arcs between fits by their time constants, not
+by name. `+/-` is one standard error from the
 covariance scaled by the residual variance, s^2 = RSS/(n - p); the 95 % CI
 uses the t-distribution, in log space for positive scale parameters (R, C, Q,
 tau), so it is asymmetric there. Both assume random residuals (see below).
@@ -542,7 +549,9 @@ impedance of the *whole circuit*, so a small series resistor next to a large arc
 scores low even when it is perfectly well determined; and the maximum runs only
 over the measured frequencies, so an element whose feature lies outside your
 range scores low by construction. Values above 1 are normal for parameters that
-enter non-linearly, such as a CPE exponent.
+enter non-linearly, such as a CPE exponent: they mean the parameter matters,
+but the size is no share of |Z| and does not rank it against the others
+([doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) 3.7).
 
 **Note:** "significance" also appears in the residual diagnostics below, where
 it means the p-value of a trend. That is a statement about the *fit*; `S` is
@@ -923,7 +932,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance, warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
+- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs, fit metrics with AIC/BIC, covariance in the order of the parameters (see [doc/PYTHON_API.md](doc/PYTHON_API.md), Fit result export, for the uncertainty of a sum like R1 + R2), warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).
