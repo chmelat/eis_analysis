@@ -327,8 +327,13 @@ def _log_fit_result(result: FitResult,
                     fit_on: str = 'original',
                     noise_note: Optional[str] = None,
                     noise_source: Optional[str] = None,
-                    suggest_exclude: bool = True) -> None:
-    """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape."""
+                    suggest_exclude: bool = True,
+                    n_excluded: int = 0) -> None:
+    """Log fit result with parameters, CIs, fit-to-noise ratio and residual shape.
+
+    `n_excluded` is the number of points --exclude-flagged left out; with any,
+    a note says how to report the fit.
+    """
     logger.info("")
     logger.info("Fit results:")
     logger.info("  Parameters:")
@@ -399,5 +404,17 @@ def _log_fit_result(result: FitResult,
     # Warnings
     for warning in result.all_warnings:
         logger.warning(f"  {warning}")
+
+    # Cold agents T13, T14: with a fit with and one without the points, both
+    # quoted the shift between them as the uncertainty of the split. The README
+    # says otherwise, but only text at the point of decision was acted on.
+    if n_excluded:
+        logger.info(f"  Without the {n_excluded} point(s) --exclude-flagged left out: report "
+                    "this fit with its +/-")
+        logger.info("  and those frequencies. The shift against a fit with all points is "
+                    "their pull,")
+        logger.info("  not an uncertainty to quote as a range; a shift beyond the +/- means "
+                    "points the")
+        logger.info("  check did not list may still pull.")
 
     log_separator()

@@ -79,6 +79,12 @@ noise.
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
 
+- **A fit without excluded points says how to report it.** After
+  `--exclude-flagged` left points out, a note under the circuit fit: report
+  it with its +/- and the excluded frequencies; the shift against a fit with
+  all points is their pull, not an uncertainty to quote as a range. The
+  README said so, but a cold agent read all of it and still quoted the range
+  (T13).
 - **README: a STABLE `--lambda-probe` peak can be two processes.** The
   verdict rules out a regularization artifact, not a merge: two arcs 0.6
   decade apart (cold-agent T14) give one peak that stays STABLE and stays

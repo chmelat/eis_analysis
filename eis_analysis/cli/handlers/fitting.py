@@ -292,7 +292,8 @@ def _fit_standard_circuit(
                         # noise_note is a reason without a noise, a source with one
                         noise_note if noise_percent is None else None,
                         noise_note if noise_percent is not None else None,
-                        getattr(args, 'exclude_flagged', None) is None)
+                        getattr(args, 'exclude_flagged', None) is None,
+                        len(getattr(args, 'excluded_frequencies', None) or []))
 
     except Exception as e:
         logger.error(f"Fitting error: {e}")

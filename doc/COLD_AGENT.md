@@ -502,7 +502,8 @@ zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
 | R2 (kolo 6, krok 5) | opraveno: pod navrzenym obvodem poznamka - kvalita meri jen sum(R_i) vs R_pol, blizke piky splynou, prvky jsou idealni C; fitovat navrh, navrh s prvkem navic a s Q, porovnat BIC a Fit vs. noise. Vypocet kvality beze zmeny |
 | R3 (kolo 6, krok 5) | opraveno v README (Per-point residual check): reportovat fit bez bodu s jeho +/- a vynechanymi frekvencemi; rozdil variant neni nejistota ani rozpeti; posun nad stderr = nevypsane body mohou tahnout dal; robustni jsou veliciny, ktere posun nemeni |
 | R4 (kolo 6, krok 5) | opraveno v README (`--lambda-probe`): STABLE vylucuje artefakt regularizace, ne slouceni dvou procesu; na T14 zustane 1 pik i pri lambda 1e-8 |
-| S1-S5 (kolo 6, krok 6) | otevrene |
+| S1 (kolo 6, krok 6) | opraveno: pod fitem s vyloucenymi body (`--exclude-flagged`) poznamka v CLI - reportovat fit s +/- a vynechanymi frekvencemi, posun proti fitu se vsemi body neni nejistota ani rozpeti (standardni obvody, ne `--voigt-chain`) |
+| S2-S5 (kolo 6, krok 6) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 
