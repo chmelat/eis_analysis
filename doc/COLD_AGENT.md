@@ -427,6 +427,45 @@ nevypise), nevyradil je.
 Bez akce: DE 2.0 % -> 0.45 % po doladeni bez varovani (opakovane z kroku
 4; radek `Improvement (SSR)` to vypisuje).
 
+## Kolo 6, krok 6 (2026-10-16): T13 znovu s Haiku po opravach R1-R4
+
+Puvodni T13 (seed 6112), Haiku. Piskoviste z cafa106: spoustec runs testu ve
+varovani (R1), poznamka pod navrzenym obvodem (R2), navod co reportovat po
+`--exclude-flagged` (R3), STABLE neni jeden proces (R4). Cena 0.16 USD,
+7.0 min, 26 tahu. Bod 0 "ne". README cetl cely.
+
+| | Haiku, krok 1 | Haiku, krok 4 | Haiku, krok 6 | Pravda |
+|---|---|---|---|---|
+| R1 / R2 [Ohm] | 142 +- 8 / 38 +- 8 | 104.9 +- 3.8 / 75.1 +- 3.8 | 104.9 +- 3.8 / 75.2 +- 3.8 | 100 / 80 |
+| tau1 / tau2 [ms] | 1.18 / 5.7 | 1.02 / 3.31 | 1.02 / 3.31 | 1.00 / 3.16 |
+| R_s [Ohm] | 2.004 | 2.001 | 2.001 | 2.0 |
+
+Postup: vychozi beh, 4 kandidati (R\|C, R\|Q, jeden a dva oblouky) na vsech
+bodech a s `--exclude-flagged kk` (plus treti oblouk: R3 0.5 +- 1.4, S
+0.003, BIC +12.8), `--ri-fit --lambda-probe`, `--f-min` 0.1 a 1 Hz,
+`--voigt-chain --voigt-auto-M`, GMM, kontrola pres API. Hlavni tabulka je fit
+bez 5 bodu a agent cituje README, ze je to vysledek k hlaseni. Pak ale
+rozdeleni udava "jako rozsah mezi variantami" (R1 105-142, R2 38-75 Ohm,
+tau2 3.3-5.7 ms) - presne to, co odstavec R3 vylucuje - a v bode 4 pise, ze
+dokumentace nerika, jak varianty zkombinovat. Duvod: varianta se vsemi body
+ma nenahodna rezidua, tedy podhodnocene sigma; vybrana varianta ma ale runs
+p 0.25 / 0.49. Hodnoty v toleranci (jako krok 4), reportovani ne. R1 1 sigma
+(3.8) chybu 4.9 nepokryje, 95% CI ano.
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| S1 | C | Navod R3 Haiku necte jako odpoved: prestoze cetl cele README, udava rozsah variant a tvrdi, ze navod chybi. Text je na konci dlouhe odrazky "Leaving the points out" v Per-point residual check | T13 |
+| S2 | C | README "Automatic circuit suggestion" ukazuje `--voigt-chain --voigt-auto-M` jako "automatic element count optimization"; auto-M dal 22 prvku (12 po pruningu) - aproximace rozdeleni, ne pocet procesu, README to nerika | T13 |
+| S3 | C | README "Use `--ri-fit` when the spectrum has not flattened" - chybi kriterium, jak to poznat | T13 |
+| S4 | C | Soucet R1 + R2 s nejistotou CLI ani API nevypisuje; agent ho spocital podle PYTHON_API (O3) | T13 |
+| S5 | B | `Using R_inf = 2 Ohm (fit)` (format `.4g`, jinde 2.000) a `Found 1 peaks` - kosmetika | T13 |
+
+Bez akce (chyba agenta): `lambda_opt` v PYTHON_API patri k
+`find_optimal_lambda_gcv` (sekce GCV), ne k `DRTResult`; "kriterium
+zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -463,6 +502,7 @@ Bez akce: DE 2.0 % -> 0.45 % po doladeni bez varovani (opakovane z kroku
 | R2 (kolo 6, krok 5) | opraveno: pod navrzenym obvodem poznamka - kvalita meri jen sum(R_i) vs R_pol, blizke piky splynou, prvky jsou idealni C; fitovat navrh, navrh s prvkem navic a s Q, porovnat BIC a Fit vs. noise. Vypocet kvality beze zmeny |
 | R3 (kolo 6, krok 5) | opraveno v README (Per-point residual check): reportovat fit bez bodu s jeho +/- a vynechanymi frekvencemi; rozdil variant neni nejistota ani rozpeti; posun nad stderr = nevypsane body mohou tahnout dal; robustni jsou veliciny, ktere posun nemeni |
 | R4 (kolo 6, krok 5) | opraveno v README (`--lambda-probe`): STABLE vylucuje artefakt regularizace, ne slouceni dvou procesu; na T14 zustane 1 pik i pri lambda 1e-8 |
+| S1-S5 (kolo 6, krok 6) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 
