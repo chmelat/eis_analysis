@@ -4,6 +4,18 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Documentation
+
+- **README: the Voigt chain is not a circuit of the processes.** The quick
+  start listed `--voigt-chain --voigt-auto-M` under "Automatic circuit
+  suggestion"; on two arcs auto-M gave 22 elements (12 after pruning),
+  spread over seven decades of tau (cold-agent T13). The heading is now
+  "Voigt chain (model-free fit)" and points to the DRT's `Suggested
+  circuit`; the Voigt chain section says M follows the noise and the point
+  density and what to read from the chain (R_s, R_pol).
+
 ## Version 0.61.0 (2026-10-16)
 
 From cold-agent round 6 (`doc/COLD_AGENT.md`): two arcs 0.5 decade apart at

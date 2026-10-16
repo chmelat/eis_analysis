@@ -176,7 +176,7 @@ and skipped rather than ending the run.
 - what the criteria measure, a worked example of the arithmetic, and what they
 cannot tell you.
 
-### Automatic circuit suggestion
+### Voigt chain (model-free fit)
 
 ```bash
 # Automatic Voigt chain fitting
@@ -185,6 +185,10 @@ eis data.DTA --voigt-chain
 # With automatic element count optimization
 eis data.DTA --voigt-chain --voigt-auto-M
 ```
+
+A smooth description of the spectrum, not a circuit of its processes (see
+Voigt chain below). The suggested circuit is in the default run, under the
+DRT (`Suggested circuit`).
 
 ### Oxide layer analysis
 
@@ -653,6 +657,8 @@ is the intuitive introduction: two worked repairs, and the limits.
 ### Voigt chain (automatic circuit)
 
 Automatic Voigt chain: R_i at fixed, log-spaced tau_i by linear regression. The linear result is the fit; no nonlinear refinement follows.
+
+The chain is a smooth KK-compatible description of the spectrum, not a model of its processes: `--voigt-auto-M` stops at the first M where mu drops below the threshold (negative R_i, over-fitting), so M follows the noise and the point density, and one process spreads over several neighbouring elements (two arcs: 22 elements, 12 after pruning). Read R_s and R_pol (sum of R_i) from it; for the number of processes use the DRT peaks (a lower bound) and compare fitted circuits.
 
 ```bash
 # Basic Voigt chain
