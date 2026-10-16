@@ -466,6 +466,65 @@ Bez akce (chyba agenta): `lambda_opt` v PYTHON_API patri k
 `find_optimal_lambda_gcv` (sekce GCV), ne k `DRTResult`; "kriterium
 zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
 
+## Kolo 6, krok 7 (2026-10-16): T13 a T14 s Haiku po opravach S1-S4
+
+Puvodni T13 a T14, Haiku, paralelne. Piskoviste z 3f3d98d: poznamka pod
+fitem po `--exclude-flagged` (S1), README k Voigt chain a R_inf (S2, S3),
+radek `Arc resistances in series:` se souctem R1 + R2, korelaci a "the split
+is less certain than the sum" (S4). Bod 0 u obou "ne".
+
+| | T13 krok 6 | T13 krok 7 | T14 krok 5 | T14 krok 7 | Pravda T13 / T14 |
+|---|---|---|---|---|---|
+| R1 / R2 [Ohm] | 104.9 / 75.2 | 142 +- 8 / 38 +- 8 | 123.2 / 86.6 | 150 +- 11 / 60 +- 11 | 100 / 80; 120 / 90 |
+| tau [ms] | 1.02 / 3.31 | 1.18 / 5.7 | 2.02 / 8.2 | 2.26 / 11.8 | 1.00 / 3.16; 2.00 / 7.96 |
+| R_s [Ohm] | 2.001 | 2.00 | 2.999 | 2.998 | 2.0; 3.0 |
+| R1 + R2 [Ohm] | 180.00 | 179.4 +- 0.3 | 209.8 | 209.7 +- 0.3 | 180; 210 |
+| cena | 0.16 USD | 0.08 USD, 2.7 min | 0.10 USD | 0.04 USD, 3.6 min | |
+
+Oba neuspech v rozdeleni R, regrese proti krokum 4-6. T13 `--exclude-flagged`
+nezkusil ("Nezkousel jsem"), prestoze napovedu videl v kontrole po bodech
+a ctyrikrat ve varovani rezidui; R1 142 +- 8 proti 100 je 5 sigma. T14 ho
+spustil a poznamku S1 videl ("report this fit ... not an uncertainty to
+quote as a range"), presto hlavni vysledek ze vsech bodu a "realny rozsah
+R1 60-87 Ohm". Oba ramuji "soucet je dobre urcen, rozdeleni ne" a nejistotu
+rozdeleni vysvetluji korelaci, ne vadnymi body. Hypoteza: radek S4 dal
+pohodlne vysvetleni, ktere vytlacilo vyrazeni bodu. Neovereno (jeden beh na
+stav) - A/B test nize.
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| T1 | C | `eis --help` u `--ri-fit`: "Perform robust R_inf estimation before DRT analysis" - nerika, ze jde o fit R-L-(R\|Q); README ano | T13 |
+| T2 | C | Multistart: API `n_restarts=10`, CLI `--multistart` 16; seed je `seed=` u DE a `rng=` u multistartu | T14 |
+| T3 | C | `params_ci_95` (tuple dvou poli) v PYTHON_API popsan strucne | T14 |
+
+Bez akce (chyba agenta): T13 "Lin-KK chybi v prvnim srovnani" - log
+odpovida behu s `--no-kk` (overeno zopakovanim prikazu), agent ho popsal
+spatne; T14 "definice tau nejasna" - (R*Q)^(1/n), vrchol ZARC a R*C_eff
+jsou totez; T14 "poznamka R2 v CLI neni videt" - je (`cli_gmm.txt`).
+
+### A/B test: je na vine radek S4?
+
+Rameno A z 3f3d98d (S1-S4), rameno B z ca7debe (S1-S3, bez radku
+`Arc resistances in series:` a jeho textu v README); 3 behy Haiku na T13
+a 3 na T14 v kazdem rameni (`~/coldbox-private/ab.sh`, plan a tabulka po
+behach v `~/coldbox-private/r6ab/`). Uspech = hlavni R1/R2 do 10 % pravdy.
+
+| | T13 | T14 | celkem | cena |
+|---|---|---|---|---|
+| B (bez S4) | 2/3 | 0/3 | 2/6 | 0.56 USD |
+| A (s S4) | 1/3 | 2/3 | 3/6 | 0.32 USD |
+
+S4 neskodi; neuspech obou behu kroku 7 byl rozptyl Haiku. Fit bez
+oznacenych bodu spocitalo vsech 12, chyba je ve volbe vysledku: 5/12 ho
+vzalo jako hlavni (vsichni cituji README nebo poznamku S1), 4/12 nevybralo
+(obe varianty vedle sebe), 3/12 vzalo fit na vsech bodech; 7/12 uvedlo
+posun mezi variantami jako rozsah. Soucet R1 + R2 uvedlo vsech 12.
+Poznamka S1 je jen pod fitem bez bodu; pod fitem na vsech bodech nebylo nic
+(u T14 ani varovani rezidui, runs p 0.024). Nasleduje: poznamka i pod fitem,
+ktery oznacene body ponechal.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -507,6 +566,8 @@ zastaveni nad ramec BIC" - README dava BIC, S a rezidua.
 | S3 (kolo 6, krok 6) | opraveno v README (R_inf): co je "flat", zaviraji se oblouk necha median o par % vys bez varovani (T13: 2.038 vs 2.000), `--ri-fit` kdyz na R_inf zalezi; R_s z fitu obvodu na nem nezavisi. Prah -Z''/Z' v CLI nekalibrovan, nedelano |
 | S4 (kolo 6, krok 6) | opraveno: `arc_resistance_sums` - soucet odporu oblouku v serii s nejistotou z cele kovariance a korelaci R1/R2; CLI radek pod casovymi konstantami ("the split is less certain than the sum", kdyz je stderr souctu pod stderr kazdeho R), JSON `arc_resistance_sums`. T13 180.00 +- 0.04, T14 209.84 +- 0.16 |
 | S5 (kolo 6, krok 6) | otevrene |
+| T1-T3 (kolo 6, krok 7) | otevrene |
+| Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal |
 
 ### F5: studie pravidla platnosti Z-HIT
 
