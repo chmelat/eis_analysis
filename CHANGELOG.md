@@ -4,7 +4,7 @@ Complete change history for all project versions.
 
 ---
 
-## Unreleased
+## Version 0.61.0 (2026-10-16)
 
 From cold-agent round 6 (`doc/COLD_AGENT.md`): two arcs 0.5 decade apart at
 0.1 % noise, 5 of 81 points off by 2-5 %. Lin-KK rated the data
@@ -47,7 +47,6 @@ noise.
   run can be repeated exactly (the API already had `seed=` / `rng=`). It
   must lie in 0..2**32-1 and is rejected with `--optimizer single` and
   `--voigt-chain`; the synthetic demo data stay unseeded.
-
 - **A noise estimate carried by a few points is reported.** `KKResult` gets
   `noise_estimate_median` (from the median residual, new
   `estimate_noise_percent_median`), and a warning when `noise_estimate`
@@ -56,7 +55,6 @@ noise.
   (above: 0.70 % against 0.20 %). The ratio itself is unchanged on purpose:
   with the median-based noise it would call every fit of a drifting
   spectrum inadequate (real_gamry_example: 4.84 % against 0.79 %).
-
 - **`--exclude-flagged {kk,both,any}`: leave the flagged points out.** The
   points the per-point residual check lists - with `kk` those Lin-KK
   flagged, recommended since Z-HIT smears one bad point into its neighbours -
@@ -78,7 +76,6 @@ noise.
   cause.** They fail the runs test as well, and the trend/structure reading
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
-
 - **A fit without excluded points says how to report it.** After
   `--exclude-flagged` left points out, a note under the circuit fit: report
   it with its +/- and the excluded frequencies; the shift against a fit with
