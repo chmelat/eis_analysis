@@ -352,7 +352,7 @@ def _log_fit_result(result: FitResult,
         # "irrelevant to the fit" are exactly the pair worth telling apart.
         sig = _significance_suffix(significance, i)
         if status == 'lower' or status == 'upper':
-            logger.info(f"    {label:5s} = {val:.2e}  [at {status} bound — CI not meaningful]{sig}")
+            logger.info(f"    {label:5s} = {val:.2e}  [near {status} bound — CI not meaningful]{sig}")
         elif status == 'fixed':
             logger.info(f"    {label:5s} = {val:.2e}  [fixed]{sig}")
         elif np.isinf(stderr) or np.isnan(stderr):
@@ -827,7 +827,8 @@ def _fit_standard_circuit(
                 workers=args.de_workers,
                 weighting=args.weighting,
                 archive_check=not args.no_archive_check,
-                use_analytic_jacobian=not args.numeric_jacobian
+                use_analytic_jacobian=not args.numeric_jacobian,
+                seed=args.seed
             )
             result = diffevo_result.best_result
 
@@ -844,7 +845,8 @@ def _fit_standard_circuit(
                 n_restarts=n_restarts,
                 scale=args.multistart_scale,
                 weighting=args.weighting,
-                use_analytic_jacobian=not args.numeric_jacobian
+                use_analytic_jacobian=not args.numeric_jacobian,
+                rng=args.seed
             )
             result = multistart_result.best_result
 

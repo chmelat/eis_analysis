@@ -418,11 +418,12 @@ odmitne (P2).
 | P2-P4 (kolo 6, krok 2) | otevrene |
 | O1 (kolo 6, krok 3) | zdokumentovano (README, Per-point residual check: Z-HIT rozmaze vadny bod do sousedu, proto `--exclude-flagged` bere vychozi body od Lin-KK) |
 | O5, O6 (kolo 6, krok 3) | opraveno: O5 README u `proportional` "low-\|Z\| points" (vysoke frekvence jen u typickeho spektra), PYTHON_API stejne; O6 titulek grafu DRT pise lambda na 3 platne cislice |
-| O2-O4 (kolo 6, krok 3) | otevrene |
+| O2 (kolo 6, krok 3) | opraveno: radek parametru pise `[near ... bound]` jako varovani pod nim (kriterium 1 dekada beze zmeny, hodnotu meze uvadi varovani) |
+| O3, O4 (kolo 6, krok 3) | otevrene |
 | Q1 (kolo 6, krok 4) | opraveno v README (popis `--exclude-flagged`) |
 | N4 (kolo 6) | CLI: `--exclude-flagged {kk,both,any}` vyradi body z kontroly po bodech ze vseho za validaci (Unreleased); kontrola po bodech a napoveda u rezidui ho jmenuji. Robustni fit (soft-L1) odlozen 2026-10-15: prepinac to pokryva (`ROBUST_LOSS_SOFT_L1.md`, 4.3) |
 | N6 (kolo 6) | opraveno v dokumentaci: ukazka "Fit result export" importuje `parse_circuit_expression` |
-| N5 (kolo 6) | otevrene (N7 je chyba agenta) |
+| N5 (kolo 6) | opraveno: CLI `--seed N` pro DE i multistart (N7 je chyba agenta) |
 
 ### F5: studie pravidla platnosti Z-HIT
 

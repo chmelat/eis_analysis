@@ -624,7 +624,7 @@ for arc in arc_time_constants(result):   # result of a fit (.best_result for
                      #   correlated); None without a covariance or with a
                      #   parameter at a bound
     arc.stderr_note  # why tau_stderr is None ('no covariance',
-                     #   'n0 at its upper bound', 'covariance not
+                     #   'n0 near its upper bound', 'covariance not
                      #   usable'), else None
     arc.frequency    # 1/(2*pi*tau) [Hz], where -Z'' peaks
 ```

@@ -98,6 +98,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'de_tol': 0.01,
         'de_workers': 1,
         'no_archive_check': False,
+        'seed': None,
 
         # Voigt Chain
         'voigt_chain': False,

@@ -495,7 +495,7 @@ Relation to the ideal CPE (the wide-bounds limit):
 
 A bound outside the measured window is still identifiable, but only through
 the power law: U correlates with n at -0.85, so read n beside the bound
-status of U, never alone. `U_DQ [at upper bound]` is the informative result
+status of U, never alone. `U_DQ [near upper bound]` is the informative result
 that the slow end of the distribution lies past the measurement.
 
 `--analyze-oxide` recognises a DQ and reads C_eff off it directly - no

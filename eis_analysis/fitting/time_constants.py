@@ -150,7 +150,7 @@ def _tau_stderr(tau: float, grad, idx: List[int], labels,
     if status is not None:
         for i in idx:
             if status[i] not in ('', 'fixed'):
-                return None, f"{labels[i]} at its {status[i]} bound"
+                return None, f"{labels[i]} near its {status[i]} bound"
     cov = np.asarray(result.cov)[np.ix_(idx, idx)]
     var_log = float(grad @ cov @ grad)
     if not np.isfinite(var_log) or var_log < 0:

@@ -220,7 +220,7 @@ def classify_bound_status(
     lower: float,
     upper: float
 ) -> str:
-    """Return 'lower', 'upper', or '' depending on whether `value` sits at a bound.
+    """Return 'lower', 'upper', or '' depending on whether `value` is near a bound.
 
     Threshold: 1 decade on log scale (when bounds span >6 decades) or 1% of
     the range on linear scale.

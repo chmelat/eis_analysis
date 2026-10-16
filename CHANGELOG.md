@@ -24,6 +24,11 @@ noise.
   Lin-KK uses more elements than half the points (new
   `KKResult.sparse_fit`: the chain then passes through most points and the
   median says nothing about the noise).
+- **A parameter close to a bound reads `[near ... bound]`** on its CLI
+  line (was `at`), like the warning below it, which gives the bound; the
+  time-constant note says `near its ... bound` too. Close means within a
+  decade for log-scale parameters (R, C, Q, tau, ...) and within 1 % of the
+  range for linear ones (n, alpha, ...), unchanged.
 - **DRT plot title** prints lambda to 3 significant digits (was full float
   precision).
 - **Docs:** PYTHON_API "Fit result export" imports
@@ -33,6 +38,11 @@ noise.
   spectrum).
 
 ### Added
+
+- **`--seed N`** (CLI) seeds the random search of DE and multi-start, so a
+  run can be repeated exactly (the API already had `seed=` / `rng=`). It
+  must lie in 0..2**32-1 and is rejected with `--optimizer single` and
+  `--voigt-chain`; the synthetic demo data stay unseeded.
 
 - **A noise estimate carried by a few points is reported.** `KKResult` gets
   `noise_estimate_median` (from the median residual, new

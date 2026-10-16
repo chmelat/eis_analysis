@@ -800,6 +800,7 @@ the fit reports `Global search contributed nothing` - see
 - `--de-maxiter` (default: 1000) - Maximum number of generations. Increase if optimization doesn't converge.
 - `--de-tol` (default: 0.01) - Convergence tolerance (relative fitness change).
 - `--de-workers` (default: 1) - Number of parallel workers. -1 = all CPU cores.
+- `--seed N` - Seed for the random search of DE and of multi-start (`--multistart`): the same seed and data give the same fit. Without it every run searches differently, so a fit with several near-equal minima can come back with different values. It seeds only the search: the synthetic demo data (no input file) stay unseeded. Not allowed with `--optimizer single` or `--voigt-chain`, which draw no random numbers.
 - `--no-archive-check` - Skip the DE archive check (refining early-generation candidates against local minima and ambiguous models, ~1 s per fit).
 
 ### Multi-start optimization

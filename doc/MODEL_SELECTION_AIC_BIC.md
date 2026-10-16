@@ -307,7 +307,7 @@ as designed.
   ```
     rank  -c  Circuit                    k    err%     dAIC     dBIC      cond
        3   2  L()-R()-(R()|Q()|C())      6    4.90      2.8      6.0   9.8e+00
-                                              R1 = 1.00e+10  [at upper bound]
+                                              R1 = 1.00e+10  [near upper bound]
   ```
 
   That row is not lying, it is answering a different question. Such a model is

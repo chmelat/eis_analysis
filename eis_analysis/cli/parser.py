@@ -260,6 +260,10 @@ Examples:
                            help='DE convergence tolerance (default: 0.01)')
     fit_group.add_argument('--de-workers', type=int, default=1,
                            help='DE parallel workers (default: 1, use -1 for all CPUs)')
+    fit_group.add_argument('--seed', type=int, default=None, metavar='N',
+                           help='Seed for the random search of DE and multi-start: the same seed '
+                                'and data give the same fit (default: a different search each run). '
+                                'It does not seed the synthetic demo data.')
     fit_group.add_argument('--no-archive-check', action='store_true',
                            help='Skip the DE archive check (refining early-generation candidates '
                                 'against local minima, ~1 s per fit)')
@@ -337,6 +341,15 @@ Examples:
             f"--multistart has no effect with --optimizer {args.optimizer}; "
             "use --optimizer multistart (or drop --multistart)"
         )
+    # Same rule for --seed: only DE and multi-start draw random numbers. The
+    # range is what numpy's legacy RandomState (used by scipy's DE) accepts;
+    # outside it the fit would fail with a message about the circuit.
+    if args.seed is not None:
+        if not 0 <= args.seed < 2**32:
+            parser.error('--seed must be between 0 and 2**32 - 1')
+        if args.voigt_chain or args.optimizer == 'single':
+            what = '--voigt-chain' if args.voigt_chain else '--optimizer single'
+            parser.error(f"--seed has no effect with {what}; it seeds DE and multi-start only")
 
     # --fit-on feeds on the Z-HIT reconstruction, so switching Z-HIT off leaves
     # it with nothing to fit. Caught here rather than mid-run, where the
