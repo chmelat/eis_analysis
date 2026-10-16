@@ -79,6 +79,12 @@ noise.
   alone pointed at a missing element; the warning now says to refit without
   the points the per-point check lists before changing the model.
 
+- **The suggested circuit says what its quality checks.** A note under it:
+  the quality compares sum(R_i) with R_pol only, close peaks merge, the
+  elements are ideal C - fit it, one with an element more and one with Q,
+  and compare by BIC and Fit vs. noise. A merged peak keeps the sum, so a
+  one-arc suggestion for two processes read `GOOD` without a caveat
+  (cold-agent T9, T13, T14).
 - **The `Residuals are not random` warning names its trigger.** Its first
   line is the runs test (`runs test: p = ... (fails below 0.01)`); trend and
   structure below it only describe the shape. With both insignificant and

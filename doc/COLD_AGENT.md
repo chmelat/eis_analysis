@@ -460,7 +460,8 @@ Bez akce: DE 2.0 % -> 0.45 % po doladeni bez varovani (opakovane z kroku
 | N6 (kolo 6) | opraveno v dokumentaci: ukazka "Fit result export" importuje `parse_circuit_expression` |
 | N5 (kolo 6) | opraveno: CLI `--seed N` pro DE i multistart (N7 je chyba agenta) |
 | R1 (kolo 6, krok 5) | opraveno: varovani `Residuals are not random` ma prvni radek `runs test: p = ... (fails below 0.01)` - spoustec; README a RESIDUAL_DIAGNOSTICS s nim. Vyklad "runs propadne, trend a struktura nevyznamne = izolovane body" v CLI ne (chybi prah nevyznamneho trendu) |
-| R2-R4 (kolo 6, krok 5) | otevrene |
+| R2 (kolo 6, krok 5) | opraveno: pod navrzenym obvodem poznamka - kvalita meri jen sum(R_i) vs R_pol, blizke piky splynou, prvky jsou idealni C; fitovat navrh, navrh s prvkem navic a s Q, porovnat BIC a Fit vs. noise. Vypocet kvality beze zmeny |
+| R3, R4 (kolo 6, krok 5) | otevrene |
 
 ### F5: studie pravidla platnosti Z-HIT
 

@@ -428,7 +428,9 @@ bookkeeping, not the fit: `POOR` when sum(R_i) and R_pol differ by more than
 2x, otherwise `GOOD`, `ACCEPTABLE` or `UNCERTAIN` by the number of warnings
 (none, 1-2, more). A `GOOD` suggestion can still fail as a circuit - one
 element standing in for two close processes adds up to R_pol just as well -
-so fit it and read `Fit vs. noise`.
+so fit it and read `Fit vs. noise`. The CLI says so under the suggested
+circuit, and names the candidates worth comparing: one element more, and Q
+in place of the ideal C.
 
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md), [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)
 

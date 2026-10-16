@@ -436,4 +436,11 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
         logger.info(f"Suggested circuit: {' - '.join(parts)}")
     else:
         logger.warning("Suggested circuit: none (an element value is not finite)")
+    # Cold agents T9, T13, T14: a merged peak keeps sum(R_i) = R_pol, so a
+    # one-arc suggestion for two processes reads GOOD; the fit rejects it.
+    logger.info("  Quality checks sum(R_i) against R_pol only, not the circuit: peaks "
+                "closer than")
+    logger.info("  ~1 decade merge into one, and the elements are ideal C. Fit this "
+                "circuit, one with")
+    logger.info("  an element more and one with Q, and compare by BIC and Fit vs. noise.")
     log_separator()
