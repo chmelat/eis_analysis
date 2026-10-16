@@ -42,6 +42,7 @@ def plot_drt(Z: NDArray[np.complexfloating], result: DRTResult) -> plt.Figure:
     tau, gamma, gamma_original = result.tau, result.gamma, result.gamma_original
     Z_reconstructed = result.Z_reconstructed
     lambda_reg = result.lambda_used
+    lambda_label = 'None' if lambda_reg is None else f'{lambda_reg:.2e}'
     normalize_rpol, peak_method = diag.normalized, diag.peak_method
     peaks_result, bic_scores = result.peaks, result.bic_scores
     tau_window = diag.tau_window
@@ -80,10 +81,10 @@ def plot_drt(Z: NDArray[np.complexfloating], result: DRTResult) -> plt.Figure:
 
     if normalize_rpol:
         ax1.set_ylabel("gamma(tau) / R_pol [-]")
-        ax1.set_title(f"DRT normalized (lambda = {lambda_reg})")
+        ax1.set_title(f"DRT normalized (lambda = {lambda_label})")
     else:
         ax1.set_ylabel("gamma(tau) [Ohm]")
-        ax1.set_title(f"DRT (lambda = {lambda_reg})")
+        ax1.set_title(f"DRT (lambda = {lambda_label})")
 
     ax1.grid(True, alpha=0.3, which='both')
 

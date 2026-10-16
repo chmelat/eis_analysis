@@ -100,6 +100,7 @@ ms_result, Z_fit = fit_circuit_multistart(
     weighting='modulus'
 )
 print(f"Improvement: {ms_result.improvement:.1f}%")
+result = ms_result.best_result   # a FitResult like the single-start one
 
 # 7. Fit results
 print(f"Parameters: {result.params_opt}")
@@ -171,6 +172,7 @@ frequencies, Z = generate_synthetic_data(
 
 ```python
 from eis_analysis.io import fit_result_record, save_fit_result
+from eis_analysis.cli.utils import parse_circuit_expression
 
 expr = 'R(10) - (R(1000) | Q(1e-5, 0.9))'
 result, Z_fit = fit_equivalent_circuit(frequencies, Z, parse_circuit_expression(expr))
@@ -207,8 +209,6 @@ Z_model = circuit.impedance(frequencies, values)        # the fitted curve
 result2, _ = fit_equivalent_circuit(f2, Z2, circuit,    # or a start for
                                     initial_guess=values)  # the next spectrum
 ```
-
-`parse_circuit_expression` lives in `eis_analysis.cli.utils`.
 
 An oxide result has a record of its own (`results_oxide.json` in the CLI):
 
@@ -575,7 +575,7 @@ result, Z_fit = fit_equivalent_circuit(
 #   'uniform':     w = 1          - equal weight for all points
 #   'sqrt':        w = 1/sqrt|Z|  - compromise
 #   'modulus':     w = 1/|Z|      - default, balances relative errors
-#   'proportional': w = 1/|Z|^2   - emphasizes low-impedance region
+#   'proportional': w = 1/|Z|^2   - emphasizes low-|Z| points (high frequencies of a typical spectrum)
 # See WEIGHTING_AND_STATISTICS.md for detailed guide
 
 # result: FitResult dataclass

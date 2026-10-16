@@ -778,7 +778,7 @@ information.
 ### Circuit fitting
 
 - `--circuit`, `-c` - Equivalent circuit for fitting. Syntax: `-` = series, `|` = parallel. Example: `"R(100) - (R(5000) | C(1e-6))"`. Supported elements: R, C, L, G, Q, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, YG. Repeat the option to fit several candidates on the same data and rank them by AIC/BIC - see [Comparing candidate circuits](#comparing-candidate-circuits).
-- `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes high-frequency). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
+- `--weighting` (default: modulus) - Weighting type for fitting: `uniform` (w=1, all points equal), `sqrt` (w=1/sqrt|Z|, compromise), `modulus` (w=1/|Z|, balances relative errors), `proportional` (w=1/|Z|^2, emphasizes low-|Z| points, the high-frequency end of a typical spectrum). See [doc/WEIGHTING_AND_STATISTICS.md](doc/WEIGHTING_AND_STATISTICS.md) for detailed guide.
 - `--no-fit` - Skip circuit fitting.
 
 ### Optimizer selection

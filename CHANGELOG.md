@@ -24,6 +24,13 @@ noise.
   Lin-KK uses more elements than half the points (new
   `KKResult.sparse_fit`: the chain then passes through most points and the
   median says nothing about the noise).
+- **DRT plot title** prints lambda to 3 significant digits (was full float
+  precision).
+- **Docs:** PYTHON_API "Fit result export" imports
+  `parse_circuit_expression`; Basic Workflow reads the multi-start result
+  from `ms_result.best_result`; `proportional` weighting emphasizes low-|Z|
+  points (README said high frequencies, which holds only for a typical
+  spectrum).
 
 ### Added
 
