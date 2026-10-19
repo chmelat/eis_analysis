@@ -1,7 +1,7 @@
 # Robustní ztrátová funkce (soft-L1): proč ji zavést
 
 Datum: 2026-09-01, aktualizace 2026-10-10, 2026-10-15 a 2026-10-19 (sekce 6:
-měření sandwiche na F3)
+měření sandwiche a bootstrapu na F3, příčina podpokrytí)
 Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0; sekce 4.1-4.2
 na 508c06a (v0.60.3 a nevydané změny kola 6)
 Stav návrhu: **odloženo (2026-10-15)**, neimplementováno. Nálezy cold
@@ -357,10 +357,9 @@ nominálních 95 % při 5 % kontaminovaných bodů.
 Vlastní měření (stress test, invariant F3, `doc/STRESS_TEST.md`, známý
 limit 9, 2026-10-09): linearizovaný 95% interval obsahuje pravdu u 0.90
 parametrů, a to **na datech bez odlehlých bodů** (proporcionální šum,
-dobře podmíněné fity), na všech úrovních šumu. Intervaly jsou tedy úzké
-i bez kontaminace, nejspíš kvůli nelinearitě modelu nebo nesouladu vážení
-a skutečného šumu. Sandwich zachytí to druhé, nelinearitu ne. Soft-L1 sama
-pokrytí nezlepší vůbec, to je úloha kovariance. F3 je hotové měřidlo:
+dobře podmíněné fity), na všech úrovních šumu. Pokrytí je tedy nízké
+i bez kontaminace; příčina (níže) je hlavně záměna bloků v testu, ne
+nelinearita ani nesoulad vážení. Soft-L1 sama pokrytí nezlepší vůbec, to je úloha kovariance. F3 je hotové měřidlo:
 jakákoli změna kovariance se dá ověřit tím, jak posune 0.90 k 0.95.
 
 **Změřeno 2026-10-19 (v0.61.0 + nevydané změny, 735b1c7): sandwich
@@ -387,13 +386,48 @@ neposune o víc než ~0.01.
 
 Vysvětlení: šum ve F3 je proporcionální, přesně jak předpokládá modulové
 vážení, takže B ~ s^2 A a sandwich splyne s klasickou formulí. Nesoulad
-vážení a šumu tedy příčinou podpokrytí není; zbývá nelinearita modelu
-(zakřivené údolí korelovaných parametrů, zkreslení odhadu), kterou
-linearizovaná kovariance - klasická ani sandwich - nezachytí. Ověřit by ji
-šlo profilovou věrohodností nebo parametrickým bootstrapem na podmnožině
-případů. Sandwich by měl smysl jen spolu se soft-L1 (kde psi != r) nebo na
-datech, jejichž šum vážení neodpovídá; jako samostatná oprava F3 ne.
-Měřicí skript (`f3_sandwich.py`) zůstal mimo repozitář.
+vážení a šumu tedy příčinou podpokrytí není. Sandwich by měl smysl jen
+spolu se soft-L1 (kde psi != r) nebo na datech, jejichž šum vážení
+neodpovídá; jako samostatná oprava F3 ne.
+
+**Nelinearita to také není (bootstrap, 2026-10-19).** Parametrický
+bootstrap na 333 případech F3 (100 na rodinu, B = 200; Z(theta_hat) +
+proporcionální šum s úrovní odhadnutou z reziduí, každý vzorek znovu
+fitovaný LM z theta_hat): medián poměru směrodatné odchylky bootstrapu
+k linearizované stderr 1.00, |zkreslení| 0.08 stderr. Percentilový ani
+basic interval nepokrývá pravdu lépe než lineární (0.87 a 0.82 proti
+0.90). Linearizovaná kovariance tedy rozptyl odhadu popisuje správně.
+
+**Příčina: záměna stejných sériových bloků.** z = (fit - pravda) / stderr
+má u většiny parametrů směrodatnou odchylku 1.03, ale 2-3 % parametrů
+leží 5 až 1000 stderr od pravdy. To jsou téměř všechno prohozené bloky:
+(R|C)-(R|C) i (R|Q)-(R|Q) jsou vůči záměně symetrické, fit z multistartu
+vrátí oblouky v jiném pořadí, než je zapsaná pravda, a F3 porovnává podle
+pozice (`tests/test_zscope_benchmark.py` kvůli tomu řadí podle tau, F3
+ne). Na všech 860 případech:
+
+| | dnes (podle pozice) | bloky seřazené podle tau | bloky spárované s pravdou podle z |
+|---|---|---|---|
+| 0.1 % | 0.895 | 0.929 | 0.934 |
+| 1 % | 0.898 | 0.910 | 0.922 |
+| 3 % | 0.916 | 0.916 | 0.931 |
+| celkem | 0.903 | 0.918 | 0.929 |
+
+Řazení podle tau (R*C, resp. (R*Q)^(1/n), vzestupně) emuluje plánované
+kanonické pořadí bloků ve fitu; pravdu generátor zapisuje vzestupně
+v 860/860 případech, takže F3 pak nepotřebuje změnu. Párování podle z je
+optimistická horní mez: ve 22 případech, kde se obě metody rozcházejí, je
+jeden blok ztracený nebo neurčený (na mezi, stderr >= hodnota), jeho tau
+nic neznamená a párování si vybere záměnu, kterou obří stderr "pokryje".
+
+Zbylé ~3 % do 0.95: jiná řešení se stejnou cenou a ztracené oblouky
+(|z| > 5 u ~1 % parametrů; diffusion R_ct proti Ws, oxide), tedy
+identifikovatelnost, kterou žádný lineární interval nepokryje, a o ~3 %
+užší intervaly ve zbytku. Známý limit 9 (`doc/STRESS_TEST.md`) je tedy
+z větší části artefakt testu, ne slabina kovariance.
+
+Měřicí skripty (`f3_sandwich.py`, `f3_bootstrap.py`, `f3_canonical.py`,
+`f3_tausort.py`) zůstaly mimo repozitář.
 
 Sandwich estimátor ten předpoklad nepotřebuje:
 
