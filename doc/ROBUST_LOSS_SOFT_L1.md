@@ -1,13 +1,14 @@
 # Robustní ztrátová funkce (soft-L1): proč ji zavést
 
-Datum: 2026-09-01, aktualizace 2026-10-10 a 2026-10-15
+Datum: 2026-09-01, aktualizace 2026-10-10, 2026-10-15 a 2026-10-19 (sekce 6:
+měření sandwiche na F3)
 Stav kódu: v0.28.0, odkazy a měření ověřeny na v0.58.0; sekce 4.1-4.2
 na 508c06a (v0.60.3 a nevydané změny kola 6)
 Stav návrhu: **odloženo (2026-10-15)**, neimplementováno. Nálezy cold
 agentů T13/T14 řeší přepínač `--exclude-flagged` (878b498, sekce 4.3);
 soft-L1 se vrátí na pořad při podmínkách v 4.3
-Souvisí s: `doc/ZSCOPE_COMPARISON.md` (položka "Robustní loss + sandwich
-kovariance", priorita vysoká), `doc/WEIGHTING_AND_STATISTICS.md`,
+Souvisí s: `doc/ZSCOPE_COMPARISON.md` (položky "Robustní loss" a "Sandwich
+kovariance"), `doc/WEIGHTING_AND_STATISTICS.md`,
 `doc/STRESS_TEST.md` (pokrytí CI), `eis_analysis/validation/outliers.py`,
 `doc/COLD_AGENT.md` (kolo 6)
 
@@ -294,8 +295,10 @@ Vrátit se k soft-L1, když:
   a prototyp soft-L1 z kola 6 v `~/coldbox-private/r6/calib/`, mimo
   repozitář) ukáže velký rozdíl mezi druhou a třetí variantou - zatím
   neprovedeno;
-- bude potřeba sandwich kovariance tak jako tak (pokrytí CI 0.90 i bez
-  vadných bodů, sekce 6) - pak odpadne velká část ceny.
+- ~~bude potřeba sandwich kovariance tak jako tak (pokrytí CI 0.90 i bez
+  vadných bodů, sekce 6) - pak odpadne velká část ceny.~~ Změřeno
+  2026-10-19 (sekce 6): sandwich pokrytí na F3 nezlepší, tento důvod
+  odpadá.
 
 Zbytek dokumentu (sekce 5-7) zůstává jako připravený návrh implementace.
 
@@ -359,6 +362,38 @@ i bez kontaminace, nejspíš kvůli nelinearitě modelu nebo nesouladu vážení
 a skutečného šumu. Sandwich zachytí to druhé, nelinearitu ne. Soft-L1 sama
 pokrytí nezlepší vůbec, to je úloha kovariance. F3 je hotové měřidlo:
 jakákoli změna kovariance se dá ověřit tím, jak posune 0.90 k 0.95.
+
+**Změřeno 2026-10-19 (v0.61.0 + nevydané změny, 735b1c7): sandwich
+pokrytí nezlepší.** Tytéž případy, tentýž multistart fit a tentýž filtr
+jako F3 (`tests/stress_consistency.py`, `check_F`); sandwich spočítaný ze
+stejného `opt_result.jac` a `opt_result.fun`, ze kterých knihovna počítá
+klasickou kovarianci, se stejným sloupcovým škálováním a stejným CI
+(t-rozdělení, log prostor pro škálové parametry). 860 případů, u všech se
+klasická stderr shodovala s tou ve `FitResult`.
+
+| šum | případy | parametry | klasická | HC1 | HC3 | medián se HC1 / klasická |
+|---|---|---|---|---|---|---|
+| 0.1 % | 292 | 1710 | 0.895 | 0.882 | 0.898 | 0.97 |
+| 1 % | 278 | 1664 | 0.898 | 0.890 | 0.908 | 0.97 |
+| 3 % | 290 | 1740 | 0.916 | 0.906 | 0.919 | 0.97 |
+
+HC1 = sandwich s opravou n/(n-p) (obdoba s^2 = RSS/(n-p) klasické formule),
+HC3 = rezidua dělená (1 - h_i), h_i leverage. Klasická kovariance
+reprodukuje baseline F3 přesně. HC1 je o ~0.01 horší (intervaly o 3 %
+užší), HC3 o 0.003-0.01 lepší, tedy pod binomickou chybou přes případy
+(~0.018). Po rodinách má klasická kovariance 0.87 (oxide) až 0.95
+(blocking), anomalous 0.93, diffusion 0.91, cpe a rc 0.88; sandwich žádnou
+neposune o víc než ~0.01.
+
+Vysvětlení: šum ve F3 je proporcionální, přesně jak předpokládá modulové
+vážení, takže B ~ s^2 A a sandwich splyne s klasickou formulí. Nesoulad
+vážení a šumu tedy příčinou podpokrytí není; zbývá nelinearita modelu
+(zakřivené údolí korelovaných parametrů, zkreslení odhadu), kterou
+linearizovaná kovariance - klasická ani sandwich - nezachytí. Ověřit by ji
+šlo profilovou věrohodností nebo parametrickým bootstrapem na podmnožině
+případů. Sandwich by měl smysl jen spolu se soft-L1 (kde psi != r) nebo na
+datech, jejichž šum vážení neodpovídá; jako samostatná oprava F3 ne.
+Měřicí skript (`f3_sandwich.py`) zůstal mimo repozitář.
 
 Sandwich estimátor ten předpoklad nepotřebuje:
 
