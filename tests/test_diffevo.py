@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from eis_analysis.fitting import R, C, Q
-from eis_analysis.fitting.circuit import FitResult
+from eis_analysis.fitting.result import FitResult
 from eis_analysis.fitting.diffevo import (
     fit_circuit_diffevo,
     _DECostFunction,

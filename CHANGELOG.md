@@ -28,6 +28,15 @@ Complete change history for all project versions.
   exactly one free series R only. Fitted values and stderr do not change.
 - **A parameter at 0 no longer divides by zero** in the "very high relative
   uncertainty" warning; it gives the stderr at 0 instead of `inf%`.
+- **`FitResult` and `FitDiagnostics` moved to `fitting/result.py`,
+  `canonical_block_order` to `fitting/block_order.py`**, which keeps
+  circuit.py and time_constants.py under the 500-line limit.
+  `from eis_analysis.fitting import ...` is unchanged; imports from the
+  submodules `fitting.circuit` and `fitting.time_constants` move with them.
+  The block order and the series resistance check share one series chain
+  walk and one arc recognition (`_series_chains`, `_block_arc`);
+  `_collect_arcs` (time constants, arc sums) keeps its own, since it also
+  needs arcs outside a chain.
 - **A failed local fit logs at debug level**, not as an ERROR: the
   exception carries the message to the caller, and the series resistance
   check skips a merge that fails without a false error line.

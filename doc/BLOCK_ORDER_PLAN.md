@@ -2,7 +2,7 @@
 
 Stav: **implementovano (2026-10-20)**, nevydano; planovano 2026-10-13,
 revize 2026-10-20 na v0.61.0 (97c86b8). Kod: `canonical_block_order`
-v `fitting/time_constants.py`, testy `tests/test_block_order.py`.
+v `fitting/block_order.py` (puvodne `time_constants.py`), testy `tests/test_block_order.py`.
 Odchylky od planu nize: `doc/EIS_FITTING_PROTOCOL_COMPARISON.md` v repu
 neni, jeho bod 3 nebylo kde zavrit; CLI poznamka se tiskne po `Fitted:`
 pro vsechny tri optimalizatory, kdykoli obvod zamenitelne bloky ma

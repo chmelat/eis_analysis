@@ -13,7 +13,7 @@ import pytest
 from eis_analysis.fitting import fit_equivalent_circuit
 from eis_analysis.fitting.bounds import generate_simple_bounds
 from eis_analysis.fitting.circuit_elements import C, K, Q, R, Wo
-from eis_analysis.fitting.time_constants import canonical_block_order
+from eis_analysis.fitting.block_order import canonical_block_order
 
 FREQ = np.logspace(-2, 6, 40)
 

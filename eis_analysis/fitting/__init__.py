@@ -76,7 +76,8 @@ from .circuit_elements import R, C, Q, L, G, W, Ws, Wo, Wa, Wat, K, GE, CC, DQ, 
 from .circuit_builder import Series, Parallel, Circuit
 
 # Import main fitting function
-from .circuit import fit_equivalent_circuit, FitResult, FitDiagnostics
+from .circuit import fit_equivalent_circuit
+from .result import FitResult, FitDiagnostics
 
 # Import covariance for advanced users
 from .covariance import CovarianceResult
@@ -93,8 +94,8 @@ from .residual_diagnostics import (
 from .auto_suggest import analyze_voigt_elements, VoigtSuggestion, VoigtElement
 
 from .time_constants import (arc_time_constants, ArcTimeConstant,
-                             arc_resistance_sums, ArcResistanceSum,
-                             canonical_block_order)
+                             arc_resistance_sums, ArcResistanceSum)
+from .block_order import canonical_block_order
 from .series_resistance import (SeriesResistanceSplit, series_resistance_split,
                                 check_series_resistance)
 

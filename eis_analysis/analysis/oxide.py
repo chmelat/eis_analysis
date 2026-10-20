@@ -16,7 +16,7 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from numpy.typing import NDArray
 
-from ..fitting.circuit import FitResult
+from ..fitting.result import FitResult
 from .config import (
     EPSILON_0,
     DEFAULT_EPSILON_R,

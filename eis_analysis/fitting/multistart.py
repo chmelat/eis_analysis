@@ -15,7 +15,8 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
-from .circuit import _fit_local, FitResult, Circuit
+from .circuit import _fit_local
+from .result import FitResult, Circuit
 from .series_resistance import check_series_resistance
 from .circuit_builder import CompositeCircuit
 from .circuit_elements import CircuitElement

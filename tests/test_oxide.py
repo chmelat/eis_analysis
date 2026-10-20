@@ -15,7 +15,7 @@ from scipy.integrate import quad
 from eis_analysis.analysis.config import BRUG_HM_DIVERGENCE_MAX, EPSILON_0
 from eis_analysis.analysis.oxide import analyze_oxide_layer, estimate_permittivity
 from eis_analysis.analysis.oxide_power_law import _power_law_thickness_cm
-from eis_analysis.fitting.circuit import FitResult
+from eis_analysis.fitting.result import FitResult
 from eis_analysis.fitting.circuit_elements import C, CC, DQ, K, L, Q, R, W
 
 OXIDE_LOGGER = 'eis_analysis.analysis.oxide'

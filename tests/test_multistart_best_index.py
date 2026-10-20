@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 import eis_analysis.fitting.multistart as ms
-from eis_analysis.fitting.circuit import FitResult
+from eis_analysis.fitting.result import FitResult
 
 
 class _FakeCircuit:

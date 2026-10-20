@@ -20,21 +20,21 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import chi2
 
 from .bounds import generate_simple_bounds
-from .circuit_builder import Parallel, Series
-from .circuit_elements import K, R
+from .circuit_builder import Series
+from .circuit_elements import R
 from .diagnostics import compute_information_criteria
-from .time_constants import _arc_resistor
+from .block_order import _block_arc, _series_chains
 
 if TYPE_CHECKING:
-    # Annotations only: circuit.py imports this module
-    from .circuit import FitResult
+    # Annotations only: result.py imports this module
+    from .result import FitResult
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,8 @@ def series_resistance_split(
     from .circuit import _fit_local  # circuit.py imports this module
 
     circuit = result.circuit
-    members = _series_chain(circuit)
+    # The circuit's own chain, the last of them
+    members = _series_chains(circuit)[-1] if isinstance(circuit, Series) else []
     if not members or result._dof <= 0:
         return None
     params = np.asarray(result.params_opt, dtype=float)
@@ -152,10 +153,10 @@ def series_resistance_split(
     best: Optional[SeriesResistanceSplit] = None
     for offset, path, node in members:
         n = len(node.get_all_params())
-        arc = _arc_r(node, params[offset:offset + n])
-        if arc is None or any(fixed[offset:offset + n]):
+        arc = _block_arc(node, params[offset:offset + n])
+        if arc is None or arc[1] is None or any(fixed[offset:offset + n]):
             continue
-        i_R, R_k = arc
+        i_R, R_k, _ = arc
         # ponytail: the merged fit drops the arc (C or Q = 0) without checking
         # that its bounds reach that branch; a lower bound on C or Q so high
         # that the arc is not constant at f_max overstates the widened CI.
@@ -219,42 +220,6 @@ def check_series_resistance(
         f"{name} is determined only as {name} + {arc}: the fit with that arc as a "
         f"plain resistance {cost}; the 95 % CI of {widened} is widened, "
         f"{name} to [{low[split.index]:.3g}, {high[split.index]:.4g}]")
-
-
-def _series_chain(circuit) -> List[Tuple[int, Tuple[int, ...], Any]]:
-    """(offset, path, node) of the members of the top series chain; a Series
-    inside it is the same chain. `path` indexes .elements down to the node."""
-    if not isinstance(circuit, Series):
-        return []
-    out = []
-
-    def walk(node: Series, offset: int, path: Tuple[int, ...]) -> int:
-        for i, elem in enumerate(node.elements):
-            if isinstance(elem, Series):
-                offset = walk(elem, offset, path + (i,))
-                continue
-            out.append((offset, path + (i,), elem))
-            offset += len(elem.get_all_params())
-        return offset
-
-    walk(circuit, 0, ())
-    return out
-
-
-def _arc_r(node, params: NDArray[np.float64]) -> Optional[Tuple[int, float]]:
-    """(index in the node, resistance) of an (R|C), (R|Q) (G for R) or K arc, or None."""
-    if isinstance(node, K):
-        i, value = 0, params[0]
-    elif isinstance(node, Parallel) and len(node.elements) == 2:
-        starts = [0, len(node.elements[0].get_all_params())]
-        found = _arc_resistor(node.elements, starts)
-        if found is None:
-            return None
-        i, sign = found
-        value = params[i] ** sign
-    else:
-        return None
-    return (i, float(value)) if np.isfinite(value) and value > 0 else None
 
 
 __all__ = ['SeriesResistanceSplit', 'series_resistance_split', 'check_series_resistance']

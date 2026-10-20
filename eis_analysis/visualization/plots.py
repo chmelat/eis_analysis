@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import Optional, Sequence
 from numpy.typing import NDArray
 
-from ..fitting.circuit import FitResult
+from ..fitting.result import FitResult
 
 PLOT_GRID_ALPHA = 0.3
 # Points of the fitted curve: the data are often sparse (~10/decade), and a

@@ -9,26 +9,25 @@ gives the uncertainty of R1 + R2: for close arcs R1 and R2 are correlated
 near -1, the split is poorly determined and the sum is not.
 
 The same time constant puts interchangeable series blocks of a fit into one
-order, see canonical_block_order.
+order, see block_order.py.
 """
 from __future__ import annotations
 
 import itertools
-import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
 from .circuit_builder import Parallel, Series
-from .circuit_elements import R, G, C, Q, K
+from .circuit_elements import R, G, C, Q
 
 if TYPE_CHECKING:
-    # Annotations only: circuit.py imports canonical_block_order from here
-    from .circuit import FitResult
+    # Annotations only: result.py imports this module via series_resistance.py
+    # and block_order.py
+    from .result import FitResult
 
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -170,159 +169,6 @@ def arc_resistance_sums(result: FitResult) -> List[ArcResistanceSum]:
                 if s is not None:
                     sums.append(s)
     return sums
-
-
-def canonical_block_order(
-    circuit,
-    params: ArrayLike,
-    fixed: ArrayLike,
-    lower: ArrayLike,
-    upper: ArrayLike,
-) -> Tuple[NDArray[np.intp], NDArray[np.intp], bool]:
-    """
-    Permutation that puts interchangeable series blocks in ascending tau.
-
-    Blocks in one series chain with the same structure, the same fixed
-    parameters (mask and values) and the same bounds are interchangeable:
-    swapping their values leaves the impedance and the model unchanged, so a
-    fit returns them in any order - DE at random, least_squares in the order
-    of its start. Sorted by tau, the fastest process (highest frequency)
-    comes first, as auto_suggest orders the DRT peaks. This is the order in
-    the spectrum, not the identity of a process: where the time constants of
-    two processes cross in a series of spectra, the names swap there.
-
-    The order of elements inside a block does not matter: (C|R) is the same
-    block as (R|C). Recognizing the symmetry is structural; the key is the
-    physical tau:
-    R*C or (R*Q)^(1/n) of an (R|C) or (R|Q) arc (G for R), a K's own tau.
-    A group in which some block has no tau stays as it is.
-
-    Parameters
-    ----------
-    circuit : Circuit
-        The circuit; only its structure is used
-    params : array_like of float
-        Full parameter vector (fixed ones included)
-    fixed : array_like of bool
-        Fixed parameter mask
-    lower, upper : array_like of float
-        Bounds of the full parameter vector
-
-    Returns
-    -------
-    perm : ndarray of int
-        params[perm] is the vector in canonical order
-    free_perm : ndarray of int
-        The same over the free parameters only, e.g. for the columns of a
-        Jacobian; the fixed masks of swapped blocks are equal, so free
-        parameters only move onto free positions
-    grouped : bool
-        True if the circuit has a group of interchangeable blocks, also
-        when they already were in order
-    """
-    values = np.asarray(params, dtype=float)
-    fixed_arr = np.asarray(fixed, dtype=bool)
-    lower_arr = np.asarray(lower, dtype=float)
-    upper_arr = np.asarray(upper, dtype=float)
-    perm = np.arange(len(values))
-    grouped = False
-
-    def sort_chain(members: List[Tuple[int, object]]) -> None:
-        nonlocal grouped
-        groups: Dict[tuple, List[Tuple[int, NDArray[np.intp], object]]] = {}
-        for start, node in members:
-            structure, idx = _structure(node)
-            # The block's parameters in the order of its structure, so that
-            # the n-th slot of (R|C) and of (C|R) is the same parameter
-            slots = start + np.asarray(idx, dtype=np.intp)
-            mask = fixed_arr[slots]
-            key = (structure, tuple(mask), tuple(values[perm[slots]][mask]),
-                   tuple(lower_arr[slots]), tuple(upper_arr[slots]))
-            groups.setdefault(key, []).append((start, slots, node))
-        for blocks in groups.values():
-            if len(blocks) < 2:
-                continue
-            found = [_block_tau(node, values[perm[s:s + len(slots)]]) for s, slots, node in blocks]
-            taus = [t for t in found if t is not None]
-            if len(taus) < len(blocks):
-                continue
-            grouped = True
-            # ponytail: stable sort on the exact tau, no relative tolerance.
-            # Only an exact tie keeps the written order; nearly equal taus
-            # are a coin flip in any order, a tolerance would not fix that.
-            order = sorted(range(len(blocks)), key=lambda j: taus[j])
-            old = perm.copy()
-            for (_, slots, _), j in zip(blocks, order):
-                perm[slots] = old[blocks[j][1]]
-
-    def walk(node, offset: int, chain: Optional[List[Tuple[int, object]]]) -> int:
-        """Sort the chains under node; return the offset past its parameters.
-
-        `chain` collects (offset, node) of the members of the series chain
-        node is a member of; a Series directly inside a Series is the same
-        chain (the builder does not always flatten them). None outside one.
-        """
-        if isinstance(node, Series):
-            members: List[Tuple[int, object]] = [] if chain is None else chain
-            for elem in node.elements:
-                offset = walk(elem, offset, members)
-            if chain is None:
-                sort_chain(members)
-            return offset
-        if chain is not None:
-            chain.append((offset, node))
-        if isinstance(node, Parallel):
-            # Inner chains first: a member's values are then already in order
-            for elem in node.elements:
-                offset = walk(elem, offset, None)
-            return offset
-        return offset + len(node.get_all_params())
-
-    # _arc_tau drops a non-finite tau; its numpy warnings on the way there
-    # would only clutter the fit output
-    with np.errstate(over='ignore', under='ignore', divide='ignore', invalid='ignore'):
-        walk(circuit, 0, None)
-
-    free = np.flatnonzero(~fixed_arr)
-    free_perm = np.searchsorted(free, perm[free])
-    if not np.array_equal(perm, np.arange(len(perm))):
-        logger.debug(f"Interchangeable blocks put in ascending tau: permutation {perm.tolist()}")
-    return perm, free_perm, grouped
-
-
-def _structure(node) -> Tuple[tuple, List[int]]:
-    """The tree of element types under node, without values, and the offsets
-    of its parameters in the same order.
-
-    Series and parallel are commutative, so the children are sorted by their
-    own structure: (R|C) and (C|R) give one tree, and the offsets map the
-    parameters of either onto the same slots. Equal children keep their order.
-    """
-    if not isinstance(node, (Series, Parallel)):
-        return (type(node).__name__,), list(range(len(node.get_all_params())))
-    children = []
-    offset = 0
-    for elem in node.elements:
-        structure, idx = _structure(elem)
-        children.append((structure, [offset + i for i in idx]))
-        offset += len(elem.get_all_params())
-    children.sort(key=lambda child: child[0])
-    return ((type(node).__name__, tuple(s for s, _ in children)),
-            [i for _, idx in children for i in idx])
-
-
-def _block_tau(node, params: NDArray[np.float64]) -> Optional[float]:
-    """Tau of an (R|C), (R|Q) (G for R) or K block from its own parameters, or None."""
-    if isinstance(node, K):
-        tau = params[1]
-        return float(tau) if np.isfinite(tau) and tau > 0 else None
-    if isinstance(node, Parallel) and len(node.elements) == 2:
-        starts = [0, len(node.elements[0].get_all_params())]
-        resistor = _arc_resistor(node.elements, starts)
-        if resistor is not None:
-            found = _arc_tau(node.elements, starts, resistor, params)
-            return found[0] if found is not None else None
-    return None
 
 
 def _collect_arcs(result: FitResult) -> List[Tuple[Optional[ArcTimeConstant],

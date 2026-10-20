@@ -10,7 +10,7 @@ from eis_analysis.fitting.jacobian import element_jacobian
 from eis_analysis.fitting.bounds import generate_simple_bounds, log_scale_ci_mask
 from eis_analysis.cli.utils import parse_circuit_expression
 from eis_analysis.analysis.oxide import analyze_oxide_layer
-from eis_analysis.fitting.circuit import FitResult
+from eis_analysis.fitting.result import FitResult
 from eis_analysis.drt import calculate_drt
 
 

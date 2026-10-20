@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 from dataclasses import dataclass, field
 from scipy.optimize import differential_evolution, OptimizeWarning
 
-from .circuit import FitResult, FitDiagnostics, Circuit
+from .result import FitResult, FitDiagnostics, Circuit
 from .circuit_builder import CompositeCircuit
 from .circuit_elements import CircuitElement
 from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_mask,
@@ -30,7 +30,7 @@ from .optimizer import least_squares_normalized
 from .de_archive import Refinement, choose, select_archive_candidates, selection_warnings
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
-from .time_constants import canonical_block_order
+from .block_order import canonical_block_order
 from .series_resistance import check_series_resistance
 
 logger = logging.getLogger(__name__)
