@@ -30,6 +30,7 @@ from .optimizer import least_squares_normalized
 from .de_archive import Refinement, choose, select_archive_candidates, selection_warnings
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
+from .time_constants import canonical_block_order
 
 logger = logging.getLogger(__name__)
 
@@ -513,6 +514,18 @@ def fit_circuit_diffevo(
         Z_fit = Z_fit_de
         fit_metrics = de_metrics
 
+    # Interchangeable blocks in ascending tau, before anything is derived from
+    # the parameters (the warnings right below name them); each alternative by
+    # its own taus, or it would differ from the fit by the labels alone
+    def canonical(params):
+        return canonical_block_order(circuit, params, fixed_params,
+                                     lower_bounds_full, upper_bounds_full)
+    perm, free_perm = canonical(params_opt)
+    params_opt = params_opt[perm]
+    params_opt_free = params_opt_free[free_perm]
+    sel.alternatives = [(dchi2, list(np.asarray(alt)[canonical(alt)[0]]))
+                        for dchi2, alt in sel.alternatives]
+
     if refine_error is not None:
         diag_warnings.append(f"Refinement failed: {refine_error}, using DE result" if not used_refinement
                              else f"Refinement from the DE result failed: {refine_error}")
@@ -546,7 +559,7 @@ def fit_circuit_diffevo(
         jac_at_opt = jac_func(params_opt_free)
     elif final_ls is not None and getattr(final_ls, 'jac', None) is not None:
         # Numeric Jacobian; LS point coincides with the chosen point.
-        jac_at_opt = final_ls.jac
+        jac_at_opt = final_ls.jac[:, free_perm]
     else:
         jac_at_opt = None
 

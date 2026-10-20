@@ -8,6 +8,23 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **Interchangeable series blocks come back in ascending tau.** Two equal
+  (R|C) or (R|Q) arcs (G for R) or K elements in series can swap values
+  without changing the impedance; DE returned them at random (5/8 seeds in
+  the right order on one spectrum) and with another `--weighting` swapped,
+  the local fit in the order of its start. All three fits now put them in
+  ascending time constant, fastest first, before the covariance, bound
+  status and warnings, so everything derived follows. Blocks with different
+  fixed values or bounds, or without a time constant ((R|Wo), (R|DQ)), keep
+  their order. **Behaviour change:** a local fit (`--optimizer single`,
+  multistart) started with the slow arc first used to report it first; it
+  now reports it second, and the CLI says so under `Circuit:`. Results
+  compared by index with earlier ones may show swapped values. The order is
+  the one in the spectrum, not the identity of a process: where the time
+  constants of two processes cross in a series of spectra, the names swap
+  there. API: `canonical_block_order` in `fitting.time_constants`.
+  Plan and measurements: `doc/BLOCK_ORDER_PLAN.md`.
+
 - **A fit that keeps flagged points says so.** Without `--exclude-flagged`,
   while Lin-KK flagged points above the lowest decade of the analysis range,
   a warning under the circuit fit names their number and says to report the

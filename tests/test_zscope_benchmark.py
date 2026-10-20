@@ -54,6 +54,7 @@ CIRCUITS = {
         ['Rs', 'Rct', 'Q', 'alpha'],
     ),
     'Two_TimeConstants': (
+        # Arcs in ascending tau (2e-3, 0.1 s), the order the fit reports them in
         'R(10)-(R(200)|C(1e-5))-(R(100)|C(1e-3))',
         ['Rs', 'R1', 'C1', 'R2', 'C2'],
     ),
@@ -79,26 +80,9 @@ TOLERANCE_PCT = {
 NOISE_LEVELS = [0.02, 0.05]
 
 
-def _canonical(name, params):
-    """Order the two RC branches of Two_TimeConstants by time constant.
-
-    A series chain of Voigt elements is invariant under permutation of the
-    branches, so the fitter is free to return them in either order (and does:
-    on the ZScope 2% data it swapped R1<->R2, C1<->C2 at an otherwise correct
-    RMSE of 2.0%). Sorting by tau = R*C makes the comparison well-defined
-    instead of testing an arbitrary labelling.
-    """
-    p = list(params)
-    if name != 'Two_TimeConstants':
-        return p
-    branches = sorted([(p[1] * p[2], p[1], p[2]), (p[3] * p[4], p[3], p[4])])
-    return [p[0], branches[0][1], branches[0][2],
-            branches[1][1], branches[1][2]]
-
-
 def _truth(name):
     circuit = parse_circuit_expression(CIRCUITS[name][0])
-    return _canonical(name, circuit.get_all_params())
+    return circuit.get_all_params()
 
 
 def _clean_impedance(name):
@@ -123,7 +107,7 @@ def _fit(name, noise):
 
 def _errors_pct(name, fitted):
     truth = np.asarray(_truth(name), dtype=float)
-    params = np.asarray(_canonical(name, fitted.params_opt), dtype=float)
+    params = np.asarray(fitted.params_opt, dtype=float)
     return 100.0 * np.abs(params - truth) / np.abs(truth)
 
 

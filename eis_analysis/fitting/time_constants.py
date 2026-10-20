@@ -7,17 +7,28 @@ of an impedance spectrum asks for first - follows from them, and so does its
 uncertainty, through the covariance the fit already has. The same covariance
 gives the uncertainty of R1 + R2: for close arcs R1 and R2 are correlated
 near -1, the split is poorly determined and the sum is not.
+
+The same time constant puts interchangeable series blocks of a fit into one
+order, see canonical_block_order.
 """
+from __future__ import annotations
 
 import itertools
+import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
-from .circuit import FitResult
 from .circuit_builder import Parallel, Series
-from .circuit_elements import R, G, C, Q
+from .circuit_elements import R, G, C, Q, K
+
+if TYPE_CHECKING:
+    # Annotations only: circuit.py imports canonical_block_order from here
+    from .circuit import FitResult
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -161,6 +172,136 @@ def arc_resistance_sums(result: FitResult) -> List[ArcResistanceSum]:
     return sums
 
 
+def canonical_block_order(
+    circuit,
+    params: ArrayLike,
+    fixed: ArrayLike,
+    lower: ArrayLike,
+    upper: ArrayLike,
+) -> Tuple[NDArray[np.intp], NDArray[np.intp]]:
+    """
+    Permutation that puts interchangeable series blocks in ascending tau.
+
+    Blocks in one series chain with the same structure, the same fixed
+    parameters (mask and values) and the same bounds are interchangeable:
+    swapping their values leaves the impedance and the model unchanged, so a
+    fit returns them in any order - DE at random, least_squares in the order
+    of its start. Sorted by tau, the fastest process (highest frequency)
+    comes first, as auto_suggest orders the DRT peaks. This is the order in
+    the spectrum, not the identity of a process: where the time constants of
+    two processes cross in a series of spectra, the names swap there.
+
+    Recognizing the symmetry is structural; the key is the physical tau:
+    R*C or (R*Q)^(1/n) of an (R|C) or (R|Q) arc (G for R), a K's own tau.
+    A group in which some block has no tau stays as it is.
+
+    Parameters
+    ----------
+    circuit : Circuit
+        The circuit; only its structure is used
+    params : array_like of float
+        Full parameter vector (fixed ones included)
+    fixed : array_like of bool
+        Fixed parameter mask
+    lower, upper : array_like of float
+        Bounds of the full parameter vector
+
+    Returns
+    -------
+    perm : ndarray of int
+        params[perm] is the vector in canonical order
+    free_perm : ndarray of int
+        The same over the free parameters only, e.g. for the columns of a
+        Jacobian; the fixed masks of swapped blocks are equal, so free
+        parameters only move onto free positions
+    """
+    values = np.asarray(params, dtype=float)
+    fixed_arr = np.asarray(fixed, dtype=bool)
+    lower_arr = np.asarray(lower, dtype=float)
+    upper_arr = np.asarray(upper, dtype=float)
+    perm = np.arange(len(values))
+
+    def sort_chain(members: List[Tuple[int, object]]) -> None:
+        groups: Dict[tuple, List[Tuple[int, int, object]]] = {}
+        for start, node in members:
+            n = len(node.get_all_params())  # type: ignore[attr-defined]
+            span = slice(start, start + n)
+            mask = fixed_arr[span]
+            key = (_structure(node), tuple(mask), tuple(values[perm[span]][mask]),
+                   tuple(lower_arr[span]), tuple(upper_arr[span]))
+            groups.setdefault(key, []).append((start, n, node))
+        for blocks in groups.values():
+            if len(blocks) < 2:
+                continue
+            found = [_block_tau(node, values[perm[s:s + n]]) for s, n, node in blocks]
+            taus = [t for t in found if t is not None]
+            if len(taus) < len(blocks):
+                continue
+            # ponytail: stable sort on the exact tau, no relative tolerance.
+            # Only an exact tie keeps the written order; nearly equal taus
+            # are a coin flip in any order, a tolerance would not fix that.
+            order = sorted(range(len(blocks)), key=lambda j: taus[j])
+            old = perm.copy()
+            for (s, n, _), j in zip(blocks, order):
+                src = blocks[j][0]
+                perm[s:s + n] = old[src:src + n]
+
+    def walk(node, offset: int, chain: Optional[List[Tuple[int, object]]]) -> int:
+        """Sort the chains under node; return the offset past its parameters.
+
+        `chain` collects (offset, node) of the members of the series chain
+        node is a member of; a Series directly inside a Series is the same
+        chain (the builder does not always flatten them). None outside one.
+        """
+        if isinstance(node, Series):
+            members: List[Tuple[int, object]] = [] if chain is None else chain
+            for elem in node.elements:
+                offset = walk(elem, offset, members)
+            if chain is None:
+                sort_chain(members)
+            return offset
+        if chain is not None:
+            chain.append((offset, node))
+        if isinstance(node, Parallel):
+            # Inner chains first: a member's values are then already in order
+            for elem in node.elements:
+                offset = walk(elem, offset, None)
+            return offset
+        return offset + len(node.get_all_params())
+
+    # _arc_tau drops a non-finite tau; its numpy warnings on the way there
+    # would only clutter the fit output
+    with np.errstate(over='ignore', under='ignore', divide='ignore', invalid='ignore'):
+        walk(circuit, 0, None)
+
+    free = np.flatnonzero(~fixed_arr)
+    free_perm = np.searchsorted(free, perm[free])
+    if not np.array_equal(perm, np.arange(len(perm))):
+        logger.debug(f"Interchangeable blocks put in ascending tau: permutation {perm.tolist()}")
+    return perm, free_perm
+
+
+def _structure(node) -> object:
+    """The tree of element types under node, without values."""
+    if isinstance(node, (Series, Parallel)):
+        return type(node).__name__, tuple(_structure(e) for e in node.elements)
+    return type(node).__name__
+
+
+def _block_tau(node, params: NDArray[np.float64]) -> Optional[float]:
+    """Tau of an (R|C), (R|Q) (G for R) or K block from its own parameters, or None."""
+    if isinstance(node, K):
+        tau = params[1]
+        return float(tau) if np.isfinite(tau) and tau > 0 else None
+    if isinstance(node, Parallel) and len(node.elements) == 2:
+        starts = [0, len(node.elements[0].get_all_params())]
+        resistor = _arc_resistor(node.elements, starts)
+        if resistor is not None:
+            found = _arc_tau(node.elements, starts, resistor, params)
+            return found[0] if found is not None else None
+    return None
+
+
 def _collect_arcs(result: FitResult) -> List[Tuple[Optional[ArcTimeConstant],
                                                    Tuple[int, float], Optional[int]]]:
     """
@@ -261,6 +402,21 @@ def _arc_resistor(elements, starts) -> Optional[Tuple[int, float]]:
 def _arc(elements, starts, resistor: Tuple[int, float], params, labels,
          result: FitResult) -> Optional[ArcTimeConstant]:
     """The time constant of an arc found by _arc_resistor, or None if it has none."""
+    found = _arc_tau(elements, starts, resistor, params)
+    if found is None:
+        return None
+    tau, idx, grad = found
+    i_R, i_C = idx[0], idx[1]
+    stderr, note = _tau_stderr(tau, grad, idx, labels, result)
+    return ArcTimeConstant(elements=f"{labels[i_R]}|{labels[i_C]}", tau=tau,
+                           tau_stderr=stderr, stderr_note=note,
+                           frequency=float(1 / (2 * np.pi * tau)))
+
+
+def _arc_tau(elements, starts, resistor: Tuple[int, float],
+             params) -> Optional[Tuple[float, List[int], NDArray[np.float64]]]:
+    """Tau of an arc found by _arc_resistor, its parameter indices [R, C or Q
+    (, n)] and the gradient of ln tau over them; None if it has no tau."""
     i_R, sign = resistor
     kinds = [type(e) for e in elements]
     R_val = params[i_R] ** sign
@@ -284,10 +440,7 @@ def _arc(elements, starts, resistor: Tuple[int, float], params, labels,
     # A tiny n or an extreme R*Q under- or overflows exp(): no usable tau
     if not (np.isfinite(tau) and 0 < tau < np.inf and np.isfinite(1 / tau)):
         return None
-    stderr, note = _tau_stderr(float(tau), grad, idx, labels, result)
-    return ArcTimeConstant(elements=f"{labels[i_R]}|{labels[i_C]}", tau=float(tau),
-                           tau_stderr=stderr, stderr_note=note,
-                           frequency=float(1 / (2 * np.pi * tau)))
+    return float(tau), idx, grad
 
 
 def _cov_block(idx: List[int], labels,

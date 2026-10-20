@@ -35,6 +35,7 @@ from .bounds import (generate_simple_bounds, build_bound_status, log_scale_ci_ma
 from .diagnostics import compute_residual_weights, compute_fit_metrics, compute_significance
 from .optimizer import least_squares_normalized
 from .jacobian import make_jacobian_function
+from .time_constants import canonical_block_order
 
 logger = logging.getLogger(__name__)
 
@@ -425,6 +426,14 @@ def fit_equivalent_circuit(
                 params_opt = np.array(reconstruct_params(params_opt_free))
             else:
                 params_opt = params_opt_free
+
+            # Interchangeable blocks in ascending tau, before anything is
+            # derived from the parameters: the covariance, bound status and
+            # warnings below then come out in that order on their own
+            perm, free_perm = canonical_block_order(
+                circuit, params_opt, fixed_params, lower_bounds, upper_bounds)
+            params_opt = np.asarray(params_opt)[perm]
+            opt_result.jac = opt_result.jac[:, free_perm]
 
             if not opt_result.success:
                 diag_warnings.append(f"Optimizer did not converge: {opt_result.message}")

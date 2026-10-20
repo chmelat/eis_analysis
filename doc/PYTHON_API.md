@@ -587,6 +587,11 @@ result, Z_fit = fit_equivalent_circuit(
 
 # result: FitResult dataclass
 # Z_fit: Fitted impedance
+# Interchangeable series blocks - equal (R|C), (R|Q) arcs (G for R) or K, with
+# equal fixed values and bounds - come back in ascending tau, whatever their
+# order in `circuit` (all three fit functions). The order alone:
+#   from eis_analysis.fitting.time_constants import canonical_block_order
+#   perm, free_perm = canonical_block_order(circuit, params, fixed, lower, upper)
 
 # Figure: Nyquist and residuals (the fit itself builds none; for multistart
 # and DE pass .best_result)

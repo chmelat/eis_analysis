@@ -531,12 +531,16 @@ it causes in `|Z|` anywhere in the measured window, `S = max |dln|Z|/dlnP|`:
 Names are the parameter type with its count from the left of the expression,
 from 0: in `R(10) - (R(100) - Ws(50, 1) | C(1e-6))` the series resistor is
 `R0`, the charge-transfer resistor `R1`, the Warburg `R_W0` and `τ_W0`, the
-capacitor `C0`; the JSON `label` field uses the same names. Names follow
-positions, not processes: two arcs in series are interchangeable, and a fit
-may return them in either order (`R1` = 452 Ohm where the start had 60) - also
-for the same spectrum fitted with another `--weighting` or another DE run
-(without `--seed`) - so match arcs between fits by their time constants, not
-by name. `+/-` is one standard error from the
+capacitor `C0`; the JSON `label` field uses the same names. Equal blocks in
+series - two (R|C) or (R|Q) arcs (G for R), two K - are interchangeable, and
+the fit reports them in ascending time constant, the fastest process (highest
+frequency) first, whatever order the circuit was written in; the fit output
+says so under `Circuit:` when the written order differs. Blocks that differ
+in a fixed value or in bounds keep their order, and so do blocks without a
+time constant, such as (R|Wo). This is the order in the spectrum, not the
+identity of a process: in a series of spectra where the time constants of
+two processes cross (temperature, aging), the names swap there; follow a
+process by its capacitance instead. `+/-` is one standard error from the
 covariance scaled by the residual variance, s^2 = RSS/(n - p); the 95 % CI
 uses the t-distribution, in log space for positive scale parameters (R, C, Q,
 tau), so it is asymmetric there. Both assume random residuals (see below).
