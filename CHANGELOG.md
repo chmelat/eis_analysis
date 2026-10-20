@@ -18,6 +18,13 @@ Complete change history for all project versions.
 
 ### Added
 
+- **The fitted circuit with its values.** The fit results start with a line
+  such as `Fitted: R(29.42) - (R(3.771e+04) | Q(6.287e-05, "0.9")) -
+  K(1.086e+05, 25.94)`: the input expression with the fitted values (fixed
+  ones quoted), which parses back as `--circuit`. The parameter labels count
+  each type from the left, a K's R among the Rs, so which R2 is which had to
+  be counted by hand.
+
 - **The sum of the arc resistances with its uncertainty.** Two or more
   (R|C)/(R|Q) arcs in series get a line under the time constants, `R1 + R2
   R = ... Ohm +/- ...`, with the R1/R2 correlation for two; the fit JSON

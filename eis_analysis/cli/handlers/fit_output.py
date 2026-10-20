@@ -339,6 +339,9 @@ def _log_fit_result(result: FitResult,
     """
     logger.info("")
     logger.info("Fit results:")
+    # The labels below count each parameter type from the left (K's R is an
+    # R too); the fitted expression maps them to the elements directly
+    logger.info(f"  Fitted: {result.circuit}")
     logger.info("  Parameters:")
 
     # Get param labels
