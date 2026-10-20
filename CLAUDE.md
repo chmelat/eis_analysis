@@ -105,6 +105,10 @@ Standard best practices apply (DRY, Single Responsibility, YAGNI). Project-speci
 - `logger.debug` is fine anywhere.
 - Printing happens only in `cli/handlers/`, separators via `log_separator()`.
 
+**Contracts:** a module with a `CONTRACT` section in its docstring is
+changed together with its contract and a test, in the same commit. How
+contracts are written and checked by a cold review: `doc/CONTRACT_REVIEW.md`.
+
 ---
 
 ## Testing

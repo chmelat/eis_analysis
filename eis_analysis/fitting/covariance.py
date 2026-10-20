@@ -4,6 +4,70 @@ Covariance matrix computation for circuit fitting.
 Provides robust SVD-based covariance estimation and confidence interval
 computation for fitted parameters.
 
+CONTRACT
+
+Callers. fitting/circuit.py (_fit_local) and fitting/diffevo.py call
+compute_covariance_matrix at the fitted point with:
+  jacobian   (n_residuals, n_free) of the weighted residuals with respect to
+             the free parameters, in the parameters' own units
+             (optimizer.least_squares_normalized returns its jac unscaled);
+             the real parts of the residuals first, then the imaginary
+  residuals  (n_residuals,) weighted the same way, at the same point
+  n_params   number of all parameters, fixed ones included
+  fixed_params  mask over all parameters, or None (all free); it has exactly
+             n_free False entries, in the order of the jacobian's columns
+They guarantee n_free >= 1. fitting/result.py calls
+compute_confidence_interval with FitResult._dof (CovarianceResult.dof) and
+the mask of bounds.log_scale_ci_mask.
+
+compute_covariance_matrix -> CovarianceResult, every array over all
+parameters (fixed ones at their place, variance and covariance 0):
+  dof        n_residuals - n_free (<= 0 when there are too few residuals)
+  s^2        RSS / dof, RSS = residuals . residuals
+  cov        s^2 (J^T J)^-1 over the free parameters, placed into the full
+             matrix; symmetric, positive semi-definite
+  stderr     sqrt of the diagonal of cov
+  condition_number  cond(J_s)^2 = cond(J_s^T J_s), J_s the jacobian with
+             unit-norm columns; is_well_conditioned  condition_number < 1e10
+  rank       numerical rank of J_s (singular values above rcond * max)
+  warning_message  None, or what makes the result less reliable
+It never raises on numerical trouble; it reports it in the result.
+
+What must hold:
+  - Units do not matter: scaling column j of the jacobian by c > 0 scales
+    row and column j of cov by 1/c (its variance by 1/c^2) and leaves every
+    other entry, rank, condition_number and is_well_conditioned unchanged.
+  - Full rank: cov is s^2 (J^T J)^-1 to rounding, whatever the condition
+    number; ill-conditioning only adds a warning.
+  - Rank deficient (rank < n_free): a free parameter whose unit direction
+    has more than NULLSPACE_OVERLAP_TOL of its norm in the null space of J_s
+    is non-identifiable: stderr inf and its whole row and column of cov inf.
+    The others get their variance from the pseudo-inverse over the
+    identifiable subspace. is_well_conditioned is False, and the warning
+    names the non-identifiable parameters by their index among all
+    parameters. A parameter with no effect at all (a zero column) is
+    non-identifiable.
+  - No residual variance to estimate (n_residuals <= n_free, so dof <= 0):
+    every free stderr is inf, their rows and columns of cov inf, the true
+    dof, condition_number inf, rank 0, is_well_conditioned False and a
+    warning; the result does not pretend dof = 1.
+  - Non-finite input (NaN or inf in the jacobian or the residuals), or a
+    failed SVD: cov None, every stderr inf (fixed ones too, as nothing is
+    known), condition_number inf, rank 0, a warning saying why.
+  - Fixed parameters: stderr exactly 0, row and column of cov exactly 0.
+
+compute_confidence_interval(params, stderr, dof, level, log_scale) ->
+(low, high), each over all parameters:
+  - t quantile at (1 + level) / 2 with max(dof, 1) degrees of freedom: the
+    same dof as s^2.
+  - Linear: p -/+ t * stderr.
+  - Log space where log_scale is True, p > 0 and stderr finite:
+    (p / f, p * f), f = exp(t * stderr / p); where that overflows, (0, inf).
+    Elsewhere linear, also for p <= 0 under the mask.
+  - Non-finite stderr: (-inf, inf) for that parameter only; the others keep
+    their intervals. A stderr of 0 (fixed) gives (p, p).
+  - Inputs are not modified; the arrays returned are new.
+
 Author: EIS Analysis Toolkit
 """
 
@@ -62,7 +126,7 @@ class CovarianceResult:
     rank: int
     is_well_conditioned: bool
     warning_message: Union[str, None]
-    dof: int = 1
+    dof: int
 
 
 def compute_covariance_matrix(
@@ -140,9 +204,25 @@ def compute_covariance_matrix(
     """
     n_residuals = len(residuals)
     n_free_params = jacobian.shape[1]
+    dof = n_residuals - n_free_params
 
-    # Degrees of freedom
-    dof = max(n_residuals - n_free_params, 1)
+    if not (np.all(np.isfinite(jacobian)) and np.all(np.isfinite(residuals))):
+        return _failed("Non-finite jacobian or residuals", n_free_params, fixed_params, dof)
+
+    # No residual variance to estimate (dof <= 0): every free stderr is inf.
+    # The thin SVD below would also miss a wide jacobian's null space.
+    if dof <= 0:
+        cov, stderr, _ = _full(np.full((n_free_params, n_free_params), np.inf), fixed_params)
+        return CovarianceResult(
+            cov=cov,
+            stderr=stderr,
+            condition_number=np.inf,
+            rank=0,
+            is_well_conditioned=False,
+            warning_message=(f"{n_residuals} residuals for {n_free_params} free parameters: "
+                             f"no residual variance to estimate (stderr=inf)"),
+            dof=dof,
+        )
 
     # Residual variance estimate
     rss = residuals @ residuals
@@ -167,6 +247,7 @@ def compute_covariance_matrix(
         # the resulting zero singular value drops the rank -> inf below.
         col_scale = np.where(col_norms > 0, col_norms, 1.0)
         J_scaled = jacobian / col_scale
+        inv_scale = 1.0 / col_scale
 
         # SVD of the scaled Jacobian: J_scaled = U @ S @ V^T
         U, S, Vt = np.linalg.svd(J_scaled, full_matrices=False)
@@ -213,37 +294,20 @@ def compute_covariance_matrix(
             S_r = S[~null_rows]
             Vt_r = Vt[~null_rows, :]
             JsTJs_pinv = Vt_r.T @ np.diag(1.0 / (S_r * S_r)) @ Vt_r
-            inv_scale = 1.0 / col_scale
             JtJ_pinv = (inv_scale[:, None] * JsTJs_pinv) * inv_scale[None, :]
             cov_free = residual_variance * JtJ_pinv
-            stderr_free = np.sqrt(np.abs(np.diag(cov_free)))
-            stderr_free[non_identifiable] = np.inf
             cov_free[non_identifiable, :] = np.inf
             cov_free[:, non_identifiable] = np.inf
-
-            if fixed_params is not None and any(fixed_params):
-                n_total = len(fixed_params)
-                free_indices = [i for i, f in enumerate(fixed_params) if not f]
-            else:
-                n_total = n_free_params
-                free_indices = list(range(n_free_params))
+            cov, stderr, free = _full(cov_free, fixed_params)
 
             # Full-parameter-space indices of the non-identifiable parameters
-            bad_full = [free_indices[i] for i in np.where(non_identifiable)[0]]
+            bad_full = free[non_identifiable].tolist()
             warning_message = (
                 f"Rank-deficient Jacobian (rank={rank}/{n_free_params}). "
                 f"Non-identifiable parameter(s) {bad_full}: "
                 f"covariance not estimable (stderr=inf); remaining parameters "
                 f"estimated on the identifiable subspace."
             )
-
-            cov = np.zeros((n_total, n_total))
-            for i_free, i_full in enumerate(free_indices):
-                for j_free, j_full in enumerate(free_indices):
-                    cov[i_full, j_full] = cov_free[i_free, j_free]
-            stderr = np.zeros(n_total)
-            stderr[free_indices] = stderr_free
-
             return CovarianceResult(
                 cov=cov,
                 stderr=stderr,
@@ -264,40 +328,9 @@ def compute_covariance_matrix(
         # Invert the scaled normal matrix, (J_scaled^T J_scaled)^{-1} =
         # V @ S^{-2} @ V^T, then rescale by D^{-1} on both sides to recover
         # (J^T J)^{-1} in the original parameter units.
-        S_inv_sq = 1.0 / (S * S)
-        V = Vt.T
-        JsTJs_inv = V @ np.diag(S_inv_sq) @ Vt
-        inv_scale = 1.0 / col_scale
+        JsTJs_inv = Vt.T @ np.diag(1.0 / (S * S)) @ Vt
         JtJ_inv_free = (inv_scale[:, None] * JsTJs_inv) * inv_scale[None, :]
-
-        # Covariance matrix for free parameters
-        cov_free = residual_variance * JtJ_inv_free
-
-        # Check for negative diagonal (numerical artifact; the stderr below
-        # already uses abs). Append rather than assign so an earlier
-        # ill-conditioned warning is not silently overwritten.
-        if np.any(np.diag(cov_free) < 0):
-            neg_msg = "Negative variance detected. Using absolute values."
-            warning_message = (f"{warning_message} {neg_msg}"
-                               if warning_message else neg_msg)
-
-        # Expand to full parameter space (including fixed parameters)
-        if fixed_params is not None and any(fixed_params):
-            n_total = len(fixed_params)
-            cov = np.zeros((n_total, n_total))
-
-            free_indices = [i for i, is_fixed in enumerate(fixed_params) if not is_fixed]
-
-            for i_free, i_full in enumerate(free_indices):
-                for j_free, j_full in enumerate(free_indices):
-                    cov[i_full, j_full] = cov_free[i_free, j_free]
-
-            stderr = np.zeros(n_total)
-            for i_free, i_full in enumerate(free_indices):
-                stderr[i_full] = np.sqrt(np.abs(cov_free[i_free, i_free]))
-        else:
-            cov = cov_free
-            stderr = np.sqrt(np.abs(np.diag(cov)))
+        cov, stderr, _ = _full(residual_variance * JtJ_inv_free, fixed_params)
 
         return CovarianceResult(
             cov=cov,
@@ -311,19 +344,30 @@ def compute_covariance_matrix(
 
     except np.linalg.LinAlgError as e:
         logger.error(f"SVD computation failed: {e}")
-        n_total = n_params
-        if fixed_params is not None:
-            n_total = len(fixed_params)
+        return _failed(f"SVD failed: {e}", n_free_params, fixed_params, dof)
 
-        return CovarianceResult(
-            cov=None,
-            stderr=np.full(n_total, np.inf),
-            condition_number=np.inf,
-            rank=0,
-            is_well_conditioned=False,
-            warning_message=f"SVD failed: {e}",
-            dof=dof,
-        )
+
+def _full(cov_free: NDArray[np.float64], fixed_params: Optional[List[bool]]
+          ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.intp]]:
+    """cov over all parameters (fixed ones 0), its stderr, and the indices of
+    the free parameters among all."""
+    n_free = len(cov_free)
+    n_total = len(fixed_params) if fixed_params is not None else n_free
+    free = (np.flatnonzero(~np.asarray(fixed_params, dtype=bool)) if fixed_params is not None
+            else np.arange(n_free))
+    cov = np.zeros((n_total, n_total))
+    cov[np.ix_(free, free)] = cov_free
+    stderr = np.zeros(n_total)
+    # abs: a rounding error could leave a variance a hair below 0
+    stderr[free] = np.sqrt(np.abs(np.diag(cov_free)))
+    return cov, stderr, free
+
+
+def _failed(reason: str, n_free: int, fixed_params: Optional[List[bool]], dof: int) -> CovarianceResult:
+    """Nothing is known: cov None, every stderr inf, fixed ones too."""
+    n_total = len(fixed_params) if fixed_params is not None else n_free
+    return CovarianceResult(cov=None, stderr=np.full(n_total, np.inf), condition_number=np.inf,
+                            rank=0, is_well_conditioned=False, warning_message=reason, dof=dof)
 
 
 def compute_confidence_interval(

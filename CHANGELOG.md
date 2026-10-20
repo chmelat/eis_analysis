@@ -26,6 +26,18 @@ Complete change history for all project versions.
   (`SeriesResistanceSplit`) holds the merged fit and its dchi2; API
   `series_resistance_split`, `check_series_resistance`. Circuits with
   exactly one free series R only. Fitted values and stderr do not change.
+- **Too few points for the parameters gives stderr inf.** With as many
+  residuals as free parameters or fewer (a spectrum of two points fitted
+  with R-(R|Q)), the covariance clamped dof to 1 and returned finite
+  standard errors and CIs without a warning; with fewer residuals than
+  parameters it also missed the null space and named no parameter as
+  non-identifiable. Every free stderr is now inf, `dof` is the true
+  `n_res - n_free`, and a warning says why. NaN or inf in the Jacobian or
+  the residuals now gives no covariance (`cov` None, every stderr inf, a
+  warning), where a NaN residual gave a NaN covariance without a word.
+  Found by the first cold review against a module contract
+  (`doc/CONTRACT_REVIEW.md`); `covariance.py` now states its contract at
+  its head.
 - **A parameter at 0 no longer divides by zero** in the "very high relative
   uncertainty" warning; it gives the stderr at 0 instead of `inf%`.
 - **`FitResult` and `FitDiagnostics` moved to `fitting/result.py`,

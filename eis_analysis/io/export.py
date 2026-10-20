@@ -98,8 +98,8 @@ def fit_result_record(
     # The linear Voigt chain leaves n_free_params at 0: there is then no
     # free-parameter count, so no dof and no AIC/BIC (which refuse k = 0).
     # dof is the one the CIs above were computed with, not 2N - k again:
-    # the fit clamps it to >= 1, and DE leaves 0 (no CIs) when the
-    # covariance fails - None then, not a dof of 0.
+    # <= 0 when there are too few points for the parameters, and DE leaves
+    # 0 (no CIs) when the covariance fails - None then, not a dof of 0.
     k = int(result.n_free_params)
     dof = aic = bic = None
     if k > 0:

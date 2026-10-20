@@ -20,15 +20,16 @@ from eis_analysis.fitting.covariance import compute_covariance_matrix
 def _equal_norm_correlated_J(d):
     # Two unit-norm columns with Gram off-diagonal d, so column scaling is a
     # no-op and cond(J^T J) = (1 + d) / (1 - d) reflects genuine correlation.
+    # The zero row leaves J^T J as it is and gives dof = 1 > 0.
     a = np.sqrt((1.0 + d) / 2.0)
     b = np.sqrt((1.0 - d) / 2.0)
-    return np.column_stack([[a, b], [a, -b]])
+    return np.column_stack([[a, b, 0.0], [a, -b, 0.0]])
 
 
 def test_condition_number_is_cond_of_JtJ():
     # Equal-norm correlated columns, d = 0.5 -> cond(J^T J) = 1.5 / 0.5 = 3.
     J = _equal_norm_correlated_J(0.5)
-    r = np.array([0.1, 0.2])
+    r = np.array([0.1, 0.2, 0.0])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert result.condition_number == pytest.approx(3.0)
 
@@ -38,7 +39,7 @@ def test_genuine_ill_conditioning_flagged():
     # d -> 1 gives cond(J^T J) = (1 + d) / (1 - d) > 1e10.
     d = 1.0 - 2e-11
     J = _equal_norm_correlated_J(d)
-    r = np.array([0.1, 0.2])
+    r = np.array([0.1, 0.2, 0.0])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert result.condition_number > 1e10
     assert not result.is_well_conditioned
@@ -47,7 +48,7 @@ def test_genuine_ill_conditioning_flagged():
 def test_well_conditioned_true_for_benign_jacobian():
     # Equal-norm, weakly correlated columns -> cond(J^T J) = 3, below 1e10.
     J = _equal_norm_correlated_J(0.5)
-    r = np.array([0.1, 0.2])
+    r = np.array([0.1, 0.2, 0.0])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert result.is_well_conditioned
 
@@ -125,8 +126,8 @@ def test_partial_rank_deficiency_with_fixed_params():
 
 def test_full_rank_stderr_finite():
     # Full rank -> covariance estimable, finite standard errors.
-    J = np.diag([2.0, 0.5])
-    r = np.array([0.1, 0.2])
+    J = np.array([[2.0, 0.0], [0.0, 0.5], [0.0, 0.0]])  # 3 residuals, dof 1
+    r = np.array([0.1, 0.2, 0.0])
     result = compute_covariance_matrix(J, r, n_params=2)
     assert np.all(np.isfinite(result.stderr))
 
@@ -171,3 +172,29 @@ def test_integration_real_fit_has_finite_stderr():
     assert len(scale_idx) == 5  # Rs, R0, Q0, R1, Q1
     for i in scale_idx:
         assert ci_low[i] > 0, f"Param {i}: scale-parameter CI crosses zero"
+
+
+@pytest.mark.parametrize("n_res, n_free", [(2, 2), (2, 3), (0, 2)])
+def test_too_few_residuals_gives_inf_stderr(n_res, n_free):
+    """n_res <= n_free leaves no residual variance (dof <= 0): stderr inf, not
+    a finite value from a dof clamped to 1 (cold review F1, F2, F5)."""
+    rng = np.random.default_rng(0)
+    J = rng.normal(size=(n_res, n_free))
+    fixed = [False] * n_free + [True]
+    result = compute_covariance_matrix(J, rng.normal(size=n_res), n_free + 1, fixed_params=fixed)
+    assert np.all(np.isinf(result.stderr[:n_free])) and result.stderr[-1] == 0
+    assert result.dof == n_res - n_free
+    assert not result.is_well_conditioned and result.warning_message
+
+
+@pytest.mark.parametrize("where", ["jacobian", "residuals"])
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_non_finite_input_gives_no_covariance(where, bad):
+    """NaN or inf in the input: cov None and every stderr inf, fixed ones too,
+    where a NaN residual gave a NaN cov with no warning (cold review F3, F4)."""
+    rng = np.random.default_rng(0)
+    J, r = rng.normal(size=(6, 2)), rng.normal(size=6)
+    (J if where == "jacobian" else r)[2] = bad
+    result = compute_covariance_matrix(J, r, 3, fixed_params=[False, True, False])
+    assert result.cov is None and np.all(np.isinf(result.stderr))
+    assert "Non-finite" in result.warning_message
