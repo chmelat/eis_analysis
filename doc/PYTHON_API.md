@@ -590,8 +590,16 @@ result, Z_fit = fit_equivalent_circuit(
 # Interchangeable series blocks - equal (R|C), (R|Q) arcs (G for R) or K, with
 # equal fixed values and bounds - come back in ascending tau, whatever their
 # order in `circuit` (all three fit functions). The order alone:
-#   from eis_analysis.fitting.time_constants import canonical_block_order
-#   perm, free_perm = canonical_block_order(circuit, params, fixed, lower, upper)
+#   from eis_analysis.fitting import canonical_block_order
+#   perm, free_perm, grouped = canonical_block_order(circuit, params, fixed, lower, upper)
+# result.block_order: that permutation as applied by the fit, None if the
+# circuit has no interchangeable blocks
+# An arc in series the data cannot tell from part of the series R (merged
+# into it, the fit is worse by dchi2 < 3.84): result.series_split, a
+# SeriesResistanceSplit with .dchi2, .arc_resistance and the merged fit
+# .merged; params_ci_95 of the series R and of the arc's R then run from
+# their lower bounds to the merged value's CI, and a warning says so. None otherwise. On a fit of
+# your own: series_resistance_split(result, frequencies, Z, weighting)
 
 # Figure: Nyquist and residuals (the fit itself builds none; for multistart
 # and DE pass .best_result)

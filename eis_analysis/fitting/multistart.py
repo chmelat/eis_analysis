@@ -15,7 +15,8 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
-from .circuit import fit_equivalent_circuit, FitResult, Circuit
+from .circuit import _fit_local, FitResult, Circuit
+from .series_resistance import check_series_resistance
 from .circuit_builder import CompositeCircuit
 from .circuit_elements import CircuitElement
 from .bounds import generate_simple_bounds
@@ -237,7 +238,7 @@ def fit_circuit_multistart(
     # Step 1: Initial fit (on a copy too, so every result owns its circuit -
     # see run_single_fit; the caller's circuit is synced to the best fit at the end)
     try:
-        result0, _ = fit_equivalent_circuit(
+        result0, _ = _fit_local(
             frequencies, Z, deepcopy(circuit), weighting=weighting,
             use_analytic_jacobian=use_analytic_jacobian
         )
@@ -257,12 +258,12 @@ def fit_circuit_multistart(
     # Step 2: Generate perturbations and run additional fits
     def run_single_fit(start_idx: int, initial_params: NDArray) -> Optional[FitResult]:
         try:
-            # Each restart fits its OWN copy of the circuit: fit_equivalent_circuit()
+            # Each restart fits its OWN copy of the circuit: _fit_local()
             # writes its parameters into the circuit object it is given, so a shared
             # circuit would be overwritten by every restart in turn (and, in parallel
             # mode, concurrently by several threads at once - a data race, since
             # impedance() reads the same parameters it is being written into).
-            result, _ = fit_equivalent_circuit(
+            result, _ = _fit_local(
                 frequencies, Z, deepcopy(circuit),
                 weighting=weighting,
                 initial_guess=list(initial_params),
@@ -346,6 +347,10 @@ def fit_circuit_multistart(
     # all_results, so this is robust to completion-order shuffling that
     # ThreadPoolExecutor/as_completed introduces in parallel mode.
     best_idx = result_indices[best_pos]
+
+    # On the chosen start only, the starts would each pay its refits
+    check_series_resistance(best_result, frequencies, Z, weighting,
+                            use_analytic_jacobian=use_analytic_jacobian)
 
     # Build diagnostics
     diagnostics = MultistartDiagnostics(

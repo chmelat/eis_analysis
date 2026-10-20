@@ -22,8 +22,8 @@ def _order(circuit, lower=None, upper=None):
     params = circuit.get_all_params()
     if lower is None:
         lower, upper = generate_simple_bounds(circuit.get_param_labels())
-    perm, free_perm = canonical_block_order(circuit, params, circuit.get_all_fixed_params(),
-                                            lower, upper)
+    perm, free_perm, _ = canonical_block_order(circuit, params, circuit.get_all_fixed_params(),
+                                               lower, upper)
     Z_before = circuit.impedance(FREQ, params)
     Z_after = circuit.impedance(FREQ, list(np.asarray(params)[perm]))
     np.testing.assert_allclose(Z_after, Z_before, rtol=1e-12)
@@ -43,6 +43,8 @@ def _order(circuit, lower=None, upper=None):
     (R(10) - (R(1e4) | Wo(10, 1)) - (R(1e3) | Wo(10, 1e-3)), [0, 1, 2, 3, 4, 5, 6]),
     # a Series inside a Series is the same chain
     ((R(1e4) | Q(1e-4, 0.8)) - (R(10) - (R(1e3) | Q(1e-7, 0.9))), [4, 5, 6, 3, 0, 1, 2]),
+    # (C|R) is the same block as (R|C); the values land on their own kind
+    (R(10) - (R(1e4) | C(1e-4)) - (C(1e-7) | R(1e3)), [0, 4, 3, 2, 1]),
     # K by its own tau, three blocks
     (R(10) - K(1e3, 1.0) - K(1e2, 1e-3) - K(5, 1e-5), [0, 5, 6, 3, 4, 1, 2]),
 ])
@@ -73,6 +75,8 @@ def test_lm_fit_same_from_either_order():
     slow_first = R(12) - (R(6e3) | Q(2e-4, 0.85)) - (R(8e2) | Q(2e-7, 0.85))
     a, _ = fit_equivalent_circuit(FREQ, Z, fast_first)
     b, _ = fit_equivalent_circuit(FREQ, Z, slow_first)
+    assert a.block_order == list(range(7))
+    assert b.block_order == [0, 4, 5, 6, 1, 2, 3]
 
     np.testing.assert_allclose(b.params_opt, a.params_opt, rtol=1e-4)
     np.testing.assert_allclose(b.params_stderr, a.params_stderr, rtol=1e-3)

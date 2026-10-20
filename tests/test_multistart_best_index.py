@@ -71,13 +71,13 @@ def _install_deterministic_mocks(monkeypatch, errors, sleeps):
             is_well_conditioned=False,
             n_free_params=2,
         )
-        # fit_equivalent_circuit() writes its parameters into the shared
+        # _fit_local() writes its parameters into the shared
         # circuit object; mimic that so the circuit-sync test is meaningful.
         circuit.update_params(list(params))
         Z_fit = np.ones(len(frequencies), dtype=complex)
         return res, Z_fit
 
-    monkeypatch.setattr(ms, "fit_equivalent_circuit", fake_fit)
+    monkeypatch.setattr(ms, "_fit_local", fake_fit)
 
 
 def test_best_start_index_parallel_completion_order(monkeypatch):

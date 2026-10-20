@@ -534,16 +534,33 @@ from 0: in `R(10) - (R(100) - Ws(50, 1) | C(1e-6))` the series resistor is
 capacitor `C0`; the JSON `label` field uses the same names. Equal blocks in
 series - two (R|C) or (R|Q) arcs (G for R), two K - are interchangeable, and
 the fit reports them in ascending time constant, the fastest process (highest
-frequency) first, whatever order the circuit was written in; the fit output
-says so under `Circuit:` when the written order differs. Blocks that differ
-in a fixed value or in bounds keep their order, and so do blocks without a
-time constant, such as (R|Wo). This is the order in the spectrum, not the
+frequency) first, whatever order the circuit was written in, (C|R) counting
+as (R|C); the fit output says so under `Fitted:` when the circuit has such blocks.
+Blocks that differ in a fixed value or in bounds keep their order, and so do
+blocks without a time constant, such as (R|Wo), and a K next to an (R|C):
+the same impedance, but other parameters. This is the order in the spectrum, not the
 identity of a process: in a series of spectra where the time constants of
 two processes cross (temperature, aging), the names swap there; follow a
 process by its capacitance instead. `+/-` is one standard error from the
 covariance scaled by the residual variance, s^2 = RSS/(n - p); the 95 % CI
 uses the t-distribution, in log space for positive scale parameters (R, C, Q,
 tau), so it is asymmetric there. Both assume random residuals (see below).
+One case the covariance cannot see: an arc in series whose time constant
+lies far above the measured frequencies is a constant resistance, and the
+data fix only the sum of it and the series R. The fit may still put the
+arc elsewhere, as a small feature fitting the noise, and give the series R
+a tight interval. After every fit each series arc ((R|C), (R|Q), G for R,
+K) is therefore merged into the series R and the rest refitted (one local
+fit per arc). If that is worse by less than the chi2(1) quantile (3.84 for
+95 %), the profile of the series R is flat down to its lower bound: its CI,
+and that of the arc's R, which takes the rest of the sum, are widened to run
+from there to the CI of the merged value (`[95% CI widened, see warnings]`),
+and a warning `R0 is determined only as R0 + R2: ...` says so; the `+/-` is
+still the local stderr. Report the sum then. A merged fit that fits better
+means the fit is not the least-squares minimum, and the warning says so. Only
+a circuit with exactly one free series R is checked. On AutoECM test
+spectra with 1 % noise and such an arc the 95 % CI of the series R held
+the truth in 22 of 47 fits before, 42 after.
 Below the parameters, every (R|C) and (R|Q) arc (G = 1/R in place of R
 included) gets its time constant - `tau = R*C`, or `(R*Q)^(1/n)` for a CPE -
 with a standard error from the covariance and the frequency 1/(2 pi tau) where

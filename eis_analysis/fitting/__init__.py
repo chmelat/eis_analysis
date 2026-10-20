@@ -93,7 +93,10 @@ from .residual_diagnostics import (
 from .auto_suggest import analyze_voigt_elements, VoigtSuggestion, VoigtElement
 
 from .time_constants import (arc_time_constants, ArcTimeConstant,
-                             arc_resistance_sums, ArcResistanceSum)
+                             arc_resistance_sums, ArcResistanceSum,
+                             canonical_block_order)
+from .series_resistance import (SeriesResistanceSplit, series_resistance_split,
+                                check_series_resistance)
 
 # Import Voigt chain linear fitting
 from .voigt_chain import (
@@ -127,6 +130,10 @@ __all__ = [
     'ArcTimeConstant',
     'arc_resistance_sums',
     'ArcResistanceSum',
+    'canonical_block_order',
+    'SeriesResistanceSplit',
+    'series_resistance_split',
+    'check_series_resistance',
     # Circuit elements
     'R',
     'C',

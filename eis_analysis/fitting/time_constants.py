@@ -178,7 +178,7 @@ def canonical_block_order(
     fixed: ArrayLike,
     lower: ArrayLike,
     upper: ArrayLike,
-) -> Tuple[NDArray[np.intp], NDArray[np.intp]]:
+) -> Tuple[NDArray[np.intp], NDArray[np.intp], bool]:
     """
     Permutation that puts interchangeable series blocks in ascending tau.
 
@@ -191,7 +191,9 @@ def canonical_block_order(
     the spectrum, not the identity of a process: where the time constants of
     two processes cross in a series of spectra, the names swap there.
 
-    Recognizing the symmetry is structural; the key is the physical tau:
+    The order of elements inside a block does not matter: (C|R) is the same
+    block as (R|C). Recognizing the symmetry is structural; the key is the
+    physical tau:
     R*C or (R*Q)^(1/n) of an (R|C) or (R|Q) arc (G for R), a K's own tau.
     A group in which some block has no tau stays as it is.
 
@@ -214,37 +216,44 @@ def canonical_block_order(
         The same over the free parameters only, e.g. for the columns of a
         Jacobian; the fixed masks of swapped blocks are equal, so free
         parameters only move onto free positions
+    grouped : bool
+        True if the circuit has a group of interchangeable blocks, also
+        when they already were in order
     """
     values = np.asarray(params, dtype=float)
     fixed_arr = np.asarray(fixed, dtype=bool)
     lower_arr = np.asarray(lower, dtype=float)
     upper_arr = np.asarray(upper, dtype=float)
     perm = np.arange(len(values))
+    grouped = False
 
     def sort_chain(members: List[Tuple[int, object]]) -> None:
-        groups: Dict[tuple, List[Tuple[int, int, object]]] = {}
+        nonlocal grouped
+        groups: Dict[tuple, List[Tuple[int, NDArray[np.intp], object]]] = {}
         for start, node in members:
-            n = len(node.get_all_params())  # type: ignore[attr-defined]
-            span = slice(start, start + n)
-            mask = fixed_arr[span]
-            key = (_structure(node), tuple(mask), tuple(values[perm[span]][mask]),
-                   tuple(lower_arr[span]), tuple(upper_arr[span]))
-            groups.setdefault(key, []).append((start, n, node))
+            structure, idx = _structure(node)
+            # The block's parameters in the order of its structure, so that
+            # the n-th slot of (R|C) and of (C|R) is the same parameter
+            slots = start + np.asarray(idx, dtype=np.intp)
+            mask = fixed_arr[slots]
+            key = (structure, tuple(mask), tuple(values[perm[slots]][mask]),
+                   tuple(lower_arr[slots]), tuple(upper_arr[slots]))
+            groups.setdefault(key, []).append((start, slots, node))
         for blocks in groups.values():
             if len(blocks) < 2:
                 continue
-            found = [_block_tau(node, values[perm[s:s + n]]) for s, n, node in blocks]
+            found = [_block_tau(node, values[perm[s:s + len(slots)]]) for s, slots, node in blocks]
             taus = [t for t in found if t is not None]
             if len(taus) < len(blocks):
                 continue
+            grouped = True
             # ponytail: stable sort on the exact tau, no relative tolerance.
             # Only an exact tie keeps the written order; nearly equal taus
             # are a coin flip in any order, a tolerance would not fix that.
             order = sorted(range(len(blocks)), key=lambda j: taus[j])
             old = perm.copy()
-            for (s, n, _), j in zip(blocks, order):
-                src = blocks[j][0]
-                perm[s:s + n] = old[src:src + n]
+            for (_, slots, _), j in zip(blocks, order):
+                perm[slots] = old[blocks[j][1]]
 
     def walk(node, offset: int, chain: Optional[List[Tuple[int, object]]]) -> int:
         """Sort the chains under node; return the offset past its parameters.
@@ -278,14 +287,28 @@ def canonical_block_order(
     free_perm = np.searchsorted(free, perm[free])
     if not np.array_equal(perm, np.arange(len(perm))):
         logger.debug(f"Interchangeable blocks put in ascending tau: permutation {perm.tolist()}")
-    return perm, free_perm
+    return perm, free_perm, grouped
 
 
-def _structure(node) -> object:
-    """The tree of element types under node, without values."""
-    if isinstance(node, (Series, Parallel)):
-        return type(node).__name__, tuple(_structure(e) for e in node.elements)
-    return type(node).__name__
+def _structure(node) -> Tuple[tuple, List[int]]:
+    """The tree of element types under node, without values, and the offsets
+    of its parameters in the same order.
+
+    Series and parallel are commutative, so the children are sorted by their
+    own structure: (R|C) and (C|R) give one tree, and the offsets map the
+    parameters of either onto the same slots. Equal children keep their order.
+    """
+    if not isinstance(node, (Series, Parallel)):
+        return (type(node).__name__,), list(range(len(node.get_all_params())))
+    children = []
+    offset = 0
+    for elem in node.elements:
+        structure, idx = _structure(elem)
+        children.append((structure, [offset + i for i in idx]))
+        offset += len(elem.get_all_params())
+    children.sort(key=lambda child: child[0])
+    return ((type(node).__name__, tuple(s for s, _ in children)),
+            [i for _, idx in children for i in idx])
 
 
 def _block_tau(node, params: NDArray[np.float64]) -> Optional[float]:

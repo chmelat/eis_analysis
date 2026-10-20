@@ -36,6 +36,7 @@ from .diagnostics import compute_residual_weights, compute_fit_metrics, compute_
 from .optimizer import least_squares_normalized
 from .jacobian import make_jacobian_function
 from .time_constants import canonical_block_order
+from .series_resistance import SeriesResistanceSplit, check_series_resistance
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,15 @@ class FitResult:
         Covariance matrix of parameters (None if computation failed)
     diagnostics : FitDiagnostics or None
         Detailed diagnostics
+    block_order : list of int or None
+        Permutation that put interchangeable series blocks in ascending tau
+        (canonical_block_order): params_opt is the optimizer's vector indexed
+        by it, the identity if they already were. None when the circuit has
+        no such blocks.
+    series_split : SeriesResistanceSplit or None
+        An arc the data cannot tell apart from part of the series resistance
+        (series_resistance.py); params_ci_95 and params_ci_99 widen the CIs of
+        the series resistance and the arc's R by it. None when no merge is that cheap.
     n_free_params : int
         Number of freely optimized parameters, with fixed parameters
         excluded. Needed by compute_information_criteria; kept explicit
@@ -147,14 +157,27 @@ class FitResult:
     # None when the circuit has an element with no analytic derivative.
     # See compute_significance in diagnostics.py.
     params_significance: Optional[NDArray[np.float64]] = None
+    block_order: Optional[List[int]] = None
+    series_split: Optional[SeriesResistanceSplit] = None
 
     def _ci(self, confidence_level: float) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         # Non-finite stderr yields (-inf, +inf) per parameter inside
         # compute_confidence_interval; other parameters keep finite CIs.
-        return compute_confidence_interval(
+        low, high = compute_confidence_interval(
             self.params_opt, self.params_stderr, self._dof, confidence_level,
             log_scale=self._ci_log_scale
         )
+        # The profile of the series R is flat from its bound to the merged
+        # value, which the covariance at the fit cannot see
+        split = self.series_split
+        if split is not None and split.widens(confidence_level):
+            top = split.merged._ci(confidence_level)[1][split.merged_index]
+            # On that branch the arc's R takes the rest of the sum
+            for i, bound in ((split.index, split.lower), (split.arc_index, split.arc_lower)):
+                if i is not None:
+                    low[i] = bound
+                    high[i] = max(high[i], top)
+        return low, high
 
     @property
     def params_ci_95(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -298,7 +321,30 @@ def fit_equivalent_circuit(
         Fitting results with all diagnostics
     Z_fit : ndarray of complex
         Predicted impedance from fit
+
+    Notes
+    -----
+    After the fit each arc in series is merged into the series resistance
+    and refitted (one local fit per arc, series_resistance.py); where that
+    costs little, result.series_split widens the CI of the series R.
     """
+    result, Z_fit = _fit_local(frequencies, Z, circuit, weighting, initial_guess,
+                               use_analytic_jacobian, bounds)
+    check_series_resistance(result, frequencies, Z, weighting, bounds, use_analytic_jacobian)
+    return result, Z_fit
+
+
+def _fit_local(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complexfloating],
+    circuit: Circuit,
+    weighting: str = 'modulus',
+    initial_guess: Optional[List[float]] = None,
+    use_analytic_jacobian: bool = True,
+    bounds: Optional[Tuple[Sequence[float], Sequence[float]]] = None
+) -> Tuple[FitResult, NDArray[np.complexfloating]]:
+    """fit_equivalent_circuit without the series resistance check, for the
+    fits that check runs itself and for the starts of a multistart."""
     # Validate weighting parameter
     if weighting not in VALID_WEIGHTINGS:
         raise ValueError(f"weighting must be one of {VALID_WEIGHTINGS}, got '{weighting}'")
@@ -430,7 +476,7 @@ def fit_equivalent_circuit(
             # Interchangeable blocks in ascending tau, before anything is
             # derived from the parameters: the covariance, bound status and
             # warnings below then come out in that order on their own
-            perm, free_perm = canonical_block_order(
+            perm, free_perm, grouped = canonical_block_order(
                 circuit, params_opt, fixed_params, lower_bounds, upper_bounds)
             params_opt = np.asarray(params_opt)[perm]
             opt_result.jac = opt_result.jac[:, free_perm]
@@ -478,7 +524,9 @@ def fit_equivalent_circuit(
             if np.isinf(s) or np.isnan(s):
                 param_warnings.append(f"Parameter {param_labels[i]}: undefined uncertainty")
             elif s > abs(p) * 2:
-                param_warnings.append(f"Parameter {param_labels[i]}: very high relative uncertainty ({s/abs(p)*100:.0f}%)")
+                # p = 0 (a parameter on a zero bound) has no relative uncertainty
+                rel = f"{s/abs(p)*100:.0f}%" if p != 0 else f"stderr {s:.3g} at 0"
+                param_warnings.append(f"Parameter {param_labels[i]}: very high relative uncertainty ({rel})")
 
         # Step 7: Compute fit metrics
         Z_fit = circuit.impedance(frequencies, list(params_opt))
@@ -520,11 +568,14 @@ def fit_equivalent_circuit(
             bound_status=bound_status,
             _dof=cov_result.dof,
             _ci_log_scale=log_scale_ci_mask(lower_bounds, upper_bounds),
-            params_significance=compute_significance(circuit, frequencies, params_opt)
+            params_significance=compute_significance(circuit, frequencies, params_opt),
+            block_order=perm.tolist() if grouped else None
         )
 
     except Exception as e:
-        logger.error(f"Fit failed: {type(e).__name__}: {e}")
+        # Debug only: the caller gets the message with the exception, and the
+        # series resistance check skips a merge that fails
+        logger.debug(f"Fit failed: {type(e).__name__}: {e}")
         raise RuntimeError(f"Circuit fitting failed: {e}") from e
 
     return result, Z_fit

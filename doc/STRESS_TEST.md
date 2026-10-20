@@ -440,7 +440,12 @@ returned equal series blocks swapped against the truth
 (`doc/ROBUST_LOSS_SOFT_L1.md`, section 6). With the canonical block order
 (ascending tau, 2026-10-20; the generator writes the truth that way)
 coverage is 0.929, 0.909, 0.915 at 0.1, 1, 3 % noise, 0.918 overall
-against 0.903. The rest is identifiability (lost arcs, equal-cost
-solutions) and slightly narrow intervals. DE from a start
+against 0.903. The series resistance check (a series arc that acts as a
+resistance widens the CI of Rs and its R, `fitting/series_resistance.py`)
+adds 12 of 5091 on ARM: 0.929, 0.910, 0.919, 0.920 overall (on ARM the
+block order alone gave 0.929, 0.908, 0.915), with 0 new failures against
+the baseline; such arcs are rare in these spectra. The rest is
+identifiability (lost arcs, equal-cost solutions) and slightly narrow
+intervals. DE from a start
 up to two decades off (G) failed once in 300: anomalous/50 (Q in parallel
 with R-Wa, 30 points, 1 % noise) ends at 1.096x the truth's cost.

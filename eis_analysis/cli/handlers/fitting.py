@@ -24,8 +24,6 @@ from ...fitting import (
     fit_circuit_diffevo,
     FitResult,
 )
-from ...fitting.bounds import generate_simple_bounds
-from ...fitting.time_constants import canonical_block_order
 from .model_comparison import score_candidates, log_comparison
 from .fit_noise import noise_adequacy
 from .fit_output import (
@@ -238,14 +236,6 @@ def _fit_standard_circuit(
     logger.info("Equivalent circuit")
     log_separator()
     logger.info(f"Circuit: {circuit_expr}")
-    # A fit from a start keeps its block order, so without this line a result
-    # in another order than the one written would look like a swap
-    perm, _ = canonical_block_order(circuit, circuit.get_all_params(),
-                                    circuit.get_all_fixed_params(),
-                                    *generate_simple_bounds(circuit.get_param_labels()))
-    if perm.tolist() != list(range(len(perm))):
-        logger.info("  Equal blocks are reported by ascending time constant, "
-                    "not in the order written here")
 
     try:
         if args.optimizer == 'de':

@@ -342,6 +342,10 @@ def _log_fit_result(result: FitResult,
     # The labels below count each parameter type from the left (K's R is an
     # R too); the fitted expression maps them to the elements directly
     logger.info(f"  Fitted: {result.circuit}")
+    if result.block_order is not None:
+        # Without this line a result in another order than the one written
+        # would look like a swap
+        logger.info("  Equal blocks are reported in ascending time constant (fastest first)")
     logger.info("  Parameters:")
 
     # Get param labels
@@ -357,6 +361,7 @@ def _log_fit_result(result: FitResult,
     # we suppress it and tag the line instead.
     bound_status = result.bound_status or [''] * len(result.params_opt)
     significance = result.params_significance
+    split = result.series_split
     for i, (label, val, stderr) in enumerate(zip(labels, result.params_opt, result.params_stderr)):
         status = bound_status[i] if i < len(bound_status) else ''
         # Significance is a separate question from the CI - it stays on the
@@ -371,7 +376,11 @@ def _log_fit_result(result: FitResult,
             logger.info(f"    {label:5s} = {val:.2e} +/- inf{sig}")
         else:
             low, high = ci_low[i], ci_high[i]
-            logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  [95% CI: {low:.2e}, {high:.2e}]{sig}")
+            # The stderr is the local one, the CI spans the flat branch
+            widened = (" widened, see warnings" if split is not None and split.widens(0.95)
+                       and i in (split.index, split.arc_index) else "")
+            logger.info(f"    {label:5s} = {val:.2e} +/- {stderr:.2e}  "
+                        f"[95% CI{widened}: {low:.2e}, {high:.2e}]{sig}")
 
     # The time constant is what a reader of an arc asks for first, and its
     # error needs the covariance (R and C are correlated)

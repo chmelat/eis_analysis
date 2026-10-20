@@ -8,6 +8,30 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **The CI of the series R covers an arc that acts as a resistance.** An
+  arc in series with a time constant far above the measured frequencies is
+  a constant resistance: the data fix only Rs + R_k. The fit could put the
+  arc elsewhere, as a small low-frequency feature fitting the noise, where
+  the covariance gave Rs a tight interval far from the truth - on AutoECM
+  test spectra with 1 % noise and such an arc the 95 % CI held the true Rs
+  in 22 of 47 fits. The profile of Rs is flat there; the covariance cannot
+  see it, because the arc reaches the resistance only as C or Q -> 0. All
+  three fits now merge each series arc into Rs and refit locally (one fit
+  per arc; multistart on the chosen start only). Worse by less than the
+  chi2(1) quantile, `params_ci_95` / `params_ci_99` of Rs and R_k run from
+  their lower bounds to the CI of the merged value (the CLI marks the line
+  `95% CI widened`), and a warning says Rs is determined only as Rs + R_k,
+  or that the fit is not the minimum when the merged fit is better: 42 of
+  47 then. `FitResult.series_split`
+  (`SeriesResistanceSplit`) holds the merged fit and its dchi2; API
+  `series_resistance_split`, `check_series_resistance`. Circuits with
+  exactly one free series R only. Fitted values and stderr do not change.
+- **A parameter at 0 no longer divides by zero** in the "very high relative
+  uncertainty" warning; it gives the stderr at 0 instead of `inf%`.
+- **A failed local fit logs at debug level**, not as an ERROR: the
+  exception carries the message to the caller, and the series resistance
+  check skips a merge that fails without a false error line.
+
 - **Interchangeable series blocks come back in ascending tau.** Two equal
   (R|C) or (R|Q) arcs (G for R) or K elements in series can swap values
   without changing the impedance; DE returned them at random (5/8 seeds in
@@ -16,13 +40,17 @@ Complete change history for all project versions.
   ascending time constant, fastest first, before the covariance, bound
   status and warnings, so everything derived follows. Blocks with different
   fixed values or bounds, or without a time constant ((R|Wo), (R|DQ)), keep
-  their order. **Behaviour change:** a local fit (`--optimizer single`,
-  multistart) started with the slow arc first used to report it first; it
-  now reports it second, and the CLI says so under `Circuit:`. Results
+  their order; the order inside a block does not matter, (C|R) is an (R|C).
+  **Behaviour change:** a local fit (`--optimizer single`, multistart)
+  started with the slow arc first used to report it first; it now reports
+  it second. `FitResult.block_order` holds the permutation applied (None
+  without interchangeable blocks), and the CLI states the rule under
+  `Fitted:` for every circuit that has such blocks. Results
   compared by index with earlier ones may show swapped values. The order is
   the one in the spectrum, not the identity of a process: where the time
   constants of two processes cross in a series of spectra, the names swap
-  there. API: `canonical_block_order` in `fitting.time_constants`.
+  there. API: `eis_analysis.fitting.canonical_block_order`, which also
+  returns whether the circuit has interchangeable blocks.
   Plan and measurements: `doc/BLOCK_ORDER_PLAN.md`.
 
 - **A fit that keeps flagged points says so.** Without `--exclude-flagged`,

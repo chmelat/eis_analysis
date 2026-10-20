@@ -31,6 +31,7 @@ from .de_archive import Refinement, choose, select_archive_candidates, selection
 from .jacobian import make_jacobian_function
 from .config import DE_STALLED_ERROR_PCT, DE_STALLED_IMPROVEMENT_FACTOR
 from .time_constants import canonical_block_order
+from .series_resistance import check_series_resistance
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +521,7 @@ def fit_circuit_diffevo(
     def canonical(params):
         return canonical_block_order(circuit, params, fixed_params,
                                      lower_bounds_full, upper_bounds_full)
-    perm, free_perm = canonical(params_opt)
+    perm, free_perm, grouped = canonical(params_opt)
     params_opt = params_opt[perm]
     params_opt_free = params_opt_free[free_perm]
     sel.alternatives = [(dchi2, list(np.asarray(alt)[canonical(alt)[0]]))
@@ -640,8 +641,11 @@ def fit_circuit_diffevo(
         bound_status=bound_status,
         _dof=cov_result.dof if cov_result is not None else 0,
         _ci_log_scale=log_scale_ci_mask(lower_bounds_full, upper_bounds_full),
-        params_significance=compute_significance(circuit, frequencies, params_opt)
+        params_significance=compute_significance(circuit, frequencies, params_opt),
+        block_order=perm.tolist() if grouped else None
     )
+    check_series_resistance(fit_result, frequencies, Z, weighting,
+                            (lower_bounds_full, upper_bounds_full), use_analytic_jacobian)
 
     # Build DiffEvoDiagnostics
     de_diagnostics = DiffEvoDiagnostics(
