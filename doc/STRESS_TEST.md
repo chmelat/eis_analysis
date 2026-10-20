@@ -434,6 +434,13 @@ A multistart from truth x U(0.3, 3) ends in a local minimum in 2.3 % of
 the fits, most in `anomalous`, `cpe` and `diffusion`; all identifiability
 classes have some (tight 5, medium 5, loose 3, weak 8, normal 5, no
 class 22). The linearized 95 % CI holds the truth in 0.90 of the
-parameters at every noise level, below the nominal 0.95. DE from a start
+parameters at every noise level, below the nominal 0.95. Most of the gap
+was the test, not the covariance: F3 compares by position, and the fit
+returned equal series blocks swapped against the truth
+(`doc/ROBUST_LOSS_SOFT_L1.md`, section 6). With the canonical block order
+(ascending tau, 2026-10-20; the generator writes the truth that way)
+coverage is 0.929, 0.909, 0.915 at 0.1, 1, 3 % noise, 0.918 overall
+against 0.903. The rest is identifiability (lost arcs, equal-cost
+solutions) and slightly narrow intervals. DE from a start
 up to two decades off (G) failed once in 300: anomalous/50 (Q in parallel
 with R-Wa, 30 points, 1 % noise) ends at 1.096x the truth's cost.
