@@ -131,3 +131,40 @@ Zbyle body (neprovedeno, bez dopadu na bezna data):
   driv kovariance (nalez /code-review); Voigt chain je okrajovy, neopraveno.
 - Parametr `n_params` funkce `compute_covariance_matrix` uz nic neurcuje
   (velikost dava `fixed_params`, bez nej n_free); ponechan kvuli API.
+
+## Kolo 2: fitting/time_constants.py (2026-10-21)
+
+Kontrakt: docstring `eis_analysis/fitting/time_constants.py` (K zamerne
+mimo soucet odporu). Reviewer: Opus, jeden beh (5 min, 90k tokenu, 16
+volani nastroju), piskoviste `~/coldreview/time_constants/` (modul,
+`circuit_builder.py`, `circuit_elements/`; `FitResult` si reviewer nahradil
+`SimpleNamespace`). Debrief: cetl jen piskoviste, 11 vlastnich skriptu
+v `review/`. Nalezy reprodukovany nezavisle se skutecnym `FitResult` proti
+modulu v repozitari (skript v scratchpadu sezeni), dosah overen pres
+`covariance.py`, `bounds.py` a `block_order.py`.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | blok, ktery zjevne neni PSD: None | tau kontroluje jen `var_log < 0`, soucet jen celkovy rozptyl a diagonalu: korelace 3 dava konecny tau_stderr, blok [[1, 2], [2, 1]] stderr 2.45 a correlation 2.0 | zadny: `cov` z `covariance.py` je s^2 V S^-2 V^T, PSD z konstrukce |
+| F2 | A | zaporny rozptyl jen zaokrouhlenim: stderr 0 | tolerance je jen u souctu; tau pri korelaci presne -1 vraci None ('covariance not usable') v 780 z 2000 nahodnych pripadu, soucet 0 ve 2000 z 2000 | prakticky zadny: potrebuje var(ln tau) ~1e-16 clenu; nekonzistence obou cest |
+| F3 | A | nekonecny parametr: zadne tau | n = inf projde `n > 0`: tau 1 s, stderr 0 | zadny: n v (0.3, 1) z `PARAMETER_BOUNDS` |
+| F4 | B | correlation "Sigma_12 scaled by the parts" | kod bere (D Sigma D)_12, korelaci R1 a 1/G2 (spravne); doslova Sigma_12 je cov(R1, G2), opacne znamenko | jen kontrakt |
+| F5 | B | vse fixni: stderr 0, vs. inf v bloku: None | pri vsem fixnim a cele cov inf None | zadny: `covariance.py` dava fixnim radkum 0 i ve vetvi s malo rezidui (overeno) |
+| F6 | B | `_arc_resistor`: None, kdyz dva prvky nejsou par | delku nekontroluje, (R\|C\|Q) da (0, +1) | zadny: `walk` i `block_order._block_arc` kontroluji 2 prvky predem |
+| F7 | B | nekonecne hodnoty: zadny soucet | G = inf: 1/G = 0 konecne, soucet hlasen, rozptyl clenu G vynulovan | zadny: G v (0, 1e4) |
+| F8 | C | bez RuntimeWarning | `_arc_tau` primo: overflow / divide warning | zadny: `block_order` vola v `np.errstate` |
+| F9 | C | - | subnormalni fixni C: gradient inf, inf*0 = NaN, poznamka 'covariance not usable' misto duvodu | zadny (meze C) |
+| F10 | C | correlation v [-1, 1] | pasmo tolerance 1e-9*trace pusti -1.0000000004 | zadny (PSD) |
+| F11 | C | contract silent | kratsi `bound_status` = vnitrni body, polozka None da poznamku "near its None bound" | zadny: `build_bound_status` dava plnou delku |
+
+Overeno, ze plati (reviewer a reprodukce): nezavisle R a C, soucet
+nekorelovanych clenu, korelace -1 se stejnymi castmi dava 0, ekvivalence
+R/G s transformovanou kovarianci a prohozeni prvku oblouku (1e-16),
+gradient proti centralnim diferencim (R|Q, Q|G, C|G), `cov None`, mez
+jen u parametru oblouku, fixni = 0, inf radek mimo blok, `param_labels
+None`, vstupy nezmeneny, topologie (vnoreny Series, Series v Parallel,
+(R|C|Q), Parallel v Parallel, K, Randles), extremy pres verejne API bez
+vyjimky a varovani.
+
+Zadny nalez neni dosazitelny z fitu knihovny: A plati jen pro vstup, ktery
+volajici nikdy nepredaji.
