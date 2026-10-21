@@ -180,3 +180,39 @@ Provedeno 2026-10-21 (jedna zmena s testem `tests/test_time_constants.py`):
   privatnich funkci (dvouprvkovy Parallel, `np.errstate` u volajiciho);
   F11 - `bound_status` ma polozku pro kazdy parametr.
 - F9 bez akce (subnormalni C, mimo meze).
+
+## Kolo 3: fitting/series_resistance.py (2026-10-21)
+
+Kontrakt: docstring `eis_analysis/fitting/series_resistance.py`. Reviewer:
+Opus, jeden beh (7 min, 100k tokenu, 30 volani nastroju), piskoviste
+`~/coldreview/series_resistance/` = cely balik (slouceny refit vola
+`_fit_local`); cist smel jen modul, zbytek jako cernou skrinku. Debrief:
+precten jen `series_resistance.py`, zbytek pres `help`/`inspect`; 16
+vlastnich skriptu v `review/`. Nalezy reprodukovany nezavisle vlastnimi
+spektry (1 % sum, 0.1 Hz - 100 kHz) proti modulu v repozitari.
+
+Autor kontraktu predem cekal F3 (kontrakt slibuje vyrazeni kandidata
+s nekonecnym RSS, kod ho nekontroluje).
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | (A) -> B | hlavicka: profil Rs plochy, protoze data urcuji jen Rs + R_k | dva bliske oblouky (K 40/40 Ohm, tau 1e-4 a 1.6e-4): po odebrani K1 ho prevezme K2, slouceny Rs zustane 9.98 (ne Rs + R_k), dchi2 0.02-1.0, CI Rs 95 % [1e-4, 10.1] misto [9.83, 10.1] | bezny: obvod s obloukem navic. Profil Rs je ale opravdu plochy: K1 s tau 1e-9 s (v mezich) je rychly rezistor, Rs 10 -> 0.5 Ohm za dchi2 0.89-1.04 (overeno). Rozsireni je spravne, vysvetleni ve varovani ne: pricinou je nadbytecny oblouk |
+| F2 | (A) -> B | remiza: prvni v poradi vyrazu; `arc_index` R oblouku | K a (R\|C) maji stejnou impedanci; po odebrani 50Ohm (R\|C) prevezme jeho roli K a dchi2 se shoduje s odebranim K na 10 cislic; jmenovan a rozsiren R2 50 Ohm | bezny (nas beh: 1 z 3 seminek, v serii (R\|C)(R\|C) 1 z 6). Dva bloky se stejnym tau v serii jsou jeden oblouk, takze i R2 v [0, 50] je plochy profil |
+| F3 | A | kandidat s nekonecnym RSS vypadne, vyhrava nejmensi konecne dchi2 | NaN dchi2 prvniho kandidata se stane `best`, `dchi2 < nan` pak nikdy neplati: None misto platneho rozdeleni | jen simulovane (prvni refit vrati NaN); prirozeny vstup nenalezen |
+| F4 | B | "with ... a G ... it returns None" | pocita jen `type(node) is R`; G vedle jednoho volneho R se ignoruje a R0 se rozsiri | obvod R-G-(R\|C), neobvykly |
+| F5 | B/C | zaporne dchi2: fit neni minimum | ve skutecne degenerovanem pripade je dchi2 +-1e-5 az 1e-13 a znamenko nahodne: varovani "fits better (dchi2 = -0.00), so this fit is not the least-squares minimum" ve 2 z 6 seminek | bezny, presne pripad, pro ktery modul vznikl; cisla nezmeni |
+| F6 | C | `series_split` se prepise | varovani se pri opakovanem volani pridava znovu | zadny: kazdy volajici vola jednou (multistart fituje pres `_fit_local`) |
+| F7 | C | - | `merged.circuit` muze obsahovat prazdny Series (vypis `R(89.74) -  - (...)`) | jen vypis verejneho pole |
+| - | C | - | `param_labels` jako numpy pole: `ValueError` | zadny (List[str]) |
+
+Overeno, ze plati (reviewer a reprodukce): fit se nezmeni (snimek vsech
+poli), kde hleda (vnoreny Series, Series v Parallel, fixni R, top-level R
+nebo Parallel), kandidati vcetne (C|R), (G|C) a K, `merged_index`
+a `arc_index` pred i za Rs, dchi2 meri objektiv fitu (uniform, sqrt,
+modulus, proportional), invariance vuci skale vah, dof <= 0, NaN v datech
+a parametrech bez vyjimky, orez na horni mez Rs, monotonie `widens`,
+`diagnostics` None, CI ve varovani = `params_ci_95`.
+
+F1 a F2 jako A neobstaly: rozsireni CI odpovida profilu obvodu, ktery ma
+oblouk navic. Chyba je ve vysvetleni (hlavicka i varovani znaji jen
+mechanismus "oblouk je konstantni odpor").
