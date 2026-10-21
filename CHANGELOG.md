@@ -72,7 +72,7 @@ Complete change history for all project versions.
   constants of two processes cross in a series of spectra, the names swap
   there. API: `eis_analysis.fitting.canonical_block_order`, which also
   returns whether the circuit has interchangeable blocks.
-  Plan and measurements: `doc/BLOCK_ORDER_PLAN.md`.
+  Plan and measurements: `doc/archive/BLOCK_ORDER_PLAN.md`.
 
 - **A fit that keeps flagged points says so.** Without `--exclude-flagged`,
   while Lin-KK flagged points above the lowest decade of the analysis range,

@@ -3,7 +3,7 @@
 Equal blocks in series, two (R|Q) in R-(R|Q)-(R|Q), can swap values without
 changing the impedance; DE returned them at random, least_squares in the
 order of its start. The fit now reports them in ascending tau
-(doc/BLOCK_ORDER_PLAN.md).
+(doc/archive/BLOCK_ORDER_PLAN.md).
 """
 
 import numpy as np

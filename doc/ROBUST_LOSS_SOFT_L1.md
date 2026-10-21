@@ -416,7 +416,7 @@ ne). Na všech 860 případech:
 Řazení podle tau (R*C, resp. (R*Q)^(1/n), vzestupně) emuluje plánované
 kanonické pořadí bloků ve fitu; pravdu generátor zapisuje vzestupně
 v 860/860 případech, takže F3 pak nepotřebuje změnu. **Ověřeno
-2026-10-20:** s kanonickým pořadím ve fitu (`doc/BLOCK_ORDER_PLAN.md`)
+2026-10-20:** s kanonickým pořadím ve fitu (`doc/archive/BLOCK_ORDER_PLAN.md`)
 dal plný stress běh F3 0.929, 0.909, 0.915, celkem 0.918, přesně podle
 emulace. Párování podle z je
 optimistická horní mez: ve 22 případech, kde se obě metody rozcházejí, je

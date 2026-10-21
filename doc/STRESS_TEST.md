@@ -305,7 +305,7 @@ bounds=...)` takes other bounds. Bounds derived from the spectrum were
 rejected (2026-10-07; one spectrum can hold an R_s near zero and an oxide
 R near infinity, and a bound from |Z| could cut off a physical optimum),
 and so were bounds scaled by the electrode area (2026-10-08,
-`doc/AREA_SCALED_BOUNDS_PLAN.md`; the area is often not recorded).
+`doc/archive/AREA_SCALED_BOUNDS_PLAN.md`; the area is often not recorded).
 
 ### 3. Ill-posed fits are path-dependent
 

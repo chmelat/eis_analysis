@@ -349,7 +349,7 @@ soft-L1 (`doc/ROBUST_LOSS_SOFT_L1.md`).
 | O1 | C | Jeden vadny bod Z-HIT rozmaze do sousedu (T14: KK oznaci 17.8 Hz, Z-HIT 14.7 a 21.5 Hz; KK 14.7 kHz, Z-HIT 17.8 kHz); README u kontroly po bodech to nerika, agent to odvodil sam | T14 |
 | O2 | C | Radek parametru pise `[at upper bound - CI not meaningful]` (`cli/handlers/fitting.py:345`) i pro hodnotu o dekadu pod mezi (Q2 = 1.37, mez 10; `classify_bound_status` meri 1 dekadu), varovani pod nim totez nazve "near upper bound" | T14 |
 | O3 | C | `_fit.json`: pole `covariance` bez popisku a README nerika jeho poradi (je podle `parameters`); chybi navod na nejistotu odvozene veliciny (R1 + R2 pri korelaci -1), kterou si oba agenti spocitali sami | T13, T14 |
-| O4 | C | Pojmenovani oblouku zavisi na vaze: s `modulus` je R1 rychly proces, se `sqrt`/`uniform` pomaly (L11; doklad pro `doc/BLOCK_ORDER_PLAN.md`) | T13, T14 |
+| O4 | C | Pojmenovani oblouku zavisi na vaze: s `modulus` je R1 rychly proces, se `sqrt`/`uniform` pomaly (L11; doklad pro `doc/archive/BLOCK_ORDER_PLAN.md`) | T13, T14 |
 | O5 | C | `proportional`: README "emphasizes high-frequency", PYTHON_API "emphasizes low-impedance region" (w = 1/\|Z\|^2 je to druhe; vysoke frekvence jen u typickeho spektra) | T13 |
 | O6 | C | Titulek grafu DRT ukazuje lambda v plne presnosti (`visualization/drt.py:83, 86`, `lambda = 0.00011396899106368631`) | T13, T14 |
 
