@@ -325,3 +325,42 @@ Provedeno 2026-10-21 (jedna zmena s testem v `tests/test_drt_peak_significance.p
   skript je na druhem systemu; sada podle popisu v `config.py` + 3RC z F1):
   pri 16 chybi 77 pred opravou 82 (3RC 0.1 % 3 -> 0, 1 % 19 -> 17),
   falesne 0 pred i po; nejvyssi falesne dchi2 5.5 -> 7.7. Prah 16 zustava.
+
+## Kolo 5: rinf_estimation/estimate.py (2026-10-21)
+
+Kontrakt: docstring `eis_analysis/rinf_estimation/estimate.py`. Reviewer:
+Opus, jeden beh (5 min, 89k tokenu, 19 volani nastroju), piskoviste
+`~/coldreview/rinf_estimation/` = cely balik (fit pres
+`fit_equivalent_circuit`); cist smel jen modul, zbytek jako cernou
+skrinku. Debrief: precten jen `estimate.py`, `hf_bound` a fit pres
+`help`/volani; 16 vlastnich skriptu v `review/`. Vsechny nalezy
+reprodukovany nezavisle proti modulu v repozitari (skript v scratchpadu
+sezeni).
+
+Autor kontraktu predem cekal F3 (`rel = stderr / R_fit` na Python floatech,
+dolni mez R_s je 0) a prijeti nezkonvergovaneho fitu jen podle stderr
+(kontrakt zamerne mlci; reviewer to nehlasil). `fit.series_split` kontrakt
+vyslovne nepouziva (otevrene rozhodnuti, menilo by --ri-fit).
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | poradi bodu meni jen poradi f_window / Z_window | `hf_bound` bere z bodu se stejnou nejvyssi frekvenci ten, ktery je v poradi prvni: R_inf_hf, R_inf mezi, R_inf_upper i R_inf_range zavisi na poradi vstupu (otevreny oblouk, f_max dvakrat s Re +1 Ohm: R_inf 109.47 nebo 110.47 podle permutace). Kontrakt nerika, ktery z duplikatu plati; mez je kazdy, nejtesnejsi je minimum | `hf_bound` sdili i vychozi R_inf DRT (`hf_r_inf`). Jen pri opakovane nejvyssi kapacitni frekvenci; `example/` duplikaty nema |
+| F2 | B | zaloha: varovani jmenuje mez a duvod | bez bodu s Im <= 0 vraci `hf_bound` f_max a Re(Z) tam se hlasi jako "HF upper bound" bez poznamky, R_inf_range (0, Re) skutecne R_s neobsahuje (Rs 10, Re 9.0..9.9, Im > 0: rozsah (0, 9) pri 4 bodech, (0, 9.26) s fitem pri 8) | jen cele spektrum induktivni (kabel, zkrat); `example/` zadne |
+| F3 | C | jen ValueError; R_s = 0 -> zaloha | `rel = stderr / R_fit` na Python floatech: R_s = 0 dava ZeroDivisionError (fit podvrzeny mockem) | zadny pozorovany: 14 spekter se skutecnym R_s <= 0, fit vzdy > 0 (nejmene 2.5e-34) |
+| F4 | C | jen ValueError; \|Z\| = 0 -> zaloha | \|Z\| ~1e-320: `min|Z| / 1e6` podtece na 0, `_window_range` deli nulou (ZeroDivisionError) | zadny: nefyzikalni |
+| F5 | B/C | invariance vuci jednotce, bez rozsahu | do c = 1e-16 rel. 1e-15; od c <= 1e-17 R_inf +1.3 %, L -94 az -100 % (absolutni tolerance ve fitu); c = 1e-200 zaloha, c >= 1e200 fit selze a zaloha | zadny: Z pod ~1e-15 Ohm |
+| F6 | C | okno f >= f_max / 100 | deleni v plovouci carce: 1.1 / 100 = 0.011000000000000001, bod 0.011 Hz vypadne (taky horni dekada `_window_spread`) | zanedbatelny: o jeden bod na libovolne hranici; mocniny 10 presne |
+| - | C | text "Ignored k non-finite point(s)" | pocita i konecne body s f <= 0 (text predepsal kontrakt) | jen hlaska |
+| - | C | - | R_hf = -0.0: R_inf -0.0, hlaska "Re(Z) = -0 Ohm" | jen hlaska |
+| - | B | sum: "RMS ... scaled by 2N / (2N - 5)" | skaluje se rozptyl (RMS odmocninou) | jen kontrakt |
+
+Overeno, ze plati (reviewer): ValueError pro tvar, prazdny vstup, vse NaN,
+jen f <= 0; seznamy, 2-D i 0-d vstup; vyrazeni NaN/inf/f <= 0 s poctem;
+vsechny vetve zalohy (< 5 bodu, \|Z\| = 0 v okne i mimo nej, cele Z nulove,
+stderr NaN/inf, zaporne R_hf, poznamka o induktivnim vrcholu); invarianty
+(konecne a >= 0, rozsah obsahuje R_inf, R_inf <= R_inf_upper u zalohy, L 0
+mimo fit, rlq_fit -> stderr <= 5 %) na vsech pripadech bez vyjimky;
+R_inf_upper s fitem presne podle vzorce (huste, ridke spektrum s pravidlem
+3 nejblizsich, f_hf v induktivnim okne); R_inf_window_spread i jeho nulove
+vetve; invariance c = 1e-16 .. 1e100; permutace (rel. 1e-15); vstupy
+nezmeneny; determinismus; f az 1e300 / 1e-300.
