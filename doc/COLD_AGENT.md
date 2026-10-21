@@ -525,6 +525,40 @@ Poznamka S1 je jen pod fitem bez bodu; pod fitem na vsech bodech nebylo nic
 (u T14 ani varovani rezidui, runs p 0.024). Nasleduje: poznamka i pod fitem,
 ktery oznacene body ponechal.
 
+## Kolo 6, krok 8 (2026-10-20): T13 se Sonnet
+
+Puvodni T13, Sonnet, jeden beh. Piskoviste z 9e70386: poznamka pod fitem,
+ktery oznacene body ponechal (735b1c7), kanonicke poradi seriovych bloku
+podle tau (3a966ba). Bod 0 "ne", cetl jen README (cele).
+
+| | T13 krok 7 (Haiku) | T13 krok 8 (Sonnet) | Pravda |
+|---|---|---|---|
+| R1 / R2 [Ohm] | 142 +- 8 / 38 +- 8 | 105 +- 4 / 75 +- 4 | 100 / 80 |
+| tau [ms] | 1.18 / 5.7 | 1.02 / 3.3 | 1.00 / 3.16 |
+| R_s [Ohm] | 2.00 | 2.001 (`--ri-fit` 2.000) | 2.0 |
+| R1 + R2 [Ohm] | 179.4 +- 0.3 | 180.0 +- 0.04 | 180 |
+| cena | 0.08 USD, 2.7 min | 0.32 USD, 5 min, 10 kroku | |
+
+Uspech. Postup (z casu souboru, prepis sezeni neni): vychozi beh, 4
+kandidati (1/2 oblouky, C/Q), fit na vsech bodech 142/38, test 3 oblouku
+(BIC zamitl), `--ri-fit`, pak `--exclude-flagged kk` na popud poznamky
+"This fit includes the 4 point(s) Lin-KK flagged" a kontrola druhym
+seedem. Netapal: zadne vlastni skripty ani zkouseni `--f-min` (Haiku
+krok 1: 24 kroku). Za hlavni vysledek vzal fit bez bodu s odkazem na
+README; rozsah 105-142 uvedl navic, vyslovne jen jako varovani, ze +/-
+je prilis optimisticke. R1 +- 4 nepokryva chybu 5 Ohm (jako krok 4).
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| U1 | C | V piskovisti README odkazuje na `CHANGELOG.md` a tabulka Documentation na `doc/ROBUST_LOSS_SOFT_L1.md`; oba `setup.sh` zamerne vynechava - artefakt piskoviste, ne repozitare | T13 |
+
+Bez akce (chyba agenta): "vzorec tau z (R, Q, n) neni v dokumentaci" - je
+(README, Circuit fitting: `(R*Q)^(1/n)` pro CPE); "chybi postup pro pocet
+procesu" - README (Voigt chain) i MODEL_SELECTION: piky DRT jako dolni mez
+a porovnani fitovanych obvodu.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -567,7 +601,8 @@ ktery oznacene body ponechal.
 | S4 (kolo 6, krok 6) | opraveno: `arc_resistance_sums` - soucet odporu oblouku v serii s nejistotou z cele kovariance a korelaci R1/R2; CLI radek pod casovymi konstantami ("the split is less certain than the sum", kdyz je stderr souctu pod stderr kazdeho R), JSON `arc_resistance_sums`. T13 180.00 +- 0.04, T14 209.84 +- 0.16 |
 | S5 (kolo 6, krok 6) | otevrene |
 | T1-T3 (kolo 6, krok 7) | otevrene |
-| Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal |
+| Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal (735b1c7); Sonnet v kroku 8 na ni presel na `--exclude-flagged` |
+| U1 (kolo 6, krok 8) | otevrene (oprava v `setup.sh`, mimo repozitar) |
 
 ### F5: studie pravidla platnosti Z-HIT
 
