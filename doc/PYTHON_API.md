@@ -396,6 +396,7 @@ est = estimate_rinf(frequencies, Z)   # ValueError on shape mismatch / no finite
 # est: RinfResult dataclass
 est.R_inf          # value to use [Ohm]: fitted R_s, or the HF upper bound (clipped at 0)
 est.R_inf_upper    # HF bound + 3 sigma of the noise at f_hf: R_s cannot exceed it
+est.hf_is_bound    # False when no point has Im(Z) <= 0: then neither is a bound
 est.R_inf_range    # (lo, hi) meant to hold R_s, the fit's model error included
                    # (a fitted range missed R_s in 7 of 878 stress-test
                    # spectra, see the docstring); est.L: the L to subtract

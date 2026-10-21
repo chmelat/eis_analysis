@@ -255,3 +255,82 @@ def test_zero_point_below_the_window_does_not_break_the_spread():
     est = estimate_rinf(f, Z)
     assert est.method == 'rlq_fit'
     assert est.R_inf == pytest.approx(10, rel=1e-6)
+
+
+def test_duplicate_top_frequency_gives_the_lowest_re_in_any_order():
+    """f_max measured twice, Re 1 Ohm apart, on an arc still open at the top
+    (contract review round 5, F1): the HF bound came from whichever point
+    came first, so R_inf moved by 1 Ohm with the order of the input. Every
+    point is a bound; the lowest is the tightest."""
+    f = np.logspace(5, -1, 61)
+    Z = 10 + 100 / (1 + 100 * 1e-8 * (2j * np.pi * f) ** 0.7)
+    f2, Z2 = np.concatenate([[f[0]], f]), np.concatenate([[Z[0] + 1], Z])
+    results = [estimate_rinf(f2[p], Z2[p]) for p in
+               (np.arange(len(f2)), np.arange(len(f2))[::-1],
+                np.random.default_rng(3).permutation(len(f2)))]
+    for est in results:
+        assert est.method == 'hf_bound'
+        assert est.R_inf_hf == Z[0].real
+        assert est.R_inf == results[0].R_inf
+        assert est.R_inf_range == pytest.approx(results[0].R_inf_range, rel=1e-9)
+
+
+def test_all_inductive_spectrum_warns_that_there_is_no_bound():
+    """No point with Im(Z) <= 0 (round 5, F2): Re(Z) at f_max was reported
+    as the HF upper bound, though it lies below R_s = 10 here."""
+    for n in (4, 8):    # fallback without a fit, and after the window fit
+        f = np.logspace(6, 5.5, n)
+        Z = 10 - np.linspace(1, 0.1, n) + 2j * np.pi * f * 1e-7
+        est = estimate_rinf(f, Z)
+        assert not est.hf_is_bound and est.method == 'hf_bound'
+        assert 'No point with Im(Z) <= 0' in est.warnings[0]
+        assert est.warnings[-1].endswith('no bound')
+        assert not any('upper bound Re(Z)' in w for w in est.warnings)
+
+
+def test_inductive_point_at_the_top_frequency_is_noted_as_skipped():
+    """f_max measured twice, once inductive with the lower Re (code review
+    of round 5): the bound is the capacitive point, and the warning says
+    an inductive point was skipped although f_hf == f_max."""
+    f = np.array([1e5, 1e5, 1e4])
+    Z = np.array([9 + 0.5j, 11 - 0.1j, 12 - 1j])
+    est = estimate_rinf(f, Z)
+    assert est.hf_is_bound and est.R_inf_hf == 11 and est.f_hf == 1e5
+    assert 'inductive top above Im(Z) = 0 skipped' in est.warnings[-1]
+
+
+def test_drt_default_rinf_does_not_depend_on_the_order():
+    """hf_r_inf, the DRT's default R_inf (code review of round 5): with three
+    points at f_max its two 'top' points depended on the input order, and
+    with them whether the median or the bound was returned."""
+    from eis_analysis.rinf_estimation import hf_r_inf
+
+    f = np.concatenate([[1e5, 1e5, 1e5], np.logspace(4.9, 0, 50)])
+    Z = np.concatenate([[10 - 1j, 11 - 1j, 14 - 1j], 40 - 5j + 0 * f[3:]])
+    ref = hf_r_inf(f, Z)
+    for seed in range(20):
+        p = np.random.default_rng(seed).permutation(len(f))
+        assert hf_r_inf(f[p], Z[p]) == ref
+
+
+def test_fitted_rs_at_zero_falls_back(monkeypatch):
+    """R_s on its lower bound 0 has no relative stderr (round 5, F3):
+    stderr / R_s raised ZeroDivisionError instead of the fallback."""
+    import eis_analysis.rinf_estimation.estimate as module
+
+    fit_window = module._fit_window
+
+    def fit_at_zero(f_win, Z_win):
+        fit, Z_fit = fit_window(f_win, Z_win)
+        fit.params_opt = fit.params_opt.copy()
+        fit.params_opt[0] = 0.0
+        fit.params_stderr = fit.params_stderr.copy()
+        fit.params_stderr[0] = 0.0
+        return fit, Z_fit
+
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-3)
+    monkeypatch.setattr(module, '_fit_window', fit_at_zero)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'hf_bound' and est.fit is not None
+    assert 'not determined' in est.warnings[-1]

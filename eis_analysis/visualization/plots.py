@@ -203,13 +203,14 @@ def plot_rinf_fit(result) -> plt.Figure:
         f_dense = np.logspace(np.log10(f.min()), np.log10(f.max()), 200)
         Z_fit = result.fit.circuit.impedance(f_dense, list(result.fit.params_opt))
 
+    hf = 'HF bound' if result.hf_is_bound else 'no bound:'
     lines = [(result.R_inf_hf, 'gray',
-              f'HF bound Re(Z) = {result.R_inf_hf:.4g} Ohm at {result.f_hf:.3g} Hz')]
+              f'{hf} Re(Z) = {result.R_inf_hf:.4g} Ohm at {result.f_hf:.3g} Hz')]
     if result.R_inf_upper != max(result.R_inf_hf, 0.0):
-        lines.append((result.R_inf_upper, 'silver',
-                      f'upper bound of R_s = {result.R_inf_upper:.4g} Ohm'))
+        upper = 'upper bound of R_s' if result.hf_is_bound else 'R_inf_upper (no bound)'
+        lines.append((result.R_inf_upper, 'silver', f'{upper} = {result.R_inf_upper:.4g} Ohm'))
     if result.method != 'rlq_fit' and result.R_inf != result.R_inf_hf:
-        lines.append((result.R_inf, 'black', f'R_inf used = {result.R_inf:.4g} Ohm (bound < 0)'))
+        lines.append((result.R_inf, 'black', f'R_inf used = {result.R_inf:.4g} Ohm (Re(Z) < 0)'))
     if result.R_inf_fit is not None:
         lines.append((result.R_inf_fit, 'green',
                       f'fit R_s = {result.R_inf_fit:.4g} +- {result.R_inf_stderr:.2g} Ohm'))
@@ -240,7 +241,8 @@ def plot_rinf_fit(result) -> plt.Figure:
 
     for ax in axes:
         ax.grid(True, alpha=PLOT_GRID_ALPHA, which='both')
-    used = 'fit' if result.method == 'rlq_fit' else 'upper bound'
+    used = ('fit' if result.method == 'rlq_fit'
+            else 'upper bound' if result.hf_is_bound else 'Re(Z) at f_max, no bound')
     fig.suptitle(f'R_inf = {result.R_inf:.4g} Ohm ({used})')
     plt.tight_layout()
     return fig

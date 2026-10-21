@@ -50,6 +50,24 @@ Complete change history for all project versions.
   as tau = 1 s, G = inf as 1/G = 0). Neither occurs with the fit's bounds;
   found by a cold review of `fitting/time_constants.py` against its new
   contract (`doc/CONTRACT_REVIEW.md`, round 2).
+- **The HF bound of R_inf no longer depends on the order of the points.**
+  With the highest capacitive frequency measured twice, `hf_bound` took
+  whichever point came first, so `estimate_rinf` (and the DRT's default
+  R_inf when it falls back to the bound) moved with the input order (an
+  open arc, Re 1 Ohm apart: R_inf 109.5 or 110.5 Ohm). Of points at the
+  same frequency the lowest Re(Z), the tightest bound, now counts; the
+  HF median and its cap (`hf_r_inf`) break such ties the same way. Also
+  in `estimate_rinf`: a window fit with R_s = 0 on its lower bound falls
+  back to the bound instead of raising ZeroDivisionError (exactly 0 is
+  not seen in practice: the optimizer stays inside its bounds); a
+  spectrum with no point at
+  Im(Z) <= 0 warns that Re(Z) at f_max is no upper bound of R_inf
+  (`RinfResult.hf_is_bound` False; the CLI, the plot and the fallback
+  warning no longer call it a bound); an inductive point at f_max skipped
+  for a capacitive one is noted; the warning about dropped points names
+  f <= 0 too. Found by a cold review
+  of `rinf_estimation/estimate.py` against its new contract
+  (`doc/CONTRACT_REVIEW.md`, round 5).
 - **A DRT peak behind a zero valley is no longer rejected.** With the
   taller neighbour on the left, the shoulder run of the peak significance
   test stopped one point before the valley, and before any small maximum

@@ -364,3 +364,46 @@ R_inf_upper s fitem presne podle vzorce (huste, ridke spektrum s pravidlem
 3 nejblizsich, f_hf v induktivnim okne); R_inf_window_spread i jeho nulove
 vetve; invariance c = 1e-16 .. 1e100; permutace (rel. 1e-15); vstupy
 nezmeneny; determinismus; f az 1e300 / 1e-300.
+
+Provedeno 2026-10-21 (jedna zmena s testy v `tests/test_rinf_estimation.py`;
+F2 jen varovani, rozhodnuti uzivatele):
+
+- F1: `hf_bound` (`utils/impedance.py`, sdileny s `hf_r_inf` v DRT) radi
+  `lexsort` podle klesajici f a pri shode rostouciho Re: z bodu na stejne
+  frekvenci plati nejnizsi Re. Bez duplikatu beze zmeny.
+- F2: bez bodu s Im <= 0 varovani "No point with Im(Z) <= 0: Re(Z) at
+  f_max is not an upper bound of R_inf ..." u kazde metody; R_inf_upper
+  a R_inf_range se pocitaji jako dosud, kontrakt rika, ze R_s drzet
+  nemusi.
+- F3: `rel` je inf pro R_s <= 0 (zaloha s varovanim); `_window_spread`
+  prijme jen R_s > 0.
+- F4, F5, F6: jen kontrakt (|Z| nad ~1e-300 Ohm, invariance pro |Z|
+  ~1e-15 .. 1e100 Ohm, hranice okna v plovouci carce). Hlaska o vyrazenych
+  bodech jmenuje i f <= 0; kontrakt u sumu rika rozptyl, ne RMS. -0.0 bez
+  akce.
+- Overeno: 3 nove testy bez opravy padaji (ZeroDivisionError, poradi,
+  chybejici varovani); `pytest tests/` 863 passed, stress smoke proti
+  baseline prosel.
+- /code-review (10 nalezu): `hf_r_inf` (dve horni kapacitni body) a
+  `hf_median` (shoda na hranici n bodu) razeny stejne jako `hf_bound`,
+  jinak DRT R_inf dal zavisel na poradi (test: 3 body na f_max, median vs.
+  mez podle permutace); `hf_bound` a spol. prevadi f na float (uint by
+  pretekl). `RinfResult.hf_is_bound`: bez bodu s Im <= 0 zalozni hlaska,
+  CLI (`--ri-fit`, `--local-exponent`) i graf nerikaji "upper bound";
+  poznamka o preskocenem induktivnim bodu i pri shode f s f_hf; CLI
+  netiskne procento pri R_s = 0. `_window_spread`: R_s na mezi 0
+  v uzsim okne je chyba modelu, vraci cely posun R_fit (moje F3 oprava
+  vracela 0 a zuzila rozsah). Docstring Raises. Bez akce: horni konec
+  rozsahu prijateho fitu na induktivnim spektru dal oriznut R_inf_upper
+  (rozhodnuti u F2: jen varovani, kontrakt rika, ze R_s drzet nemusi).
+- Druhe /code-review (8 nalezu): vetev R_s <= 0 v `_window_spread` je
+  mrtvy kod (least_squares 'trf' drzi parametr uvnitr mezi: R_s na mezi
+  vraci 1e-11 az 2e-16, ne 0); `_window_spread` vracen do puvodniho
+  stavu. Otevrene: uzsi fit s R_s na mezi dava sirku 0, i kdyz je to
+  znamka chyby modelu; rozsireni by zmenilo R_inf_range, rozhodnout az po
+  mereni na stress spektrech. `hf_median` bere pri shode nizsi Re jako
+  `hf_bound` (sdilene `_top_down`); graf (titulek, R_inf_upper, "Re(Z) <
+  0") a varovani `--local-exponent` bez "bound" pri hf_is_bound False;
+  test induktivniho spektra vynucuje zalohu se 4 i 8 body. Bez akce:
+  rozsah oriznuty R_inf_upper bez meze (rozhodnuti u F2), text varovani
+  pri R_s presne 0 (nedosazitelne).

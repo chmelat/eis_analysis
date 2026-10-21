@@ -60,12 +60,16 @@ def run_local_exponent(
         logger.error(f"Local exponent failed: {e}")
         return None
 
-    used = 'fit' if est.method == 'rlq_fit' else 'HF upper bound'
+    used = ('fit' if est.method == 'rlq_fit'
+            else 'HF upper bound' if est.hf_is_bound else 'Re(Z) at f_max, no bound')
     logger.info(f"Subtracted: R_inf = {result.R_inf:.4g} Ohm ({used}), "
                 f"L = {result.L * 1e9:.3g} nH")
-    if est.method != 'rlq_fit':
+    if est.method != 'rlq_fit' and est.hf_is_bound:
         logger.warning("  R_inf is not determined: the uncertainty of n covers R_inf "
                        f"anywhere in {result.R_inf_range[0]:.4g}..{result.R_inf_range[1]:.4g} Ohm")
+    elif est.method != 'rlq_fit':
+        logger.warning("  R_inf is not determined and nothing bounds it from above: n near "
+                       "f_max can be off by more than its uncertainty")
     for warning in est.warnings:
         logger.warning(f"  {warning}")
 

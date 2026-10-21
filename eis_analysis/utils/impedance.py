@@ -137,8 +137,15 @@ def hf_median(frequencies: NDArray, Z: NDArray) -> Tuple[float, int]:
     Returns ``(R_inf, n_points)``; see HF_MEDIAN_MAX_POINTS.
     """
     n = min(HF_MEDIAN_MAX_POINTS, max(1, len(frequencies) // 10))
-    idx = np.argsort(frequencies)[-n:]
+    # Ties in f broken by the lower Re(Z), as in hf_bound, so that the input
+    # order does not matter
+    idx = _top_down(frequencies, Z)[:n]
     return float(np.median(Z.real[idx])), n
+
+
+def _top_down(frequencies: NDArray, Z: NDArray) -> NDArray:
+    """Indices by descending frequency, ties by ascending Re(Z)."""
+    return np.lexsort((Z.real, -np.asarray(frequencies, dtype=float)))
 
 
 def hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float, int]:
@@ -148,9 +155,11 @@ def hf_bound(frequencies: NDArray, Z: NDArray) -> Tuple[float, float, int]:
     of R_s; this one is the first below an inductive top, where lead
     artifacts can pull Re(Z) below R_s (redoxED flow cell: 0.168 Ohm at the
     Im = 0 crossing, 0.003 and -0.064 Ohm above it). On a capacitive top it
-    is f_max, the tightest bound.
+    is f_max, the tightest bound. Of points with Im(Z) <= 0 measured at the
+    same frequency the lowest Re(Z), the tightest of them, whatever their
+    order.
     """
-    order = np.argsort(frequencies)[::-1]
+    order = _top_down(frequencies, Z)
     capacitive = np.flatnonzero(Z.imag[order] <= 0)
     i = order[capacitive[0]] if capacitive.size else order[0]
     return float(Z.real[i]), float(frequencies[i]), int(i)
@@ -166,7 +175,7 @@ def hf_r_inf(frequencies: NDArray, Z: NDArray) -> Tuple[float, Optional[str]]:
     Returns ``(R_inf, warning)``, warning None when the median is used.
     """
     median, _ = hf_median(frequencies, Z)
-    order = np.argsort(frequencies)[::-1]
+    order = _top_down(frequencies, Z)
     top = order[Z.imag[order] <= 0][:2]
     margin = HF_MEDIAN_ABOVE_BOUND_MAX * abs(median)
     if len(top) < 2 or not all(median - Z.real[i] > margin for i in top):

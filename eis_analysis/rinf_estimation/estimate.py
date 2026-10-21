@@ -12,6 +12,89 @@ contributes nothing), and says why in `warnings`. An inductive top is skipped:
 above Im = 0 lead artifacts can pull Re(Z) below R_s, even below zero.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
+
+CONTRACT
+
+Callers. The CLI with --ri-fit (cli/handlers/rinf.py): R_inf goes to the
+DRT as its preset, warnings are printed, ValueError is reported as "R_inf
+estimation failed" and the DRT runs without a preset. --local-exponent
+(cli/handlers/local_exponent.py): R_inf and L are subtracted from Z, and
+R_inf_range goes to local_exponent, which raises ValueError unless the
+range is finite and holds R_inf. plot_rinf_fit reads the window, the fit,
+R_inf_hf, f_hf, hf_is_bound and R_inf_upper. Frequencies and Z come as measured: any
+order, duplicates possible, possibly NaN or inf, Re(Z) < 0 possible at an
+inductive top. From other modules it uses fit_equivalent_circuit (raises
+RuntimeError when the fit fails; params_opt and params_stderr in circuit
+order R_s, L, R_k, Q, n; stderr inf or NaN when the covariance cannot be
+had), PARAMETER_BOUNDS['n'] and hf_bound (Re(Z) at the highest frequency
+with Im(Z) <= 0, f_max when there is none; of points at the same frequency
+the lowest Re(Z)).
+
+estimate_rinf(frequencies, Z) -> RinfResult.
+  Input: array_like of the same shape; ValueError otherwise, and when no
+  point is finite with f > 0. Points that are not (NaN or inf in f or Z,
+  f <= 0) are dropped with a warning "Ignored k point(s) that are
+  non-finite or have f <= 0"; everything below works on the rest.
+  Window: f >= f_max / 10**RINF_FIT_DECADES of the kept points (f_max
+  itself included; the limit as computed in floating point, so a point at
+  exactly it may fall out by rounding); f_window and Z_window hold it, in
+  input order.
+  R_inf_hf, f_hf: hf_bound of all kept points; R_inf_hf as measured, also
+  when negative. hf_is_bound: whether some kept point has Im(Z) <= 0.
+  Without one R_inf_hf is no bound: a warning says so (whatever the
+  method), the fallback warning does not call it a bound, R_inf_upper and
+  R_inf_range are computed as usual and need not hold R_s.
+  Fallback (method 'hf_bound'): R_inf = max(R_inf_hf, 0), L = 0, and a
+  warning that names the reason and the bound used (inductive points at
+  or above f_hf skipped and a negative bound noted when they apply). Taken when the
+  window has fewer than RINF_FIT_MIN_POINTS points, when |Z| is 0 at a
+  window point, when the fit raises RuntimeError, and when the fit does
+  not determine R_s: stderr / R_s above RINF_REL_STDERR_MAX, or not a
+  number (NaN stderr, R_s = 0).
+  Fit (method 'rlq_fit'): R_inf = the fitted R_s, L = the fitted L. Range
+  of every parameter relative to the window's |Z| (_window_range), R and
+  L bounded below by 0, so the result does not depend on the unit of Z.
+  fit is set whenever the fit ran, also when it was rejected.
+  fit.series_split is not consulted: R_s is accepted by its stderr alone
+  (whether to use it is an open decision, it would change --ri-fit).
+  R_inf_upper: with a fit, R_inf_hf + RINF_BOUND_NOISE_SIGMAS x the noise
+  at f_hf, clipped at 0. The noise variance per component is the mean
+  square of the fit's residual components within RINF_NOISE_LOCAL_DECADES
+  of f_hf (the 3 nearest window points when fewer lie there), scaled by
+  2N / (2N - 5) for the fitted parameters. Without a fit: R_inf_hf when > 0, else the larger of max
+  Re(Z) over the window and |Z(f_hf)|.
+  R_inf_window_spread: for an accepted fit, |R_s(top) - R_inf| where
+  R_s(top) is the same fit over the window's top RINF_SPREAD_DECADES; 0
+  when that subset has fewer than RINF_FIT_MIN_POINTS points or is the
+  whole window, when its fit raises RuntimeError, or when it does not
+  determine its own R_s by RINF_REL_STDERR_MAX (also when that fit runs
+  R_s into its bound 0: whether that should widen the range instead is
+  open). 0 for the fallback.
+  R_inf_range: fallback (0, R_inf_upper). Fit: R_inf -+ the largest of
+  RINF_REL_STDERR_MAX x R_inf, RINF_BOUND_NOISE_SIGMAS x stderr and
+  RINF_WINDOW_SPREAD_FACTOR x R_inf_window_spread, the lower end clipped
+  at 0, the upper at max(R_inf_upper, R_inf).
+  R_inf_fit, R_inf_stderr: the fit's R_s and its stderr, None without a fit.
+
+What must hold:
+  - The inputs are not changed.
+  - Raises only ValueError, and only for the two input cases above; every
+    numerical problem of the data or the fit ends in the fallback with a
+    warning. For |Z| above ~1e-300 Ohm: below, min|Z| / RINF_BOUND_RANGE
+    underflows to 0.
+  - R_inf, R_inf_upper and both ends of R_inf_range are finite and
+    >= 0; R_inf_range[0] <= R_inf <= R_inf_range[1] (what local_exponent
+    requires); for the fallback R_inf <= R_inf_upper.
+  - L >= 0 and finite; 0 unless method is 'rlq_fit'.
+  - method 'rlq_fit' exactly when R_inf comes from an accepted fit, and
+    then stderr <= RINF_REL_STDERR_MAX x R_inf.
+  - Unit invariance: Z scaled by c > 0 scales R_inf, R_inf_hf,
+    R_inf_upper, R_inf_range, R_inf_window_spread and L by c, with the
+    same method (up to the optimizer's tolerance), while |Z| stays within
+    ~1e-15 .. 1e100 Ohm (outside, absolute tolerances of the fit).
+  - The order of the points changes only the order of f_window / Z_window
+    (and the result within the optimizer's tolerance).
+  - The result is deterministic: no random starts.
 """
 
 from dataclasses import dataclass, field
@@ -118,6 +201,9 @@ class RinfResult:
     # |R_s - R_inf| of the fit over the top RINF_SPREAD_DECADES; 0 if R_inf
     # is a bound or that fit is not possible or does not determine R_s [Ohm]
     R_inf_window_spread: float = 0.0
+    # False when no point has Im(Z) <= 0: R_inf_hf is then Re(Z) at f_max,
+    # no bound of R_s (nor R_inf_upper built on it)
+    hf_is_bound: bool = True
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -260,7 +346,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     Raises
     ------
     ValueError
-        If the arrays differ in length or hold no finite point.
+        If the arrays differ in shape or hold no finite point with f > 0.
 
     Notes
     -----
@@ -295,10 +381,18 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     result = RinfResult(R_inf=max(R_hf, 0.0), method='hf_bound', R_inf_hf=R_hf,
                         R_inf_upper=upper, f_hf=f_hf, f_window=f_win, Z_window=Z_win)
     if not finite.all():
-        result.warnings.append(f"Ignored {int((~finite).sum())} non-finite point(s)")
-    fallback = f"using the HF upper bound Re(Z) = {R_hf:.4g} Ohm at {f_hf:.3g} Hz"
-    if f_hf < frequencies.max():
-        fallback += " (inductive top above Im(Z) = 0 skipped)"
+        result.warnings.append(f"Ignored {int((~finite).sum())} point(s) that are "
+                               f"non-finite or have f <= 0")
+    result.hf_is_bound = bool(Z.imag[i_hf] <= 0)
+    if result.hf_is_bound:
+        fallback = f"using the HF upper bound Re(Z) = {R_hf:.4g} Ohm at {f_hf:.3g} Hz"
+        if (Z.imag[frequencies >= f_hf] > 0).any():
+            fallback += " (inductive top above Im(Z) = 0 skipped)"
+    else:
+        result.warnings.append("No point with Im(Z) <= 0: Re(Z) at f_max is not an upper "
+                               "bound of R_inf (lead artifacts can pull it below R_s), "
+                               "nor is R_inf_upper")
+        fallback = f"using Re(Z) = {R_hf:.4g} Ohm at f_max = {f_hf:.3g} Hz, no bound"
     if R_hf < 0:
         fallback += ("; it is negative (noise or an artifact exceeds R_s there), "
                      "so R_inf = 0")
@@ -330,7 +424,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     result.R_inf_upper = max(R_hf + RINF_BOUND_NOISE_SIGMAS * noise, 0.0)
 
     R_fit, stderr = float(fit.params_opt[0]), float(fit.params_stderr[0])
-    rel = stderr / R_fit
+    # R_s = 0 (its bound) has no relative stderr: not determined
+    rel = stderr / R_fit if R_fit > 0 else np.inf
     # `not <=` also catches a NaN stderr (covariance could not be computed).
     if not rel <= RINF_REL_STDERR_MAX:
         result.warnings.append(
