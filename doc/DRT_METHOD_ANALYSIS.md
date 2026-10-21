@@ -983,20 +983,26 @@ skutečnou hmotu γ. Po jeho vynulování nemá kam jít a fit se zhorší
 a zakáže jen samostatné maximum: lalok dostane Δχ² <= 2, skutečný oddělený
 proces stovky až tisíce.
 
-**Kalibrace** (248 syntetických spekter: 2xRC, 2xZARC 0.5 a 1 dekádu od
-sebe, poměry R 1:10 / 1:100 / 1:1000, 1xZARC n = 0.8, 1xRC; šum 0-3 %,
-10 seedů; vážení sqrt):
+**Kalibrace** (`tests/calibrate_peak_threshold.py`, 248 syntetických
+spekter: 1xRC, 1xZARC n = 0.8, 2xRC 3 dekády od sebe s poměry R 1:10 /
+1:100 / 1:1000, 2xZARC n = 0.9 0.5 a 1 dekádu od sebe, 3xRC s oblouky 5 a
+3 Ohm vedle 100 Ohm; šum 0 / 0.1 / 1 / 3 %, 10 seedů; vážení sqrt):
 
-| Metoda | chybějící peaky | falešné peaky |
+| Práh Δχ² | chybějící peaky | falešné peaky |
 |---|---|---|
-| práh 3 % výšky | 97 | 114 |
-| Δχ² >= 9 | 40 | 0 |
-| Δχ² >= 16 | 41 | 0 |
-| Δχ² >= 25 | 46 | 0 |
+| 4 | 55 | 5 |
+| 9 | 70 | 0 |
+| 16 | 77 | 0 |
+| 25 | 81 | 0 |
+| 36 | 85 | 0 |
 
-Nejvyšší Δχ² falešného kandidáta bylo 5.5. Z 41 chybějících je 31 dvojic
-ZARC vzdálených 0.5 dekády, které DRT vykreslí jako jediné maximum, zbytek
-při 3 % šumu.
+Nejvyšší Δχ² falešného kandidáta bylo 7.7 (lalok vedle jediného maxima
+dvojice ZARC 0.5 dekády od sebe). Z 77 chybějících při 16 je 31 dvojic
+ZARC vzdálených 0.5 dekády, které DRT vykreslí jako jediné maximum, 9
+dvojic 1 dekádu od sebe při 3 % šumu a 37 malých oblouků 3xRC při 1 a 3 %
+(Δχ² 6-22 při 1 %). Práh 9 by našel o 7 víc, ale nad nejvyšší falešnou
+hodnotou má rezervu jen 1.3; 16 má dvojnásobek. Starý práh 3 % výšky
+dával na původní kalibrační sadě 114 falešných peaků.
 
 **Meze:**
 

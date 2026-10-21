@@ -64,8 +64,9 @@ Complete change history for all project versions.
   Delta chi^2 counts; before, only one. `example/`: example_eis_data.csv
   finds the R0||Q0 process (tau 0.08 s, R 95 kOhm of 100) it lost with
   the test, diffusion_Ws_noise1 and diffusion_RpWs one more mode of the
-  finite Warburg. The calibration of `DRT_PEAK_DCHI2_MIN` was measured
-  before this fix. Found by a cold review of `drt/significance.py`
+  finite Warburg. `DRT_PEAK_DCHI2_MIN` = 16 recalibrated after the fix
+  (`tests/calibrate_peak_threshold.py`, 248 synthetic spectra): 0 false
+  peaks at 9-36, the largest spurious Delta chi^2 7.7 (before 5.5). Found by a cold review of `drt/significance.py`
   against its new contract (`doc/CONTRACT_REVIEW.md`, round 4).
 - **A parameter at 0 no longer divides by zero** in the "very high relative
   uncertainty" warning; it gives the stderr at 0 instead of `inf%`.

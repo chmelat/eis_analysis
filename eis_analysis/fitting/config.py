@@ -54,20 +54,18 @@ neighbour; Delta chi^2 is how much worse that constrained refit reproduces
 the data. 16 is roughly the chi^2 with 3 degrees of freedom at p = 0.001
 (a peak adds about R, tau and a width).
 
-Calibration (default sqrt weighting, noise = the DRT's own residual, 248
-runs: 2xRC, 2xZARC 0.5 and 1 decade apart, R ratios 1:10 / 1:100 / 1:1000,
-1xZARC n = 0.8, 1xRC; noise 0 / 0.1 / 1 / 3 %, 10 seeds): the largest Delta
-chi^2 of a spurious candidate was 5.5, so 9, 16 and 25 all gave 0 false
-peaks (the old 3 % height threshold: 114). Missed peaks: 40 / 41 / 46 - 31
-of them 2xZARC 0.5 decade apart, which the DRT renders as a single maximum,
-so no test can see two; the rest at 3 % noise. 25 lost a true peak at 1 %
-noise (2xZARC 1 decade, Delta chi^2 down to 23). 16 costs one miss against
-9 and keeps three times the margin over the largest spurious value, for real
-data with drift or an imperfect R_inf.
-
-Measured before the shoulder run was fixed to cross a zero valley
-(doc/CONTRACT_REVIEW.md, round 4), which raises Delta chi^2 of resolved
-processes behind one; the calibration is to be repeated.
+Calibration (tests/calibrate_peak_threshold.py; default sqrt weighting,
+noise = the DRT's own residual, 248 runs: 1xRC, 1xZARC n = 0.8, 2xRC 3
+decades apart with R ratios 1:10 / 1:100 / 1:1000, 2xZARC n = 0.9 0.5 and 1
+decade apart, 3xRC with 5 and 3 Ohm arcs beside 100 Ohm; noise 0 / 0.1 / 1
+/ 3 %, 10 seeds): the largest Delta chi^2 of a spurious candidate was 7.7 (a
+lobe beside the single maximum of the 2xZARC 0.5 decade pair), so 9, 16, 25
+and 36 all gave 0 false peaks (4: 5). Missed peaks: 70 / 77 / 81 / 85. At 16:
+31 are the 2xZARC 0.5 decade pair, which the DRT renders as a single
+maximum, so no test can see two; 9 the 2xZARC 1 decade pair at 3 % noise;
+37 the small 3xRC arcs at 1 and 3 % noise (Delta chi^2 6-22 at 1 %). 9
+would find 7 more but keeps only 1.3 over the largest spurious value; 16
+keeps twice it, for real data with drift or an imperfect R_inf.
 """
 
 GMM_N_COMPONENTS_RANGE = (1, 6)

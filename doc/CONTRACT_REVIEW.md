@@ -321,4 +321,7 @@ Provedeno 2026-10-21 (jedna zmena s testem v `tests/test_drt_peak_significance.p
   souseda: zamitne jen mensi dchi2 druheho, ktere je pod prahem, coz
   plati pro minimum tak jako tak.
 - Kalibrace `DRT_PEAK_DCHI2_MIN` (248 behu) byla merena pred opravou;
-  zopakovat skriptem na druhem systemu, poznamka v `config.py`.
+  zopakovano 2026-10-21 novym `tests/calibrate_peak_threshold.py` (puvodni
+  skript je na druhem systemu; sada podle popisu v `config.py` + 3RC z F1):
+  pri 16 chybi 77 pred opravou 82 (3RC 0.1 % 3 -> 0, 1 % 19 -> 17),
+  falesne 0 pred i po; nejvyssi falesne dchi2 5.5 -> 7.7. Prah 16 zustava.
