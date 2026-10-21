@@ -236,3 +236,49 @@ Provedeno 2026-10-21 (jedna zmena s testem v `tests/test_series_resistance.py`):
   rika primo "the circuit has an arc too many", README radi oblouk vypustit
   misto hlaseni souctu; test vybira kandidata s NaN podle startu, ne podle
   poradi volani.
+
+## Kolo 4: drt/significance.py (2026-10-21)
+
+Kontrakt: docstring `eis_analysis/drt/significance.py`. Reviewer: Opus,
+jeden beh (6.5 min, 92k tokenu, 22 volani nastroju), piskoviste
+`~/coldreview/significance/` = cely balik; cist smel jen modul, zbytek
+jako cernou skrinku. Debrief: precten jen `significance.py`, zbytek pres
+`help`/`inspect`; 13 vlastnich skriptu v `review/`. F1 reprodukovan
+nezavisle vlastnim spektrem pres `calculate_drt` proti modulu v repozitari.
+
+Autor kontraktu predem bez pevneho ocekavani; podezrival ploche vrcholy
+(find_peaks bere prostredni index, `_peak_basins` argmin) a stejne vysoka
+maxima (netestovana, kontrakt to uvadi zamerne). Ani jedno nalez nedalo.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | hlavicka: "gamma must not increase from the neighbour's apex through the candidate's basin"; kontrakt: usek do nejnizsiho bodu povodi vpravo od j (nejvzdalenejsi ze stejnych minim) | povodi z `_peak_basins` je polootevrene a bod udoli patri pravemu sousedovi (u useku nul prvni nula). S vyssim sousedem vlevo usek konci bod pred udolim, u udoli hned za vrcholem primo na vrcholu j; refit pak posune maximum na prvni neomezeny bod a rameno nevynuti. S vyssim sousedem vpravo usek udoli i nuly obsahuje: test neni symetricky | bezny. Vlastni spektrum R10-(R100\|C1e-6)-(R5\|C4e-4)-(R3\|C0.1), 71 bodu 1e5-1e-2 Hz, 0.2 % sum, `calculate_drt` default: skutecny proces 5 Ohm (tau 2 ms) zamitnut ve 3 z 10 seminek (dchi2 12-14), 3 Ohm (tau 0.3 s) v 1 z 10 (10.2); s usekem pres nuly dchi2 69-148. I prijate piky jen 19-30 misto ~100 |
+| F2 | C | sigma: noise_sigma, floor na eps | `max(nan, eps)` = NaN: vsechna dchi2 NaN, vse vyznamne; zaporne noise_sigma tise eps (dchi2 ~1e28) | zadny: volajici predavaji vypocitane konecne sigma (gamma z NNLS je konecne) |
+| F3 | C | kontrakt mlci | `threshold` NaN: vse vyznamne | zadny: volajici pouzivaji konstantu |
+| - | B | "A gamma with no interior maximum (empty, ...)" | prazdna gamma je nedosazitelna: `_build_drt_matrices` pro n_tau < 2 vyhodi ValueError | jen kontrakt |
+
+Prototyp opravy F1 (usek se sestupem konci v nejvzdalenejsim minimu pred
+dalsim kandidatem, zrcadlove k useku se vzestupem; monkeypatch, repozitar
+beze zmeny): 7 syntetik (3RC, 1RC, 1 ZARC n 0.8, 2 ZARC 0.5 a 1 dek.,
+2RC 1:100 a 1:1000) x sum 0.1 / 1 / 3 % x 10 seminek, `calculate_drt`
+default:
+
+| Spektrum, sum | chybejici ted | chybejici s opravou |
+|---|---|---|
+| 3RC 0.1 % | 2 | 0 |
+| 3RC 1 % | 16 | 12 |
+| 2RC 1:100 0.1 % | 5 | 0 |
+| ostatni | beze zmeny | beze zmeny |
+
+Falesne piky: 1 (1RC 1 %) pred i po, jinak 0. Kalibrace prahu 16
+(`DRT_PEAK_DCHI2_MIN`, 248 behu) byla merena s chybou F1; kalibracni
+skript je na druhem systemu.
+
+Overeno, ze plati (reviewer): vstupy nezmeneny, zarovnani a usporadani
+poli, nejvyssi a stejne vysoky kandidat vzdy vyznamny (inf), monotonie
+v prahu (62 prahu, +-inf), dchi2 ~ 1/sigma^2, nezavislost na jednotce Z
+(c = 1e-3 .. 1e6, s L i bez, rel. 1e-11), nulova/konstantni/monotonni
+gamma bez vyjimky, chi2_full = Boukamp, sigma = sqrt(chi2/2N), refit na
+uz monotonnim useku reprodukuje chi2_full na 1e-15, volba q (vyssi sedlo,
+pri shode levy), nnls na limitu iteraci -> NaN a pik zachovan, zaporne
+dchi2 (-0.0018).
