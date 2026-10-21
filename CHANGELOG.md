@@ -113,6 +113,9 @@ Complete change history for all project versions.
   warning (cold-agent T13: 2.038 against 2.000 Ohm, -Z''/Z' 4 % at 1 MHz);
   `--ri-fit` when R_inf matters. A circuit fit's R_s does not depend on it;
   R_inf feeds the DRT, R_pol and the suggested circuit.
+- **`--help` says what `--ri-fit` does.** It read "Perform robust R_inf
+  estimation before DRT analysis" (cold-agent T13): now the fitted
+  R_s-L-(R|Q), the default it replaces and the fallback to Re(Z) at f_max.
 
 ## Version 0.61.0 (2026-10-16)
 

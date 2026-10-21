@@ -600,7 +600,8 @@ a porovnani fitovanych obvodu.
 | S3 (kolo 6, krok 6) | opraveno v README (R_inf): co je "flat", zaviraji se oblouk necha median o par % vys bez varovani (T13: 2.038 vs 2.000), `--ri-fit` kdyz na R_inf zalezi; R_s z fitu obvodu na nem nezavisi. Prah -Z''/Z' v CLI nekalibrovan, nedelano |
 | S4 (kolo 6, krok 6) | opraveno: `arc_resistance_sums` - soucet odporu oblouku v serii s nejistotou z cele kovariance a korelaci R1/R2; CLI radek pod casovymi konstantami ("the split is less certain than the sum", kdyz je stderr souctu pod stderr kazdeho R), JSON `arc_resistance_sums`. T13 180.00 +- 0.04, T14 209.84 +- 0.16 |
 | S5 (kolo 6, krok 6) | otevrene |
-| T1-T3 (kolo 6, krok 7) | otevrene |
+| T1 (kolo 6, krok 7) | opraveno: help `--ri-fit` rika fit R_s-L-(R\|Q) na horni dve dekady, vychozi median a zalohu Re(Z) na f_max |
+| T2-T3 (kolo 6, krok 7) | otevrene |
 | Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal (735b1c7); Sonnet v kroku 8 na ni presel na `--exclude-flagged` |
 | U1 (kolo 6, krok 8) | otevrene (oprava v `setup.sh`, mimo repozitar) |
 
