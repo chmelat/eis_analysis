@@ -35,6 +35,14 @@ Complete change history for all project versions.
   `n_res - n_free`, and a warning says why. NaN or inf in the Jacobian or
   the residuals now gives no covariance (`cov` None, every stderr inf, a
   warning), where a NaN residual gave a NaN covariance without a word.
+- **Time constant stderr at correlation -1 is 0, not missing.** With R and
+  C correlated exactly -1 (tau exactly determined) rounding left the
+  variance of ln tau a hair below 0 and tau had no stderr in ~40 % of
+  cases; it now uses the rounding tolerance the sum of the arc resistances
+  already had. A non-finite parameter gives no tau and no sum (n = inf read
+  as tau = 1 s, G = inf as 1/G = 0). Neither occurs with the fit's bounds;
+  found by a cold review of `fitting/time_constants.py` against its new
+  contract (`doc/CONTRACT_REVIEW.md`, round 2).
   Found by the first cold review against a module contract
   (`doc/CONTRACT_REVIEW.md`); `covariance.py` now states its contract at
   its head.

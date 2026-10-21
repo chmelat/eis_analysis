@@ -168,3 +168,15 @@ vyjimky a varovani.
 
 Zadny nalez neni dosazitelny z fitu knihovny: A plati jen pro vstup, ktery
 volajici nikdy nepredaji.
+
+Provedeno 2026-10-21 (jedna zmena s testem `tests/test_time_constants.py`):
+
+- Kod: F2 - `_delta_variance` s toleranci zaokrouhleni pro tau i soucet
+  (driv jen soucet); F3 + F7 - parametr oblouku nebo clenu souctu, ktery
+  neni konecny, nedava tau ani soucet.
+- Kontrakt: F1 + F10 - `cov` je PSD jako zaruka volajiciho (klauzule
+  o ne-PSD bloku vypustena); F4 - korelace jako (D Sigma D)_12; F5 - inf
+  radek jen u volneho parametru, fixni vzdy 0; F6 + F8 - predpoklady
+  privatnich funkci (dvouprvkovy Parallel, `np.errstate` u volajiciho);
+  F11 - `bound_status` ma polozku pro kazdy parametr.
+- F9 bez akce (subnormalni C, mimo meze).

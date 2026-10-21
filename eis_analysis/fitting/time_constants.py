@@ -10,6 +10,103 @@ near -1, the split is poorly determined and the sum is not.
 
 The same time constant puts interchangeable series blocks of a fit into one
 order, see block_order.py.
+
+CONTRACT
+
+Callers. cli/handlers/fit_output.py and io/export.py call arc_time_constants
+and arc_resistance_sums with a finished FitResult; the public API exports
+both. block_order.py calls _arc_resistor and _arc_tau on one block.
+From the FitResult only these are read, all aligned by parameter index:
+  circuit       the circuit tree (Series, Parallel, elements); its
+                parameters, depth-first in expression order, each element
+                contributing len(get_all_params()), are params_opt in order
+  params_opt    fitted values, fixed ones included
+  param_labels  a label per parameter, or None
+  cov           (n_params, n_params) over all parameters, or None; positive
+                semi-definite (covariance.py builds it so); a fixed parameter
+                always has a zero row and column, a non-identifiable free one
+                (or every free one, with too few residuals) an inf row and
+                column
+  bound_status  one entry per parameter, '', 'lower', 'upper' or 'fixed',
+                or None (no bound information: nothing counts as at a bound)
+Nothing else of the fit (stderr, CI, series_split) is used, and nothing
+passed in is modified.
+
+What an arc is: a Parallel of exactly two elements, one R or G and one C or
+Q, in either order, that is not itself a direct branch of another Parallel
+(there its R and C sit beside the other branches). Anything else is not an
+arc: a K (it carries tau as a parameter), (R|C|Q), (R|R), C beside a branch
+(C_dl | (R_ct - W)). An arc inside a Series that is a branch of a Parallel
+is still an arc; its tau is its own, not where the whole spectrum peaks.
+R of a G arc is 1/G.
+
+arc_time_constants(result) -> list of ArcTimeConstant, one per arc that has
+a time constant, in expression order; empty when param_labels is None.
+  tau          R*C, or (R*Q)^(1/n) for Q; exists only when R (or G), C (or Q)
+               and n are finite and > 0 and tau and 1/tau are finite and > 0
+  frequency    1/(2 pi tau)
+  elements     '<label of R or G>|<label of C or Q>', the resistive one first
+               whatever the order in the expression
+  tau_stderr   delta method in log space with the full covariance block of
+               the arc's parameters (R or G, C or Q, n):
+               tau * sqrt(g^T Sigma g), g = gradient of ln tau
+               (ln R + ln C, or (ln R + ln Q)/n; ln R = -ln G)
+  stderr_note  None exactly when tau_stderr is not None
+
+arc_resistance_sums(result) -> list of ArcResistanceSum, one per series
+chain with at least two arcs, in expression order; empty when param_labels
+is None. A chain is the set of direct members of one Series, a Series
+directly inside a Series belonging to the same chain; a Series inside a
+Parallel branch is a chain of its own. An arc counts in its chain whether or
+not it has a time constant. Plain series elements (Rs, L) and K are not
+part of the sum.
+  R            sum of the arc resistances (R, or 1/G) as fitted; a chain
+               with a non-finite term parameter or a non-finite sum (G = 0)
+               gives no entry
+  elements     the terms by label, ' + ' joined, a G as '1/<label>'
+  stderr       delta method with the full covariance block of the terms:
+               sqrt(sum of all entries of D Sigma D), D = diag(gradient),
+               d/dR = 1, d(1/G)/dG = -1/G^2
+  stderr_parts the stderr of each term alone, in the order of elements
+  correlation  for exactly two terms with both parts > 0: (D Sigma D)_12
+               scaled by the parts, the correlation of the two terms (R or
+               1/G, so a G term flips the sign of cov(R, G)); else None
+  stderr_note  None exactly when stderr is not None
+  split_less_certain  stderr < min(stderr_parts); False without a stderr
+
+What must hold:
+  - No covariance (cov None): every stderr None, note 'no covariance'; tau
+    and R are still reported.
+  - A parameter of the arc (or of the sum) with bound_status 'lower' or
+    'upper': that stderr None, the note names the parameter and the bound.
+    A parameter at a bound elsewhere in the circuit does not matter.
+  - Fixed parameters are exact: they contribute zero variance. An arc with
+    every parameter fixed has stderr 0, not None. 'fixed' takes precedence
+    over a bound.
+  - An inf or NaN entry in the covariance block used (a non-identifiable
+    free parameter, too few residuals): stderr None with a note, never inf,
+    NaN or a finite number built from it. An inf row of a parameter outside
+    the block does not matter.
+  - A variance below zero only by rounding (terms cancelling at correlation
+    -1) gives stderr 0, for tau as for the sum.
+  - Independent R and C (zero off-diagonal): relative tau_stderr is
+    sqrt((s_R/R)^2 + (s_C/C)^2); a sum of uncorrelated terms has
+    stderr^2 = sum of stderr_parts^2. With correlation -1 and equal parts the
+    sum's stderr is 0.
+  - Describing the same arc with G = 1/R instead of R, and the covariance
+    transformed accordingly, gives the same tau, tau_stderr and sum to
+    rounding. Swapping the two elements of an arc changes nothing.
+  - Non-finite or extreme values (NaN or inf parameter, n -> 0, R*Q under-
+    or overflowing, 1/G overflowing): no tau, no sum or no stderr as above;
+    never an exception and no numpy RuntimeWarning.
+
+_arc_resistor(elements, starts) -> (index of the R or G among all
+parameters, +1 for R or -1 for G), or None when the two elements are not an
+arc pair; the caller passes the elements of a two-element Parallel.
+_arc_tau(elements, starts, resistor, params) -> (tau, indices of
+[R or G, C or Q(, n)], gradient of ln tau over them) under the same
+existence rule as tau above, else None. Both may emit numpy warnings on
+extreme values; callers run them under np.errstate.
 """
 from __future__ import annotations
 
@@ -225,11 +322,12 @@ def _collect_arcs(result: FitResult) -> List[Tuple[Optional[ArcTimeConstant],
 def _resistance_sum(resistors, params, labels, result: FitResult) -> Optional[ArcResistanceSum]:
     """The sum of the (index, sign) resistances and its delta-method stderr.
 
-    None when the sum itself is not finite (1/G of an extreme G).
+    None when a term parameter or the sum is not finite (1/G of an extreme G).
     """
     idx = [i for i, _ in resistors]
     total = float(sum(params[i] ** sign for i, sign in resistors))
-    if not np.isfinite(total):
+    # G = inf is a finite 1/G = 0 whose variance the gradient would erase
+    if not (np.all(np.isfinite(params[idx])) and np.isfinite(total)):
         return None
     # d(R)/dR = 1; d(1/G)/dG = -1/G^2
     grad = np.array([1.0 if sign > 0 else -1.0 / params[i] ** 2 for i, sign in resistors])
@@ -237,13 +335,7 @@ def _resistance_sum(resistors, params, labels, result: FitResult) -> Optional[Ar
     stderr = parts = correlation = None
     cov, note = _cov_block(idx, labels, result)
     if cov is not None:
-        contrib = cov * np.outer(grad, grad)
-        var = float(contrib.sum())
-        # With R1, R2 correlated near -1 the terms cancel and rounding can
-        # leave var a hair below 0; double precision errs at ~1e-16 of the
-        # terms, a non-PSD block by the size of the terms themselves
-        if -1e-9 * float(np.trace(contrib)) < var < 0:
-            var = 0.0
+        contrib, var = _delta_variance(cov, grad)
         if (np.all(np.isfinite(contrib)) and var >= 0
                 and np.all(np.diag(contrib) >= 0)):
             stderr = float(np.sqrt(var))
@@ -306,8 +398,10 @@ def _arc_tau(elements, starts, resistor: Tuple[int, float],
         log_RQ = np.log(R_val) + np.log(Q_val)
         tau = np.exp(log_RQ / n)
         grad = np.array([sign / (n * params[i_R]), 1 / (n * Q_val), -log_RQ / n**2])
-    # A tiny n or an extreme R*Q under- or overflows exp(): no usable tau
-    if not (np.isfinite(tau) and 0 < tau < np.inf and np.isfinite(1 / tau)):
+    # A tiny n or an extreme R*Q under- or overflows exp(): no usable tau.
+    # An inf n would pass as tau = 1 s with a zero gradient
+    if not (np.all(np.isfinite([params[i] for i in idx]))
+            and np.isfinite(tau) and 0 < tau < np.inf and np.isfinite(1 / tau)):
         return None
     return float(tau), idx, grad
 
@@ -328,13 +422,27 @@ def _cov_block(idx: List[int], labels,
     return np.asarray(result.cov)[np.ix_(idx, idx)], None
 
 
+def _delta_variance(cov, grad) -> Tuple[np.ndarray, float]:
+    """The terms cov_ij g_i g_j and their sum, the delta-method variance.
+
+    With terms correlated near -1 they cancel and rounding can leave the sum
+    a hair below 0; double precision errs at ~1e-16 of the terms, so a sum
+    above -1e-9 of the trace is a rounding zero.
+    """
+    contrib = cov * np.outer(grad, grad)
+    var = float(contrib.sum())
+    if -1e-9 * float(np.trace(contrib)) < var < 0:
+        var = 0.0
+    return contrib, var
+
+
 def _tau_stderr(tau: float, grad, idx: List[int], labels,
                 result: FitResult) -> Tuple[Optional[float], Optional[str]]:
     """Delta-method stderr of tau and None, or None and the reason why not."""
     cov, note = _cov_block(idx, labels, result)
     if cov is None:
         return None, note
-    var_log = float(grad @ cov @ grad)
+    _, var_log = _delta_variance(cov, grad)
     if not np.isfinite(var_log) or var_log < 0:
         return None, 'covariance not usable'
     return float(tau * np.sqrt(var_log)), None
