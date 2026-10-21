@@ -158,8 +158,9 @@ Examples:
     # R_inf estimation
     drt_group.add_argument('--ri-fit', action='store_true',
                            help='Estimate R_inf by fitting R_s-L-(R|Q) to the top two decades '
-                                '(default: median of the highest-frequency points); falls back to '
-                                'Re(Z) at f_max, an upper bound, if R_s is not determined')
+                                '(default: HF median, capped by the HF upper bound); falls back '
+                                'to that bound, Re(Z) at the highest point with Im(Z) <= 0, '
+                                'when the fit does not determine R_s')
 
     # ==========================================================================
     # Kramers-Kronig Validation Group

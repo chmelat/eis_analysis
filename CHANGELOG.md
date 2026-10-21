@@ -123,7 +123,9 @@ Complete change history for all project versions.
   R_inf feeds the DRT, R_pol and the suggested circuit.
 - **`--help` says what `--ri-fit` does.** It read "Perform robust R_inf
   estimation before DRT analysis" (cold-agent T13): now the fitted
-  R_s-L-(R|Q), the default it replaces and the fallback to Re(Z) at f_max.
+  R_s-L-(R|Q), the default it replaces (HF median capped by the HF upper
+  bound) and the fallback to that bound, Re(Z) at the highest point with
+  Im(Z) <= 0.
 
 ## Version 0.61.0 (2026-10-16)
 
