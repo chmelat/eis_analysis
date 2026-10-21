@@ -50,6 +50,23 @@ Complete change history for all project versions.
   as tau = 1 s, G = inf as 1/G = 0). Neither occurs with the fit's bounds;
   found by a cold review of `fitting/time_constants.py` against its new
   contract (`doc/CONTRACT_REVIEW.md`, round 2).
+- **A DRT peak behind a zero valley is no longer rejected.** With the
+  taller neighbour on the left, the shoulder run of the peak significance
+  test stopped one point before the valley, and before any small maximum
+  in it; the refit moved the maximum just past the run and a real process
+  passed as a shoulder (three RC, 5 and 3 Ohm next to 100 Ohm, 0.14 %
+  noise per component: rejected in 3 of 10 seeds at Delta chi^2 11-14, now
+  69-203; at 1 % 16 of 30 real peaks missed, now 0). The run now ends at
+  the farthest-out minimum before the next maximum that is taller or
+  significant on either side; maxima are tested lowest first, so a small
+  one rejected on its own is part of the valley. Both taller neighbours
+  are tested (the one behind the higher col first) and the smaller
+  Delta chi^2 counts; before, only one. `example/`: example_eis_data.csv
+  finds the R0||Q0 process (tau 0.08 s, R 95 kOhm of 100) it lost with
+  the test, diffusion_Ws_noise1 and diffusion_RpWs one more mode of the
+  finite Warburg. The calibration of `DRT_PEAK_DCHI2_MIN` was measured
+  before this fix. Found by a cold review of `drt/significance.py`
+  against its new contract (`doc/CONTRACT_REVIEW.md`, round 4).
 - **A parameter at 0 no longer divides by zero** in the "very high relative
   uncertainty" warning; it gives the stderr at 0 instead of `inf%`.
 - **`FitResult` and `FitDiagnostics` moved to `fitting/result.py`,

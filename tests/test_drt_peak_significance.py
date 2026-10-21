@@ -52,3 +52,17 @@ def test_broad_process_lobes_are_not_peaks():
 
     assert len(result.diagnostics.scipy_peaks) == 1
     assert result.diagnostics.rejected_peaks
+
+
+def test_process_after_a_zero_valley_is_a_peak():
+    """Three RC, 5 and 3 Ohm next to 100 Ohm, 0.14 % noise per component:
+    with the taller peak on the left the shoulder run stopped one point
+    before the NNLS zeros of the valley, the refit moved the maximum just
+    past it, and a real process was rejected (here the 3 Ohm one, Delta chi^2
+    11.4; in 3 of 10 seeds; cold review round 4)."""
+    Z = _noisy(10 + _zarc(100, 1e-4) + _zarc(5, 2e-3) + _zarc(3, 0.3), 1.4e-3, seed=4)
+    result = calculate_drt(FREQUENCIES, Z, auto_lambda=True)
+    taus = sorted(p['tau'] for p in result.diagnostics.scipy_peaks)
+
+    assert len(taus) == 3
+    assert all(abs(np.log10(t / true)) < 0.2 for t, true in zip(taus, (1e-4, 2e-3, 0.3)))

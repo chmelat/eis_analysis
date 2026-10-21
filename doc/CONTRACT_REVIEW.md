@@ -282,3 +282,43 @@ gamma bez vyjimky, chi2_full = Boukamp, sigma = sqrt(chi2/2N), refit na
 uz monotonnim useku reprodukuje chi2_full na 1e-15, volba q (vyssi sedlo,
 pri shode levy), nnls na limitu iteraci -> NaN a pik zachovan, zaporne
 dchi2 (-0.0018).
+
+Provedeno 2026-10-21 (jedna zmena s testem v `tests/test_drt_peak_significance.py`):
+
+- F1: usek konci v nejvzdalenejsim minimu pred hranici; hranice je dalsi
+  kandidat, ktery je aspon tak vysoky jako j nebo neni zamitnuty (jinak
+  konec mrizky). Kandidati se testuji od nejnizsiho, takze mensi maxima
+  jsou rozhodnuta driv a zamitnuta lezi v udoli. Testuji se oba vyssi
+  sousede (napred ten za vyssim sedlem, druhy jen kdyz prvni neni pod
+  prahem) a plati mensi dchi2. `_peak_basins` modul uz nepouziva.
+- Cesta k tomu (vse mereno, `example/` pres CLI, 3RC a 7 syntetik):
+  1. hranice = sousedni kandidat: `example_eis_data.csv` 1 -> 2 piky,
+     novy (tau 4.8e-5 s, dchi2 17.2) je hrot mezi nulami testovany proti
+     levemu HF hrotu (pravidlo "pri shode sedel levy"), proti vyssimu
+     pravemu je ramenem (-0.1); dosud maskovano F1.
+  2. pri shode sedel oba sousede: `example/` beze zmeny, 3RC 1 % 16 -> 12
+     chybejicich. /code-review: shoda jen pri presne rovnosti floatu
+     (skok) a drobny lalok v udoli zastavi usek jako driv (overeno: u 3RC
+     1 % je za kazdym zamitnutym skutecnym pikem lalok vysky 0.4-4 proti
+     12-14).
+  3. hranice = dalsi vyssi kandidat: 12 -> 8, ale do useku spadne i mensi
+     skutecny pik a jeho struktura se pripise kandidatovi
+     (`example_eis_data`: falesny pik 0.38 s s dchi2 105).
+  4. hranice = dalsi vyssi nebo vyznamny (vysledna): 3RC 0.1 % 2 -> 0,
+     1 % 16 -> 0; 2RC 1:100 0.1 % 5 -> 0; zadny falesny pik navic (1RC
+     1 %: 1 pred i po). `example_eis_data` 1 -> 2: proces R0||Q0 (tau
+     0.08 s, R 95 kOhm z 100), ktery se se zavedenim testu ztratil;
+     diffusion_Ws_noise1 1 -> 2 a diffusion_RpWs 2 -> 3: dalsi mod
+     konecneho Warburgu (tau/9, tau/25). Cena: 151 refitu jako drive
+     (druhy soused jen u prijatych).
+- Kontrakt: hranice, poradi a oba sousede popsane primo; NaN jen kdyz
+  zadny refit neuspel; monotonie v prahu a presne skalovani 1/sigma^2
+  uz neplati (zamitnuti mensich maxim zavisi na prahu a sigma), uvedeno
+  vyslovne; symetrie mimo plochy vrchol sude sirky; F2 + F3 jako zaruka
+  volajiciho; prazdna gamma z klauzule vyskrtnuta.
+- /code-review dale: komentar o konci mrizky, hlavicka bez "basin",
+  docstring testu (zamitnuty byl proces 3 Ohm). Selhani refitu jednoho
+  souseda: zamitne jen mensi dchi2 druheho, ktere je pod prahem, coz
+  plati pro minimum tak jako tak.
+- Kalibrace `DRT_PEAK_DCHI2_MIN` (248 behu) byla merena pred opravou;
+  zopakovat skriptem na druhem systemu, poznamka v `config.py`.

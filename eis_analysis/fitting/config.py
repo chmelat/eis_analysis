@@ -64,6 +64,10 @@ so no test can see two; the rest at 3 % noise. 25 lost a true peak at 1 %
 noise (2xZARC 1 decade, Delta chi^2 down to 23). 16 costs one miss against
 9 and keeps three times the margin over the largest spurious value, for real
 data with drift or an imperfect R_inf.
+
+Measured before the shoulder run was fixed to cross a zero valley
+(doc/CONTRACT_REVIEW.md, round 4), which raises Delta chi^2 of resolved
+processes behind one; the calibration is to be repeated.
 """
 
 GMM_N_COMPONENTS_RANGE = (1, 6)
