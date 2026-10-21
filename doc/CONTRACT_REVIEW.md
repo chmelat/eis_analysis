@@ -216,3 +216,23 @@ a parametrech bez vyjimky, orez na horni mez Rs, monotonie `widens`,
 F1 a F2 jako A neobstaly: rozsireni CI odpovida profilu obvodu, ktery ma
 oblouk navic. Chyba je ve vysvetleni (hlavicka i varovani znaji jen
 mechanismus "oblouk je konstantni odpor").
+
+Provedeno 2026-10-21 (jedna zmena s testem v `tests/test_series_resistance.py`):
+
+- Kod: F3 - kandidat s dchi2, ktere neni konecne, vypadne; F4 - G mezi
+  cleny hlavniho retezce dava None; F5 - `SPLIT_TIE_DCHI2 = 0.01`:
+  v jejim okoli nuly varovani rika "fits as well", "not the least-squares
+  minimum" az pod -0.01.
+- F1 + F2: vypocet beze zmeny, nove zneni varovani ("the fit without the
+  arc of R1 ...; that arc can act as a plain resistance in series, or
+  another arc takes its place") a druhy mechanismus v hlavicce; kontrakt:
+  dva oblouky, ktere si mohou prevzit roli, daji sloucene fity shodne do
+  konvergence refitu a vyhrat muze kterykoli.
+- F6, F7 a poznamka C bez akce.
+- Po /code-review: jen volne G dava None (pevne je konstanta jako pevne R);
+  refit s parametry, ktere nejsou konecne, nevypisuje RuntimeWarning
+  (`np.errstate`); v pasmu remizy varovani neuvadi cislo, mimo nej
+  `.3g` (driv -0.008 i -0.012 jako "-0.01" s opacnym zaverem); varovani
+  rika primo "the circuit has an arc too many", README radi oblouk vypustit
+  misto hlaseni souctu; test vybira kandidata s NaN podle startu, ne podle
+  poradi volani.

@@ -21,11 +21,15 @@ Complete change history for all project versions.
   chi2(1) quantile, `params_ci_95` / `params_ci_99` of Rs and R_k run from
   their lower bounds to the CI of the merged value (the CLI marks the line
   `95% CI widened`), and a warning says Rs is determined only as Rs + R_k,
-  or that the fit is not the minimum when the merged fit is better: 42 of
-  47 then. `FitResult.series_split`
+  or that the fit is not the minimum when the merged fit is better by more
+  than dchi2 0.01 (within it, it fits as well): 42 of 47 then. The same
+  holds when another arc can take the merged arc's role (two arcs close in
+  tau, a K beside an (R|C)): the warning then points at an arc the data do
+  not need. `FitResult.series_split`
   (`SeriesResistanceSplit`) holds the merged fit and its dchi2; API
   `series_resistance_split`, `check_series_resistance`. Circuits with
-  exactly one free series R only. Fitted values and stderr do not change.
+  exactly one free series R and no free series G only. Fitted values and stderr
+  do not change.
 - **Too few points for the parameters gives stderr inf.** With as many
   residuals as free parameters or fewer (a spectrum of two points fitted
   with R-(R|Q)), the covariance clamped dof to 1 and returned finite

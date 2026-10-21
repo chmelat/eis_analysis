@@ -7,10 +7,14 @@ the true Rs (AutoECM benchmark, 22 of 47 covered). series_resistance.py
 widens it to the flat profile.
 """
 
+from unittest import mock
+
 import numpy as np
 
+import eis_analysis.fitting.circuit as circuit_module
 from eis_analysis.fitting import fit_circuit_multistart, fit_equivalent_circuit
-from eis_analysis.fitting.circuit_elements import Q, R
+from eis_analysis.fitting.circuit_elements import C, Q, R
+from eis_analysis.fitting.series_resistance import series_resistance_split
 
 FREQ = np.logspace(-1, 5, 40)
 
@@ -64,3 +68,32 @@ def test_no_series_resistance():
     true = (R(300) | Q(1e-7, 0.8)) - (R(1000) | Q(1e-5, 0.85))
     result, _ = fit_equivalent_circuit(FREQ, _noisy(true, 0), true)
     assert result.series_split is None
+
+
+def test_degenerate_arc_fits_as_well_and_a_nan_candidate_is_skipped():
+    """The constant arc fits as well with dchi2 at rounding level of either
+    sign, which the warning read as "not the least-squares minimum" (F5);
+    a first candidate with a NaN dchi2 blocked the later one (F3)."""
+    f = np.logspace(5, -1, 61)
+    true = R(10) - (R(50) | C(1e-5)) - (R(5) | C(1e-12))
+    rng = np.random.default_rng(4)
+    noise = (rng.normal(size=f.size) + 1j * rng.normal(size=f.size)) / np.sqrt(2)
+    Z = true.impedance(f, true.get_all_params()) * (1 + 0.01 * noise)
+    result, _ = fit_equivalent_circuit(f, Z, R(10) - (R(50) | C(1e-5)) - (R(5) | C(1e-9)))
+    split = result.series_split
+    assert split is not None and split.arc_resistance == 'R2' and abs(split.dchi2) < 1e-3
+    warning, = (w for w in result.all_warnings if "is determined only as" in w)
+    assert "fits as well" in warning and "not the least-squares minimum" not in warning
+
+    fit_local = circuit_module._fit_local
+
+    def nan_for_r1(*args, **kwargs):
+        merged, Z_fit = fit_local(*args, **kwargs)
+        # The merge of R1 starts from [R0 + R1, R2, C2]
+        if kwargs['initial_guess'][1] == result.params_opt[3]:
+            merged.params_opt = merged.params_opt * np.nan
+        return merged, Z_fit
+
+    with mock.patch.object(circuit_module, '_fit_local', nan_for_r1):
+        split = series_resistance_split(result, f, Z)
+    assert split is not None and split.arc_resistance == 'R2'

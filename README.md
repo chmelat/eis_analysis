@@ -557,8 +557,12 @@ and that of the arc's R, which takes the rest of the sum, are widened to run
 from there to the CI of the merged value (`[95% CI widened, see warnings]`),
 and a warning `R0 is determined only as R0 + R2: ...` says so; the `+/-` is
 still the local stderr. Report the sum then. A merged fit that fits better
-means the fit is not the least-squares minimum, and the warning says so. Only
-a circuit with exactly one free series R is checked. On AutoECM test
+(by more than dchi2 0.01) means the fit is not the least-squares minimum,
+and the warning says so. The merged fit is as good also when another arc
+can take the role of the one removed (two arcs close in tau, a K beside an
+(R|C)): the circuit then has an arc the data do not need; drop it rather
+than report the sum. Only a circuit with exactly one free series R and no
+free series G is checked. On AutoECM test
 spectra with 1 % noise and such an arc the 95 % CI of the series R held
 the truth in 22 of 47 fits before, 42 after.
 Below the parameters, every (R|C) and (R|Q) arc (G = 1/R in place of R
