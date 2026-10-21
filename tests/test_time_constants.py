@@ -33,10 +33,14 @@ def test_tau_at_correlation_minus_one_is_a_rounding_zero():
 
 def test_non_finite_parameter_gives_no_tau_and_no_sum():
     """n = inf read as tau = 1 s with stderr 0 (F3); G = inf as a finite
-    1/G = 0 with its variance erased (F7)."""
+    1/G = 0 with its variance erased (F7); a huge tau with a large relative
+    error gave tau_stderr inf (/code-review)."""
     arc_q = R(1) | Q(1, 0.8)
     assert arc_time_constants(_result(arc_q, [100, 1e-5, np.inf], np.eye(3) * 1e-30)) == []
 
     chain = R(1) - (G(1) | C(1)) - (G(1) | C(1))
     result = _result(chain, [1, np.inf, 1e-5, 0.01, 1e-4], np.diag([0, 1e-4, 0, 1e-4, 0]))
     assert arc_resistance_sums(result) == []
+
+    arc, = arc_time_constants(_result(R(1) | C(1), [1e200, 1e100], np.diag([0, 1e218])))
+    assert arc.tau_stderr is None and arc.stderr_note

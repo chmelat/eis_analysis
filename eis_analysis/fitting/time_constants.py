@@ -336,8 +336,7 @@ def _resistance_sum(resistors, params, labels, result: FitResult) -> Optional[Ar
     cov, note = _cov_block(idx, labels, result)
     if cov is not None:
         contrib, var = _delta_variance(cov, grad)
-        if (np.all(np.isfinite(contrib)) and var >= 0
-                and np.all(np.diag(contrib) >= 0)):
+        if var is not None:
             stderr = float(np.sqrt(var))
             parts = [float(s) for s in np.sqrt(np.diag(contrib))]
             if len(idx) == 2 and parts[0] > 0 and parts[1] > 0:
@@ -400,7 +399,7 @@ def _arc_tau(elements, starts, resistor: Tuple[int, float],
         grad = np.array([sign / (n * params[i_R]), 1 / (n * Q_val), -log_RQ / n**2])
     # A tiny n or an extreme R*Q under- or overflows exp(): no usable tau.
     # An inf n would pass as tau = 1 s with a zero gradient
-    if not (np.all(np.isfinite([params[i] for i in idx]))
+    if not (np.all(np.isfinite(params[idx]))
             and np.isfinite(tau) and 0 < tau < np.inf and np.isfinite(1 / tau)):
         return None
     return float(tau), idx, grad
@@ -422,8 +421,9 @@ def _cov_block(idx: List[int], labels,
     return np.asarray(result.cov)[np.ix_(idx, idx)], None
 
 
-def _delta_variance(cov, grad) -> Tuple[np.ndarray, float]:
-    """The terms cov_ij g_i g_j and their sum, the delta-method variance.
+def _delta_variance(cov, grad) -> Tuple[np.ndarray, Optional[float]]:
+    """The terms cov_ij g_i g_j and their sum, the delta-method variance;
+    the variance None when it is not usable (not finite, below zero).
 
     With terms correlated near -1 they cancel and rounding can leave the sum
     a hair below 0; double precision errs at ~1e-16 of the terms, so a sum
@@ -433,6 +433,9 @@ def _delta_variance(cov, grad) -> Tuple[np.ndarray, float]:
     var = float(contrib.sum())
     if -1e-9 * float(np.trace(contrib)) < var < 0:
         var = 0.0
+    # An inf or NaN term makes the sum inf or NaN
+    if not (np.isfinite(var) and var >= 0 and np.all(np.diag(contrib) >= 0)):
+        return contrib, None
     return contrib, var
 
 
@@ -443,6 +446,8 @@ def _tau_stderr(tau: float, grad, idx: List[int], labels,
     if cov is None:
         return None, note
     _, var_log = _delta_variance(cov, grad)
-    if not np.isfinite(var_log) or var_log < 0:
+    # A huge tau with a large relative error overflows to inf
+    stderr = None if var_log is None else float(tau * np.sqrt(var_log))
+    if stderr is None or not np.isfinite(stderr):
         return None, 'covariance not usable'
-    return float(tau * np.sqrt(var_log)), None
+    return stderr, None
