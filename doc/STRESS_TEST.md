@@ -419,6 +419,18 @@ fits), the window disagreement as an acceptance criterion (59 false alarms
 on 625 closed ends at a 10 % threshold), and a 3-decade comparison window
 (it reaches a second arc and widened a closed end's range to -64 %).
 
+**Not a local minimum (2026-10-21).** The window fit is one local fit from
+a data-driven start. DE on the same window and model (`fit_circuit_diffevo`,
+two seeds, its bounds replaced by the window's `_window_range`) found the
+same R_s at the same cost (ratio 1.000, oxide/35 1.002) in all 51 accepted
+fits more than 6 % off R_s (the selection today, without L; 39 at the time).
+On 40 random accepted fits within 6 % it agreed in 39. The exception,
+blocking/52, is worse with DE: a 4 % lower cost at R_s = 3 Ohm (stderr
+4.5e8, the arc absorbing R_s) against the local fit's 3.0298 MOhm (truth
+3.0306 MOhm), which the stderr test would have replaced by the HF bound.
+The error is the model's, not the optimizer's; DE would cost seconds per
+spectrum and the determinism for nothing.
+
 ### 8. DRT: R_inf on open high-frequency arcs, small arcs
 
 The DRT's own R_inf is the median of the high-frequency Re Z, which
