@@ -130,6 +130,21 @@ Complete change history for all project versions.
   but 7 reported the one with them or a range of both; the note after
   `--exclude-flagged` sat only under the other fit.
 
+### Fixed
+
+- **`local_exponent`: no RuntimeWarning, duplicate frequencies in input
+  order.** When `estimate_rinf` falls back to Re(Z) at a point with
+  Im(Z) = 0 and L = 0, Z - R_inf is 0 there: n was NaN as it should be,
+  but numpy printed "divide by zero" under `--local-exponent`. A window
+  holding one repeated frequency only (4 or more repeats, nothing else
+  within half a decade) gave n = 0 +- 0 marked valid when the mean of the
+  repeats rounded off by ~1e-16. A window needs 4 distinct frequencies
+  now, not 4 points: two sweeps on a coarse grid could fit the line
+  through 2 frequencies and mark it valid. Points at the same
+  frequency (two sweeps in one file) came back in an order numpy's sort
+  chose, so n and `valid` could belong to the other sweep's point; the
+  sort is stable now. Numbers unchanged otherwise (contract review round 6).
+
 ### Added
 
 - **The fitted circuit with its values.** The fit results start with a line

@@ -442,3 +442,32 @@ R_inf, L a rozsahu (1e-15); jeden CPE || C s presnym R_inf a L: n na
 nejistoty kde n NaN na kterekoli strane; nejistota >= 0; valid -> n
 konecne; souhrnne hodnoty jen z platnych bodu, NaN s varovanim bez nich;
 varovani o rozpeti 0.31 ano, 0.06 a 0.009 ne.
+
+Provedeno 2026-10-22 (minimalni varianta, rozhodnuti uzivatele: nalezy
+jsou malickosti; jedna zmena s testem v `tests/test_local_exponent.py`):
+
+- Kod: F1 + F2 - deleni, logaritmus i regrese v `np.errstate`; F3 -
+  `argsort(kind='stable')`. Cisla beze zmeny.
+- Kontrakt: F4 - invariance vuci skale f neplati pro bod na hrane okna
+  (presna logaritmicka mrizka), merene frekvence to nepostihne; F5 -
+  nejistota pokryva konce `R_inf_range`, uvnitr se n(R) nevyhodnocuje
+  (mechanismus uveden); F6 - typy vstupu jako zaruka volajiciho; F7 -
+  u vychoziho rozsahu nulove sirky plati jen stderr regrese.
+- Bez akce: tolerance hrany okna (F4), docstring tridy a Raises.
+- Test bez opravy pada (RuntimeWarning, poradi dvojic).
+- /code-review (6 nalezu): F2 nebyl opraven jen potlacenim varovani -
+  prumer shodnych floatu se zaokrouhli o ~1e-16, dx pak neni 0 a okno
+  jedne frekvence (5x 123.4 Hz) dalo n = 0 +- 0 platne (i pred zmenou);
+  okno s `ptp(x) == 0` se preskoci, `np.errstate` jen kolem deleni
+  a logaritmu. Test pokryva i tento pripad. Kontrakt: zalozni R_inf je
+  Re(Z) mereneho bodu (hf_bound), ne nutne nejvyssi f; klauzule
+  o skale frekvenci prepsana. Bez akce: test poradi zavisi na tom, ze
+  vychozi `argsort` duplikaty prohazuje (na amd64 ano, ARM neovereno).
+- Druhe /code-review (7 nalezu): `LOCAL_EXPONENT_MIN_POINTS` pocital body,
+  ne frekvence; dva sweepy na mrizce 0.4 dekady daly okno se 2 frekvencemi
+  platne (n 0.8 +- 5e-5, bez chyby modelu). Okno ted potrebuje 4 ruzne
+  frekvence; to nahrazuje kontrolu `ptp` a pokryva i F7 (1000 a
+  1000(1 + 1e-9) Hz jsou dve frekvence). Kontrakt: poradi meni n o
+  zaokrouhleni (~1e-16) u duplikatu; docstring tridy jmenuje vsechny
+  priciny NaN. Bez akce: f nad ~1e307 (preteceni omega), `over='ignore'`
+  skryje nefyzikalni L (1e305), test poradi na ARM.

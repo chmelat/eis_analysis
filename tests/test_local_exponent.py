@@ -1,5 +1,7 @@
 """Local CPE exponent map: flat for one CPE, flagged for two processes."""
 
+import warnings
+
 import numpy as np
 
 from eis_analysis.analysis import local_exponent
@@ -43,3 +45,24 @@ def test_rinf_bound_leaves_no_point_wrongly_determined():
     res = local_exponent(f, Z, bound, R_inf_range=(0.0, bound))
     assert res.valid.sum() > 30
     assert np.max(np.abs(res.n[res.valid] - 0.85)) <= 2 * res.uncertainty_max
+
+
+def test_duplicate_frequencies_and_degenerate_points():
+    """Contract review round 6: points at one frequency stay in input order
+    (np.argsort's default swapped 29 of 61 pairs on amd64), Z - R_inf = 0 at
+    f_max (estimate_rinf's fallback with Im = 0 there) gives NaN without a
+    RuntimeWarning, and so does a window of one repeated frequency (its mean
+    rounded off by ~1e-16 gave n = 0 +- 0, valid)."""
+    f = np.logspace(-1, 5, 61)
+    Z = 5.0 + 1 / (1e-6 * (1j * 2 * np.pi * f) ** 0.8)
+    Z[-1] = 5.0
+    no_exponent = np.full(61, -1.0 + 0j)    # Re Y < 0 at R_inf = 5
+    f_rep = np.r_[[123.4] * 5, 123.4 * 10 ** np.arange(1, 3, 0.1)]
+    Z_rep = 1 / (1e-6 * (1j * 2 * np.pi * f_rep) ** 0.8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        res = local_exponent(np.r_[f, f], np.r_[no_exponent, Z], 5.0)
+        rep = local_exponent(f_rep, Z_rep, 0.0)
+    assert np.isnan(res.n[0::2]).all()
+    assert np.isfinite(res.n[1::2][:-1]).all() and np.isnan(res.n[-1])
+    assert np.isnan(rep.n[:5]).all() and not rep.valid[:5].any()
