@@ -203,7 +203,8 @@ def test_small_rinf_in_front_of_large_film():
 
 def test_range_covers_the_model_error_on_an_open_end():
     """A CPE arc peaking at 10 kHz, still open at f_max = 100 kHz: the
-    R-L-(R|Q) window fit is accepted 10 % below R_s = 10 Ohm (no noise).
+    two-decade window fit is accepted 10 % below R_s = 10 Ohm (no noise),
+    the top decade's 1.2 % below with a far smaller stderr, so it is used.
 
     Regression: R_inf_range was R_inf +- max(5 %, 3 stderr), 8.36..9.57 Ohm,
     which the model error escapes; the stress test found R_s outside it on
@@ -214,8 +215,9 @@ def test_range_covers_the_model_error_on_an_open_end():
     Z = 10 + 1 / (1e-4 + 5.26e-7 * jw**0.6) + 1 / (1e-4 + 1.59e-5 * jw)
     est = estimate_rinf(f, Z)
     assert est.method == 'rlq_fit'
-    assert abs(est.R_inf - 10) > 0.05 * 10           # the model error itself
-    assert est.R_inf_window_spread > 0.02 * est.R_inf
+    assert est.f_window.min() >= f.max() / 10 * (1 - 1e-12)   # the top decade
+    assert abs(est.R_inf - 10) < 0.02 * 10
+    assert est.R_inf_window_spread > 0.05 * est.R_inf      # the full window's model error
     lo, hi = est.R_inf_range
     assert lo <= 10 <= hi
     assert hi <= est.R_inf_upper
@@ -431,3 +433,43 @@ def test_inductive_duplicate_at_f_hf_still_warns(monkeypatch):
     assert est.f_hf == f[0]
     assert est.method == 'hf_bound' and est.notes == []
     assert 'not determined' in est.warnings[-1]
+
+
+def _rc143(R2=3.3830971543626727, C2=0.004788848173323314):
+    """Stress case rc/143 (noise-free): R_s, a series L, two (R|C) arcs."""
+    f = np.logspace(np.log10(15614.98), np.log10(1.2204), 30)
+    jw = 2j * np.pi * f
+    Rs = 1.2389074735828003
+    Z = (Rs + jw * 8.188237996267678e-08
+         + 0.4770687162622361 / (1 + jw * 0.4770687162622361 * 0.0002792966695560041)
+         + R2 / (1 + jw * R2 * C2))
+    return f, Z, Rs
+
+def test_top_decade_fit_wins_over_a_second_arc_in_the_window():
+    """rc/143 of the stress test (noise-free): R_s 1.239, a series L and two
+    arcs, the slower one reaching into the two-decade window. One (R|Q)
+    took both, n 0.70, R_s 5.5 % low at 2.6 % stderr; the top decade alone
+    gives R_s within 0.2 % at 0.05 %, so it is used."""
+    f, Z, Rs = _rc143()
+    est = estimate_rinf(f, Z)
+    assert est.method == 'rlq_fit' and est.fit_window == 'top'
+    assert abs(est.R_inf - Rs) < 0.002 * Rs
+    assert est.f_window.min() >= f.max() / 10 * (1 - 1e-12)
+    assert est.R_inf_window_spread > 0.05 * Rs
+    # The spread is the discarded fit's error: the range is +-5 % without it
+    lo, hi = est.R_inf_range
+    assert lo == pytest.approx(0.95 * est.R_inf) and hi <= 1.05 * est.R_inf
+    assert lo <= Rs <= hi
+
+
+def test_top_decade_replaces_the_bound_when_two_decades_do_not_determine_r_s():
+    """Code review: rc/143 with a 100 Ohm second arc spoils the two-decade
+    fit (R_s -17 % at 11.7 %), which fell back to the HF bound while the
+    top decade gives R_s within 0.3 %. Now that is used; the range stays the
+    bound's, nothing measures its model error, and the warning stays."""
+    f, Z, Rs = _rc143(R2=100.0, C2=0.002)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'rlq_fit' and est.fit_window == 'top_only'
+    assert abs(est.R_inf - Rs) < 0.005 * Rs
+    assert est.R_inf_range == (0.0, max(est.R_inf_upper, est.R_inf))
+    assert 'not determined' in est.warnings[-1] and 'top 1 decade gives' in est.warnings[-1]

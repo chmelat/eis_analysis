@@ -264,8 +264,8 @@ def check_I(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
         # warning (the fit determines R_s, or the bound comes with the
         # closed-end note) - a false alarm there was the remaining
         # precondition for the window fit as the DRT's default R_inf
-        quiet = r.method == 'rlq_fit' or bool(r.notes)
-        how = 'note' if r.notes else r.method
+        quiet = bool(r.notes) or (r.method == 'rlq_fit' and r.fit_window != 'top_only')
+        how = 'note' if r.notes else r.fit_window if r.method == 'rlq_fit' else r.method
         rows.append(('rinf', 'Ifit', 'stat', f'{int(quiet)}/1 {how}', float(quiet)))
 
 

@@ -4,6 +4,32 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **R_inf: the top-decade fit wins when it is clearly better determined.**
+  `estimate_rinf` already refits R-L-(R|Q) over the top decade of its
+  window to measure the model error; its R_s is now used when its stderr
+  is less than a third of the two-decade fit's. A second process reaching
+  into the two-decade window made one (R|Q) stand for both: stress case
+  rc/143 (series L, two arcs) had R_s 5.5 % low, now 0.1 %. On the 1500
+  stress spectra 16 R_inf improve by more than 5 % + 3 sigma, none get
+  worse, and both Iclosed failures (rc/143, cpe/85) go. **DRT results
+  change** where it applies (R_pol about 1:1 with R_inf); `fit`,
+  `f_window` and `L` are then the top decade's. The new
+  `RinfResult.fit_window` says which fit R_inf comes from.
+- **Around the top decade's R_s the range drops the window spread.** That
+  term is the error of the discarded two-decade fit; without it the range
+  is +-max(5 %, 3 stderr) (at most +-5 % instead of +-39 % on the stress
+  spectra, R_s inside in all 223).
+- **The top decade replaces the HF bound when the two decades do not
+  determine R_s but it does** (`fit_window` `'top_only'`): 61 stress
+  spectra, none worse, median error 1.0 -> 0.3 % on closed ends, 67 -> 6 %
+  on open ones. The range stays the bound's (0, R_inf_upper), and the
+  "not determined" warning (or closed-end note) stays, naming the value
+  used.
+
 ## Version 0.62.0 (2026-10-22)
 
 ### Changed

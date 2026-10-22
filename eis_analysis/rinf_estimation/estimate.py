@@ -42,8 +42,9 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   non-finite or have f <= 0"; everything below works on the rest.
   Window: f >= f_max / 10**RINF_FIT_DECADES of the kept points (f_max
   itself included; the limit as computed in floating point, so a point at
-  exactly it may fall out by rounding); f_window and Z_window hold it, in
-  input order.
+  exactly it may fall out by rounding); f_window and Z_window hold the
+  window of the fit used (its top RINF_SPREAD_DECADES when that fit is
+  chosen, see Fit), in input order.
   R_inf_hf, f_hf: hf_bound of all kept points; R_inf_hf as measured, also
   when negative. hf_is_bound: whether some kept point has Im(Z) <= 0.
   Without one R_inf_hf is no bound: a warning says so (whatever the
@@ -55,7 +56,10 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   window has fewer than RINF_FIT_MIN_POINTS points, when |Z| is 0 at a
   window point, when the fit raises RuntimeError, and when the fit does
   not determine R_s: stderr / R_s above RINF_REL_STDERR_MAX, or not a
-  number (NaN stderr, R_s = 0).
+  number (NaN stderr, R_s = 0) - unless the top-decade fit (see Fit)
+  determines it: then R_inf, method, fit, f_window and L are that fit's,
+  fit_window 'top_only', the range as for the bound, and the reason stays
+  a warning (or a note on a closed end) that names the value used.
   Closed end: when the fit does not determine R_s, hf_is_bound, R_inf_hf
   > 0, |Im Z(f_hf)| + RINF_BOUND_NOISE_SIGMAS x the noise at f_hf (as for
   R_inf_upper) <= RINF_REL_STDERR_MAX x R_inf_hf, and no point at or
@@ -67,7 +71,13 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   Fit (method 'rlq_fit'): R_inf = the fitted R_s, L = the fitted L. Range
   of every parameter relative to the window's |Z| (_window_range), R and
   L bounded below by 0, so the result does not depend on the unit of Z.
-  fit is set whenever the fit ran, also when it was rejected.
+  The same fit over the window's top RINF_SPREAD_DECADES (when that subset
+  has at least RINF_FIT_MIN_POINTS points and is not the whole window, its
+  fit does not raise and determines its R_s by RINF_REL_STDERR_MAX) is
+  used instead when its stderr of R_s is below 1 / RINF_NARROW_STDERR_RATIO
+  of the full window's. fit is the fit used, also when it was rejected
+  (then the full window's). fit_window: 'full', 'top', 'top_only' (above)
+  or 'none' (the bound).
   fit.series_split is not consulted: R_s is accepted by its stderr alone
   (whether to use it is an open decision, it would change the DRT's R_inf).
   R_inf_upper: with a fit, R_inf_hf + RINF_BOUND_NOISE_SIGMAS x the noise
@@ -76,17 +86,16 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   of f_hf (the 3 nearest window points when fewer lie there), scaled by
   2N / (2N - 5) for the fitted parameters. Without a fit: R_inf_hf when > 0, else the larger of max
   Re(Z) over the window and |Z(f_hf)|.
-  R_inf_window_spread: for an accepted fit, |R_s(top) - R_inf| where
-  R_s(top) is the same fit over the window's top RINF_SPREAD_DECADES; 0
-  when that subset has fewer than RINF_FIT_MIN_POINTS points or is the
-  whole window, when its fit raises RuntimeError, or when it does not
-  determine its own R_s by RINF_REL_STDERR_MAX (also when that fit runs
-  R_s into its bound 0: whether that should widen the range instead is
-  open). 0 for the fallback.
-  R_inf_range: fallback (0, R_inf_upper). Fit: R_inf -+ the largest of
-  RINF_REL_STDERR_MAX x R_inf, RINF_BOUND_NOISE_SIGMAS x stderr and
-  RINF_WINDOW_SPREAD_FACTOR x R_inf_window_spread, the lower end clipped
-  at 0, the upper at max(R_inf_upper, R_inf).
+  R_inf_window_spread: for an accepted fit, |R_s(top) - R_s(full)| of the
+  fits over the window's top RINF_SPREAD_DECADES and the full window,
+  whichever is used; 0 when the top fit is not had as above (R_s at its
+  bound 0 counts as not determined there, as for the full window). 0 for
+  the fallback and 'top_only'.
+  R_inf_range: fallback and 'top_only' (0, max(R_inf_upper, R_inf)).
+  'full': R_inf -+ the largest of RINF_REL_STDERR_MAX x R_inf,
+  RINF_BOUND_NOISE_SIGMAS x stderr and RINF_WINDOW_SPREAD_FACTOR x
+  R_inf_window_spread; 'top': the same without the spread term; the lower
+  end clipped at 0, the upper at max(R_inf_upper, R_inf).
   R_inf_fit, R_inf_stderr: the fit's R_s and its stderr, None without a fit.
 
 What must hold:
@@ -183,6 +192,17 @@ RINF_NOISE_LOCAL_DECADES = 0.5
 # noise), with 4x in 5; the median half-width stays 5 % (the move is ~0 on a
 # closed end), 90 % stay within 10, 11.5 and 13 %.
 RINF_SPREAD_DECADES = 1
+
+# The top-decade fit replaces the full window's when its R_s is this many
+# times better determined (stderr). A second process reaching into the full
+# window bends the one (R|Q) and inflates its stderr (rc/143: L and two arcs,
+# 2.6 % against 0.05 %, R_s -5.5 % against -0.1 %); on a flat noisy end the
+# narrow window scatters more and loses. Measured on the 1500 stress spectra:
+# a ratio of 1 or 2 also swaps fits of nearly equal stderr on open ends (one
+# case 7 % worse, oxide/35's range missing R_s); 3 improved 16 by more than
+# the Iclosed tolerance, worsened none and removed both Iclosed failures
+# (rc/143, cpe/85); 10 kept cpe/85.
+RINF_NARROW_STDERR_RATIO = 3.0
 RINF_WINDOW_SPREAD_FACTOR = 3.0
 
 # Initial n of the CPE: midway in the typical 0.6-1.0 range of real arcs.
@@ -214,9 +234,15 @@ class RinfResult:
     f_window: NDArray[np.float64]  # frequencies of the fit window [Hz]
     Z_window: NDArray[np.complexfloating]  # impedance of the fit window [Ohm]
     fit: Optional[FitResult] = None  # None if the fit did not run
-    # |R_s - R_inf| of the fit over the top RINF_SPREAD_DECADES; 0 if R_inf
-    # is a bound or that fit is not possible or does not determine R_s [Ohm]
+    # |R_s(top) - R_s(full)| of the fits over the top RINF_SPREAD_DECADES and
+    # the full window; 0 if R_inf is a bound or the top fit is not possible
+    # or does not determine R_s [Ohm]
     R_inf_window_spread: float = 0.0
+    # Which fit R_inf comes from: 'full' (the RINF_FIT_DECADES window),
+    # 'top' (its top RINF_SPREAD_DECADES, RINF_NARROW_STDERR_RATIO times
+    # better determined), 'top_only' (the top part, the full window
+    # determining no R_s; the reason stays a warning or note), 'none' (bound)
+    fit_window: str = 'none'
     # False when no point has Im(Z) <= 0: R_inf_hf is then Re(Z) at f_max,
     # no bound of R_s (nor R_inf_upper built on it)
     hf_is_bound: bool = True
@@ -241,24 +267,30 @@ class RinfResult:
     @property
     def R_inf_range(self) -> Tuple[float, float]:
         """Interval meant to hold the true R_s [Ohm]: (0, R_inf_upper) for a
-        bound. Around a fitted R_s the largest of RINF_BOUND_NOISE_SIGMAS x
-        its stderr, +-RINF_REL_STDERR_MAX and RINF_WINDOW_SPREAD_FACTOR x
-        `R_inf_window_spread` (the model error, which the stderr does not
-        see), within 0..R_inf_upper, where R_s physically lies (up to R_inf
-        if the fit itself lies above that bound).
+        bound and for `fit_window` 'top_only'. Around a fitted R_s the
+        largest of RINF_BOUND_NOISE_SIGMAS x its stderr, +-RINF_REL_STDERR_MAX
+        and, for 'full', RINF_WINDOW_SPREAD_FACTOR x `R_inf_window_spread`
+        (the model error, which the stderr does not see), within
+        0..R_inf_upper, where R_s physically lies (up to R_inf if the fit
+        itself lies above that bound).
 
         In the stress test the bound held R_s every time; a fitted range
         missed it in 7 of 878 spectra, 5 of them by under 3 % at 1-3 %
         noise, the others on ends far from closing (oxide/35: phase -84 deg
         at f_max, 16 % high; doc/STRESS_TEST.md, known limit 7)."""
-        if self.method == 'rlq_fit' and self.fit is not None:
+        # max(): a fit above the bound keeps R_inf inside its own range
+        upper = max(self.R_inf_upper, self.R_inf)
+        if self.fit_window in ('full', 'top') and self.fit is not None:
+            # The spread is the full window's model error: the top fit
+            # avoided it (no stress spectrum's R_s outside without it, 223)
+            spread = self.R_inf_window_spread if self.fit_window == 'full' else 0.0
             shift = max(RINF_REL_STDERR_MAX * abs(self.R_inf),
                         RINF_BOUND_NOISE_SIGMAS * float(self.fit.params_stderr[0]),
-                        RINF_WINDOW_SPREAD_FACTOR * self.R_inf_window_spread)
-            # max(): a fit above the bound keeps R_inf inside its own range
-            return (max(self.R_inf - shift, 0.0),
-                    min(self.R_inf + shift, max(self.R_inf_upper, self.R_inf)))
-        return 0.0, self.R_inf_upper
+                        RINF_WINDOW_SPREAD_FACTOR * spread)
+            return max(self.R_inf - shift, 0.0), min(self.R_inf + shift, upper)
+        # 'top_only': no full fit measures its model error (+-max(5 %,
+        # 3 stderr) missed R_s on 13 of 37 open stress ends), so as a bound
+        return 0.0, upper
 
     @property
     def L(self) -> float:
@@ -325,23 +357,24 @@ def _fit_window(f_win: NDArray, Z_win: NDArray) -> Tuple[FitResult, NDArray]:
     return fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
 
 
-def _window_spread(f_win: NDArray, Z_win: NDArray, R_fit: float) -> float:
-    """|R_s - R_fit| of the fit over the top RINF_SPREAD_DECADES of the
-    window. 0 when that part is too short or the whole window, or its fit
-    fails or does not determine R_s by the main fit's RINF_REL_STDERR_MAX
-    (an undetermined R_s measures the noise, not the model)."""
+def _top_fit(f_win: NDArray, Z_win: NDArray) -> Optional[Tuple[FitResult, NDArray]]:
+    """The fit over the top RINF_SPREAD_DECADES of the window and that
+    subset's mask, or None when the part is too short or the whole window,
+    or its fit fails or does not determine R_s by RINF_REL_STDERR_MAX (an
+    undetermined R_s measures the noise, not the model)."""
     top = f_win >= f_win.max() / 10**RINF_SPREAD_DECADES
     if top.sum() < RINF_FIT_MIN_POINTS or top.all():
-        return 0.0
+        return None
     try:
         fit, _ = _fit_window(f_win[top], Z_win[top])
     except RuntimeError:
-        return 0.0
+        return None
     R_s, stderr = float(fit.params_opt[0]), float(fit.params_stderr[0])
-    # `not <=` also rejects a NaN stderr
-    if not stderr <= RINF_REL_STDERR_MAX * abs(R_s):
-        return 0.0
-    return abs(R_s - R_fit)
+    # As for the full window: R_s = 0 (its bound) has no relative stderr,
+    # and `not <=` also rejects a NaN stderr
+    if not (R_s > 0 and stderr <= RINF_REL_STDERR_MAX * R_s):
+        return None
+    return fit, top
 
 
 def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
@@ -359,8 +392,11 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     -------
     RinfResult
         `R_inf` is the fitted R_s if its relative stderr is at most
-        RINF_REL_STDERR_MAX, otherwise the HF upper bound of `hf_bound`
-        (reason in `warnings`, or in `notes` on a closed end).
+        RINF_REL_STDERR_MAX - the fit over the top RINF_SPREAD_DECADES
+        when that one is RINF_NARROW_STDERR_RATIO times better determined,
+        with `fit`, `f_window` and `L` its own - otherwise the HF upper
+        bound of `hf_bound` (reason in `warnings`, or in `notes` on a
+        closed end).
 
     Raises
     ------
@@ -450,6 +486,18 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     if not rel <= RINF_REL_STDERR_MAX:
         undetermined = (f"fit gives {R_fit:.4g} +- {stderr:.2g} Ohm "
                         f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %)")
+        # A second process can spoil the full window while its top still
+        # determines R_s (stress spectra: 61, none worse than the bound,
+        # median error 1.0 -> 0.3 % on closed ends, 67 -> 6 % on open ones)
+        top = _top_fit(f_win, Z_win)
+        if top is not None:
+            fit_top, mask = top
+            result.R_inf, result.method, result.fit = float(fit_top.params_opt[0]), 'rlq_fit', fit_top
+            result.f_window, result.Z_window = f_win[mask], Z_win[mask]
+            result.fit_window = 'top_only'
+            fallback = (f"the top {RINF_SPREAD_DECADES} decade gives {result.R_inf:.4g} "
+                        f"+- {float(fit_top.params_stderr[0]):.2g} Ohm, used, its range "
+                        f"0..{result.R_inf_range[1]:.4g} Ohm")
         # A closed end needs no fit. Past an element's peak Re/(-Im) ->
         # cot(n pi/2) <= 1 for n >= 0.5, so the bound exceeds R_s by about
         # |Im| at most: within RINF_REL_STDERR_MAX, the precision a fit is
@@ -474,6 +522,13 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
                 f"{undetermined}; {fallback}")
         return result
 
-    result.R_inf, result.method = R_fit, 'rlq_fit'
-    result.R_inf_window_spread = _window_spread(f_win, Z_win, R_fit)
+    result.R_inf, result.method, result.fit_window = R_fit, 'rlq_fit', 'full'
+    top = _top_fit(f_win, Z_win)
+    if top is not None:
+        fit_top, mask = top
+        R_top, stderr_top = float(fit_top.params_opt[0]), float(fit_top.params_stderr[0])
+        result.R_inf_window_spread = abs(R_top - R_fit)
+        if RINF_NARROW_STDERR_RATIO * stderr_top < stderr:
+            result.R_inf, result.fit, result.fit_window = R_top, fit_top, 'top'
+            result.f_window, result.Z_window = f_win[mask], Z_win[mask]
     return result

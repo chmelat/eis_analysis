@@ -106,6 +106,25 @@ ten times more under 1 % noise; see [archive/AUDIT_ri_fit_2026-09-25.md](archive
 must hold at least `RINF_FIT_MIN_POINTS = 5` points (5 free parameters,
 10 real residuals), otherwise the fallback below is used.
 
+The same fit is repeated over the window's top decade. Its R_s is used
+instead when it is at least `RINF_NARROW_STDERR_RATIO = 3` times better
+determined (stderr): a second process reaching into the two-decade window
+bends the one (R|Q) and inflates the stderr there, while on a flat noisy
+end the narrow window scatters more and loses. Stress case rc/143 (series
+L, two arcs, noise-free): two decades R_s -5.5 % at 2.6 % stderr (n 0.70),
+the top decade -0.1 % at 0.05 %. On the 1500 stress spectra the rule
+improved 16 R_inf by more than the Iclosed tolerance (5 % + 3 sigma) and
+worsened none; a ratio of 1 or 2 also swapped fits of nearly equal stderr
+on open ends (one 7 % worse), 10 kept cpe/85 16 % off. `f_window`, `fit`
+and `L` are then the top decade's, `fit_window` is `'top'`.
+
+When the two-decade fit does not determine R_s at all, the top decade is
+still tried: if it determines R_s, that is used (`fit_window` `'top_only'`)
+instead of the HF bound, and the warning (or the closed-end note) stays,
+naming the value. On the stress spectra this applies to 61, none worse
+than the bound: median error 1.0 -> 0.3 % on closed ends, 67 -> 6 % on
+open ones.
+
 ### Start values
 
 | Parameter | Start |
@@ -181,8 +200,12 @@ accepted fits, 5 of them by under 3 % at 1-3 % noise, the others on ends
 far from closing (oxide/35: phase -84 deg at f_max, 16 % high). The median
 half-width stays 5 %, since on a closed end both windows agree; 90 % stay
 within 11.5 % ([STRESS_TEST.md](STRESS_TEST.md), known limit 7). R_inf itself is the
-2-decade fit either way: one decade resolves an open arc better but
-scatters ten times more under noise.
+fit chosen above. Around the top decade's R_s (`'top'`) the window-spread
+term is left out: it is the error of the discarded two-decade fit (with it
+the range reached up to +-39 %, without it +-5 %, R_s inside in all 223
+stress cases). For `'top_only'` no two-decade fit measures the model error
+(+-max(5 %, 3 stderr) missed R_s on 13 of 37 open ends), so the range is
+the bound's, (0, R_inf_upper).
 
 ### Fallback: HF upper bound
 
@@ -295,6 +318,7 @@ est.R_inf_hf       # fallback upper bound: Re(Z) at the highest f with Im(Z) <= 
 est.R_inf_upper    # R_inf_hf + 3 sigma of the noise there: what R_s cannot exceed [Ohm]
 est.R_inf_range    # (lo, hi) meant to hold R_s, see "Range" above [Ohm]
 est.R_inf_window_spread  # move of R_s in the top decade, the model error [Ohm]
+est.fit_window     # 'full' | 'top' | 'top_only' | 'none': which fit R_inf is
 est.L              # inductance to subtract with R_inf (0 for a bound) [H]
 est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult of R-L-(R|Q): params_opt = [R_s, L, R_k, Q, n]

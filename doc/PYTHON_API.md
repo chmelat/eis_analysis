@@ -403,12 +403,15 @@ est.R_inf_range    # (lo, hi) meant to hold R_s, the fit's model error included
                    # spectra, see the docstring); est.L: the L to subtract
                    # with R_inf
 est.method         # 'rlq_fit' | 'hf_bound'
+est.fit_window     # 'full' (two decades) | 'top' (top decade, 3x better
+                   # determined) | 'top_only' (top decade, two decades
+                   # determine nothing; range and warning as for a bound) | 'none'
 est.R_inf_fit      # fitted R_s [Ohm], also when not used (None if no fit ran)
 est.R_inf_stderr   # standard error of R_s [Ohm] - identifiability flag, not a CI
 est.R_inf_hf       # fallback upper bound: Re(Z) at the highest f with Im(Z) <= 0 [Ohm]
 est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult, params_opt = [R_s, L, R_k, Q, n]; None if no fit ran
-est.f_window, est.Z_window  # data of the fit window
+est.f_window, est.Z_window  # data of the fit window used
 est.warnings       # why the fallback was used, dropped non-finite points
 est.notes          # why, instead, when the end is closed and the bound needs
                    # no fit (method 'hf_bound', no warning about R_inf)
@@ -1107,7 +1110,8 @@ from eis_analysis.rinf_estimation import estimate_rinf
 est = estimate_rinf(frequencies, Z)
 # est.L: the window fit's L when it determined R_inf, else 0;
 # est.R_inf_range: R_inf +- max(5 %, 3 stderr, 3x est.R_inf_window_spread) within
-#                   0..R_inf_upper, or (0, R_inf_upper) when undetermined
+#                   0..R_inf_upper (the spread term only for fit_window 'full'),
+#                   or (0, R_inf_upper) for the bound and 'top_only'
 res = local_exponent(frequencies, Z, R_inf=est.R_inf, L=est.L, R_inf_range=est.R_inf_range)
 
 # res is a LocalExponentResult (arrays sorted by ascending frequency):
