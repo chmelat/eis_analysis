@@ -407,3 +407,38 @@ F2 jen varovani, rozhodnuti uzivatele):
   test induktivniho spektra vynucuje zalohu se 4 i 8 body. Bez akce:
   rozsah oriznuty R_inf_upper bez meze (rozhodnuti u F2), text varovani
   pri R_s presne 0 (nedosazitelne).
+
+## Kolo 6: analysis/local_exponent.py (2026-10-22)
+
+Kontrakt: docstring `eis_analysis/analysis/local_exponent.py`. Reviewer:
+Opus, jeden beh (11 min, 113k tokenu, 33 volani nastroju), piskoviste
+`~/coldreview/local_exponent/` = cely balik; cist smel jen modul, zbytek
+jako cernou skrinku. Debrief: precten jen `local_exponent.py`,
+`estimate_rinf` a `validate_eis_data` pres `help`; 15 vlastnich skriptu
+v `review/`. F1-F4 reprodukovany nezavisle (skript v scratchpadu sezeni)
+proti modulu v repozitari, F5 a F7 skripty reviewera proti repozitari.
+
+Autor kontraktu predem cekal F1 (deleni nulou mimo `np.errstate`), F2
+(okno s jedinou frekvenci), F3 (nestabilni `argsort`) a F5 (nejistota jen
+z koncu rozsahu). F4 ne.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | C | bez RuntimeWarning; Z - R_inf presne 0 nema exponent | `1 / (Z - r_inf - j w L)` mimo `np.errstate`: "divide by zero" a "invalid value"; n v tom bode NaN spravne | CLI: zalozni R_inf = Re Z(f_max) pri Im presne 0 a L = 0 (overeno pres `estimate_rinf`, metoda hf_bound) |
+| F2 | C | okno s jedinou frekvenci: NaN, bez RuntimeWarning | `sum(dx**2)` = 0, 0/0 = NaN: 3 varovani na bod (R_inf a oba konce) | 4 opakovani jedne frekvence a nic do +-0.5 dekady; neobvykle |
+| F3 | B | body se stejnou f v poradi vstupu | `np.argsort` bez `kind='stable'`: dva behy po 61 bodech, 29 z 61 paru prohozeno (amd64, numpy 2.5.4; pri 16 bodech 0) | dva sweepy v jednom souboru; n kazdeho bodu spravne pro svou f, prirazeni k behu ne |
+| F4 | B | invariance vuci skale frekvenci (s L / c) | hrana okna `<= window / 2` padne na presne logaritmicke mrizce (10 b/dek) na bod; zaokrouhleni log10 rozhodne, zda je uvnitr: f x 1e3 meni n az o 0.019-0.028, 5-6 bodu platnych v obou behu s \|dn\| nad nejistotou; bez skalovani 60 oken s 11 body a 13 s 10 | CLI ne: frekvence zaokrouhlene na 6 cislic, invariance plati (1e-15); synteticka data a API |
+| F5 | B | nejistota pokryje kazde R v `R_inf_range` | n jen na koncich rozsahu; bod j s Re Z_j uvnitr rozsahu z okna na jednom konci vypadne a pro R tesne pod Re Z_j jde ln Re Y_j do -inf: n 0.800 +- 0.014 platne, n(102.4999) = 0.689 | konstruovany pripad; 110 nahodnych CLI spekter pres `estimate_rinf` bez poruseni |
+| F6 | C | jen ValueError | `R_inf=None`/`"10"`/komplexni: TypeError; `R_inf_range` s 1 prvkem IndexError, se 3 prvky treti tise ignorovan; 2-D vstup "need at least 4 points, got 1"; komplexni f ComplexWarning; L 1e305 overflow | jen API |
+| F7 | C | kontrakt mlci | dve dvojice opakovani na 1000 a 1000(1 + 1e-9) Hz bez sumu, R_inf = 0 s vychozim rozsahem nulove sirky: n = -999499, nejistota 0, platne, varovani o rozpeti 999500 | jen konstruovany vstup (presne shodne hodnoty, sirka rozsahu 0) |
+| - | B | - | docstring tridy (NaN jen pro Re Y <= 0 a malo bodu), Raises bez R_inf/L/rozsahu, "R_inf +-LOCAL_EXPONENT_RINF_REL" bez x \|R_inf\| | jen dokumentace |
+
+Overeno, ze plati (reviewer): ValueError pro prazdny vstup, ruzne delky,
+f <= 0, NaN/inf v Z, malo bodu, R_inf/L/rozsah nekonecne, rozsah bez R_inf
+(i obraceny); vychozi rozsah (i R_inf = 0 a zaporne); vstupy nezmeneny
+(pole i seznam); determinismus; permutace bez duplikatu (2e-16); skala Z,
+R_inf, L a rozsahu (1e-15); jeden CPE || C s presnym R_inf a L: n na
+4e-13 (R_inf 0 .. 1e4, L do 1e-5, zaporne R_inf), bez varovani; NaN
+nejistoty kde n NaN na kterekoli strane; nejistota >= 0; valid -> n
+konecne; souhrnne hodnoty jen z platnych bodu, NaN s varovanim bez nich;
+varovani o rozpeti 0.31 ano, 0.06 a 0.009 ne.
