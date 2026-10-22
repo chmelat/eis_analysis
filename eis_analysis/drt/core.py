@@ -109,7 +109,10 @@ def calculate_drt(
     peak_method : str
         Peak detection method ('scipy' or 'gmm')
     r_inf_preset : float, optional
-        Preset R_inf value, e.g. from `estimate_rinf`; the HF median otherwise
+        Preset R_inf value; otherwise `estimate_rinf` (the R-L-(R|Q) window
+        fit, or the HF upper bound when it does not determine R_s), whose
+        result is in ``diagnostics.rinf.estimate`` and whose warnings join
+        the DRT's
     gmm_bic_threshold : float
         BIC threshold for GMM peak detection
     lambda_probe : bool
@@ -191,9 +194,9 @@ def calculate_drt(
                               lambda_reg, auto_lambda)
     n_grid = len(matrices.tau)
     tau_window = matrices.tau_window
-    # Before the failure return: why R_inf is not the median holds either way
-    if rinf_est.warning:
-        nnls_result.warnings.append(rinf_est.warning)
+    # Before the failure return: what qualifies R_inf holds either way
+    if rinf_est.estimate is not None:
+        nnls_result.warnings.extend(rinf_est.estimate.warnings)
 
     if not nnls_result.success:
         return DRTResult(

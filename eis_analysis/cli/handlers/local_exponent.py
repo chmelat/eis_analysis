@@ -29,8 +29,8 @@ def run_local_exponent(
     """
     Map the local CPE exponent n(f) if --local-exponent is specified.
 
-    R_inf and L come from `estimate_rinf`, independently of --ri-fit, so the
-    map needs no circuit fit.
+    R_inf and L come from `estimate_rinf`, independently of the DRT (also
+    with --no-drt), so the map needs no circuit fit.
 
     Parameters
     ----------

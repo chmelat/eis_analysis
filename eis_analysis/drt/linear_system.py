@@ -32,6 +32,10 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
     """
     warnings = []
 
+    # NaN passes every comparison below
+    if not np.all(np.isfinite(frequencies)):
+        raise ValueError("Frequencies contain NaN or Inf values - "
+                         "remove invalid points before DRT analysis")
     if np.any(frequencies <= 0):
         raise ValueError("All frequencies must be positive for DRT analysis")
 

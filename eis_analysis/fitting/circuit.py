@@ -348,8 +348,10 @@ def _fit_local(
             if np.isinf(s) or np.isnan(s):
                 param_warnings.append(f"Parameter {param_labels[i]}: undefined uncertainty")
             elif s > abs(p) * 2:
-                # p = 0 (a parameter on a zero bound) has no relative uncertainty
-                rel = f"{s/abs(p)*100:.0f}%" if p != 0 else f"stderr {s:.3g} at 0"
+                # p = 0 (a parameter on a zero bound) has no relative uncertainty;
+                # p just above it overflows the ratio to inf, which is the message
+                with np.errstate(over='ignore'):
+                    rel = f"{s/abs(p)*100:.0f}%" if p != 0 else f"stderr {s:.3g} at 0"
                 param_warnings.append(f"Parameter {param_labels[i]}: very high relative uncertainty ({rel})")
 
         # Step 7: Compute fit metrics

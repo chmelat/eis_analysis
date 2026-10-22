@@ -39,7 +39,7 @@ def test_small_resolved_process_is_a_peak_and_an_arc():
     assert abs(np.log10(taus[0] / 1e-5)) < 0.1
     assert abs(np.log10(taus[1] / 1.0)) < 0.1
 
-    suggestion = analyze_voigt_elements(result.tau, result.gamma, FREQUENCIES, Z,
+    suggestion = analyze_voigt_elements(result.tau, result.gamma, FREQUENCIES, Z, result.R_inf,
                                         peak_indices=[p['index'] for p in peaks])
     assert len(suggestion.elements) == 2
 

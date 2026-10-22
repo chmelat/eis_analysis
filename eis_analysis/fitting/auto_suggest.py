@@ -52,7 +52,8 @@ class VoigtSuggestion:
     total_R : float
         Sum of the element resistances [Ohm]
     R_pol, R_inf : float
-        Polarization and high-frequency resistance from the data [Ohm]
+        R_inf the DRT was solved with, R_pol the low-frequency median of
+        Re(Z) minus it [Ohm]
     ratio : float
         total_R / R_pol; inf when R_pol is zero
     method : str
@@ -86,6 +87,7 @@ def analyze_voigt_elements(
     gamma: NDArray[np.float64],
     frequencies: NDArray[np.float64],
     Z: NDArray[np.complexfloating],
+    R_inf: float,
     peaks_gmm: Optional[List[Dict]] = None,
     peak_indices: Optional[Sequence[int]] = None
 ) -> VoigtSuggestion:
@@ -114,6 +116,10 @@ def analyze_voigt_elements(
         Original frequencies [Hz] (N points)
     Z : ndarray of complex
         Original impedance [Ohm] (N points)
+    R_inf : float
+        R_inf the DRT was solved with (``drt.R_inf``) [Ohm]: R_pol from the
+        data is compared with the peaks' resistances, so both must stand on
+        the same R_inf
     peaks_gmm : list of dict, optional
         GMM peaks from gmm_peak_detection(). If provided (and non-empty),
         used instead of peak_indices.
@@ -141,7 +147,7 @@ def analyze_voigt_elements(
     --------
     >>> drt = calculate_drt(freq, Z)
     >>> suggestion = analyze_voigt_elements(
-    ...     drt.tau, drt.gamma, freq, Z,
+    ...     drt.tau, drt.gamma, freq, Z, drt.R_inf,
     ...     peak_indices=[p['index'] for p in drt.diagnostics.scipy_peaks])
     >>> print(f"Found {len(suggestion.elements)} Voigt elements")
     >>> print(f"Suggestion quality: {suggestion.quality}")
@@ -157,7 +163,8 @@ def analyze_voigt_elements(
 
     # Basic characteristics from data (DRY: uses utils.impedance)
     n_avg = min(5, max(1, len(frequencies) // 10))
-    R_pol_data, R_inf, R_dc = calculate_rpol(frequencies, Z, n_avg)
+    _, _, R_dc = calculate_rpol(frequencies, Z, n_avg)
+    R_pol_data = R_dc - R_inf
 
     # Find peaks - either from GMM or scipy
     # Peak tau by grid index, used for every message and element: GMM centers

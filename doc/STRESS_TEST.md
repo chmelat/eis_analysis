@@ -262,6 +262,31 @@ Im > 0. Ifit was redefined accordingly: a closed end without the warning
 
 Written as the baseline (197 failures).
 
+## The window fit as the DRT's R_inf, 2026-10-22
+
+`calculate_drt` without a preset now takes R_inf from `estimate_rinf`
+instead of the HF median; `--ri-fit` is gone. The DRT invariants B and C
+get that R_inf from the base spectrum, scaled (the window fit moves within
+its stderr under Z -> k*Z or a reordering; analysis `rinf` tests that).
+Full `--check`, 1873 s: 0 new failures, 0 gone, every rate unchanged; the
+baseline file is the same.
+
+- DRT, same cases before -> after (ratio to the allowed): Edc median
+  0.0050 -> 0.0043, max 0.28 -> 0.31 (better in 269 of 850, worse in
+  140); Erec median 0.29 -> 0.26, max 0.60 -> 0.84 (better 122 of 172,
+  worse 42); Epeak median 0.024 -> 0.020, max 0.32 -> 0.20.
+- Worst Erec, rc/143 (noise-free, 0.17 -> 0.84): a series L and two arcs
+  in the window, which R-L-(R|Q) describes with one; the fit is accepted
+  (stderr 2.6 %) at 1.170 Ohm against R_s 1.239 (-5.5 %, the median was
+  +0.4 %), and R_pol is 2 % high. The model error of known limit 7, on a
+  case with L, where no R_inf invariant looks.
+- R_inf against the true Rs, cases without L, median |error| HF median ->
+  window fit: closed ends 0.04 -> 0.00 %, 0.11 -> 0.05 %, 0.70 -> 0.34 %,
+  1.53 -> 1.32 % at 0, 0.1, 1, 3 % noise (the fit closer in 92, 72, 63,
+  50 % of the cases, farther in 7, 27, 36, 46 %); open ends 168 -> 5 % at
+  0 % noise, 184 -> 86 %, 197 -> 168 %, 161 -> 116 % (closer in 54-70 %,
+  farther in 3-8 %).
+
 ## Bugs found and fixed
 
 The first full run (before the fixes) had 1190 failed checks.
@@ -461,12 +486,14 @@ spectrum and the determinism for nothing.
 
 ### 8. DRT: R_inf on open high-frequency arcs, small arcs
 
-The DRT's own R_inf is the median of the high-frequency Re Z, which
-overestimates R_s where the arc is open at f_max (rc/149: 3469 Ohm, the
-window fit 1381, R_s 1383); gamma >= 0 cannot make up for it, so Erec is
-checked only on a closed high-frequency end. Epeak: rc/28 misses an arc
-of 3.1 kOhm (6 % of the arcs, but 0.17 % of |Z| beside R_s = 1.8 MOhm)
-by 1.95 decades: regularization smooths it out.
+Until 2026-10-22 the DRT's own R_inf was the median of the high-frequency
+Re Z, which overestimates R_s where the arc is open at f_max (rc/149: 3469
+Ohm, the window fit 1381, R_s 1383). Now it is the window fit, but where
+that does not determine R_s the HF bound overestimates as well; gamma >= 0
+cannot make up for it, so Erec is still checked only on a closed
+high-frequency end. Epeak: rc/28 missed an arc of 3.1 kOhm (6 % of the
+arcs, but 0.17 % of |Z| beside R_s = 1.8 MOhm) by 1.95 decades:
+regularization smooths it out (passes since 2026-10-22).
 
 ### 9. Fit statistics: local minima and CI coverage
 

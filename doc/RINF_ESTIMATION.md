@@ -10,14 +10,16 @@ Module: `eis_analysis/rinf_estimation/`
 
 ## Two methods
 
-| Method | When | Data used |
-|--------|------|-----------|
-| **HF median** | default | up to 5 highest-frequency points |
-| **R-L-(R\|Q) fit** | `--ri-fit` | the top two frequency decades |
+| Method | Used by | Data used |
+|--------|---------|-----------|
+| **R-L-(R\|Q) fit** (`estimate_rinf`) | the DRT (default), the n(f) map | the top two frequency decades |
+| **HF median** (`hf_r_inf`) | `calculate_rpol` (circuit suggestion) | up to 5 highest-frequency points |
 
 The fit returns `RinfResult` (`eis_analysis/rinf_estimation/estimate.py`); the
 DRT records the value it used in `RinfEstimate` (`eis_analysis/drt/results.py`),
-whose `method` is `'preset'` or `'median'`.
+whose `method` is `'preset'` (`r_inf_preset`, API only), `'rlq_fit'` or
+`'hf_bound'`, with the whole `RinfResult` in `estimate`. Until v0.61 the DRT
+used the HF median and the fit needed `--ri-fit`.
 
 ### Why R_inf matters
 
@@ -35,9 +37,10 @@ positive, which the non-negative solver cannot represent at all.
 
 ---
 
-## Default: HF median
+## HF median (`hf_r_inf`)
 
-Used whenever `--ri-fit` is not given.
+The DRT's default until v0.61; now the quick estimate `calculate_rpol` takes
+for `R_pol (from data)` of the circuit suggestion.
 
 ```
 n_avg = min(HF_MEDIAN_MAX_POINTS, max(1, N // 10))     # HF_MEDIAN_MAX_POINTS = 5
@@ -55,14 +58,14 @@ costs nothing to compute.
 **When it fails:** if the spectrum still has a significant imaginary part at
 f_max — an inductive tail from the cabling, or a charge-transfer arc that is
 not yet closed — the median of Re(Z) is biased, because Re(Z) has not reached
-its limit. That is the case `--ri-fit` addresses.
+its limit. That is the case the window fit addresses.
 
 **Guard:** with an arc still open at f_max the median reaches back into it and
 can exceed Re(Z) at f_max, which for a passive system is an upper bound of
 R_inf. When the median lies more than `HF_MEDIAN_ABOVE_BOUND_MAX` = 5 % (of
 the median) above both of the two highest points with Im(Z) <= 0, it is
-replaced by the first of them (the `--ri-fit` fallback bound, floored at 0),
-with a DRT warning; `RinfEstimate.method` is then `'hf_bound'`. Two points,
+replaced by the first of them (the window fit's fallback bound, floored at
+0), with a warning (`hf_r_inf` returns it). Two points,
 because a single low glitch at f_max must not replace the median that was
 taken to resist it. Cold-agent task T10 (fast arc at 0.5 MHz, L = 1 uH,
 R_s = 5 Ohm): median 17.5 Ohm, top points 11.6 and 14.1, R_inf 11.6. On flat
@@ -70,18 +73,17 @@ ends the guard stays off: 0 of 300 synthetic spectra at each of 0.1, 1, 2 and
 3 % noise. In `example/` it fires on `real_gamry_example.DTA` (1402 -> 826
 Ohm) and `example_eis_data.csv` (336 -> 291), whose tops are open arcs, not on
 `EISPOT-test1.DTA` (median 6 % above the top point, 3.5 % above the second).
-The bound is still an upper bound; `--ri-fit` or a fit with the series
-elements determines R_s. `calculate_rpol` (R_pol of the Voigt suggestion)
-uses the same R_inf.
+The bound is still an upper bound; the window fit or a fit with the series
+elements determines R_s.
 
 Implementation: `hf_median()`, `hf_bound()` and `hf_r_inf()` (the guard) in
 `eis_analysis/utils/impedance.py`; `hf_median` and `hf_r_inf` are exported from
 `eis_analysis.rinf_estimation`.
-`--ri-fit` does not fall back to it (see "Fallback" below).
+The window fit does not fall back to it (see "Fallback" below).
 
 ---
 
-## `--ri-fit`: R-L-(R|Q) fit over the top two decades
+## Default: R-L-(R|Q) fit over the top two decades
 
 Model:
 
@@ -224,7 +226,7 @@ Telling an artifact from a genuine arc above the crossing would need the
 points the loader already drops for Re(Z) < 0. A spectrum inductive down to
 its lowest frequency falls back to f_max.
 
-### What `--ri-fit` cannot do
+### What the fit cannot do
 
 - **An arc lying entirely above f_max** looks, within the window, exactly like
   a flat high-frequency end. No method can tell the two apart from the data;
@@ -252,15 +254,15 @@ n >= 0.5, unless a process peaks near or above f_max.
 
 ## Interaction with the DRT
 
-When `--ri-fit` runs, the CLI computes R_inf **first**, prints the fitted value
-and the upper bound, and hands the chosen one to `calculate_drt()` as
-`r_inf_preset`:
+`calculate_drt()` without `r_inf_preset` calls `estimate_rinf`, keeps its
+result in `diagnostics.rinf.estimate` and adds its warnings to the DRT's. The
+CLI prints the `R_inf estimation` section before the DRT section:
 
 ```
 R-L-(R|Q) fit, 506-3.99e+04 Hz (20 points): R_inf = 1.082 +- 0.011 Ohm (1 %)
   L = 326 nH, fit error 1.1 %
 HF upper bound: Re(Z) = 1.355 Ohm at 3.99e+04 Hz
-Using R_inf = 1.082 Ohm (fit)
+Using R_inf = 1.082 Ohm (fit; HF median 1.446 Ohm, -25.2 %)
 ```
 
 `L` is printed without an uncertainty: it is there to absorb the cabling,
@@ -269,9 +271,11 @@ the window shows no inductance (its top points are capacitive) and the fit
 switched the term off. That is a result, not a failure. The fit's own
 uncertainty of L, if needed, is `est.fit.params_stderr[1]` in the API.
 
-The DRT stage then skips its own `R_inf estimation` section and states the
-value where it uses it, with a comparison against the HF median. The diagnostic
-figure is saved as `<prefix>_ri_fit.png`.
+A closed-end note is printed in that section, a warning with the DRT's
+warnings. `--rinf-plot` draws the diagnostic figure, saved as
+`<prefix>_rinf_fit.png`. A preset R_inf skips the section; the DRT section
+then compares it with the HF median. The n(f) map (`--local-exponent`) runs
+`estimate_rinf` itself, so it needs no DRT.
 
 ---
 
@@ -296,27 +300,26 @@ est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult of R-L-(R|Q): params_opt = [R_s, L, R_k, Q, n]
 est.f_window, est.Z_window  # data of the fit window
 est.warnings
+est.notes          # closed end: why the bound needs no fit
 
 fig = plot_rinf_fit(est)
 
 from eis_analysis.drt import calculate_drt
-result = calculate_drt(frequencies, Z, r_inf_preset=est.R_inf)
+result = calculate_drt(frequencies, Z)   # the same estimate:
+result.diagnostics.rinf.estimate         # est again, R_inf = est.R_inf
 ```
 
 Full reference: [PYTHON_API.md](PYTHON_API.md)
 
 ---
 
-## Choosing a method
+## Reading the result
 
-Use the default HF median when the Nyquist plot already runs into the real
-axis at the top of your frequency range — it is the common case and adds no
-assumptions.
-
-Reach for `--ri-fit` when the high-frequency end is still curving: an
-inductive tail (Im(Z) > 0 at f_max, typical above ~100 kHz with ordinary
-cabling), or a capacitive arc that has not closed. The DRT section compares
-the value used with the HF median; a large spread says the top of the spectrum
-is not flat and that the median would have been biased. A warning that R_inf
-is not determined says the data cannot settle it: the value handed on is then
-only an upper bound.
+The R_inf section compares the value used with the HF median; a large spread
+says the top of the spectrum is not flat and that the median would have been
+biased - an inductive tail (Im(Z) > 0 at f_max, typical above ~100 kHz with
+ordinary cabling), or a capacitive arc that has not closed. A note that the
+end is closed says the HF bound is close to R_s and needed no fit. A warning
+that R_inf is not determined says the data cannot settle it: the value handed
+on is then only an upper bound, and its error goes into the DRT's R_pol about
+1:1; measure to higher frequencies, or fit a circuit, where R_s is a parameter.

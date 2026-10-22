@@ -300,10 +300,11 @@ def test_inductive_point_at_the_top_frequency_is_noted_as_skipped():
     assert 'inductive top above Im(Z) = 0 skipped' in est.warnings[-1]
 
 
-def test_drt_default_rinf_does_not_depend_on_the_order():
-    """hf_r_inf, the DRT's default R_inf (code review of round 5): with three
-    points at f_max its two 'top' points depended on the input order, and
-    with them whether the median or the bound was returned."""
+def test_hf_r_inf_does_not_depend_on_the_order():
+    """hf_r_inf, calculate_rpol's R_inf (the DRT's default until v0.61; code
+    review of round 5): with three points at f_max its two 'top' points
+    depended on the input order, and with them whether the median or the
+    bound was returned."""
     from eis_analysis.rinf_estimation import hf_r_inf
 
     f = np.concatenate([[1e5, 1e5, 1e5], np.logspace(4.9, 0, 50)])

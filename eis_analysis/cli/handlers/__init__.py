@@ -9,7 +9,6 @@ working.
 - validation: run_kk_validation, run_zhit_validation, report_thd,
               apply_zhit_reconstruction, report_outliers, select_excluded, flagged_in_fit,
               plot_validation
-- rinf:       run_rinf_estimation
 - drt:        run_drt_analysis, run_voigt_analysis
 - fitting:    run_circuit_fitting (standard fit and candidate comparison;
               its console report and files in fit_output, the
@@ -29,7 +28,6 @@ from .validation import (
     flagged_in_fit,
     plot_validation,
 )
-from .rinf import run_rinf_estimation
 from .drt import run_drt_analysis, run_voigt_analysis
 from .fitting import run_circuit_fitting
 from .fit_noise import kk_noise_for_fit
@@ -45,7 +43,6 @@ __all__ = [
     'select_excluded',
     'flagged_in_fit',
     'plot_validation',
-    'run_rinf_estimation',
     'run_drt_analysis',
     'run_voigt_analysis',
     'run_circuit_fitting',

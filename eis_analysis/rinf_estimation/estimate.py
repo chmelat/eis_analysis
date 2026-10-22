@@ -16,9 +16,12 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 
 CONTRACT
 
-Callers. The CLI with --ri-fit (cli/handlers/rinf.py): R_inf goes to the
-DRT as its preset, warnings and notes are printed, ValueError is reported as "R_inf
-estimation failed" and the DRT runs without a preset. --local-exponent
+Callers. calculate_drt without r_inf_preset (drt/estimation.py
+_estimate_r_inf), after it has rejected non-finite f or Z and f <= 0, so
+neither ValueError arises here (a shape mismatch fails in calculate_drt
+before this call): R_inf is the DRT's, the result goes to
+diagnostics.rinf.estimate, warnings join the DRT's warnings; the CLI's DRT
+handler prints the fit, the bound and the notes. --local-exponent
 (cli/handlers/local_exponent.py): R_inf and L are subtracted from Z, and
 R_inf_range goes to local_exponent, which raises ValueError unless the
 range is finite and holds R_inf; it warns "R_inf is not determined" for
@@ -66,7 +69,7 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   L bounded below by 0, so the result does not depend on the unit of Z.
   fit is set whenever the fit ran, also when it was rejected.
   fit.series_split is not consulted: R_s is accepted by its stderr alone
-  (whether to use it is an open decision, it would change --ri-fit).
+  (whether to use it is an open decision, it would change the DRT's R_inf).
   R_inf_upper: with a fit, R_inf_hf + RINF_BOUND_NOISE_SIGMAS x the noise
   at f_hf, clipped at 0. The noise variance per component is the mean
   square of the fit's residual components within RINF_NOISE_LOCAL_DECADES

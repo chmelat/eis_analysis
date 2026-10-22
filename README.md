@@ -345,8 +345,8 @@ eis data.DTA --lambda 1e-6
 # GMM peak detection (more robust)
 eis data.DTA --peak-method gmm
 
-# R_inf from an R-L-(R|Q) fit of the top two decades instead of the HF median
-eis data.DTA --ri-fit
+# Plot the R_inf estimate (R-L-(R|Q) fit of the top two decades)
+eis data.DTA --rinf-plot
 
 # Series inductance in the DRT model (default: auto)
 eis data.DTA --drt-inductance on
@@ -396,20 +396,23 @@ is printed in the DRT section. An inductance hidden under an arc still open at
 f_max - Im(Z) < 0 at the top despite the cable - is not detected by `auto`;
 a circuit fit with an `L` element shows it (cold-agent task T10: 1 uH, dBIC 459).
 
-By default R_inf is the median of Re(Z) over the (up to 5) highest-frequency
-points, which assumes the spectrum has already flattened onto the real axis at
-f_max. A median more than 5 % above the two highest points (with Im(Z) <= 0)
-reaches into an arc still open there; the first of them, an upper bound of
-R_inf, is used instead, with a warning. Use `--ri-fit` when the spectrum has not flattened.
-Flat means -Z'' at f_max small against Re(Z) and Re(Z) no longer falling. A
-closing arc (a CPE tail, -Z''/Z' of a few percent at f_max) leaves the median
-a few percent high without a warning - the warning needs 5 %. When R_inf
-matters, run `--ri-fit`: one small fit, printed next to the HF bound, and the
-DRT section states its difference from the HF median. With a circuit fit,
-R_s is a fit parameter and depends on neither; R_inf feeds the DRT, R_pol and
-the suggested circuit.
-`R_pol (from data)` is the median Re(Z) of the (up to 5) lowest-frequency
-points minus R_inf: a lower bound when an arc is still open at f_min
+R_inf comes from a fit of `R_s - L - (R|Q)` to the top two frequency decades
+(`f >= f_max/100`): the inductance absorbs a cabling tail, the (R|Q) element
+the start of an unclosed (also depressed) arc. The fitted R_s is used only if
+its standard error is at most 5 %; otherwise the data do not determine R_inf
+(e.g. a strongly open arc at f_max) and Re(Z) at the highest point with
+Im(Z) <= 0, an upper bound, is used with a warning - or with a note when the
+end is closed there (|Im| + 3x the noise <= 5 % of Re, top point capacitive),
+where the bound lies within about |Im| of R_inf. An arc entirely above f_max
+looks like a closed end; no method can tell them apart. The R_inf section
+prints the fit, the bound and the HF median for comparison; `--rinf-plot`
+draws the fit. Until v0.61 the default was that HF median (Re(Z) over the up
+to 5 highest-frequency points, capped by the bound), which runs into an arc
+still open at f_max; the error of R_inf goes into the DRT's R_pol about 1:1.
+With a circuit fit, R_s is a fit parameter and depends on neither. See
+[doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md).
+`R_pol (from data)` (circuit suggestion) is the median Re(Z) of the (up to 5)
+lowest-frequency points minus the DRT's R_inf: a lower bound when an arc is still open at f_min
 (cold-agent task T12: 180 Ohm, true 950), as is `R_pol (from DRT integral)`;
 only a fit can extrapolate past the window.
 
@@ -789,7 +792,7 @@ eis data.DTA --local-exponent
 ```
 
 For a layer with admittance Y = G + Q(j omega)^n + j omega C, the real part
-of the admittance (R_inf and L from `--ri-fit`'s estimator subtracted) is
+of the admittance (R_inf and L from the DRT's estimator, `estimate_rinf`, subtracted) is
 G + Q omega^n cos(n pi/2). C does not enter it, and where the CPE dominates,
 its log-log slope is n. The map is that slope, from a sliding one-decade
 regression:
@@ -877,7 +880,7 @@ the fit reports `Global search contributed nothing` - see
 - `--peak-method` (default: scipy) - Peak detection method in DRT: `scipy` (local maxima kept by the Delta chi^2 significance test, see DRT analysis) or `gmm` (robust, weighted Gaussian Mixture Model fitted directly to gamma(tau)).
 - `--gmm-bic-threshold` (default: 10.0) - BIC threshold for GMM peak detection. Lower values detect more peaks (2-5: sensitive, 10-20: conservative). Only used with `--peak-method gmm`.
 - `--lambda-probe` - Peak stability diagnostics: re-solves the DRT at lambda*10^(+-0.5) and lambda*10^(+-1) around the selected lambda and tracks each detected peak across the solutions. Reports per-peak persistence, position drift (decades of tau), R variation, and a verdict (STABLE / MARGINAL / ARTIFACT). A peak that appears only in a narrow lambda window is likely a regularization artifact rather than a real relaxation process. STABLE says a peak is not a regularization artifact, not that it is one process: two processes up to about a decade apart merge into one peak that is stable across the whole probe and stays merged at any lambda (the peak count is a lower bound, see DRT analysis) - fit one element more to check. The probe solutions are also drawn as thin overlay curves in the DRT plot. Probe lambdas are clipped to [1e-11, 1e-1] (the selection range widened by a decade), so a lambda close to a bound yields a sweep narrower than the nominal two decades; the reported span says how much ground a verdict actually covers. Example: `eis data.DTA --lambda-probe`.
-- `--ri-fit` - Estimate R_inf by fitting `R_s - L - (R|Q)` to the top two frequency decades (`f >= f_max/100`) instead of taking the default median of the (up to 5) highest-frequency points. The inductance absorbs a cabling tail, the (R|Q) element the start of an unclosed (also depressed) arc. The fitted R_s is used only if its standard error is at most 5 %; otherwise R_inf cannot be determined from the data (e.g. an arc lying above f_max) and Re(Z) at f_max, an upper bound, is used with a warning - or with a note (`RinfResult.notes`) when the end is closed there (|Im| + 3x the noise <= 5 % of Re, top point capacitive), where the bound lies within about |Im| of R_inf and needs no fit (an arc entirely above f_max looks the same). The CLI prints both values; the chosen one goes to the DRT. See [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md).
+- `--rinf-plot` - Plot the R_inf estimate the DRT uses: the `R_s - L - (R|Q)` fit over the top two frequency decades with the HF upper bound it falls back to (see DRT analysis above and [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)). Replaces `--ri-fit` (until v0.61), whose fit is now the default.
 - `--no-drt` - Skip DRT analysis. Useful if you only want circuit fitting.
 
 ### Kramers-Kronig validation
@@ -982,7 +985,7 @@ A known limit: drift of Re(Z) alone on a capacitive (blocking) low-frequency end
 ### Output and visualization
 
 - `--ocv` - Display OCV (Open Circuit Voltage) curve if available in data.
-- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_ri_fit` (`--ri-fit`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs and the sum of the arc resistances, fit metrics with AIC/BIC, covariance in the order of the parameters (see [doc/PYTHON_API.md](doc/PYTHON_API.md), Fit result export, for the uncertainty of a sum like R1 + R2), warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
+- `--save`, `-s` - Save plots with this prefix; its directory is created if missing. `--save results` writes `results_nyquist_bode`, `results_kk`, `results_zhit`, `results_drt`, `results_fit` and, when the matching switch is given, `results_rinf_fit` (`--rinf-plot`), `results_ocv` (`--ocv`) and `results_thd` (Gamry files recorded with THD), each with the extension given by `--format`. Only the plots actually produced by the run are written. A circuit fit also writes `results_fit.json` (fitted circuit expression, parameters with stderr, 95% CI and significance, the time constants of the (R|C) and (R|Q) arcs and the sum of the arc resistances, fit metrics with AIC/BIC, covariance in the order of the parameters (see [doc/PYTHON_API.md](doc/PYTHON_API.md), Fit result export, for the uncertainty of a sum like R1 + R2), warnings, and how the fit was run) and `results_fit.csv` (`freq_Hz, Z_real_Ohm, Z_imag_Ohm, Z_fit_real_Ohm, Z_fit_imag_Ohm`, loadable back as input); under `--fit-on zhit` and `--fit-on all` the `Z` columns hold the Z-HIT reconstruction the fit ran on, not the measurement. Comparison runs (several `--circuit`) write one pair per candidate, `results_fit_1.*`, `results_fit_2.*`, ... With `--analyze-oxide`, `results_oxide.json` holds the oxide result: thickness (or permittivity with `--thickness`) with the Brug and power-law values where computed, the capacitance, the dominant element with its parameter label in `results_fit.json`, epsilon_r, area and warnings.
 - `--format`, `-f` (default: png) - Format of saved plots: `png` (raster), `pdf`/`svg`/`eps` (vector for publications).
 - `--no-show` - Do not display plots interactively. Useful for batch processing with `--save`.
 - `-v`, `--verbose` - Show debug messages on stderr (prefix `[DEBUG]`).

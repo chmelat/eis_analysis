@@ -54,7 +54,7 @@ def parse_arguments() -> argparse.Namespace:
         epilog="""
 Examples:
   eis                                Synthetic data demo
-  eis --ri-fit data.csv              Analyze CSV data file
+  eis data.csv                       Analyze CSV data file
   eis data.DTA                       Analyze Gamry DTA file
   eis data.DTA --circuit 'R()-(R()|Q())-(R()|Q())'
                                      Fit equivalent circuit
@@ -156,11 +156,10 @@ Examples:
                                 'real relaxation processes from regularization artifacts.')
 
     # R_inf estimation
-    drt_group.add_argument('--ri-fit', action='store_true',
-                           help='Estimate R_inf by fitting R_s-L-(R|Q) to the top two decades '
-                                '(default: HF median, capped by the HF upper bound); falls back '
-                                'to that bound, Re(Z) at the highest point with Im(Z) <= 0, '
-                                'when the fit does not determine R_s')
+    drt_group.add_argument('--rinf-plot', action='store_true',
+                           help='Plot the R_inf estimate: the R_s-L-(R|Q) fit over the top two '
+                                'decades and the HF upper bound it falls back to when the fit '
+                                'does not determine R_s')
 
     # ==========================================================================
     # Kramers-Kronig Validation Group

@@ -94,7 +94,8 @@ def calculate_rpol(
     low_freq_indices = np.argsort(frequencies)[:n_avg:]
 
     # Median of Re(Z) at each end; at the top capped where an arc is still
-    # open (hf_r_inf), as the DRT does, so both see the same R_inf
+    # open (hf_r_inf). A quick estimate, not the DRT's R_inf (estimate_rinf's
+    # window fit)
     R_inf, _ = hf_r_inf(frequencies, Z)
     R_dc = np.median(Z.real[low_freq_indices])
 
@@ -187,4 +188,4 @@ def hf_r_inf(frequencies: NDArray, Z: NDArray) -> Tuple[float, Optional[str]]:
         f"HF median R_inf = {median:.4g} Ohm lies above Re(Z) = {bound:.4g} Ohm at "
         f"{where}, an upper bound of R_inf: an arc is still open at the top of the "
         f"spectrum. Using the bound, still an upper bound; a fit with the series "
-        f"elements (or --ri-fit) can determine R_s")
+        f"elements (or estimate_rinf) can determine R_s")

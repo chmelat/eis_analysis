@@ -8,6 +8,35 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **Breaking: the DRT's R_inf is the R-L-(R|Q) window fit; `--ri-fit` is
+  removed.** `calculate_drt` without `r_inf_preset` now calls
+  `estimate_rinf` (the fit over the top two decades, or the HF upper bound
+  when it does not determine R_s) instead of the HF median, and so does the
+  CLI. **DRT results change**: R_inf, and with it R_pol (the R_inf error
+  goes into R_pol about 1:1 in Ohm) and gamma near the short-tau end. On
+  `EISPOT-test1.DTA` R_inf is 1.082 instead of 1.446 Ohm; on an end still
+  open at f_max the median ran into the arc (stress rc/149: 3469 against
+  R_s = 1383 Ohm). In the stress test a closed end gets R_s from the fit,
+  or the bound with the closed-end note (see below), in 1.00 and 0.97 of
+  the cases at 0 and 0.1 % noise; the rest gets the bound with a warning.
+  - `RinfEstimate`: `method` is `'preset'`, `'rlq_fit'` or `'hf_bound'`
+    (`'median'` is gone), the new `estimate` holds the `RinfResult`;
+    `n_points_used` and `warning` are removed (the warnings join the DRT's).
+  - CLI: the `R_inf estimation` section is printed for every DRT run, with
+    the fit, the bound and the HF median for comparison. `--rinf-plot`
+    draws the fit (`<prefix>_rinf_fit.png`, formerly `_ri_fit` with
+    `--ri-fit`). `run_rinf_estimation` is removed and `run_drt_analysis`
+    lost its `R_inf_computed` argument.
+  - `analyze_voigt_elements` takes the DRT's R_inf as a new required
+    argument (after `Z`): `R_pol (from data)`, compared with the peaks'
+    resistances, now stands on the R_inf the DRT was solved with, not on the
+    HF median. `calculate_rpol` keeps the HF median (`hf_r_inf`).
+  - The DRT is no longer exactly invariant under Z -> k*Z or a reordering
+    of the points: the window fit's R_s moves within its optimizer
+    tolerance (about 1e-3 of its stderr), and R_pol with it.
+  - `calculate_drt` now rejects NaN or inf frequencies (failed result, like
+    non-finite Z); before it raised `ValueError`.
+
 - **`--ri-fit` on a closed high-frequency end: a note, not "R_inf is not
   determined".** When the window fit does not determine R_s but the end is
   closed (|Im Z(f_hf)| + 3x the noise <= 5 % of Re Z(f_hf), no inductive

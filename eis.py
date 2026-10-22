@@ -13,7 +13,7 @@ Features:
 - GMM peak detection in DRT spectrum (--peak-method gmm)
 - Equivalent circuit fitting with operator syntax
 - Oxide layer thickness estimation
-- Robust R_inf estimation (--ri-fit)
+- R_inf from an R-L-(R|Q) fit over the top two decades (--rinf-plot to see it)
 - Fitting on the Z-HIT reconstruction (--fit-on zhit)
 
 Usage:
@@ -21,7 +21,7 @@ Usage:
     eis data.DTA                    # Gamry file (auto-lambda default)
     eis data.DTA --lambda 1e-6      # manual regularization
     eis data.DTA --peak-method gmm  # GMM peak detection
-    eis data.DTA --ri-fit -v        # robust R_inf estimation
+    eis data.DTA --rinf-plot        # plot the R_inf window fit
     eis data.DTA --voigt-chain --analyze-oxide  # oxide analysis
 
     eis --help                      # help
@@ -56,7 +56,6 @@ from eis_analysis.cli import (
     flagged_in_fit,
     report_thd,
     plot_validation,
-    run_rinf_estimation,
     run_drt_analysis,
     run_voigt_analysis,
     run_circuit_fitting,
@@ -135,16 +134,11 @@ def _run_analysis(args) -> None:
         fig_ocv = visualize_ocv(data.ocv_data, data.title)
         save_figure(fig_ocv, args.save, 'ocv', args.format)
 
-    # R_inf estimation
-    R_inf_computed, _ = run_rinf_estimation(data.frequencies, data.Z, args)
-
     # Local CPE exponent n(f)
     run_local_exponent(data.frequencies, data.Z, args)
 
     # DRT analysis
-    drt_result = run_drt_analysis(
-        data.frequencies, data.Z, args, R_inf_computed, peak_method
-    )
+    drt_result = run_drt_analysis(data.frequencies, data.Z, args, peak_method)
 
     # Voigt element analysis
     run_voigt_analysis(drt_result, data.frequencies, data.Z, args)

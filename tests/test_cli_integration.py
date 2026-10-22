@@ -71,7 +71,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
         'drt_weighting': 'sqrt',
         'drt_inductance': 'auto',
         'tau_extend': 0.0,
-        'ri_fit': False,
+        'rinf_plot': False,
 
         # Kramers-Kronig
         'no_kk': False,
@@ -194,7 +194,7 @@ def test_drt_with_gmm():
     frequencies, Z = get_synthetic_data()
     args = create_test_args(no_drt=False, peak_method='gmm', gmm_bic_threshold=10.0)
 
-    result = run_drt_analysis(frequencies, Z, args, None, 'gmm')
+    result = run_drt_analysis(frequencies, Z, args, 'gmm')
 
     assert result is not None, "DRT should return a result"
 
@@ -229,7 +229,7 @@ def test_drt_peak_count_matches_listing(caplog):
         caplog.clear()
         with caplog.at_level(logging.INFO,
                              logger='eis_analysis.cli.handlers.drt'):
-            run_drt_analysis(frequencies, Z, args, None, method)
+            run_drt_analysis(frequencies, Z, args, method)
 
         messages = [rec.getMessage() for rec in caplog.records]
 
@@ -255,27 +255,49 @@ def test_drt_peak_count_matches_listing(caplog):
 # Test 4: R_inf Estimation
 # =============================================================================
 
-def test_rinf_estimation():
-    """Test R_inf estimation workflow."""
+def test_rinf_estimation(caplog):
+    """The DRT's R_inf is estimate_rinf's; --rinf-plot draws its figure."""
     print("\n[Test 4] R_inf estimation")
     print("-" * 70)
 
-    from eis_analysis.cli import run_rinf_estimation
+    from eis_analysis.cli import run_drt_analysis
 
     frequencies, Z = get_synthetic_data()
-    args = create_test_args(ri_fit=True)
+    args = create_test_args(rinf_plot=True)
 
-    R_inf, fig = run_rinf_estimation(frequencies, Z, args)
+    n_figures = len(plt.get_fignums())
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.drt'):
+        result = run_drt_analysis(frequencies, Z, args, 'scipy')
 
     # Two overlapping CPEs with Rs/R0 = 1e-4: the top decades do not
-    # determine R_inf, so the handler must hand on Re(Z) at f_max.
-    assert R_inf == Z.real[np.argmax(frequencies)]
-    assert fig is not None
+    # determine R_inf, so the DRT uses Re(Z) at f_max.
+    assert result.diagnostics.rinf.method == 'hf_bound'
+    assert result.R_inf == Z.real[np.argmax(frequencies)]
+    assert 'Using R_inf' in caplog.text and 'HF upper bound' in caplog.text
+    assert any('not determined' in w for w in result.diagnostics.nnls.warnings)
+    assert len(plt.get_fignums()) == n_figures + 2  # DRT and R_inf fit
 
-    if fig is not None:
-        plt.close(fig)
-
+    plt.close('all')
     print("  [OK] R_inf estimation completed")
+
+
+def test_rinf_plot_without_drt_warns(caplog):
+    """Code review: --rinf-plot with --no-drt did nothing, silently."""
+    from eis_analysis.cli import run_drt_analysis
+
+    frequencies, Z = get_synthetic_data()
+    with caplog.at_level(logging.WARNING, logger='eis_analysis.cli.handlers.drt'):
+        run_drt_analysis(frequencies, Z, create_test_args(no_drt=True, rinf_plot=True), 'scipy')
+    assert '--rinf-plot' in caplog.text and 'ignored' in caplog.text
+
+
+def test_median_comparison_keeps_the_sign():
+    """Code review: a negative HF median flipped the sign of the difference."""
+    from types import SimpleNamespace
+    from eis_analysis.cli.handlers.drt import _median_comparison
+
+    assert _median_comparison(SimpleNamespace(R_inf=0.10, R_inf_median=-0.05)).endswith('+300.0 %')
+    assert _median_comparison(SimpleNamespace(R_inf=0.10, R_inf_median=0.0)) == ''
 
 
 def test_local_exponent_closed_end_does_not_warn(monkeypatch, caplog):
@@ -492,7 +514,8 @@ def test_voigt_edge_peak_excluded_and_logged(caplog):
         {'tau_center': tau[-1]},
     ]
 
-    suggestion = analyze_voigt_elements(tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm)
+    suggestion = analyze_voigt_elements(tau, gamma, frequencies, Z, float(Z.real.min()),
+                                        peaks_gmm=peaks_gmm)
 
     # Only the interior peak survives -> a single Voigt element.
     assert len(suggestion.elements) == 1, (
@@ -667,7 +690,7 @@ def test_combined_workflow():
 
     # Step 2: DRT analysis
     drt_args = create_test_args(no_drt=False)
-    drt_result = run_drt_analysis(data.frequencies, data.Z, drt_args, None, 'scipy')
+    drt_result = run_drt_analysis(data.frequencies, data.Z, drt_args, 'scipy')
     assert drt_result is not None, "DRT should produce result"
 
     # Step 3: Circuit fitting

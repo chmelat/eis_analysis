@@ -3,8 +3,9 @@ R_inf estimation module for EIS analysis.
 
 R-L-(R|Q) fit over the top frequency decades, with Re(Z) at the highest
 frequency with Im(Z) <= 0 (an upper bound) as the fallback when the fit does
-not determine R_inf. The DRT's default R_inf is hf_r_inf: the HF median,
-capped at that bound where an arc is still open at the top.
+not determine R_inf; the DRT's default R_inf. hf_r_inf, the HF median capped
+at that bound where an arc is still open at the top, is the quick estimate
+calculate_rpol uses.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
 """

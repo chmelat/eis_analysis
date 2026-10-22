@@ -7,18 +7,21 @@ returned as structured data, the CLI layer is responsible for user output.
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple
+from typing import TYPE_CHECKING, Optional, List, Dict, Tuple
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from ..rinf_estimation import RinfResult
 
 
 @dataclass
 class RinfEstimate:
     """Result of R_inf estimation."""
     R_inf: float
-    method: str  # 'preset', 'median', 'hf_bound' (median capped at the top capacitive point)
-    R_inf_median: Optional[float] = None  # For comparison
-    n_points_used: Optional[int] = None
-    warning: Optional[str] = None  # why the median was not used
+    method: str  # 'preset', or estimate_rinf's 'rlq_fit' | 'hf_bound'
+    R_inf_median: Optional[float] = None  # HF median, for comparison
+    # estimate_rinf's result (window fit, bound, warnings, notes); None for a preset
+    estimate: Optional['RinfResult'] = None
 
 
 @dataclass

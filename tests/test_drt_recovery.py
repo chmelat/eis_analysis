@@ -136,3 +136,65 @@ def test_single_peak_recovery():
     assert len(taus) == 1, f"expected 1 peak, got {len(taus)}: {taus}"
     assert abs(np.log10(taus[0] / tau_true)) < 0.15
     assert abs(r.R_pol - R) / R < 0.03, f"R_pol {r.R_pol:.1f} != true {R:.1f}"
+
+
+def test_default_r_inf_is_the_window_fit():
+    """Without a preset the DRT takes R_inf from estimate_rinf: an arc still
+    open at f_max, where the HF median (and with it R_pol) is off."""
+    f = np.logspace(5, -1, 61)
+    Z = 10 + 100 / (1 + (2j * np.pi * f * 1e-4) ** 0.8)
+    r = calculate_drt(f, Z)
+    rinf = r.diagnostics.rinf
+    assert rinf.method == 'rlq_fit' and rinf.estimate is not None
+    assert r.R_inf == rinf.estimate.R_inf
+    assert abs(r.R_inf - 10) < 0.05 < abs(rinf.R_inf_median - 10)
+
+
+def test_default_r_inf_warning_joins_the_drt_warnings():
+    """A bound instead of the fit qualifies R_pol too."""
+    from eis_analysis.io import load_csv_data
+
+    # Two overlapping CPEs: the fit cannot determine R_s (test_rinf_estimation)
+    data = load_csv_data('example/example_eis_data.csv')
+    r = calculate_drt(data.frequencies, data.Z)
+    est = r.diagnostics.rinf.estimate
+    assert est.method == 'hf_bound' and est.warnings
+    assert set(est.warnings) <= set(r.diagnostics.nnls.warnings)
+
+
+def test_nan_frequency_is_rejected():
+    """NaN passed the f <= 0 test and estimate_rinf raised on it."""
+    f = np.full(61, np.nan)
+    assert not calculate_drt(f, np.ones(61, dtype=complex)).success
+
+
+def test_voigt_suggestion_uses_the_drt_r_inf():
+    """Code review: the suggestion took R_inf from the HF median (11.8 Ohm
+    here) while the DRT's peaks stood on the window fit's 10.0, so R_pol
+    from the data and the peaks' resistances disagreed."""
+    from eis_analysis.fitting import analyze_voigt_elements
+
+    f = np.logspace(5, -1, 61)
+    Z = 10 + 100 / (1 + (2j * np.pi * f * 1e-4) ** 0.8)
+    r = calculate_drt(f, Z)
+    s = analyze_voigt_elements(r.tau, r.gamma, f, Z, r.R_inf,
+                               peak_indices=[p['index'] for p in r.diagnostics.scipy_peaks])
+    assert s.R_inf == r.R_inf
+    assert abs(s.R_pol - 100) < 0.5
+
+
+def test_default_r_inf_leaks_no_runtime_warning():
+    """Code review: the window fit, now in every default DRT, put L at
+    4e-35 H with stderr 2e-7, and stderr / L overflowed in the parameter
+    check of fit_equivalent_circuit (seed 27, 3 % noise)."""
+    import warnings
+
+    f = np.logspace(5, -1, 61)
+    Zc = 10 + 100 / (1 + 2j * np.pi * f * 1e-2)
+    rng = np.random.default_rng(27)
+    Z = Zc + 0.03 * np.abs(Zc) * (rng.standard_normal(61) + 1j * rng.standard_normal(61)) / np.sqrt(2)
+    # Recorded, not raised: an exception inside the fit would be caught there
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        calculate_drt(f, Z)
+    assert not [w for w in caught if issubclass(w.category, RuntimeWarning)]

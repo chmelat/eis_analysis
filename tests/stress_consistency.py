@@ -126,10 +126,10 @@ def check_E(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     rows.append(_row('drt', 'Eneg', gamma_min >= 0, f'min gamma / max = {gamma_min:.2e}', None))
 
     i_max = int(np.argmax(case.frequencies))
-    # Only where the high-frequency end is closed: on an open one the DRT's
-    # median R_inf overestimates and gamma >= 0 cannot make up for it - the
-    # known limit behind the deferred --ri-fit default (rc/149: 3469 Ohm
-    # against R_s = 1383), not what this check is for.
+    # Only where the high-frequency end is closed: on an open one R_inf can
+    # be the HF bound, above R_s, and gamma >= 0 cannot make up for it (with
+    # the former HF-median default rc/149 had 3469 Ohm against R_s = 1383),
+    # not what this check is for.
     if case.family == 'rc' and abs(_phase_deg(case.Z_clean[i_max])) < -CLOSED_PHASE_DEG:
         # sqrt(2) sigma: |dZ| has noise on Re and Im
         e = np.abs(case.Z - r.Z_reconstructed) / _allowance(
@@ -253,7 +253,7 @@ def check_I(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
         # Ifit: how often a closed end gets no "R_inf not determined"
         # warning (the fit determines R_s, or the bound comes with the
         # closed-end note) - a false alarm there was the remaining
-        # precondition for making --ri-fit the default
+        # precondition for the window fit as the DRT's default R_inf
         quiet = r.method == 'rlq_fit' or bool(r.notes)
         how = 'note' if r.notes else r.method
         rows.append(('rinf', 'Ifit', 'stat', f'{int(quiet)}/1 {how}', float(quiet)))

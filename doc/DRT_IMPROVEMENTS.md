@@ -34,6 +34,7 @@ kde K(λ) = A @ inv(A^T·A + λ·M) @ A^T
 `DRT_RINF_L_ANALYSIS_2026-09-25.md` ukázala, že bod níže situaci podceňuje:
 - "Současný stav" už neplatí. R_inf je HF medián (až 5 bodů), nebo preset
   z `--ri-fit` (fit R-L-(R|Q) s kontrolou identifikovatelnosti, 0.40.0).
+  Po v0.61 je ten fit výchozí R_inf DRT a `--ri-fit` je odstraněný.
 - Nejde o "minimální změnu". λ se musí vybírat na rozšířeném systému (jinak
   je bias -20 %), mez R_inf = 0 je třeba ošetřit a nevážený fit nechá malé
   R_inf zmizet.

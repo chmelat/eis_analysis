@@ -81,7 +81,8 @@ peak_indices = [p['index'] for p in drt_result.diagnostics.scipy_peaks or []]
 
 # 4. Voigt element analysis
 suggestion = analyze_voigt_elements(
-    tau, gamma, frequencies, Z, peaks_gmm=peaks_gmm, peak_indices=peak_indices
+    tau, gamma, frequencies, Z, drt_result.R_inf,
+    peaks_gmm=peaks_gmm, peak_indices=peak_indices
 )
 for elem in suggestion.elements:
     print(f"tau={elem.tau:.2e} s, R={elem.R:.1f} Ohm, C={elem.C:.2e} F")
@@ -413,11 +414,10 @@ est.notes          # why, instead, when the end is closed and the bound needs
                    # no fit (method 'hf_bound', no warning about R_inf)
 
 R_inf, n = hf_median(frequencies, Z)  # median of Re(Z) over the top points
-R_inf, warning = hf_r_inf(frequencies, Z)  # the DRT's default: that median, or
-                                      # Re(Z) at the top capacitive point when the
-                                      # median lies >5 % above the two top points
-                                      # (warning says why; 'hf_bound' in
-                                      # diagnostics.rinf.method)
+R_inf, warning = hf_r_inf(frequencies, Z)  # calculate_rpol's quick estimate:
+                                      # that median, or Re(Z) at the top capacitive
+                                      # point when the median lies >5 % above the
+                                      # two top points (warning says why)
 
 from eis_analysis.visualization import plot_rinf_fit
 fig = plot_rinf_fit(est)
@@ -438,8 +438,9 @@ result = calculate_drt(
     auto_lambda=True,      # Automatic lambda selection via GCV
     normalize_rpol=False,  # Normalize gamma(tau) by R_pol
     peak_method='scipy',   # Peak detection: 'scipy' or 'gmm'
-    r_inf_preset=None,     # Preset R_inf, e.g. estimate_rinf(...).R_inf;
-                           # None = HF median
+    r_inf_preset=None,     # Preset R_inf; None = estimate_rinf (window fit,
+                           # or the HF bound), its RinfResult in
+                           # diagnostics.rinf.estimate, its warnings among the DRT's
     gmm_bic_threshold=10.0, # BIC threshold for GMM (default: 10.0)
     lambda_probe=False,     # Peak stability across lambda (optional); results
                             # in result.diagnostics.stability
@@ -474,7 +475,9 @@ result.diagnostics.n_points           # Number of data points
 result.diagnostics.n_tau              # Number of tau points
 result.diagnostics.condition_number   # Matrix condition number
 result.diagnostics.reconstruction_error_rel  # Reconstruction error [%]
-result.diagnostics.rinf               # RinfEstimate dataclass
+result.diagnostics.rinf               # RinfEstimate: R_inf, method ('preset',
+                                      # 'rlq_fit', 'hf_bound'), R_inf_median for
+                                      # comparison, estimate (RinfResult or None)
 result.diagnostics.lambda_sel         # LambdaSelection dataclass
 result.diagnostics.nnls               # NNLSSolution dataclass
 result.diagnostics.stability          # With lambda_probe=True, else None:
@@ -1005,6 +1008,7 @@ suggestion = analyze_voigt_elements(
     gamma,                # From calculate_drt()
     frequencies,
     Z,
+    R_inf,                # The DRT's R_inf (drt_result.R_inf): R_pol from the data uses it
     peaks_gmm=None,       # GMM peaks from calculate_drt() (drt_result.peaks)
     peak_indices=None     # [p['index'] for p in drt_result.diagnostics.scipy_peaks]
 )
@@ -1237,7 +1241,7 @@ drt_result = calculate_drt(
 
 # Voigt analysis
 suggestion = analyze_voigt_elements(
-    drt_result.tau, drt_result.gamma, frequencies, Z,
+    drt_result.tau, drt_result.gamma, frequencies, Z, drt_result.R_inf,
     peaks_gmm=drt_result.peaks,
     peak_indices=[p['index'] for p in drt_result.diagnostics.scipy_peaks or []]
 )

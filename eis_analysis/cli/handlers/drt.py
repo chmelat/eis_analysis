@@ -17,7 +17,7 @@ from ..utils import draw_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
 from ...fitting.config import DRT_PEAK_DCHI2_MIN, GMM_N_COMPONENTS_RANGE
-from ...visualization import plot_drt
+from ...visualization import plot_drt, plot_rinf_fit
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +26,42 @@ logger = logging.getLogger(__name__)
 # DRT Analysis
 # =============================================================================
 
+def _median_comparison(rinf) -> str:
+    """'; HF median x Ohm, +y %': the value used against the HF median, the
+    estimate it replaced as the default. Empty without a median."""
+    median = rinf.R_inf_median
+    if median is None or median == 0:
+        return ""
+    # abs(): a median below 0 (inductive or noisy top) keeps the sign of R_inf - median
+    diff_pct = (rinf.R_inf - median) / abs(median) * 100
+    return f"; HF median {median:.4g} Ohm, {diff_pct:+.1f} %"
+
+
 def _log_rinf_estimation(rinf) -> None:
     """Report the R_inf estimate this DRT run made for itself."""
     log_separator()
     logger.info("R_inf estimation (high-frequency resistance)")
     log_separator()
 
-    if rinf.method == 'hf_bound':
-        # The why is a DRT warning, printed with the others
-        logger.info("Method: Re(Z) at the top capacitive point, an upper bound "
-                    "(--ri-fit for an R-L-(R|Q) fit)")
-        logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm (HF median {rinf.R_inf_median:.3f} Ohm "
-                    f"lies above it)")
-        return
-    logger.info("Method: Median of HF points (--ri-fit for an R-L-(R|Q) fit)")
-    logger.info(f"R_inf = {rinf.R_inf:.3f} Ohm ({rinf.n_points_used} HF points)")
+    est = rinf.estimate
+    fit = est.fit
+    if fit is not None:
+        f_win = est.f_window
+        R_fit, stderr = fit.params_opt[0], fit.params_stderr[0]
+        rel = f" ({100 * stderr / R_fit:.2g} %)" if R_fit > 0 else ""
+        name = 'R_inf' if est.method == 'rlq_fit' else 'R_s'
+        unused = '' if est.method == 'rlq_fit' else ' (not used)'
+        logger.info(f"R-L-(R|Q) fit, {f_win.min():.3g}-{f_win.max():.3g} Hz "
+                    f"({len(f_win)} points): {name} = {R_fit:.4g} +- {stderr:.2g} Ohm{rel}{unused}")
+        logger.info(f"  L = {fit.params_opt[1] * 1e9:.3g} nH, "
+                    f"fit error {fit.fit_error_rel:.2g} %")
+    bound = 'HF upper bound' if est.hf_is_bound else 'Re(Z) at f_max (no bound)'
+    logger.info(f"{bound}: Re(Z) = {est.R_inf_hf:.4g} Ohm at {est.f_hf:.3g} Hz")
+    used = 'fit' if est.method == 'rlq_fit' else 'upper bound' if est.hf_is_bound else 'no bound'
+    logger.info(f"Using R_inf = {est.R_inf:.4g} Ohm ({used}{_median_comparison(rinf)})")
+    # The warnings qualify the DRT too and are printed with its others
+    for note in est.notes:
+        logger.info(f"  {note}")
 
 
 def _log_lambda_value(lambda_sel) -> None:
@@ -118,11 +139,10 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     if diag is None:
         return
 
-    # R_inf estimation. A preset value did not come from this stage - it was
-    # measured by --ri-fit, which already reported it in full, or handed in by
-    # a caller of calculate_drt(). Repeating the section would restate someone
-    # else's number under the heading of an estimation that never ran; the DRT
-    # section states the value it uses either way.
+    # R_inf estimation. A preset value did not come from this stage - a
+    # caller of calculate_drt() handed it in. Reporting a section for it would
+    # restate someone else's number under the heading of an estimation that
+    # never ran; the DRT section states it instead.
     rinf = diag.rinf
     if rinf.method != 'preset':
         _log_rinf_estimation(rinf)
@@ -133,11 +153,8 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     log_separator()
     # The comparison is what places a caller-supplied R_inf against the data,
     # and the preset path carries no other diagnostic worth reporting.
-    note = ""
-    if rinf.method == 'preset' and rinf.R_inf_median:
-        diff_pct = (rinf.R_inf - rinf.R_inf_median) / rinf.R_inf_median * 100
-        note = f" (preset; HF median = {rinf.R_inf_median:.3f} Ohm, {diff_pct:+.1f}%)"
-    logger.info(f"Using R_inf = {rinf.R_inf:.3f} Ohm{note}")
+    if rinf.method == 'preset':
+        logger.info(f"Using R_inf = {rinf.R_inf:.4g} Ohm (preset{_median_comparison(rinf)})")
     logger.info(f"Weighting: {diag.weighting}")
     if diag.inductance_used:
         note = f" (auto: {diag.inductance_note})" if diag.inductance_note else ""
@@ -279,7 +296,6 @@ def run_drt_analysis(
     frequencies: NDArray,
     Z: NDArray,
     args: argparse.Namespace,
-    R_inf_computed: Optional[float],
     peak_method: str
 ) -> DRTResult:
     """
@@ -294,9 +310,7 @@ def run_drt_analysis(
     args : argparse.Namespace
         CLI arguments (uses: no_drt, lambda_reg, n_tau, normalize_rpol,
                        gmm_bic_threshold, lambda_probe, drt_weighting, drt_inductance,
-                       tau_extend, save, format)
-    R_inf_computed : float or None
-        Pre-computed R_inf from --ri-fit
+                       tau_extend, rinf_plot, save, format)
     peak_method : str
         Peak detection method ('scipy' or 'gmm')
 
@@ -306,6 +320,8 @@ def run_drt_analysis(
         Container with tau, gamma, peaks and diagnostics
     """
     if args.no_drt:
+        if args.rinf_plot:
+            logger.warning("--rinf-plot draws the DRT's R_inf estimate; ignored with --no-drt")
         return DRTResult()
 
     use_auto_lambda = args.lambda_reg is None
@@ -317,7 +333,6 @@ def run_drt_analysis(
         auto_lambda=use_auto_lambda,
         normalize_rpol=args.normalize_rpol,
         peak_method=peak_method,
-        r_inf_preset=R_inf_computed,
         gmm_bic_threshold=args.gmm_bic_threshold,
         lambda_probe=args.lambda_probe,
         weighting=args.drt_weighting,
@@ -333,6 +348,9 @@ def run_drt_analysis(
     # after it, down with it.
     if result.success:
         draw_figure(lambda: plot_drt(Z, result), 'DRT', args.save, 'drt', args.format)
+    est = result.diagnostics.rinf.estimate if result.diagnostics else None
+    if args.rinf_plot and est is not None:
+        draw_figure(lambda: plot_rinf_fit(est), 'R_inf fit', args.save, 'rinf_fit', args.format)
 
     return result
 
@@ -363,7 +381,8 @@ def run_voigt_analysis(
     """
     if args.no_drt or args.no_voigt_info:
         return
-    if drt_result.tau is None or drt_result.gamma is None or drt_result.diagnostics is None:
+    if (drt_result.tau is None or drt_result.gamma is None or drt_result.diagnostics is None
+            or drt_result.R_inf is None):
         return
 
     # With --normalize-rpol, drt_result.gamma is gamma/R_pol; the R and C
@@ -374,7 +393,7 @@ def run_voigt_analysis(
 
     try:
         suggestion = analyze_voigt_elements(
-            drt_result.tau, gamma_ohm, frequencies, Z,
+            drt_result.tau, gamma_ohm, frequencies, Z, drt_result.R_inf,
             peaks_gmm=drt_result.peaks,
             peak_indices=[p['index'] for p in (drt_result.diagnostics.scipy_peaks or [])]
         )

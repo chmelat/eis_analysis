@@ -82,7 +82,12 @@ def drt_peaks(r) -> List[Dict[str, Any]]:
 
 
 def _drt(case: Case, f, Z, k: float) -> Signature:
-    r = calculate_drt(f, Z, auto_lambda=True)   # CLI defaults otherwise
+    # The DRT's default R_inf (estimate_rinf) taken once from the base
+    # spectrum and scaled: the window fit moves within its stderr under
+    # Z -> k*Z or a reordering, far beyond RTOL, and that play is tested in
+    # analysis 'rinf'; here the DRT itself is under test (as for the n(f) map)
+    R_inf = estimate_rinf(case.frequencies, case.Z).R_inf * k
+    r = calculate_drt(f, Z, auto_lambda=True, r_inf_preset=R_inf)   # CLI defaults otherwise
     peaks = drt_peaks(r)
     return {
         'raw': Entry(r, kind='raw'),
