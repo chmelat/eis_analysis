@@ -53,6 +53,9 @@ python3 -m pytest tests/ -m stress               # smoke proti baseline
   matplotlib z apt (kompilovany proti numpy 1.x).
 - Prubeh DE se s novou scipy lisi (jiny pocet iteraci), vysledne fity stejne.
   Stress baseline (`tests/stress_baseline.json`) overit `--check`.
+- **Stress baseline je z ARM (Orange Pi)**: na amd64 `--check` i smoke
+  (`-m stress`) neprojdou jen kvuli platforme (pocty Lin-KK / fit B, C).
+  Na amd64 baseline neprepisovat (`--update-baseline`), overovat na ARM.
 
 ## Navrat
 
