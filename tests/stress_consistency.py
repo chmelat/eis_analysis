@@ -250,11 +250,13 @@ def check_I(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     if _phase_deg(case.Z_clean[i]) > CLOSED_PHASE_DEG:
         rows.append(_ratio_row('rinf', 'Iclosed', abs(r.R_inf - Rs), RINF_CLOSED_TOL * Rs + noise,
                                f'R_inf {r.R_inf:.4g} vs Rs {Rs:.4g} ({r.method})'))
-        # Ifit: how often the window fit determines R_s on a closed end,
-        # where an "R_inf not determined" warning is a false alarm - the
-        # remaining precondition for making --ri-fit the default
-        fitted = r.method == 'rlq_fit'
-        rows.append(('rinf', 'Ifit', 'stat', f'{int(fitted)}/1 {r.method}', float(fitted)))
+        # Ifit: how often a closed end gets no "R_inf not determined"
+        # warning (the fit determines R_s, or the bound comes with the
+        # closed-end note) - a false alarm there was the remaining
+        # precondition for making --ri-fit the default
+        quiet = r.method == 'rlq_fit' or bool(r.notes)
+        how = 'note' if r.notes else r.method
+        rows.append(('rinf', 'Ifit', 'stat', f'{int(quiet)}/1 {how}', float(quiet)))
 
 
 # --- M: n(f) map through the CLI path -----------------------------------------

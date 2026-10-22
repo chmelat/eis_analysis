@@ -74,6 +74,8 @@ def run_rinf_estimation(
 
     for warning in est.warnings:
         logger.warning(f"  {warning}")
+    for note in est.notes:
+        logger.info(f"  {note}")
 
     fig = plot_rinf_fit(est)
     save_figure(fig, args.save, 'ri_fit', args.format)

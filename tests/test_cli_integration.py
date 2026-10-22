@@ -278,6 +278,31 @@ def test_rinf_estimation():
     print("  [OK] R_inf estimation completed")
 
 
+def test_local_exponent_closed_end_does_not_warn(monkeypatch, caplog):
+    """Code review: on a closed end with an undetermined fit,
+    --local-exponent warned "R_inf is not determined" beside the note
+    saying the end is closed."""
+    import eis_analysis.rinf_estimation.estimate as module
+    from eis_analysis.cli import run_local_exponent
+
+    fit_window = module._fit_window
+
+    def fit_undetermined(f_win, Z_win):
+        fit, Z_fit = fit_window(f_win, Z_win)
+        fit.params_stderr = fit.params_stderr.copy()
+        fit.params_stderr[0] = fit.params_opt[0]
+        return fit, Z_fit
+
+    monkeypatch.setattr(module, '_fit_window', fit_undetermined)
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-2)
+    with caplog.at_level(logging.INFO, logger='eis_analysis.cli.handlers.local_exponent'):
+        assert run_local_exponent(f, Z, create_test_args(local_exponent=True)) is not None
+    plt.close('all')
+    assert 'High-frequency end closed' in caplog.text
+    assert 'not determined' not in caplog.text
+
+
 
 # =============================================================================
 # Test 5: Circuit Fitting

@@ -242,7 +242,11 @@ its lowest frequency falls back to f_max.
 with no finite point. Non-finite points are dropped with a warning. A window
 with too few points, a fit that fails (`RuntimeError` from the fitter) or an
 undetermined R_s all give `method='hf_bound'` with the reason in `warnings`;
-`fit` is `None` in the first two cases.
+`fit` is `None` in the first two cases. An undetermined R_s on a closed end
+(|Im Z(f_hf)| + 3x the noise <= 5 % of Re, no inductive point at or
+above f_hf) puts the reason in `notes`
+instead: the bound is then within about |Im| of R_s for elements with
+n >= 0.5, unless a process peaks near or above f_max.
 
 ---
 

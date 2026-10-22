@@ -86,6 +86,7 @@ def test_undeterminable_falls_back_to_upper_bound_with_warning(name):
     # on an open arc (D: +2483 % instead of +3295 %).
     assert res.R_inf == Z.real[np.argmax(f)] >= Rs
     assert res.fit is not None and 'not determined' in res.warnings[-1]
+    assert res.notes == []
 
 
 def test_accepts_lists_and_drops_non_finite_points():
@@ -333,4 +334,99 @@ def test_fitted_rs_at_zero_falls_back(monkeypatch):
     monkeypatch.setattr(module, '_fit_window', fit_at_zero)
     est = estimate_rinf(f, Z)
     assert est.method == 'hf_bound' and est.fit is not None
+    assert 'not determined' in est.warnings[-1]
+
+
+def _undetermined_fit(monkeypatch):
+    """Make the window fit report R_s with a 100 % stderr."""
+    import eis_analysis.rinf_estimation.estimate as module
+
+    fit_window = module._fit_window
+
+    def fit_undetermined(f_win, Z_win):
+        fit, Z_fit = fit_window(f_win, Z_win)
+        fit.params_stderr = fit.params_stderr.copy()
+        fit.params_stderr[0] = fit.params_opt[0]
+        return fit, Z_fit
+
+    monkeypatch.setattr(module, '_fit_window', fit_undetermined)
+
+
+def test_closed_end_notes_instead_of_warning(monkeypatch):
+    """|Im| 1.6 % of Re at f_max: the bound needs no fit, so an undetermined
+    R_s is a note, not the 'not determined' warning; the result is the
+    same fallback."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-2)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'hf_bound' and est.warnings == []
+    assert est.notes[-1].startswith('High-frequency end closed')
+    assert est.R_inf == Z.real[0] and est.L == 0.0
+    assert est.R_inf_range == (0.0, est.R_inf_upper)
+
+
+@pytest.mark.parametrize('im_share', [0.10, 0.06])
+def test_open_end_still_warns(monkeypatch, im_share):
+    """|Im| above 5 % of Re at f_max: the bound may be off, so warn."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    tau = 1000 / (2 * np.pi * 1e5 * 10 * im_share)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * tau)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'hf_bound' and est.notes == []
+    assert 'not determined' in est.warnings[-1]
+
+
+def test_inductive_top_still_warns(monkeypatch):
+    """An L cancels the CPE's Im at f_hf (~40 kHz): |Im(f_hf)| is ~0.02 %
+    of Re, yet the bound is 17 % above Rs (n = 0.6 leaves Re), so warn."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 2j * np.pi * f * 9.15e-6 + 1000 / (1 + (2j * np.pi * f * 0.07) ** 0.6)
+    est = estimate_rinf(f, Z)
+    i_hf = int(np.argmin(np.abs(f - est.f_hf)))
+    assert est.f_hf < f.max() and abs(Z.imag[i_hf]) < 0.01 * est.R_inf_hf
+    assert est.R_inf_hf > 1.1 * 10
+    assert est.method == 'hf_bound' and est.notes == []
+    assert 'not determined' in est.warnings[-1]
+
+
+def test_inductive_point_within_noise_still_warns(monkeypatch):
+    """Code review: an L-cancelled end passed when its inductive points
+    stayed below 3x the rejected fit's noise. Any point with Im > 0 above
+    f_hf now blocks the note, however small its Im."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-2)
+    Z[0] = Z[0].real + 1e-6j
+    est = estimate_rinf(f, Z)
+    assert est.f_hf == f[1]
+    assert est.method == 'hf_bound' and est.notes == []
+    assert 'not determined' in est.warnings[-1]
+
+
+def test_noisy_closed_end_still_warns(monkeypatch):
+    """Code review: one noisy |Im| can fall below 5 % of Re on an end that
+    is not closed. |Im| 1.6 % plus 3x a 2 % noise is above 5 %: warn."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    Z = _noisy(10 + 1000 / (1 + 2j * np.pi * f * 1e-2), seed=0, level=0.02)
+    Z[0] = Z[0].real - 0.001j  # a measured |Im| far below 5 %
+    est = estimate_rinf(f, Z)
+    assert est.f_hf == f[0]
+    assert est.method == 'hf_bound' and est.notes == []
+    assert 'not determined' in est.warnings[-1]
+
+
+def test_inductive_duplicate_at_f_hf_still_warns(monkeypatch):
+    """Code review: a repeated f_max with Im > 0 next to the capacitive
+    point hf_bound picks may be an L cancelling the arc there: warn."""
+    _undetermined_fit(monkeypatch)
+    f = np.logspace(5, -2, 71)
+    Z = 10 + 1000 / (1 + 2j * np.pi * f * 1e-2)
+    f, Z = np.append(f, f[0]), np.append(Z, Z[0].real + 2j)
+    est = estimate_rinf(f, Z)
+    assert est.f_hf == f[0]
+    assert est.method == 'hf_bound' and est.notes == []
     assert 'not determined' in est.warnings[-1]

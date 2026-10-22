@@ -64,7 +64,11 @@ def run_local_exponent(
             else 'HF upper bound' if est.hf_is_bound else 'Re(Z) at f_max, no bound')
     logger.info(f"Subtracted: R_inf = {result.R_inf:.4g} Ohm ({used}), "
                 f"L = {result.L * 1e9:.3g} nH")
-    if est.method != 'rlq_fit' and est.hf_is_bound:
+    if est.method != 'rlq_fit' and est.notes:
+        # Closed end: R_inf is the bound, but the range stays 0..upper
+        logger.info("  The uncertainty of n near f_max covers R_inf anywhere in "
+                    f"{result.R_inf_range[0]:.4g}..{result.R_inf_range[1]:.4g} Ohm")
+    elif est.method != 'rlq_fit' and est.hf_is_bound:
         logger.warning("  R_inf is not determined: the uncertainty of n covers R_inf "
                        f"anywhere in {result.R_inf_range[0]:.4g}..{result.R_inf_range[1]:.4g} Ohm")
     elif est.method != 'rlq_fit':
@@ -72,6 +76,8 @@ def run_local_exponent(
                        "f_max can be off by more than its uncertainty")
     for warning in est.warnings:
         logger.warning(f"  {warning}")
+    for note in est.notes:
+        logger.info(f"  {note}")
 
     f, n, valid = result.frequencies, result.n, result.valid
     logger.info(f"Determined (uncertainty <= {result.uncertainty_max:g}) at {int(valid.sum())} of {len(f)} "

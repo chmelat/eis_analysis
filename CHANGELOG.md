@@ -8,6 +8,17 @@ Complete change history for all project versions.
 
 ### Changed
 
+- **`--ri-fit` on a closed high-frequency end: a note, not "R_inf is not
+  determined".** When the window fit does not determine R_s but the end is
+  closed (|Im Z(f_hf)| + 3x the noise <= 5 % of Re Z(f_hf), no inductive
+  point at or above f_hf), the HF bound needs no fit: it lies within about |Im| of
+  R_s for elements with n >= 0.5. The reason now goes to the new
+  `RinfResult.notes` (printed as info) instead of `warnings`;
+  `--local-exponent` then reports the width of R_inf_range as info, not as
+  "R_inf is not determined". No number changes. An arc entirely above f_max cannot be told from a closed end
+  and gets the note too; it names that case. The stress invariant Ifit
+  now counts closed ends without the warning.
+
 - **The CI of the series R covers an arc that acts as a resistance.** An
   arc in series with a time constant far above the measured frequencies is
   a constant resistance: the data fix only Rs + R_k. The fit could put the

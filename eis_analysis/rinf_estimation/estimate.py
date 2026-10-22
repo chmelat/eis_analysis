@@ -8,7 +8,8 @@ alike; R_inf = R_s. The standard error of R_s decides whether the window
 determines R_inf at all. When it does not, or when the fit cannot run, the
 result falls back to Re(Z) at the highest frequency with Im(Z) <= 0, an upper
 bound (every passive term adds Re >= 0 to R_s, and at Im = 0 a series L
-contributes nothing), and says why in `warnings`. An inductive top is skipped:
+contributes nothing), and says why in `warnings` (in `notes` when a closed
+end needs no fit). An inductive top is skipped:
 above Im = 0 lead artifacts can pull Re(Z) below R_s, even below zero.
 
 Clean design: No logging in core functions, all diagnostics returned as data.
@@ -16,11 +17,12 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 CONTRACT
 
 Callers. The CLI with --ri-fit (cli/handlers/rinf.py): R_inf goes to the
-DRT as its preset, warnings are printed, ValueError is reported as "R_inf
+DRT as its preset, warnings and notes are printed, ValueError is reported as "R_inf
 estimation failed" and the DRT runs without a preset. --local-exponent
 (cli/handlers/local_exponent.py): R_inf and L are subtracted from Z, and
 R_inf_range goes to local_exponent, which raises ValueError unless the
-range is finite and holds R_inf. plot_rinf_fit reads the window, the fit,
+range is finite and holds R_inf; it warns "R_inf is not determined" for
+the fallback unless notes is non-empty. plot_rinf_fit reads the window, the fit,
 R_inf_hf, f_hf, hf_is_bound and R_inf_upper. Frequencies and Z come as measured: any
 order, duplicates possible, possibly NaN or inf, Re(Z) < 0 possible at an
 inductive top. From other modules it uses fit_equivalent_circuit (raises
@@ -51,6 +53,14 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   window point, when the fit raises RuntimeError, and when the fit does
   not determine R_s: stderr / R_s above RINF_REL_STDERR_MAX, or not a
   number (NaN stderr, R_s = 0).
+  Closed end: when the fit does not determine R_s, hf_is_bound, R_inf_hf
+  > 0, |Im Z(f_hf)| + RINF_BOUND_NOISE_SIGMAS x the noise at f_hf (as for
+  R_inf_upper) <= RINF_REL_STDERR_MAX x R_inf_hf, and no point at or
+  above f_hf has Im(Z) > 0, the reason goes to `notes` instead of
+  `warnings`; the result is the same fallback. The bound is then within
+  ~|Im Z(f_hf)| of R_s for elements with n >= 0.5 past their peak; a process peaking near
+  or above f_max (an arc entirely above it) also passes, as no data-only
+  method can tell it from a flat end.
   Fit (method 'rlq_fit'): R_inf = the fitted R_s, L = the fitted L. Range
   of every parameter relative to the window's |Z| (_window_range), R and
   L bounded below by 0, so the result does not depend on the unit of Z.
@@ -80,7 +90,7 @@ What must hold:
   - The inputs are not changed.
   - Raises only ValueError, and only for the two input cases above; every
     numerical problem of the data or the fit ends in the fallback with a
-    warning. For |Z| above ~1e-300 Ohm: below, min|Z| / RINF_BOUND_RANGE
+    warning (a note on a closed end, see above). For |Z| above ~1e-300 Ohm: below, min|Z| / RINF_BOUND_RANGE
     underflows to 0.
   - R_inf, R_inf_upper and both ends of R_inf_range are finite and
     >= 0; R_inf_range[0] <= R_inf <= R_inf_range[1] (what local_exponent
@@ -88,6 +98,8 @@ What must hold:
   - L >= 0 and finite; 0 unless method is 'rlq_fit'.
   - method 'rlq_fit' exactly when R_inf comes from an accepted fit, and
     then stderr <= RINF_REL_STDERR_MAX x R_inf.
+  - notes only explain: whether the closed-end reason is a note or a
+    warning changes no other field.
   - Unit invariance: Z scaled by c > 0 scales R_inf, R_inf_hf,
     R_inf_upper, R_inf_range, R_inf_window_spread and L by c, with the
     same method (up to the optimizer's tolerance), while |Z| stays within
@@ -184,7 +196,8 @@ class RinfResult:
 
     `R_inf` is the value to use: the fitted R_s when the window determines
     it (`method == 'rlq_fit'`), otherwise the HF upper bound `R_inf_hf`
-    (`method == 'hf_bound'`, clipped at 0) with the reason in `warnings`.
+    (`method == 'hf_bound'`, clipped at 0) with the reason in `warnings`,
+    or in `notes` when the end is closed and the bound needs no fit.
     """
     R_inf: float  # [Ohm]
     method: str  # 'rlq_fit' | 'hf_bound'
@@ -205,6 +218,9 @@ class RinfResult:
     # no bound of R_s (nor R_inf_upper built on it)
     hf_is_bound: bool = True
     warnings: List[str] = field(default_factory=list)
+    # Why the HF bound is used on a closed end, where it needs no fit: an
+    # explanation, not a warning
+    notes: List[str] = field(default_factory=list)
 
     @property
     def R_inf_fit(self) -> Optional[float]:
@@ -341,7 +357,7 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     RinfResult
         `R_inf` is the fitted R_s if its relative stderr is at most
         RINF_REL_STDERR_MAX, otherwise the HF upper bound of `hf_bound`
-        (reason in `warnings`).
+        (reason in `warnings`, or in `notes` on a closed end).
 
     Raises
     ------
@@ -351,7 +367,8 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     Notes
     -----
     No data-only method can tell an arc lying entirely above f_max from a
-    flat high-frequency end; such spectra end with the HF upper bound.
+    flat high-frequency end; such spectra end with the HF upper bound,
+    with a note (end looks closed) rather than a warning when |Im| is small.
     Measured against the 5-point HF median it replaces (audit cases,
     1 % noise): open CPE arc +2483 % instead of +3295 %,
     real_gamry_example.DTA 826 instead of 1402 Ohm; flat ends where the fit
@@ -428,11 +445,30 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
     rel = stderr / R_fit if R_fit > 0 else np.inf
     # `not <=` also catches a NaN stderr (covariance could not be computed).
     if not rel <= RINF_REL_STDERR_MAX:
-        result.warnings.append(
-            f"R_inf is not determined by the top {RINF_FIT_DECADES} decades: "
-            f"fit gives {R_fit:.4g} +- {stderr:.2g} Ohm "
-            f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %); "
-            f"{fallback}")
+        undetermined = (f"fit gives {R_fit:.4g} +- {stderr:.2g} Ohm "
+                        f"({100 * rel:.3g} % > {100 * RINF_REL_STDERR_MAX:.0f} %)")
+        # A closed end needs no fit. Past an element's peak Re/(-Im) ->
+        # cot(n pi/2) <= 1 for n >= 0.5, so the bound exceeds R_s by about
+        # |Im| at most: within RINF_REL_STDERR_MAX, the precision a fit is
+        # accepted with - also when noise has shrunk the one measured |Im|,
+        # hence + RINF_BOUND_NOISE_SIGMAS x noise (a rejected fit's
+        # residuals overstate the noise under model mismatch, which only
+        # warns more often). An inductive point at or above f_hf (any Im > 0)
+        # may be an L cancelling the arc's Im at f_hf, so the end only looks
+        # closed. An arc entirely above f_max passes too (see Notes).
+        im_hf = abs(float(Z.imag[i_hf]))
+        if (result.hf_is_bound and R_hf > 0
+                and im_hf + RINF_BOUND_NOISE_SIGMAS * noise <= RINF_REL_STDERR_MAX * R_hf
+                and not (Z.imag[frequencies >= f_hf] > 0).any()):
+            result.notes.append(
+                f"High-frequency end closed: |Im(Z)| = {im_hf:.2g} Ohm at {f_hf:.3g} Hz, "
+                f"{100 * im_hf / R_hf:.2g} % of Re(Z), so the bound lies within about "
+                f"that of R_inf for n >= 0.5, unless a process peaks near or above "
+                f"f_max; {undetermined}; {fallback}")
+        else:
+            result.warnings.append(
+                f"R_inf is not determined by the top {RINF_FIT_DECADES} decades: "
+                f"{undetermined}; {fallback}")
         return result
 
     result.R_inf, result.method = R_fit, 'rlq_fit'

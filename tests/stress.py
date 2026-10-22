@@ -227,7 +227,7 @@ def print_calibration(results):
         print(f'  {analysis:6} {inv:8} noise {level:6} n={len(v):5}  '
               + '  '.join(f'{x:10.3g}' for x in q))
     print('\nAggregate rates (F2: local minima; F3: truth inside the 95 % CI;'
-          ' Ifit: R_inf fitted on a closed HF end; M: |dn| <= 2 x uncertainty)')
+          ' Ifit: no "not determined" on a closed HF end; M: |dn| <= 2 x uncertainty)')
     for key, (hit, total, _) in aggregate_rates(results).items():
         inv, level = key.split()
         print(f'  {inv:4} noise {level:6} {hit}/{total} = {hit / max(total, 1):.3f}')

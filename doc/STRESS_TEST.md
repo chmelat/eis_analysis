@@ -43,7 +43,7 @@ measured / allowed, with the allowance factor x sigma + floor x |Z_true|
 | Irange | `R_inf_range` holds the true Rs (cases without L) |
 | Ihf | R_inf <= Re Z_true(f_max) + 1 % + 3 sigma (passivity) |
 | Iclosed | R_inf within 5 % + 3 sigma of Rs on a closed high-frequency end (phase > -5 deg) |
-| Ifit | Rate: the window fit determines R_s on a closed high-frequency end |
+| Ifit | Rate: no "R_inf not determined" warning on a closed high-frequency end (the fit determines R_s, or the bound comes with the closed-end note) |
 | M | Rate: the n(f) map through the CLI path within 2x its uncertainty of the noise-free map |
 
 Analyses: `calculate_drt` (auto lambda), `kramers_kronig_validation`,
@@ -233,6 +233,34 @@ failures):
   F3 0.895, 0.898, 0.916 (0.898, 0.897, 0.904), Ifit 0.990, 0.942, 0.791,
   0.610 (0.989, 0.968, 0.802, 0.635), M 0.979, 0.946, 0.909 (0.978, 0.947,
   0.910).
+
+## Closed-end note instead of the false alarm, 2026-10-22
+
+`estimate_rinf` now puts the reason for the HF bound in `notes` instead of
+the "R_inf is not determined" warning when the end is closed: |Im Z(f_hf)|
++ 3x the noise at f_hf <= 5 % of Re, and no point at or above f_hf with
+Im > 0. Ifit was redefined accordingly: a closed end without the warning
+(fit accepted, or bound with the note). Full `--check` against the
+2026-10-14 baseline, 1688 s: 0 new failures, rc/28 drt:Epeak gone.
+
+- Ifit 1.000, 0.974, 0.859, 0.610 at 0, 0.1, 1, 3 % noise (before
+  0.990, 0.942, 0.791, 0.610); the note on 2, 6, 12, 0 of the closed
+  ends. At 3 % the noise term (3 sigma ~ 9 % of |Z|) exceeds the 5 %
+  threshold, so no note there. Real spectra are nearly noise-free at high
+  frequency, so the low-noise rows are the ones that matter.
+- Every closed end with the note passes Iclosed (worst 0.25 of allowed),
+  as do the 106 that still warn (worst 0.78): the remaining warnings are
+  still false alarms, mostly at 3 % noise.
+- Cases with a series L are excluded from Ifit. Rerun separately (86
+  cases): on closed ends (phase of Z - j omega L > -5 deg at f_max) the fit
+  determines R_s in 58 of 64, 5 warn, 2 of them because an inductive point
+  blocks the note. The worst accepted fit there is 8.7 % off Rs; no
+  invariant checks R_inf on cases with L.
+- F2 and F3 had not been rebaselined since 2026-10-14: F2 at zero noise
+  21/353 (19/353), F3 0.929, 0.910, 0.919 (0.895, 0.898, 0.916), the
+  canonical block order and the series-arc merge (both 2026-10-20).
+
+Written as the baseline (197 failures).
 
 ## Bugs found and fixed
 

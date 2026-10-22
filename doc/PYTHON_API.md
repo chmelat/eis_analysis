@@ -409,6 +409,8 @@ est.f_hf           # its frequency [Hz]; below f_max if the top is inductive
 est.fit            # FitResult, params_opt = [R_s, L, R_k, Q, n]; None if no fit ran
 est.f_window, est.Z_window  # data of the fit window
 est.warnings       # why the fallback was used, dropped non-finite points
+est.notes          # why, instead, when the end is closed and the bound needs
+                   # no fit (method 'hf_bound', no warning about R_inf)
 
 R_inf, n = hf_median(frequencies, Z)  # median of Re(Z) over the top points
 R_inf, warning = hf_r_inf(frequencies, Z)  # the DRT's default: that median, or
