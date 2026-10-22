@@ -298,9 +298,13 @@ selected. Until v0.41.1 the types were ranked first (`CC`, then `C`/`K`/`DQ`/
 side arc won and the thickness came out at 19 um.
 
 Elements sharing the largest R (one parallel combination, or several blocking
-elements) are ranked by capacitance - the Hsu-Mansfeld `C_eff` for a `Q` -
-with a warning that their individual values are not identifiable from the
-spectrum.
+elements) are ranked by their admittance at the highest measured frequency -
+`omega_max * C`, or `Q * omega_max^n` for a `Q` - with a warning that their
+individual values are not identifiable from the spectrum. The dielectric
+response is the high-frequency limit. Until v0.61.0 the ranking used the
+Hsu-Mansfeld `C_eff` of a `Q`, which scales as `R^((1-n)/n)`: with a leakage
+`G` beside `(Q|C)` it put the `Q` above the `C` that dominates the spectrum
+(ZrO2, `L-R-(G|Q|C|Wa)`: eps_r 41.9 instead of 18).
 
 If nothing qualifies as a dielectric but a low-`n` CPE is present, that CPE is
 used with a loud warning that the result has no dielectric meaning - it is

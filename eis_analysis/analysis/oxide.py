@@ -139,7 +139,7 @@ def _extract_capacitance(
 
             if dielectric:
                 dominant, selection_reason = _select_dielectric_element(
-                    dielectric, warnings)
+                    dielectric, frequencies, warnings)
             elif non_ideal:
                 # Nothing in the circuit behaves as a dielectric. Better than
                 # the spectral fallback - these are at least fitted parameters
@@ -154,7 +154,7 @@ def _extract_capacitance(
                     "meaning. Reported only because it is still a fitted "
                     "parameter, unlike the high-frequency estimate.")
                 dominant, selection_reason = _select_dielectric_element(
-                    non_ideal, warnings)
+                    non_ideal, frequencies, warnings)
             else:
                 warnings.append("No convertible capacitive element found - "
                                 "falling back to high-frequency estimate")

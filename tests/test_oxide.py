@@ -810,11 +810,13 @@ def test_series_capacitance_is_found():
     assert abs(oxide.capacitance - REPORTED_C) / REPORTED_C < 1e-12
 
 
-def test_c_and_cpe_sharing_r_are_ranked_by_capacitance_not_type():
-    """A C and a Q in one parallel: the larger capacitance wins, whatever its type.
+def test_c_and_cpe_sharing_r_are_ranked_by_hf_admittance_not_type():
+    """A C and a Q in one parallel: the larger admittance at f_max wins, whatever its type.
 
-    The Q enters with its Hsu-Mansfeld C_eff (~2.4e-6 F here), so it is
-    compared with the C (9.06e-8 F) in the same unit.
+    Q(3e-6, 0.95) carries ~17x the C's admittance at 100 kHz, so it wins.
+    Q(7.6e-8, 0.82) with a large shared R (1e8 Ohm, ZrO2 42 d) has a
+    Hsu-Mansfeld C_eff above the C, but the C dominates above ~1 Hz: the C
+    must win (it lost to the C_eff ranking, eps 41.9 instead of 18).
     """
     freq, Z = _synthetic_voigt()
     circuit = R(R_S) - (R(R_P) | Q(3e-6, 0.95) | C(REPORTED_C))
@@ -827,6 +829,14 @@ def test_c_and_cpe_sharing_r_are_ranked_by_capacitance_not_type():
     assert oxide.element_type == 'Q'
     assert oxide.capacitance > REPORTED_C
     assert 'share one parallel resistance' in _reported(oxide)
+
+    circuit = R(R_S) - (R(1.1e8) | Q(7.6e-8, 0.82) | C(5.25e-8))
+    oxide = analyze_oxide_layer(freq, Z, epsilon_r=22.0,
+                                fit_result=_fit_result(
+                                    circuit, circuit.get_all_params()))
+
+    assert oxide.element_type == 'C'
+    assert oxide.capacitance == 5.25e-8
 
 
 def test_low_n_cpe_is_not_a_dielectric_but_still_beats_the_fallback():

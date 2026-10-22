@@ -144,6 +144,17 @@ Complete change history for all project versions.
   frequency (two sweeps in one file) came back in an order numpy's sort
   chose, so n and `valid` could belong to the other sweep's point; the
   sort is stable now. Numbers unchanged otherwise (contract review round 6).
+- **Oxide analysis: a Q no longer wins over the C beside it through a large
+  shared R.** Elements sharing one parallel resistance were ranked by
+  capacitance, a Q by its Hsu-Mansfeld C_eff, which scales as R^((1-n)/n).
+  With a leakage G beside (Q|C) - ZrO2 42 d, `L-R-(G|Q|C|Wa)`, n = 0.82,
+  1/G = 1.1e8 Ohm - the Q's C_eff (1.2e-7 F) beat the fitted C (5.3e-8 F)
+  that dominates the spectrum above ~1 Hz, and `--analyze-oxide` gave
+  eps_r 41.9 instead of 18.1. Only a Q with n >= 0.8 competes, so the same
+  circuit gave the right answer at n = 0.73-0.79. Tied elements are now
+  ranked by their admittance at the highest measured frequency (omega*C,
+  Q*omega^n): the dielectric response is the high-frequency limit. Two
+  capacitors in one parallel rank as before.
 
 ### Added
 

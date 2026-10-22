@@ -234,15 +234,32 @@ def _leaf_labels(circuit) -> Dict[int, str]:
 
 
 def _element_size(element: Dict[str, Any]) -> float:
-    """Capacitance used to rank elements the R heuristic cannot separate.
+    """Capacitance of a candidate, as the tie warning reports it.
 
     The fitted capacitance for C, K, CC, DQ and YG; the Hsu-Mansfeld C_eff for
-    Q, so that a Q and a C sharing one resistance compare in the same unit.
-    A Q always has its R here - one without it is not a candidate.
+    Q. A Q always has its R here - one without it is not a candidate.
     """
     if 'C' in element:
         return float(element['C'])
     return _estimate_cpe_capacitance(element['Q'], element['n'], element['R'])
+
+
+def _hf_admittance(element: Dict[str, Any], omega_max: float) -> float:
+    """Capacitive admittance at the top of the measured window, |Y(omega_max)|.
+
+    Ranks elements the R heuristic cannot separate: the dielectric response
+    is the high-frequency limit, so the element carrying the most admittance
+    there is the dielectric one. omega*C for C, K, CC, DQ and YG (their
+    capacitance is exact there), Q*omega^n for a Q.
+
+    Not the Hsu-Mansfeld C_eff: it scales as R^((1-n)/n), and a large shared
+    R - a leakage G beside (Q|C) - inflated it until the Q won over the C
+    that dominates the spectrum above ~1 Hz (ZrO2, L-R-(G|Q|C|Wa): eps 41.9
+    instead of 18).
+    """
+    if 'C' in element:
+        return float(element['C']) * omega_max
+    return float(element['Q']) * omega_max ** element['n']
 
 
 def _barrier_resistance(element: Dict[str, Any]) -> float:
@@ -252,6 +269,7 @@ def _barrier_resistance(element: Dict[str, Any]) -> float:
 
 def _select_dielectric_element(
     candidates: List[Dict[str, Any]],
+    frequencies: NDArray[np.float64],
     warnings: List[str]
 ) -> Tuple[Dict[str, Any], str]:
     """
@@ -270,13 +288,16 @@ def _select_dielectric_element(
     arc beat a 10 MOhm | Q (n = 0.95) barrier.
 
     Elements sharing the largest resistance are not separable by it and are
-    ranked by capacitance.
+    ranked by their admittance at the highest measured frequency
+    (_hf_admittance).
 
     Returns the element and a one-line statement of why it won, which the
     caller reports: the choice is a heuristic and has to be checkable.
     """
+    omega_max = 2 * np.pi * float(np.max(frequencies))
     dominant = max(candidates,
-                   key=lambda e: (_barrier_resistance(e), _element_size(e)))
+                   key=lambda e: (_barrier_resistance(e),
+                                  _hf_admittance(e, omega_max)))
     R_max = _barrier_resistance(dominant)
     tied = [e for e in candidates if _barrier_resistance(e) == R_max]
 
@@ -285,7 +306,8 @@ def _select_dielectric_element(
         shared = ("with no DC path beside them" if blocking else
                   f"share one parallel resistance (R = {R_max:.1f} Ω)")
         warnings.append(
-            f"{len(tied)} capacitive elements {shared} - using the largest, "
+            f"{len(tied)} capacitive elements {shared} - using the one with the "
+            f"largest admittance at f_max = {omega_max / (2 * np.pi):.3g} Hz, "
             f"{_element_size(dominant):.3e} F. Their individual values are not "
             "separately identifiable from the spectrum, so check the fit "
             "before relying on the split.")
