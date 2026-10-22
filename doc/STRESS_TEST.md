@@ -40,9 +40,9 @@ measured / allowed, with the allowance factor x sigma + floor x |Z_true|
 | F3 | Rate: truth inside the reported 95 % CI (proportional noise, well-conditioned fits) |
 | F4 | A parameter at a bound is reported |
 | G | DE (CLI defaults) from truth x 10^U(-2, 2), exponents uniform in their bounds, ends no worse than the truth (cost x (1 + 1e-3) + floor); every 5th case; a worse end is a failure |
-| Irange | `R_inf_range` holds the true Rs (cases without L) |
-| Ihf | R_inf <= Re Z_true(f_max) + 1 % + 3 sigma (passivity) |
-| Iclosed | R_inf within 5 % + 3 sigma of Rs on a closed high-frequency end (phase > -5 deg) |
+| Irange | `R_inf_range` holds the true Rs |
+| Ihf | R_inf <= Re Z_true + 1 % + 3 sigma (passivity) at f_max for a fit, at f_hf for the bound (below an inductive top) |
+| Iclosed | R_inf within 5 % + 3 sigma of Rs on a closed high-frequency end (phase > -5 deg, of Z_true - j omega L with a series L) |
 | Ifit | Rate: no "R_inf not determined" warning on a closed high-frequency end (the fit determines R_s, or the bound comes with the closed-end note) |
 | M | Rate: the n(f) map through the CLI path within 2x its uncertainty of the noise-free map |
 
@@ -287,6 +287,19 @@ baseline file is the same.
   0 % noise, 184 -> 86 %, 197 -> 168 %, 161 -> 116 % (closer in 54-70 %,
   farther in 3-8 %).
 
+## R_inf invariants on cases with a series L, 2026-10-22
+
+Irange, Ihf, Iclosed and Ifit skipped the 89 cases with a series L, so an
+accepted window fit with a model error on them went unseen (rc/143, found
+through the DRT's Erec). They are checked now: a closed end is judged on
+Z_true - j omega L, and Ihf compares a fitted R_s with Re Z_true(f_max)
+but the bound with Re Z_true(f_hf), the point it is taken at below an
+inductive top (rc/125: bound 0.023 Ohm at f_hf, Re Z_true(f_max) 0.011).
+Full `--check`, 1893 s: 1 new failure, rc/143 rinf:Iclosed (1.11x
+allowed, known limit 7); Irange and Ihf pass on all 89. Ifit with the L
+cases 0.995, 0.976, 0.866, 0.624 at 0, 0.1, 1, 3 % noise (before 1.000,
+0.974, 0.859, 0.610). Written as the baseline (198 failures).
+
 ## Bugs found and fixed
 
 The first full run (before the fixes) had 1190 failed checks.
@@ -459,7 +472,10 @@ R_s and 3 times above (cpe/101 +12 %, cpe/220 +18 %, oxide/156 +29 %), at
 phases -4 to -82 deg at f_max and low noise (0 %: 16 cases, 0.1 %: 17,
 1 %: 6, 3 %: none). R_inf itself stays so: one decade resolves an open arc
 better but scatters ten times more under noise. One of them (cpe/85, phase
--4.1 deg) fails Iclosed.
+-4.1 deg) fails Iclosed. Since cases with L are checked too (2026-10-22),
+so does rc/143: a closed end (phase -1.4 deg without L) with a series L
+and two arcs in the window, fitted with one; R_s 5.5 % low at 2.6 %
+stderr, noise-free.
 
 `R_inf_range` missed R_s in all 39: the stderr does not see the model
 error, and the +-5 % floor did not cover it. **Fixed 2026-10-09:** the range

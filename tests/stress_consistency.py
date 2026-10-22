@@ -231,23 +231,33 @@ def check_G(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
 
 def check_I(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     """R_inf_range holds the true Rs (the n(f) map relies on it), R_inf is
-    at most Re Z_true(f_max) (passivity), and Rs where the high-frequency
-    end is closed. Cases with L are excluded: L lifts Re Z
-    nowhere, but its reactance hides how close f_max is to closing."""
-    if case.has_L or 'rinf' not in raw:
+    at most Re Z_true where it comes from (passivity), and Rs where the
+    high-frequency end is closed. With a series L the end is judged without
+    it: L lifts Re Z nowhere, but its reactance hides how close f_max is to
+    closing."""
+    if 'rinf' not in raw:
         return
     r = raw['rinf']
     i = int(np.argmax(case.frequencies))
-    re_hf = float(case.Z_clean[i].real)
     noise = POINT_SIGMAS * case.sigma[i]
     # Irange: R_inf_range, which the n(f) map relies on, holds the true Rs
     Rs = case.truth[case.labels.index('R')]
     lo, hi = r.R_inf_range
+    # Ihf: a fitted R_s respects passivity at f_max; the bound is Re Z at
+    # f_hf, below an inductive top the library skips on purpose (on real
+    # data the leads can pull Re Z there below R_s)
+    j = i if r.method == 'rlq_fit' else int(np.argmin(np.abs(case.frequencies - r.f_hf)))
+    re_ref = float(case.Z_clean[j].real)
+    where = 'f_max' if j == i else 'f_hf'
     rows += [_ratio_row('rinf', 'Irange', max(lo - Rs, Rs - hi, 0.0), RINF_HF_TOL * Rs + noise,
                         f'Rs {Rs:.4g} outside R_inf_range {lo:.4g}..{hi:.4g} ({r.method})'),
-             _ratio_row('rinf', 'Ihf', max(r.R_inf - re_hf, 0.0), RINF_HF_TOL * re_hf + noise,
-                        f'R_inf {r.R_inf:.4g} above Re Z_true(f_max) {re_hf:.4g} ({r.method})')]
-    if _phase_deg(case.Z_clean[i]) > CLOSED_PHASE_DEG:
+             _ratio_row('rinf', 'Ihf', max(r.R_inf - re_ref, 0.0),
+                        RINF_HF_TOL * re_ref + POINT_SIGMAS * case.sigma[j],
+                        f'R_inf {r.R_inf:.4g} above Re Z_true({where}) {re_ref:.4g} ({r.method})')]
+    Z_end = case.Z_clean[i]
+    if case.has_L:
+        Z_end -= 2j * np.pi * case.frequencies[i] * case.truth[case.labels.index('L')]
+    if _phase_deg(Z_end) > CLOSED_PHASE_DEG:
         rows.append(_ratio_row('rinf', 'Iclosed', abs(r.R_inf - Rs), RINF_CLOSED_TOL * Rs + noise,
                                f'R_inf {r.R_inf:.4g} vs Rs {Rs:.4g} ({r.method})'))
         # Ifit: how often a closed end gets no "R_inf not determined"
