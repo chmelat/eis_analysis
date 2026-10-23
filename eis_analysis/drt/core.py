@@ -37,6 +37,7 @@ from .estimation import (
     refine_peak_tau,
 )
 from .linear_system import _reconstruct, _validate_frequencies
+from ..fitting.voigt_chain.validation import validate_eis_data
 from .peaks import _detect_peaks
 from .stability import probe_lambda_stability
 from .significance import assess_peak_significance
@@ -167,20 +168,19 @@ def calculate_drt(
     if inductance not in (True, False, 'auto'):
         raise ValueError(f"inductance must be True, False or 'auto', got {inductance!r}")
 
-    f_min, f_max = float(frequencies.min()), float(frequencies.max())
-    freq_range_ratio = f_max / f_min
-
     # === Step 1: Validate input ===
     try:
         _validate_frequencies(frequencies)
         # A single NaN would turn every data weight into NaN (compute_weights
         # divides by their mean) and crash the SVD in _build_drt_matrices.
-        if not np.all(np.isfinite(Z)):
-            raise ValueError("Impedance contains NaN or Inf values - "
-                             "remove invalid points before DRT analysis")
+        # Z = 0 makes the peak test's pseudo chi^2 and the reconstruction
+        # error inf, and gets a modulus weight of 1e15.
+        validate_eis_data(frequencies, Z, context="calculate_drt")
     except ValueError as e:
         logger.error(str(e))
         return DRTResult()
+    f_min, f_max = float(frequencies.min()), float(frequencies.max())
+    freq_range_ratio = f_max / f_min
 
     # === Step 2: R_inf Estimation ===
     rinf_est = _estimate_r_inf(frequencies, Z, r_inf_preset=r_inf_preset)

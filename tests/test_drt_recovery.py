@@ -14,6 +14,7 @@ decade / 3% to stay robust across noise realizations.
 """
 
 import numpy as np
+import pytest
 
 from eis_analysis.drt import calculate_drt
 from eis_analysis.fitting.config import DRT_MIN_EFFECTIVE_BINS
@@ -166,6 +167,24 @@ def test_nan_frequency_is_rejected():
     """NaN passed the f <= 0 test and estimate_rinf raised on it."""
     f = np.full(61, np.nan)
     assert not calculate_drt(f, np.ones(61, dtype=complex)).success
+
+
+@pytest.mark.parametrize("where, value", [(10, 0), (slice(None), 0), (10, 1e-200)],
+                         ids=["one_point", "all_points", "underflow"])
+def test_zero_impedance_is_rejected(where, value, caplog):
+    """One Z = 0 point gave the peak test a pseudo chi^2 of inf (Delta chi^2
+    undefined) and a reconstruction error of inf %; so does a |Z| whose
+    square underflows (1e-200: error 1.8e201 %)."""
+    f = np.logspace(5, -1, 61)
+    Z = 10 + 100 / (1 + (2j * np.pi * f * 1e-4) ** 0.8)
+    Z[where] = value
+    assert not calculate_drt(f, Z).success
+    assert "calculate_drt: impedance Z is 0" in caplog.text
+
+
+def test_empty_input_is_rejected():
+    """f_min was taken before the validation: an uncaught ValueError."""
+    assert not calculate_drt(np.array([]), np.array([], dtype=complex)).success
 
 
 def test_voigt_suggestion_uses_the_drt_r_inf():

@@ -637,3 +637,14 @@ neodmita (test vyznamnosti piku pak nedefinovany). Treti /code-review
 nahrazena `validate_eis_data`; ostatni bez akce (rozhodnuto vyse,
 pretekajici |Z| u 1e308, podlahy vah pro |Z| < 1e-15, opakovana kontrola
 O(N) v iteracich).
+
+DRT 2026-10-23 (rozhodnuti uzivatele, vlastni commit): `calculate_drt`
+vola `validate_eis_data` misto vlastni kontroly NaN/inf, Z = 0 dava
+prazdny vysledek (driv pseudo chi^2 inf v testu vyznamnosti piku,
+chyba rekonstrukce inf %). Kontrakty `noise.py` a `drt/significance.py`
+doplneny. /code-review (7 nalezu): validator bere za nulu i |Z|^2 = 0
+(podteceni pod ~1e-154, driv chyba rekonstrukce 1.8e201 %); `f_min` az po
+validaci (prazdny vstup padal nezachycenou vyjimkou); zalomeni kontraktu.
+Bez akce: dvoji kontrola frekvenci, prazdny `DRTResult` bez duvodu
+(stavajici cesta selhani); presun validatoru z `fitting/voigt_chain/`
+do `utils/` nabidnut jako samostatny refactor.

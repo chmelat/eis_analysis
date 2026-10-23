@@ -20,9 +20,10 @@ CONTRACT
 Callers. calculate_drt (core.py) once per run: the run's matrices and
 lambda, gamma = the run's NNLS solution in Ohm (before any R_pol
 normalization), the Z, R_inf and L_series the system was built and solved
-with, noise_sigma None. probe_lambda_stability (stability.py) per probe:
-the same matrices and Z, the probe's lambda and NNLS solution, and
-noise_sigma = the main run's noise_sigma. peaks.py reads the result to
+with (Z finite and != 0: validate_eis_data), noise_sigma None.
+probe_lambda_stability (stability.py) per probe: the same matrices and Z,
+the probe's lambda and NNLS solution, and noise_sigma = the main run's
+noise_sigma. peaks.py reads the result to
 report the scipy peaks, core.py lists the rejected maxima with their
 delta_chi2. From DRTMatrices it reads A, b, L, tau, A_re, A_im, omega and
 L_series_scale; the caller guarantees gamma and L_series minimize

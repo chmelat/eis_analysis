@@ -45,8 +45,8 @@ Callers. All pass ndarrays.
   full and the constrained solution; Delta chi^2 is scaled by default by
   sigma = sqrt(chi2 / 2N), i.e. estimate_noise_percent / 100, floored at
   machine eps (a noise_sigma passed in replaces it: the lambda probe
-  passes the main run's). calculate_drt does not reject Z = 0: chi2 is
-  then inf and the test undefined.
+  passes the main run's). calculate_drt rejects Z = 0 before
+  (validate_eis_data; empty result).
 - fitting.diagnostics.compare_fit_to_noise: estimate_noise_percent of the
   fit's pseudo chi^2 against the Lin-KK noise; non-empty, equal lengths
   checked there, a non-finite result reported, not compared.
@@ -64,7 +64,7 @@ compute_pseudo_chisqr(Z_exp, Z_fit) -> float.
   impedances span about 1e-6..1e13 Ohm). A point with Z_exp = 0 has no
   relative residual: the result is inf, NaN where Z_fit = 0 there too (inf
   weight x 0), with a RuntimeWarning; rejecting Z = 0 is the caller's job
-  (Lin-KK and Z-HIT do, the DRT does not). A NaN
+  (Lin-KK, Z-HIT and the DRT do). A NaN
   or inf in either array gives NaN or inf, never a finite number that
   leaves the point out.
 

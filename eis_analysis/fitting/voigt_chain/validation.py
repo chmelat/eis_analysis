@@ -63,11 +63,12 @@ def validate_eis_data(
             f"{context}: impedance Z contains {n_invalid} NaN/Inf values"
         )
 
-    # Weights (modulus: 1/|Z|), residuals and pseudo chi^2 are relative to |Z|
-    n_zero = int(np.count_nonzero(Z == 0))
+    # Weights (modulus: 1/|Z|), residuals and pseudo chi^2 are relative to |Z|;
+    # |Z|^2 as pseudo chi^2 forms it, so a |Z| that underflows there counts too
+    n_zero = int(np.count_nonzero(Z.real**2 + Z.imag**2 == 0))
     if n_zero:
-        raise ValueError(f"{context}: impedance Z is 0 at {n_zero} point(s), "
-                         f"but weights and residuals are relative to |Z|")
+        raise ValueError(f"{context}: impedance Z is 0 at {n_zero} point(s) (|Z|^2 = 0 "
+                         f"in floating point), but weights and residuals are relative to |Z|")
 
 
 def validate_tau(
