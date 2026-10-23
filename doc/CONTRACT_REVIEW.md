@@ -471,3 +471,47 @@ jsou malickosti; jedna zmena s testem v `tests/test_local_exponent.py`):
   zaokrouhleni (~1e-16) u duplikatu; docstring tridy jmenuje vsechny
   priciny NaN. Bez akce: f nad ~1e307 (preteceni omega), `over='ignore'`
   skryje nefyzikalni L (1e305), test poradi na ARM.
+
+## Kolo 7: drt/gcv.py (2026-10-23)
+
+Kontrakt: docstring `eis_analysis/drt/gcv.py`. Reviewer: Opus, jeden beh
+(8 min, 105k tokenu, 25 volani nastroju), piskoviste `~/coldreview/gcv/`
+= cely balik; cist smel jen modul, zbytek jako cernou skrinku. Debrief:
+precten jen `gcv.py`; realne systemy (A, b, L) zachytil obalenim
+`find_optimal_lambda_hybrid` pri `calculate_drt` (6 systemu, 16x100 az
+100x138, i s indukcnim sloupcem a prodlouzenim tau); 20 skriptu
+v `review/`. F1-F4, F6-F8 reprodukovany nezavisle (skript v scratchpadu
+sezeni) proti modulu v repozitari, druha varianta F1 a F5 skripty
+reviewera (balik v piskovisti shodny s repozitarem, `diff -rq`).
+
+Autor kontraktu predem cekal F1 (roh bez kladne krivosti), F2 (`argmax`
+na NaN), F3 (vsechna skore inf bez ValueError, i pri spatne delce b), F4
+(jemna mrizka bez hrubeho minima), F5 (spatne podminena M), F6 (bez
+validace) a F7 (deleni v `np.where`). Necekal F8 a to, ze F1 nastane
+pres `calculate_drt` (cisty rezistor). Cekana podlaha 1e-15 invarianci
+neporusila.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | krivka bez kladne vnitrni krivosti nema roh a lambdu nezvysi | hybrid bere `argmax` krivosti bez ohledu na znamenko: diagonalni 10x6 A, krivost v okne vsude zaporna (max -0.0118), lambda 5.1e-9 -> 1.1e-7 (22x), `lcurve`, `corner_at_edge` | CLI: cisty rezistor (Z = 100 Ohm), b = 0, krivost vsude 0: `lcurve`, `corner_at_edge` True; gamma 0, cisla beze zmeny, spatne jen `method_used` a priznak; 40 nahodnych spekter bez dalsiho pripadu |
+| F2 | A | selhany bod (inf) roh nerozhodne | `np.gradient` udela z inf inf/NaN, `np.argmax` vrati prvni NaN: cista krivka roh 4, inf v bodu 7 -> roh 6 s krivosti NaN | jen pri NNLS maxiter (50 k) v jednom bode okna; simulovano (synth: lambda 6.6e-10 -> 4.9e-9, `lcurve`, 7x), na realnych datech nenastalo |
+| F3 | A | ValueError, kdyz zadna lambda neda konecne skore; nesouhlas tvaru je ValueError | `argmin` nad samymi inf vrati (1e-11, inf); spatna delka b: ValueError z nnls se chyti jako inf, stejny vysledek; NaN v A totez | jen API; N = 3 az 6 frekvenci pres `calculate_drt` skore konecna |
+| F4 | A | zjemneni nevrati skore nad hrubym minimem | minimum jen z jemne mrizky, ta pri sudem `n_search` hrube minimum neobsahuje | CLI: 1 ze 40 nahodnych spekter, pomer skore nejhur 1.00034 |
+| F5 | A | konecne skore je vzorec; kde M neumozni presny trace K, inf | `np.linalg.solve` bez kontroly podminenosti: ext3 pri lambda 1e-22 m - tr K 23.6 misto 13.5 (reference 60 cislic), skore 3x nizsi; duplicitni neregularizovany sloupec cond 2e22, solve nevyhodi | jen API: od lambda 1e-12 souhlas na 6+ cislic na vsech systemech, volajici zacina na 1e-11 |
+| F6 | A | ValueError pro spatny `lambda_range`, `n_search` < 3, `lcurve_decades` | zadna kontrola: obraceny rozsah, `n_search` 2, `lcurve_decades` 0/nan/inf vrati cisla, (1e-10, inf) vrati NaN | jen API; volajici predava pevne platne hodnoty |
+| F7 | C | bez RuntimeWarning | `np.where` deli i tam, kde je jmenovatel 0 ("invalid value encountered in divide"), vysledek 0 spravne | CLI: cisty rezistor; dalsi varovani jen z API (zaporna lambda, inf, F2) |
+| F8 | C | nikdy NaN; vyjimky jen ValueError a LinAlgError | A a b radu 1e160: A^T A pretece, skore NaN; `find_lcurve_corner` na prazdnem vstupu IndexError | jen API, extremni vstup |
+| - | B | kontrakt mlci | lambda = 0 v `compute_gcv_score` a `compute_lcurve_point` vrati cisla, ackoli Problem definuje x jen pro lambda > 0 | jen API |
+
+Overeno, ze plati (reviewer): b x c pro c 1e-6 az 1e8 na 7 systemech
+(lambda, `method_used`, priznaky beze zmeny, skore / c^2 na 1e-6, rho
+a eta posunute o log10 c na 6e-13, krivost na 2e-8); permutace radku;
+determinismus; vstupy nezmenene; zadna varovani na beznych systemech;
+(inf, inf, None) a inf pro selhane NNLS (NaN v A, inf v b, NaN/zaporna/
+nekonecna lambda); trace na 6+ cislic od lambda 1e-12; krivost nulova pod
+3 body a pri nulovem jmenovateli; roh uprostred bez vnitrniho bodu,
+nejnizsi index pri shode; rozsahy jemneho hledani (uvnitr i na obou
+koncich) a lambda v [lo/10, hi x 10]; okno L-krivky (stred orezany do
+rozsahu, okno orezane), max, pravidlo `method_used`, vzorce
+`corner_at_edge` a `corner_below_gcv`; skore pri vyhre GCV; rozpocet
+NNLS 50 x sloupce.
