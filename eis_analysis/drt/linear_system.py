@@ -32,18 +32,9 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
     """
     warnings = []
 
-    # NaN passes every comparison below
-    if not np.all(np.isfinite(frequencies)):
-        raise ValueError("Frequencies contain NaN or Inf values - "
-                         "remove invalid points before DRT analysis")
-    if np.any(frequencies <= 0):
-        raise ValueError("All frequencies must be positive for DRT analysis")
-
+    # Finite f > 0: validate_eis_data, which calculate_drt runs first
     f_max = frequencies.max()
     f_min = frequencies.min()
-
-    if f_max <= 0 or f_min <= 0:
-        raise ValueError(f"Invalid frequency range: min={f_min}, max={f_max}")
 
     if f_max <= f_min:
         raise ValueError(f"Max frequency ({f_max:.2e} Hz) must be > min ({f_min:.2e} Hz)")

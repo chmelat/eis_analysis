@@ -56,8 +56,8 @@ Complete change history for all project versions.
   another length than f (a longer one was silently cut).
   `calculate_drt` runs it as well and returns the empty result: one Z = 0
   point made the peak significance test undefined (pseudo chi^2 inf) and
-  the reconstruction error inf %. A |Z| whose square underflows (both
-  components below ~2e-162 Ohm) counts as 0. `calculate_drt` on empty arrays returns the
+  the reconstruction error inf %. A |Z| below ~1.5e-154 Ohm counts as 0:
+  its square is no normal float and its reciprocal overflows. `calculate_drt` on empty arrays returns the
   empty result instead of raising.
 
 ## Version 0.62.0 (2026-10-22)

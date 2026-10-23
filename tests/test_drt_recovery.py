@@ -169,12 +169,13 @@ def test_nan_frequency_is_rejected():
     assert not calculate_drt(f, np.ones(61, dtype=complex)).success
 
 
-@pytest.mark.parametrize("where, value", [(10, 0), (slice(None), 0), (10, 1e-200)],
-                         ids=["one_point", "all_points", "underflow"])
+@pytest.mark.parametrize("where, value", [(10, 0), (slice(None), 0), (10, 1e-200), (10, 1e-157)],
+                         ids=["one_point", "all_points", "underflow", "subnormal_square"])
 def test_zero_impedance_is_rejected(where, value, caplog):
     """One Z = 0 point gave the peak test a pseudo chi^2 of inf (Delta chi^2
     undefined) and a reconstruction error of inf %; so does a |Z| whose
-    square underflows (1e-200: error 1.8e201 %)."""
+    square underflows (1e-200: error 1.8e201 %) or is subnormal (1e-157:
+    1/|Z|^2 overflows)."""
     f = np.logspace(5, -1, 61)
     Z = 10 + 100 / (1 + (2j * np.pi * f * 1e-4) ** 0.8)
     Z[where] = value

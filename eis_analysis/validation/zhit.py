@@ -327,7 +327,9 @@ def zhit_validation(
         )
         Z_mag_reconstructed = np.exp(ln_Z_reconstructed)
     except Exception as e:
-        logger.error(f"Z-HIT computation failed: {e}", exc_info=True)
+        # A ValueError is invalid input (validate_eis_data, too narrow a
+        # span): the message says it all; anything else gets its traceback
+        logger.error(f"Z-HIT computation failed: {e}", exc_info=not isinstance(e, ValueError))
         # Return empty result on failure
         empty = np.array([])
         return ZHITResult(

@@ -655,3 +655,10 @@ hlasku), prah podteceni v CHANGELOGu ~2e-162, komentar `kk_grid`,
 mrtva ochrana `+ 1e-30` ve vahach R_s smazana. Bez akce: kontrola ve
 validatoru a v loaderech (varianta A), traceback v Z-HIT (CLI ho
 nevypisuje), preteceni pro |Z| > 1e154.
+/code-review a050aa1 (6 nalezu): `+ 1e-30` nebyl mrtvy - pro |Z| mezi
+~1.6e-162 a ~1.5e-154 je |Z|^2 subnormalni a 1/|Z|^2 pretece; validator
+proto odmita |Z|^2 pod nejmensim normalnim floatem (|Z| < ~1.5e-154).
+Z-HIT loguje traceback jen u jine nez ValueError; nedosazitelne kontroly
+NaN a f <= 0 v `_validate_frequencies` smazany; komentar `kk_grid`
+upresnen. Bez akce: varovani o malem rozsahu frekvenci z
+`_validate_frequencies` se zahazuje (tak i driv).
