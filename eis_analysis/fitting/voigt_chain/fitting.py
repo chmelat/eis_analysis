@@ -315,7 +315,7 @@ def estimate_R_linear(
             # drops out). The previous `* Z_mag_safe` un-weighting was only
             # valid for unnormalized modulus weights (audit K1 2026-07-03).
             z_re_fit = (A_real[:, 1:] / weights[:, None]) @ elements[1:]
-            ws = 1 / (Z_real**2 + Z_imag**2 + 1e-30)
+            ws = 1 / (Z_real**2 + Z_imag**2)
             elements[0] = np.sum(ws * (Z_real - z_re_fit)) / np.sum(ws)
 
         residual = float(np.linalg.norm(A_imag @ elements - b_imag))

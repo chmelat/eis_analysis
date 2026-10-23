@@ -182,9 +182,10 @@ def test_zero_impedance_is_rejected(where, value, caplog):
     assert "calculate_drt: impedance Z is 0" in caplog.text
 
 
-def test_empty_input_is_rejected():
+def test_empty_input_is_rejected(caplog):
     """f_min was taken before the validation: an uncaught ValueError."""
     assert not calculate_drt(np.array([]), np.array([], dtype=complex)).success
+    assert "calculate_drt: empty data arrays" in caplog.text
 
 
 def test_voigt_suggestion_uses_the_drt_r_inf():

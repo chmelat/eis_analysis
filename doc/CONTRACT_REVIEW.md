@@ -648,3 +648,10 @@ validaci (prazdny vstup padal nezachycenou vyjimkou); zalomeni kontraktu.
 Bez akce: dvoji kontrola frekvenci, prazdny `DRTResult` bez duvodu
 (stavajici cesta selhani); presun validatoru z `fitting/voigt_chain/`
 do `utils/` nabidnut jako samostatny refactor.
+/code-review rozsahu b3f7fe6..3389852 (9 nalezu): Z-HIT validuje pred
+razenim (delsi Z se tise orezal, kratsi IndexError), `calculate_drt`
+vola validator pred `_validate_frequencies` (prazdny vstup dostane jeho
+hlasku), prah podteceni v CHANGELOGu ~2e-162, komentar `kk_grid`,
+mrtva ochrana `+ 1e-30` ve vahach R_s smazana. Bez akce: kontrola ve
+validatoru a v loaderech (varianta A), traceback v Z-HIT (CLI ho
+nevypisuje), preteceni pro |Z| > 1e154.

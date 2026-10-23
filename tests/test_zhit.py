@@ -169,3 +169,13 @@ def test_invalid_input_is_rejected(array, where, value, caplog):
         result = zhit_validation(f, Z)
     assert not result.success
     assert "zhit_validation:" in caplog.text
+
+
+@pytest.mark.parametrize("extra", [5, -5], ids=["longer_Z", "shorter_Z"])
+def test_mismatched_lengths_are_rejected(extra, caplog):
+    # Sorting came before the validation: a longer Z was cut silently
+    # (success True), a shorter one raised IndexError
+    Z = _r_rc(1e-2)
+    Z = np.r_[Z, Z[:extra]] if extra > 0 else Z[:extra]
+    assert not zhit_validation(FREQUENCIES, Z).success
+    assert "must have same length" in caplog.text

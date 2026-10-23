@@ -170,12 +170,13 @@ def calculate_drt(
 
     # === Step 1: Validate input ===
     try:
-        _validate_frequencies(frequencies)
         # A single NaN would turn every data weight into NaN (compute_weights
         # divides by their mean) and crash the SVD in _build_drt_matrices.
         # Z = 0 makes the peak test's pseudo chi^2 and the reconstruction
-        # error inf, and gets a modulus weight of 1e15.
+        # error inf, and gets a modulus weight of 1e15. First, so that empty
+        # input gets its message, not a numpy reduction error.
         validate_eis_data(frequencies, Z, context="calculate_drt")
+        _validate_frequencies(frequencies)
     except ValueError as e:
         logger.error(str(e))
         return DRTResult()

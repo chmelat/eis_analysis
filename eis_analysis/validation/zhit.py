@@ -296,32 +296,32 @@ def zhit_validation(
     using a modified logarithmic Hilbert transform."
     Journal of Electroanalytical Chemistry 499, 216-225
     """
-    # Sort by ascending frequency for the integration; remember inverse
-    # permutation so output arrays match the user's original order.
-    sort_idx = np.argsort(frequencies)
-    inv_idx = np.argsort(sort_idx)
-    frequencies = frequencies[sort_idx]
-    Z = Z[sort_idx]
-
-    # Extract magnitude and phase. No np.unwrap: a passive impedance has
-    # Re(Z) >= 0, so its phase stays in [-pi/2, pi/2] (inductive tops
-    # included) and never meets the +-pi wrap. Only a point swamped by noise
-    # (Re(Z) < 0) gets there, and unwrap turns its random phase into +-2*pi
-    # offsets that the cumulative integral below carries into every later
-    # point: with half of 81 points below the noise, |Z| came out 1e35 too
-    # large. Without unwrap a swamped point's phase error stays within +-pi:
-    # the integral still carries it on, but bounded, not compounded. The
-    # price: a phase that truly passes +-pi (Re Z < 0 over a band, negative
-    # differential resistance, swapped leads) now steps by 2*pi there and
-    # shifts the rest of the reconstruction - such spectra are not supported.
-    Z_mag = np.abs(Z)
-    phi = np.arctan2(Z.imag, Z.real)
 
     # Perform Z-HIT magnitude reconstruction using numerical integration
     try:
         # ln|Z|, ln(omega) and the residuals relative to |Z| need finite f > 0
         # and Z != 0; the integral would carry a NaN into every later point
         validate_eis_data(frequencies, Z, context="zhit_validation")
+        # Sort by ascending frequency for the integration; remember inverse
+        # permutation so output arrays match the user's original order.
+        sort_idx = np.argsort(frequencies)
+        inv_idx = np.argsort(sort_idx)
+        frequencies = frequencies[sort_idx]
+        Z = Z[sort_idx]
+
+        # Extract magnitude and phase. No np.unwrap: a passive impedance has
+        # Re(Z) >= 0, so its phase stays in [-pi/2, pi/2] (inductive tops
+        # included) and never meets the +-pi wrap. Only a point swamped by noise
+        # (Re(Z) < 0) gets there, and unwrap turns its random phase into +-2*pi
+        # offsets that the cumulative integral below carries into every later
+        # point: with half of 81 points below the noise, |Z| came out 1e35 too
+        # large. Without unwrap a swamped point's phase error stays within +-pi:
+        # the integral still carries it on, but bounded, not compounded. The
+        # price: a phase that truly passes +-pi (Re Z < 0 over a band, negative
+        # differential resistance, swapped leads) now steps by 2*pi there and
+        # shifts the rest of the reconstruction - such spectra are not supported.
+        Z_mag = np.abs(Z)
+        phi = np.arctan2(Z.imag, Z.real)
         ln_Z_reconstructed = zhit_reconstruct_magnitude(
             frequencies, phi, np.log(Z_mag)
         )

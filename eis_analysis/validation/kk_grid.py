@@ -228,9 +228,8 @@ def _chi2_lower_M(
         # Exact synthetic data can fit to chi^2 = 0
         log_chi2[i] = np.log10(np.maximum(compute_pseudo_chisqr(Z, Z_fit), np.finfo(float).tiny))
 
-    # A chi^2 that is inf everywhere (|Z|^2 underflowing; Z = 0 is rejected by
-    # the fit) makes every comparison NaN: no plateau, so start where the
-    # original Lin-KK does
+    # A non-finite chi^2 makes the comparisons False: with no plateau run,
+    # start where the original Lin-KK does
     level = [log_chi2[i] - log_chi2[i:i + CHI2_PLATEAU_WINDOW + 1].min() <= CHI2_PLATEAU_DECADES
              for i in range(len(Ms))]
     return int(next((M for i, M in enumerate(Ms) if all(level[i:i + CHI2_PLATEAU_RUN])),
