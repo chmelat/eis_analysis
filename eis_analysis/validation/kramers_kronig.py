@@ -131,7 +131,8 @@ def lin_kk_native(
     ------
     ValueError
         With fewer than 5 points (7 for 'imag' with L and C): no M >= 3
-        satisfies the cap on max_M.
+        satisfies the cap on max_M. For what validate_eis_data rejects,
+        Z = 0 at a point included (the residuals are relative to |Z|).
 
     Notes
     -----
@@ -194,12 +195,11 @@ def lin_kk_native(
     # Reconstruct Z_fit from fitted parameters
     Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)
 
-    # Calculate residuals normalized by |Z|
+    # Calculate residuals normalized by |Z| (Z = 0 is rejected by the fit)
     Z_mag = np.abs(Z)
-    Z_mag_safe = np.maximum(Z_mag, 1e-15)
 
-    res_real = (Z.real - Z_fit.real) / Z_mag_safe
-    res_imag = (Z.imag - Z_fit.imag) / Z_mag_safe
+    res_real = (Z.real - Z_fit.real) / Z_mag
+    res_imag = (Z.imag - Z_fit.imag) / Z_mag
 
     # Compute pseudo chi-squared (Boukamp 1995)
     chi2_ps = compute_pseudo_chisqr(Z, Z_fit)

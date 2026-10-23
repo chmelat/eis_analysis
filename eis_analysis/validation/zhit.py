@@ -270,6 +270,9 @@ def zhit_validation(
         - residuals_imag: Imaginary part residuals (fraction)
         - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
         - noise_estimate: Estimated noise [%]
+        Empty (`success` False, the reason logged) when the frequencies span
+        too little, or for what validate_eis_data rejects (Z = 0, NaN or
+        inf in f or Z, f <= 0).
 
     Notes
     -----
@@ -315,6 +318,10 @@ def zhit_validation(
 
     # Perform Z-HIT magnitude reconstruction using numerical integration
     try:
+        # ln|Z|, ln(omega) and the residuals relative to |Z| need finite f > 0
+        # and Z != 0; the integral would carry a NaN into every later point
+        from ..fitting.voigt_chain.validation import validate_eis_data
+        validate_eis_data(frequencies, Z, context="zhit_validation")
         ln_Z_reconstructed = zhit_reconstruct_magnitude(
             frequencies, phi, np.log(Z_mag)
         )

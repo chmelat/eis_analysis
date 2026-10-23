@@ -153,3 +153,19 @@ def test_dense_noisy_sweep_is_not_dominated_by_noise():
 def test_too_narrow_a_spectrum_is_a_clear_error(frequencies):
     with pytest.raises(ValueError, match="Z-HIT needs frequencies spanning"):
         zhit_reconstruct_magnitude(frequencies, np.zeros_like(frequencies), np.zeros_like(frequencies))
+
+
+@pytest.mark.parametrize("array, where, value",
+                         [("Z", 3, 0), ("Z", slice(None), 0), ("Z", 3, np.nan), ("Z", 3, np.inf),
+                          ("f", 3, np.nan), ("f", 3, -1.0)],
+                         ids=["zero_point", "all_zero", "Z_nan", "Z_inf", "f_nan", "f_negative"])
+def test_invalid_input_is_rejected(array, where, value, caplog):
+    # ln|Z| at Z = 0 gave noise inf (one point) or NaN (all), a NaN in Z or
+    # ln(omega) ran through the integral: success True with noise NaN
+    f, Z = FREQUENCIES.copy(), _r_rc(1e-2)
+    (Z if array == "Z" else f)[where] = value
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        result = zhit_validation(f, Z)
+    assert not result.success
+    assert "zhit_validation:" in caplog.text

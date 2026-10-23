@@ -584,3 +584,56 @@ median = funkce nad ulozenymi residui, Z-HIT Z_fit nese merenou fazi na
 `compare_fit_to_noise` ValueError pri ruznych delkach a prazdnem vstupu,
 nekonecny vstup hlasi jako neporovnany; `kk_grid` s jednim Z = 0 dostane
 inf; `NOISE_DOMINATED_RATIO` 2.0.
+
+Mimo modul (vedlejsi nalezy reviewera): `compare_fit_to_noise` vraci pri
+nekonecnem vstupu `adequate` True; Lin-KK a Z-HIT neodmitaji Z = 0, na
+samych nulach `lin_kk_native` `success` True se sumem NaN,
+`find_optimal_extend_decades` nesrozumitelna ValueError (wrapper
+`kramers_kronig_validation` ji hlasi jako `error`).
+
+Provedeno 2026-10-23 (minimalni varianta, rozhodnuti uzivatele; bez zmeny
+kodu modulu; test kontraktu v `tests/test_kramers_kronig.py`):
+
+- F2 nejdriv opraven v kodu (inf i pri Z_fit = 0). /code-review (8 nalezu)
+  ukazal regresi: na samych nulach `kramers_kronig_validation` misto
+  `error` vratil `is_valid` True se sumem inf, `lin_kk_native` s
+  auto-extend misto ValueError totez; jinde (jeden bod Z = 0, DRT) beze
+  zmeny. Oprava vracena: Z = 0 je neplatny vstup pro vsechna relativni
+  residua a patri odmitnout na vstupu Lin-KK a Z-HIT (samostatna oprava,
+  ne v tomto kole). Ostatni nalezy review (RuntimeWarning, CHANGELOG,
+  test) odpadly s ni.
+- Kontrakt: F2 - Z_exp = 0 da inf, NaN kde je i Z_fit = 0, odmitnout
+  Z = 0 je na volajicim; F1, F5, F11 - ndarray stejneho tvaru (median
+  1-D) je zaruka volajiciho, tvary se nekontroluji; F3, F4 - kladne cele
+  n_points a chi2_ps >= 0 zaruka volajiciho, ValueError jen pro
+  n_points <= 0; F6 - (inf, NaN) se pocita jako velke residuum; F7 - k
+  velkych residui posune median asi o k/2 poradovych statistik, omezene
+  pro k < N/2; F8 - horni mez ve stredni hodnote, jednotlivy odhad kolem
+  sigma; F9 - rovnost s `noise_estimate_on` jen pro Z != 0 (i v docstringu
+  `KKResult.noise_estimate_on`); F10 - invariance, dokud |Z| i
+  |Z_exp - Z_fit| lezi v 1e-150..1e150.
+- Test pinuje inf (na nem stavi `kk_grid`) a NaN pri Z_fit = 0.
+
+Navazujici oprava 2026-10-23 (rozhodnuti uzivatele, vlastni commit):
+Z = 0 odmita sdileny `validate_eis_data` ValueError (Lin-KK vcetne
+`find_optimal_extend_decades`, wrapper: `error`; fit Voigtovym retezcem;
+`local_exponent`, kontrakt doplnen, ackoli Y tam je konecne),
+`zhit_validation` vraci prazdny vysledek s duvodem v logu. Podlaha
+max(|Z|, 1e-15) v residuich Lin-KK smazana: rovnost `noise_estimate_on`
+s `noise_estimate` (F9) plati pro kazde |Z| > 0. Test fallbacku `kk_grid`
+se Z = 0 smazan (nedosazitelny). /code-review (10 nalezu): vedle techto
+opravena mezera; bez akce traceback v Z-HIT (CLI ho nevypisuje), 0.0
+v prazdnem vysledku Z-HIT (stavajici cesta selhani), podteceni |Z| <
+1e-154 (mimo rozsah kontraktu). Druhy /code-review (9 nalezu): kontrola
+ve sdilenem validatoru odmita Z = 0 i tam, kde se |Z| nedeli (fit
+Voigtovym retezcem s vahami `uniform`, `local_exponent`: driv 60 z 61
+bodu platnych) - ponechano, rozhodnuti uzivatele (spektrum se Z = 0 je
+poskozene; vychozi fit s vahami 1/|Z| ho driv tise pretahl vahou 1e15).
+Z-HIT odmita i NaN a inf (driv `success` True se sumem NaN); upresnen
+kontrakt (rozsah rovnosti `noise_estimate_on`, sigma v DRT jen vychozi,
+v `local_exponent` konecne 1/(Z - R_inf - j omega L)). Zbyva: DRT Z = 0
+neodmita (test vyznamnosti piku pak nedefinovany). Treti /code-review
+(8 nalezu): Z-HIT propoustel NaN a zaporne frekvence -> vlastni kontrola
+nahrazena `validate_eis_data`; ostatni bez akce (rozhodnuto vyse,
+pretekajici |Z| u 1e308, podlahy vah pro |Z| < 1e-15, opakovana kontrola
+O(N) v iteracich).

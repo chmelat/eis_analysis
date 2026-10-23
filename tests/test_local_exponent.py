@@ -3,6 +3,7 @@
 import warnings
 
 import numpy as np
+import pytest
 
 from eis_analysis.analysis import local_exponent
 from eis_analysis.fitting import Wa
@@ -66,3 +67,13 @@ def test_duplicate_frequencies_and_degenerate_points():
     assert np.isnan(res.n[0::2]).all()
     assert np.isfinite(res.n[1::2][:-1]).all() and np.isnan(res.n[-1])
     assert np.isnan(rep.n[:5]).all() and not rep.valid[:5].any()
+
+
+def test_zero_impedance_is_rejected():
+    """validate_eis_data rejects Z = 0 (Lin-KK weights and residuals are
+    relative to |Z|), here too, although Y = 1/(0 - R_inf) is finite."""
+    f = np.logspace(-1, 5, 61)
+    Z = 5.0 + 1 / (1e-6 * (1j * 2 * np.pi * f) ** 0.8)
+    Z[10] = 0
+    with pytest.raises(ValueError, match="Z is 0 at 1 point"):
+        local_exponent(f, Z, 5.0)

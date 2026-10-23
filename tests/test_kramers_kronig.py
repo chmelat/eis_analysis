@@ -74,6 +74,17 @@ def test_pseudo_chisqr_known_value():
     assert compute_pseudo_chisqr(Z_exp, Z_fit) == pytest.approx(2.0)
 
 
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+@pytest.mark.parametrize("Z_fit, expected", [(np.array([1j, 3 + 4j]), np.inf),
+                                             (np.array([0j, 3 + 4j]), np.nan)],
+                         ids=["fit_nonzero", "fit_zero_too"])
+def test_pseudo_chisqr_zero_impedance(Z_fit, expected):
+    # Z_exp = 0 has no relative residual: inf, NaN where Z_fit = 0 too.
+    # The callers reject Z = 0 before (validate_eis_data, Z-HIT).
+    Z_exp = np.array([0j, 3 + 4j])
+    assert compute_pseudo_chisqr(Z_exp, Z_fit) == pytest.approx(expected, nan_ok=True)
+
+
 # =============================================================================
 # estimate_noise_percent (Yrjana & Bobacka 2024)
 # =============================================================================
@@ -534,13 +545,17 @@ def test_imag_fit_cap_counts_L_and_C():
     assert r.mean_residual_imag > 0.01
 
 
-def test_zero_impedance_point_falls_back_to_M_3():
-    # Z = 0 makes pseudo chi^2 infinite at every M: no plateau to find.
+@pytest.mark.parametrize("zero", [3, slice(None)], ids=["one_point", "all_points"])
+def test_zero_impedance_is_an_error(zero):
+    # All zeros passed as KK-valid (noise NaN): every residual is relative to |Z|
     f = np.logspace(5, -2, 40)
-    Z = add_noise(10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8), 0.003, seed=0)
-    Z[3] = 0
-    r = lin_kk_native(f, Z)
-    assert r.M_lower == 3
+    Z = 10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8)
+    Z[zero] = 0
+    with pytest.raises(ValueError, match="Z is 0 at"):
+        lin_kk_native(f, Z)
+    assert "Z is 0 at" in kramers_kronig_validation(f, Z).error
+    with pytest.raises(ValueError, match="Z is 0 at"):
+        find_optimal_extend_decades(f, Z, 5)
 
 
 def test_too_few_points_is_an_error():

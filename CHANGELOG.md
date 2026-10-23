@@ -42,6 +42,18 @@ Complete change history for all project versions.
   no lambda gives a finite score, instead of returning the first lambda
   with an infinite score, so `calculate_drt` falls back to the default
   lambda. No RuntimeWarning from the curvature.
+- **Z = 0 is rejected** (contract review round 8, `validation/noise.py`).
+  Every residual, the modulus weights and the noise estimate are relative
+  to |Z|: a spectrum of zeros passed Lin-KK as KK-valid with noise NaN
+  (`lin_kk_native`; the wrapper and `find_optimal_extend_decades` failed
+  with "min() iterable argument is empty"), one zero point gave noise inf
+  in Lin-KK and Z-HIT. `validate_eis_data` now raises ValueError for Z = 0
+  (Lin-KK, `kramers_kronig_validation`: `error`, the Voigt chain fit,
+  `local_exponent`), and `zhit_validation` returns the empty result, both
+  naming the number of points. Z-HIT now runs that validator, so it also
+  rejects NaN and inf in Z and invalid frequencies (a NaN in Z or a NaN or
+  negative f ran through its integral: `success` True, noise NaN). The DRT does
+  not check Z = 0 yet.
 
 ## Version 0.62.0 (2026-10-22)
 
