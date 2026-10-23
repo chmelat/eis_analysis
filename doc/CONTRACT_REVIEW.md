@@ -538,3 +538,49 @@ opravy; jedna zmena s testem v `tests/test_hybrid_lambda.py`):
   hrube hledani v zalozni ceste, delka modulu 571 radku, b = 0 hlasi
   `lambda_at_edge` (tak i pred opravou), prah bez tolerance (podlaha
   1e-15 pres data nedosazitelna).
+
+## Kolo 8: validation/noise.py (2026-10-23)
+
+Kontrakt: docstring `eis_analysis/validation/noise.py`. Reviewer: Opus, jeden
+beh (6 min, 86k tokenu, 18 volani nastroju), piskoviste `~/coldreview/noise/`
+= cely balik; cist smel jen modul, zbytek jako cernou skrinku. Debrief:
+precten jen `noise.py` (dva radky zdroje jinde jen z tracebacku); volajici
+overeni pres Lin-KK, Z-HIT, `kk_grid`, DRT a `compare_fit_to_noise`
+(20 nahodnych spekter, Monte Carlo sumoveho modelu); 9 skriptu v `review/`.
+F1-F7, F9-F11 reprodukovany nezavisle (skript v scratchpadu sezeni) proti
+modulu v repozitari, F8 uvahou (odhad sigma lezi pod sigma v polovine
+behu). Neoveril tvrzeni o `NOISE_FLOOR_PERCENT` v `outliers` (cerna
+skrinka, import uvnitr funkce); plati (`outliers.py:260`).
+
+Autor kontraktu predem cekal F1, F5 (broadcast misto ValueError), F2 (NaN
+misto inf pri Z_exp = Z_fit = 0), F3, F4 (n_points a zaporne chi2) a F9.
+Necekal F6, F7 (prehnana robustnost medianu), F8, F10 a ze F2 rozbije
+`kk_grid` a Lin-KK na samych nulach.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | ruzne tvary jsou ValueError, ne broadcast | `compute_pseudo_chisqr` tvary nekontroluje: (3,) proti (1,) 1.36, proti (3,1) 7.09 (vnejsi soucin), proti skalaru 0 3.0 | jen API; Lin-KK, Z-HIT, DRT predavaji stejne delky, `compare_fit_to_noise` je kontroluje |
+| F2 | B | bod se Z_exp = 0 da inf; 0 pro shodna pole | Z_exp = Z_fit = 0 v bode: weight inf x 0 = NaN; shodna pole s nulou NaN; kontrakt si sam odporuje | volajici jen se Z = 0 vsude: `lin_kk_native` chi2 a sum NaN, `success` True bez varovani; `find_optimal_extend_decades` ValueError "min() iterable argument is empty"; jeden bod Z = 0 da inf (Z_fit ~1e-30) |
+| F3 | A | ValueError, kdyz n_points neni kladne cele cislo | kontroluje jen `<= 0`: n = inf da 0.0 %, 2.5 a True cisla, NaN da nan | jen API; volajici predavaji `len(Z)` nebo pocet masky |
+| F4 | B | zaporne chi2_ps je ValueError | `np.sqrt` vrati nan (RuntimeWarning), -inf take | jen API |
+| F5 | A | ruzne delky residui jsou ValueError | `np.hypot` broadcastuje: delka 4 proti 1 da 1.20; 2-D vstup se zplosti | jen API; KKResult predava stejne dlouha residua |
+| F6 | A | nan, kde je residuum NaN | `hypot(inf, nan)` = inf, median mensiny inf konecny: 1.20 a bod s NaN se tise vynecha | jen API; Lin-KK NaN/inf v Z odmita (`estimate_R_linear`) |
+| F7 | B | mensina velkych residui posune median nejvys o sousedni poradovou statistiku | k velkych residui z 81 posune odhad o k poradovych statistik ciste sady (k = 1, 2, 5, 20: #42, 43, 46, 61 proti #41), o k/2 vuci medianu nedotcenych bodu; omezene do poloviny bodu | kazdy volajici s odlehlymi body |
+| F8 | B | kazdy odhad je horni mez sumu | horni mez jen ve stredni hodnote: pri Z_fit = Z_true pod sigma v 51 % (stredni kvadrat) a 49 % (median) behu; Lin-KK 7 %, median 15-20 %, Z-HIT 1 %, DRT 20-30 %; stredni hodnoty volajicich 1.17-1.39 % pri 1 % | vsichni volajici |
+| F9 | B | `noise_estimate_on` se vsemi body = `noise_estimate` | se Z = 0 v jednom bode `noise_estimate` inf, `noise_estimate_on` 69.8 % (Lin-KK normuje residua s podlahou 1e-15) | Lin-KK se Z = 0 v bode |
+| F10 | C | invariance skalovanim pro \|Z\| 1e-150..1e150 | ctverce residui subnormalni: pri relativnim residuu 1e-10 a skale 1e-150 relativni zmena 1e-5 az 3.5e-6 | jen API; impedance 1e-6..1e13 |
+| F11 | C | kontrakt mlci | seznam: `compute_pseudo_chisqr` AttributeError, median ho prijme; skalar v medianu TypeError | jen API |
+
+Overeno, ze plati (reviewer): 0 pro prazdna pole; inf pro Z_exp = 0 s
+nenulovym Z_fit; NaN a inf v kterekoli poli nikdy nedaji konecne cislo;
+konjugace presne, komplexni skala 1e+-150 na 1e-15 pri realnych
+residuich; `estimate_noise_percent` inf -> inf, NaN -> nan, n <= 0
+ValueError; median NaN -> nan, prazdny -> nan, Rayleighova konstanta
+(Monte Carlo 1.004 % pri 1 %, stredni kvadrat 0.999 %); volajici na 20
+spektrech: Lin-KK a Z-HIT `noise_estimate` = vzorec presne,
+`noise_estimate_on` se vsemi body = `noise_estimate` na 2e-16 pri Z != 0,
+median = funkce nad ulozenymi residui, Z-HIT Z_fit nese merenou fazi na
+1e-16; DRT `noise_sigma_used` = vzorec / 100 na 2e-18;
+`compare_fit_to_noise` ValueError pri ruznych delkach a prazdnem vstupu,
+nekonecny vstup hlasi jako neporovnany; `kk_grid` s jednim Z = 0 dostane
+inf; `NOISE_DOMINATED_RATIO` 2.0.
