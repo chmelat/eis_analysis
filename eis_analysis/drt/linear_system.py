@@ -32,7 +32,10 @@ def _validate_frequencies(frequencies: NDArray) -> List[str]:
     """
     warnings = []
 
-    # Finite f > 0: validate_eis_data, which calculate_drt runs first
+    # calculate_drt runs validate_eis_data first, with its message; this is
+    # the backstop, since NaN passes every comparison below
+    if not np.all(np.isfinite(frequencies) & (frequencies > 0)):
+        raise ValueError("Frequencies must be finite and > 0 for DRT analysis")
     f_max = frequencies.max()
     f_min = frequencies.min()
 

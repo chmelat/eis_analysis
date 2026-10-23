@@ -662,3 +662,11 @@ Z-HIT loguje traceback jen u jine nez ValueError; nedosazitelne kontroly
 NaN a f <= 0 v `_validate_frequencies` smazany; komentar `kk_grid`
 upresnen. Bez akce: varovani o malem rozsahu frekvenci z
 `_validate_frequencies` se zahazuje (tak i driv).
+/code-review 5886ae7 (9 nalezu), posledni kolo na toto tema (rozhodnuti
+uzivatele): kontrakt `local_exponent` a docstring Z-HIT doplneny o
+|Z| < ~1.5e-154, hlaska odvozena z prahu, Z-HIT bez tracebacku jen pro
+odmitnuty vstup (ne pro kazdou ValueError), `_validate_frequencies` ma
+zpet pojistku NaN a f <= 0. Znama mez (docstring `validate_eis_data`):
+mimo |Z| ~1e-150..1e150 vypocty nejsou invariantni vuci meritku (soucty
+1/|Z|^2, podlaha 1e-15 v `compute_weights`, complex64); oprava by byla
+prepis vzorcu na relativni residua, samostatny ukol.

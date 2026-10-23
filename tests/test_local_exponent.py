@@ -75,5 +75,8 @@ def test_zero_impedance_is_rejected():
     f = np.logspace(-1, 5, 61)
     Z = 5.0 + 1 / (1e-6 * (1j * 2 * np.pi * f) ** 0.8)
     Z[10] = 0
-    with pytest.raises(ValueError, match="Z is 0 at 1 point"):
+    with pytest.raises(ValueError, match="is 0 or below 1.5e-154 Ohm at 1 point"):
+        local_exponent(f, Z, 5.0)
+    Z[10] = 1e-157      # |Z|^2 subnormal: 1/|Z|^2 would overflow
+    with pytest.raises(ValueError, match="is 0 or below"):
         local_exponent(f, Z, 5.0)

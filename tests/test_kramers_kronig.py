@@ -551,10 +551,10 @@ def test_zero_impedance_is_an_error(zero):
     f = np.logspace(5, -2, 40)
     Z = 10.0 + zarc_impedance(f, 1000.0, 1e-5, 0.8)
     Z[zero] = 0
-    with pytest.raises(ValueError, match="Z is 0 at"):
+    with pytest.raises(ValueError, match="is 0 or below"):
         lin_kk_native(f, Z)
-    assert "Z is 0 at" in kramers_kronig_validation(f, Z).error
-    with pytest.raises(ValueError, match="Z is 0 at"):
+    assert "is 0 or below" in kramers_kronig_validation(f, Z).error
+    with pytest.raises(ValueError, match="is 0 or below"):
         find_optimal_extend_decades(f, Z, 5)
 
 

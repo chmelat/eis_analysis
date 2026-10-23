@@ -21,8 +21,8 @@ frequencies, n, n_uncertainty, valid and span. Public API
 (eis_analysis.local_exponent): any caller, nothing guaranteed beyond the
 input rules below. From other modules it uses validate_eis_data
 (ValueError for unequal lengths, no points, f <= 0, NaN or inf in f or Z,
-Z = 0 at a point, although Y = 1/(Z - R_inf - j*omega*L) would be finite
-there)
+|Z| = 0 or below ~1.5e-154 Ohm at a point, although Y = 1/(Z - R_inf -
+j*omega*L) would be finite there)
 and RINF_REL_STDERR_MAX.
 
 local_exponent(frequencies, Z, R_inf, L=0, R_inf_range=None)

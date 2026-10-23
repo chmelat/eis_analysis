@@ -180,7 +180,7 @@ def test_zero_impedance_is_rejected(where, value, caplog):
     Z = 10 + 100 / (1 + (2j * np.pi * f * 1e-4) ** 0.8)
     Z[where] = value
     assert not calculate_drt(f, Z).success
-    assert "calculate_drt: impedance Z is 0" in caplog.text
+    assert "calculate_drt: |Z| is 0 or below" in caplog.text
 
 
 def test_empty_input_is_rejected(caplog):

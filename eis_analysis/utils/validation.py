@@ -27,7 +27,16 @@ def validate_eis_data(
     Raises
     ------
     ValueError
-        If data is invalid
+        If data is invalid: unequal lengths, no points, f <= 0, NaN or inf
+        in f or Z, or |Z|^2 below the smallest normal float (|Z| < ~1.5e-154
+        Ohm, 1/|Z|^2 would overflow).
+
+    Notes
+    -----
+    Known limit: the analyses are scale-invariant only for |Z| within about
+    1e-150..1e150 Ohm (measured impedances span 1e-6..1e13). Near the
+    bounds sums of 1/|Z|^2 can still overflow, and compute_weights floors
+    |Z| at 1e-15, so modulus weights turn uniform below 1e-15 Ohm.
     """
     # Check array lengths match
     if len(frequencies) != len(Z):
@@ -65,7 +74,8 @@ def validate_eis_data(
     # Weights (modulus: 1/|Z|), residuals and pseudo chi^2 are relative to |Z|,
     # and the fits divide by |Z|^2: below the smallest normal float (|Z| <
     # ~1.5e-154 Ohm) it is 0 or subnormal, and 1/|Z|^2 overflows to inf
-    n_zero = int(np.count_nonzero(Z.real**2 + Z.imag**2 < np.finfo(float).tiny))
-    if n_zero:
-        raise ValueError(f"{context}: impedance Z is 0 at {n_zero} point(s) (or |Z| < "
-                         f"1.5e-154 Ohm), but weights and residuals are relative to |Z|")
+    tiny = np.finfo(float).tiny
+    n_small = int(np.count_nonzero(Z.real**2 + Z.imag**2 < tiny))
+    if n_small:
+        raise ValueError(f"{context}: |Z| is 0 or below {np.sqrt(tiny):.1e} Ohm at {n_small} "
+                         f"point(s), but weights and residuals are relative to |Z|")

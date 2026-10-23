@@ -272,8 +272,8 @@ def zhit_validation(
         - pseudo_chisqr: Pseudo chi-squared (Boukamp 1995)
         - noise_estimate: Estimated noise [%]
         Empty (`success` False, the reason logged) when the frequencies span
-        too little, or for what validate_eis_data rejects (Z = 0, NaN or
-        inf in f or Z, f <= 0).
+        too little, or for what validate_eis_data rejects (|Z| = 0 or below
+        ~1.5e-154 Ohm, NaN or inf in f or Z, f <= 0, unequal lengths).
 
     Notes
     -----
@@ -298,10 +298,12 @@ def zhit_validation(
     """
 
     # Perform Z-HIT magnitude reconstruction using numerical integration
+    input_valid = False
     try:
         # ln|Z|, ln(omega) and the residuals relative to |Z| need finite f > 0
         # and Z != 0; the integral would carry a NaN into every later point
         validate_eis_data(frequencies, Z, context="zhit_validation")
+        input_valid = True
         # Sort by ascending frequency for the integration; remember inverse
         # permutation so output arrays match the user's original order.
         sort_idx = np.argsort(frequencies)
@@ -327,9 +329,8 @@ def zhit_validation(
         )
         Z_mag_reconstructed = np.exp(ln_Z_reconstructed)
     except Exception as e:
-        # A ValueError is invalid input (validate_eis_data, too narrow a
-        # span): the message says it all; anything else gets its traceback
-        logger.error(f"Z-HIT computation failed: {e}", exc_info=not isinstance(e, ValueError))
+        # Rejected input: the message says it all; a later failure gets its traceback
+        logger.error(f"Z-HIT computation failed: {e}", exc_info=input_valid)
         # Return empty result on failure
         empty = np.array([])
         return ZHITResult(
