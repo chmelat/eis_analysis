@@ -275,9 +275,10 @@ class RinfResult:
         itself lies above that bound).
 
         In the stress test the bound held R_s every time; a fitted range
-        missed it in 7 of 878 spectra, 5 of them by under 3 % at 1-3 %
-        noise, the others on ends far from closing (oxide/35: phase -84 deg
-        at f_max, 16 % high; doc/STRESS_TEST.md, known limit 7)."""
+        missed it in 8 of 923 spectra, 5 of them by under 3 % at 1-3 %
+        noise, one 'top' by 0.45 % at zero noise, the others on ends far
+        from closing (oxide/35: phase -84 deg at f_max, 16 % high;
+        doc/STRESS_TEST.md, known limit 7)."""
         # max(): a fit above the bound keeps R_inf inside its own range
         upper = max(self.R_inf_upper, self.R_inf)
         if self.fit_window in ('full', 'top') and self.fit is not None:

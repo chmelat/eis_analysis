@@ -195,8 +195,9 @@ above it, and R_s moves with the window width. The comparison window lies
 inside the fit window, so it cannot reach another process further down; a
 3-decade window did (a second arc widened a closed end's range to -64 %).
 Without the term the stress test found an accepted fit 6-34 % off R_s,
-outside its range, on 39 of 1417 spectra; with it R_s is outside on 7 of 878
-accepted fits, 5 of them by under 3 % at 1-3 % noise, the others on ends
+outside its range, on 39 of 1417 spectra; with it R_s is outside on 8 of 923
+accepted fits, 5 of them by under 3 % at 1-3 % noise, one top-decade fit
+by 0.45 % at zero noise (anomalous/171), the others on ends
 far from closing (oxide/35: phase -84 deg at f_max, 16 % high). The median
 half-width stays 5 %, since on a closed end both windows agree; 90 % stay
 within 11.5 % ([STRESS_TEST.md](STRESS_TEST.md), known limit 7). R_inf itself is the

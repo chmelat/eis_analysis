@@ -300,6 +300,25 @@ allowed, known limit 7); Irange and Ihf pass on all 89. Ifit with the L
 cases 0.995, 0.976, 0.866, 0.624 at 0, 0.1, 1, 3 % noise (before 1.000,
 0.974, 0.859, 0.610). Written as the baseline (198 failures).
 
+## The top-decade fit for R_inf, full run 2026-10-23
+
+`estimate_rinf` takes the top decade's R_s when its stderr is below a
+third of the two-decade fit's ('top', 223 cases), or when only the top
+decade determines R_s ('top_only', 61, the warning stays). Full `--check`,
+1948 s: 2 new failures, 2 gone.
+
+- Gone: rc/143 and cpe/85 rinf:Iclosed (known limit 7).
+- New: rc/191 rinf:B+ and rinf:Cmix, a noise-free case where rounding
+  picks the window (known limit 4).
+- Ifit unchanged (207, 201, 168, 131 at 0, 0.1, 1, 3 % noise; a
+  'top_only' fit keeps its warning); Irange, Ihf, Iclosed pass on all.
+  Strictly (no allowance) R_s is outside `R_inf_range` on 8 of 923
+  accepted fits without L, before 7 of 866: the new one, anomalous/171,
+  is a 'top' fit, whose range drops the window spread, 0.45 % off.
+- The n(f) map's M rates moved by < 0.001.
+
+Written as the baseline (198 failures).
+
 ## Bugs found and fixed
 
 The first full run (before the fixes) had 1190 failed checks.
@@ -401,6 +420,13 @@ By class (B-, B+, Crev, Cmix together): tight 11, medium 14, loose 2, weak
 k = 1000 and reversal. The window fit's R_s has a stderr of up to 5 % by
 construction (`RINF_REL_STDERR_MAX`); the shift is far inside it.
 
+Since 2026-10-23 also rc/191 (noise-free), under k = 1000 and shuffling:
+the choice between the two-decade and the top-decade fit
+(`RINF_NARROW_STDERR_RATIO`) compares stderrs of 1e-10 and 3e-12 Ohm on
+R_s = 65 kOhm, i.e. rounding, and the top fit stops at 6e-6 under k = 1000,
+so the window flips (10 -> 19 points). R_inf agrees to 1e-13; accepted as a
+known limit, a noise-free spectrum has no better-determined window.
+
 ### 5. Z-HIT: fast phase changes and noise gain
 
 On exact data Z-HIT is within 3.2 % of |Z| in 99 % of the cases. The
@@ -472,17 +498,20 @@ R_s and 3 times above (cpe/101 +12 %, cpe/220 +18 %, oxide/156 +29 %), at
 phases -4 to -82 deg at f_max and low noise (0 %: 16 cases, 0.1 %: 17,
 1 %: 6, 3 %: none). R_inf itself stays so: one decade resolves an open arc
 better but scatters ten times more under noise. One of them (cpe/85, phase
--4.1 deg) fails Iclosed. Since cases with L are checked too (2026-10-22),
-so does rc/143: a closed end (phase -1.4 deg without L) with a series L
+-4.1 deg) failed Iclosed. Since cases with L are checked too (2026-10-22),
+so did rc/143: a closed end (phase -1.4 deg without L) with a series L
 and two arcs in the window, fitted with one; R_s 5.5 % low at 2.6 %
-stderr, noise-free.
+stderr, noise-free. Both pass since the top decade's fit wins when it is
+clearly better determined (2026-10-23; rc/143 0.1 % off).
 
 `R_inf_range` missed R_s in all 39: the stderr does not see the model
 error, and the +-5 % floor did not cover it. **Fixed 2026-10-09:** the range
 also reaches 3x the move of R_s when the fit is repeated over the top
 decade, which measures the model error; Irange now fails on none of the
 1417 (strictly, without the test's allowance of 1 % + 3 sigma, R_s is
-outside on 7 of 878 accepted fits, 5 of them by under 3 % at 1-3 % noise).
+outside on 7 of 878 accepted fits, 5 of them by under 3 % at 1-3 % noise;
+2026-10-23, with the top-decade fit: 8 of 923, the new one anomalous/171,
+a 'top' fit 0.45 % off its range at zero noise).
 Rejected along the way: a bound by |Im Z(f_max)| (exceeded in 179 of 878
 fits), the window disagreement as an acceptance criterion (59 false alarms
 on 625 closed ends at a 10 % threshold), and a 3-decade comparison window

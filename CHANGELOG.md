@@ -22,7 +22,8 @@ Complete change history for all project versions.
 - **Around the top decade's R_s the range drops the window spread.** That
   term is the error of the discarded two-decade fit; without it the range
   is +-max(5 %, 3 stderr) (at most +-5 % instead of +-39 % on the stress
-  spectra, R_s inside in all 223).
+  spectra, R_s inside in 222 of 223; anomalous/171, an open end at zero
+  noise, lies 0.45 % above it, R_inf 5.2 % low).
 - **The top decade replaces the HF bound when the two decades do not
   determine R_s but it does** (`fit_window` `'top_only'`): 61 stress
   spectra, none worse, median error 1.0 -> 0.3 % on closed ends, 67 -> 6 %

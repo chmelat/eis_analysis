@@ -96,7 +96,6 @@
   "cpe/57 linkk:Cmix",
   "cpe/57 linkk:Crev",
   "cpe/60 linkk:Crev",
-  "cpe/85 rinf:Iclosed",
   "diffusion/112 fit:B-",
   "diffusion/112 fit:Crev",
   "diffusion/112 linkk:B+",
@@ -155,7 +154,6 @@
   "rc/139 linkk:B-",
   "rc/139 linkk:Cmix",
   "rc/139 linkk:Crev",
-  "rc/143 rinf:Iclosed",
   "rc/159 linkk:Cmix",
   "rc/160 linkk:B+",
   "rc/160 linkk:B-",
@@ -163,6 +161,8 @@
   "rc/160 linkk:Crev",
   "rc/162 linkk:B+",
   "rc/165 linkk:B-",
+  "rc/191 rinf:B+",
+  "rc/191 rinf:Cmix",
   "rc/20 linkk:B+",
   "rc/20 linkk:Crev",
   "rc/206 linkk:B+",
@@ -256,19 +256,19 @@
    210
   ],
   "M 0.001": [
-   9775,
-   9988,
-   325
+   9832,
+   10041,
+   326
   ],
   "M 0.01": [
-   8313,
-   8787,
+   8314,
+   8788,
    283
   ],
   "M 0.03": [
    4076,
-   4486,
-   221
+   4487,
+   222
   ]
  }
 }
