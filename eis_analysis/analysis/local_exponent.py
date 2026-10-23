@@ -92,7 +92,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from ..fitting.voigt_chain.validation import validate_eis_data
+from ..utils.validation import validate_eis_data
 from ..rinf_estimation.estimate import RINF_REL_STDERR_MAX
 
 # Width of the sliding log-log regression. One decade is ~10 points at the

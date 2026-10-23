@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from numpy.typing import NDArray
 
-from .validation import validate_eis_data
+from ...utils.validation import validate_eis_data
 from .tau_grid import generate_tau_grid_fixed_M
 from .fitting import estimate_R_linear
 

@@ -14,7 +14,8 @@ from numpy.typing import NDArray
 if TYPE_CHECKING:  # circular at runtime: mu_optimization imports from here
     from .mu_optimization import MuOptimization
 
-from .validation import validate_eis_data, validate_tau
+from ...utils.validation import validate_eis_data
+from .validation import validate_tau
 from .tau_grid import generate_tau_grid
 from .solvers import robust_nnls
 

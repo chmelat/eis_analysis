@@ -1,0 +1,70 @@
+"""
+Input validation shared by Lin-KK, Z-HIT, the DRT, the Voigt chain fit and
+the local exponent map.
+"""
+
+import numpy as np
+from numpy.typing import NDArray
+
+
+def validate_eis_data(
+    frequencies: NDArray[np.float64],
+    Z: NDArray[np.complexfloating],
+    context: str = "EIS data"
+) -> None:
+    """
+    Validate EIS input data.
+
+    Parameters
+    ----------
+    frequencies : ndarray
+        Frequency array [Hz]
+    Z : ndarray
+        Complex impedance array [Ohm]
+    context : str
+        Context string for error messages
+
+    Raises
+    ------
+    ValueError
+        If data is invalid
+    """
+    # Check array lengths match
+    if len(frequencies) != len(Z):
+        raise ValueError(
+            f"{context}: frequencies and Z must have same length "
+            f"(got {len(frequencies)} vs {len(Z)})"
+        )
+
+    # Check for empty arrays
+    if len(frequencies) == 0:
+        raise ValueError(f"{context}: empty data arrays")
+
+    # Check frequencies are positive
+    if np.any(frequencies <= 0):
+        n_invalid = int(np.sum(frequencies <= 0))
+        raise ValueError(
+            f"{context}: frequencies must be positive "
+            f"(found {n_invalid} non-positive values)"
+        )
+
+    # Check for NaN/Inf in frequencies
+    if not np.all(np.isfinite(frequencies)):
+        n_invalid = np.sum(~np.isfinite(frequencies))
+        raise ValueError(
+            f"{context}: frequencies contain {n_invalid} NaN/Inf values"
+        )
+
+    # Check for NaN/Inf in impedance
+    if not np.all(np.isfinite(Z)):
+        n_invalid = np.sum(~np.isfinite(Z))
+        raise ValueError(
+            f"{context}: impedance Z contains {n_invalid} NaN/Inf values"
+        )
+
+    # Weights (modulus: 1/|Z|), residuals and pseudo chi^2 are relative to |Z|;
+    # |Z|^2 as pseudo chi^2 forms it, so a |Z| that underflows there counts too
+    n_zero = int(np.count_nonzero(Z.real**2 + Z.imag**2 == 0))
+    if n_zero:
+        raise ValueError(f"{context}: impedance Z is 0 at {n_zero} point(s) (|Z|^2 = 0 "
+                         f"in floating point), but weights and residuals are relative to |Z|")

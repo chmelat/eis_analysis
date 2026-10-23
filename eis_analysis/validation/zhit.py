@@ -42,6 +42,7 @@ from numpy.typing import NDArray
 from scipy.integrate import cumulative_trapezoid
 
 from .noise import compute_pseudo_chisqr, estimate_noise_percent
+from ..utils.validation import validate_eis_data
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +321,6 @@ def zhit_validation(
     try:
         # ln|Z|, ln(omega) and the residuals relative to |Z| need finite f > 0
         # and Z != 0; the integral would carry a NaN into every later point
-        from ..fitting.voigt_chain.validation import validate_eis_data
         validate_eis_data(frequencies, Z, context="zhit_validation")
         ln_Z_reconstructed = zhit_reconstruct_magnitude(
             frequencies, phi, np.log(Z_mag)

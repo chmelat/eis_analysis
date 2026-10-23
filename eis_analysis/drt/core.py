@@ -37,7 +37,7 @@ from .estimation import (
     refine_peak_tau,
 )
 from .linear_system import _reconstruct, _validate_frequencies
-from ..fitting.voigt_chain.validation import validate_eis_data
+from ..utils.validation import validate_eis_data
 from .peaks import _detect_peaks
 from .stability import probe_lambda_stability
 from .significance import assess_peak_significance
