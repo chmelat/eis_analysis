@@ -30,6 +30,18 @@ Complete change history for all project versions.
   "not determined" warning (or closed-end note) stays, naming the value
   used.
 
+### Fixed
+
+- **Lambda selection (contract review round 7, `drt/gcv.py`).** An L-curve
+  without positive curvature (flat, e.g. a pure resistor) no longer counts
+  as a corner: lambda stays the GCV one, `lambda_lcurve` is None and
+  `corner_at_edge` False (it was reported as an L-curve win at the window
+  edge). A point where NNLS failed no longer becomes the corner or moves
+  it to its neighbour. `find_optimal_lambda_gcv` raises ValueError when
+  no lambda gives a finite score, instead of returning the first lambda
+  with an infinite score, so `calculate_drt` falls back to the default
+  lambda. No RuntimeWarning from the curvature.
+
 ## Version 0.62.0 (2026-10-22)
 
 ### Changed

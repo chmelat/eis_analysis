@@ -2,6 +2,7 @@
 """Test hybrid lambda selection (GCV + L-curve) for DRT analysis."""
 
 import os
+import warnings
 
 import numpy as np
 import pytest
@@ -198,3 +199,28 @@ def test_invalid_lambda_is_rejected(voigt_data, bad):
     f, Z, _ = voigt_data
     with pytest.raises(ValueError, match="lambda_reg"):
         calculate_drt(f, Z, lambda_reg=bad)
+
+
+def test_no_corner_failed_points_and_no_finite_score(voigt_data):
+    """Contract round 7 (doc/CONTRACT_REVIEW.md): a flat L-curve (b = 0, a
+    pure resistor) has no corner and does not raise lambda; a failed point
+    (inf) does not become or move the corner; all-inf scores are a ValueError
+    the caller falls back on; none of it warns."""
+    from eis_analysis.drt.gcv import compute_lcurve_curvature, find_lcurve_corner
+
+    f, Z, R_inf = voigt_data
+    A, b, L = _matrices(f, Z, R_inf)
+    t = np.linspace(-3, 3, 10)
+    rho, eta = np.log10(1 + np.exp(t)), np.log10(1 + np.exp(-t))
+    rho[7] = eta[7] = np.inf
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        lam, _, diag = find_optimal_lambda_hybrid(A, np.zeros_like(b), L)
+        _, corner, _ = find_lcurve_corner(np.logspace(-6, 0, 10), rho, eta)
+    assert (diag['method_used'], diag['lambda_lcurve'], diag['corner_at_edge']) == ('gcv', None, False)
+    assert lam == diag['lambda_gcv']
+    assert corner == 4  # as without the failed point
+    assert np.isnan(compute_lcurve_curvature(rho[6:9], eta[6:9])).all()
+
+    with pytest.raises(ValueError, match="finite score"):
+        find_optimal_lambda_gcv(np.eye(10), np.ones(10), np.zeros((8, 10)))

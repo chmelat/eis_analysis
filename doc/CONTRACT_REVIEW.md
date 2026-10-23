@@ -515,3 +515,26 @@ koncich) a lambda v [lo/10, hi x 10]; okno L-krivky (stred orezany do
 rozsahu, okno orezane), max, pravidlo `method_used`, vzorce
 `corner_at_edge` a `corner_below_gcv`; skore pri vyhre GCV; rozpocet
 NNLS 50 x sloupce.
+
+Provedeno 2026-10-23 (minimalni varianta, rozhodnuti uzivatele; F4 bez
+opravy; jedna zmena s testem v `tests/test_hybrid_lambda.py`):
+
+- Kod: F1 - roh bez kladne krivosti neni roh: lambda z GCV,
+  `lambda_lcurve` None, `method_used` 'gcv', priznaky False; F2 -
+  krivost do dvou bodu od selhaneho bodu NaN, roh jen z konecnych
+  krivosti; F3 - ValueError, kdyz zadna lambda hrubeho hledani neda
+  konecne skore (pokryva i spatnou delku b a NaN v A); F7 - derivace
+  a deleni v `np.errstate`. Cisla na beznych spektrech beze zmeny.
+- Kontrakt: F4 - minimum jen z jemne mrizky, muze byt nepatrne nad hrubym
+  (1 ze 40, 3.4e-4); F5 - podminenost se nekontroluje, presnost
+  namerena od 1e-12; F6, F8 a lambda = 0 - zaruky volajiciho, nic se
+  neslibuje mimo ne; roh bez konecne krivosti = prvni vnitrni bod s NaN.
+- Test bez opravy pada.
+- /code-review (8 nalezu): maska selhanych bodu `mode='same'` mela pro 3-4
+  body delku 5 (IndexError, jen API s `n_search` 3-4) -> `mode='full'`
+  orezany; jemna mrizka bez konecneho skore vratila (lambda, inf) -> vrati
+  hrube minimum. Bez akce: poradi kontroly znamenka a debug logu, znamenko
+  ve verejne `find_lcurve_corner` (kontrakt to necha volajicimu), dvoji
+  hrube hledani v zalozni ceste, delka modulu 571 radku, b = 0 hlasi
+  `lambda_at_edge` (tak i pred opravou), prah bez tolerance (podlaha
+  1e-15 pres data nedosazitelna).
