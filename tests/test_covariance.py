@@ -124,6 +124,32 @@ def test_partial_rank_deficiency_with_fixed_params():
     assert "[2, 3]" in result.warning_message          # full-space indices
 
 
+def test_partial_rank_deficiency_identifiable_variance_matches_pinv():
+    """The identifiable parameter's variance is s^2 [pinv(J^T J)]_00.
+
+    The test above has a unit column orthogonal to the others, where S = 1
+    and the column scale is 1: a mutation run (doc/MUTATION_TESTING.md, D2)
+    found every slip in this branch's arithmetic passing. Here c0 is
+    correlated with c1, c2 = 5 c1, and the norms differ. e0 is orthogonal
+    to the null space (0, 5, -1), so its variance is the same for any
+    generalized inverse of J^T J: the raw pseudo-inverse is an exact
+    reference for the scaled one, here 1 / (|c0|^2 - (c0.c1)^2 / |c1|^2).
+    """
+    c0 = np.array([3.0, 1.0, 0.0, 0.5, 0.0])
+    c1 = np.array([0.0, 2.0, 1.0, 0.0, 1.0])
+    J = np.column_stack([c0, c1, 5.0 * c1])
+    r = np.array([0.1, -0.2, 0.3, 0.05, -0.1])
+    result = compute_covariance_matrix(J, r, n_params=3)
+
+    s2 = r @ r / (5 - 3)
+    expected = s2 * np.linalg.pinv(J.T @ J)[0, 0]
+    assert expected == pytest.approx(s2 / (10.25 - 4.0 / 6.0), rel=1e-12)
+    assert result.rank == 2
+    assert np.isinf(result.stderr[1]) and np.isinf(result.stderr[2])
+    assert result.cov[0, 0] == pytest.approx(expected, rel=1e-10)
+    assert result.stderr[0] == pytest.approx(np.sqrt(expected), rel=1e-10)
+
+
 def test_full_rank_stderr_finite():
     # Full rank -> covariance estimable, finite standard errors.
     J = np.array([[2.0, 0.0], [0.0, 0.5], [0.0, 0.0]])  # 3 residuals, dof 1
