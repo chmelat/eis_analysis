@@ -59,7 +59,7 @@ def validate_eis_data(
 
     # Check for NaN/Inf in frequencies
     if not np.all(np.isfinite(frequencies)):
-        n_invalid = np.sum(~np.isfinite(frequencies))
+        n_invalid = int(np.sum(~np.isfinite(frequencies)))
         raise ValueError(
             f"{context}: frequencies contain {n_invalid} NaN/Inf values"
         )

@@ -191,7 +191,8 @@ def element_jacobian(
     # Before Ws: Wo subclasses it, so isinstance(element, Ws) is true for both.
     if isinstance(element, Wo):
         Rw_val, tau_val = params[0], params[1]
-        u = np.sqrt(1j * omega * tau_val)
+        # Annotated: numpy 2.5 stubs type the sqrt of a complex array as dtype[Any]
+        u: NDArray[np.complex128] = np.sqrt(1j * omega * tau_val)
         tanh_u = np.tanh(u)
         g = 1 / (u * tanh_u)
         Z = Rw_val * g
@@ -252,7 +253,7 @@ def element_jacobian(
     # Gerischer element: Z = sigma / sqrt(1 + jw*tau)
     if isinstance(element, GE):
         sigma_val, tau_val = params[0], params[1]
-        sqrt_term = np.sqrt(1 + 1j * omega * tau_val)
+        sqrt_term: NDArray[np.complex128] = np.sqrt(1 + 1j * omega * tau_val)
         Z = sigma_val / sqrt_term
 
         # dZ/dsigma = 1/sqrt(1 + jw*tau)

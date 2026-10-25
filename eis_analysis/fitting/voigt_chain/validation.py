@@ -37,7 +37,7 @@ def validate_tau(
         )
 
     if not np.all(np.isfinite(tau)):
-        n_invalid = np.sum(~np.isfinite(tau))
+        n_invalid = int(np.sum(~np.isfinite(tau)))
         raise ValueError(
             f"{context}: tau contains {n_invalid} NaN/Inf values"
         )

@@ -43,6 +43,8 @@ python3 -m pytest tests/ -m stress               # smoke proti baseline
   z venv). Zmeny v kodu se projevi hned (editovatelna instalace).
 - Pro `pytest`, `mypy`, `ruff`, `python3 eis.py` nejdriv
   `source ~/venvs/eis/bin/activate` (opustit: `deactivate`).
+- System Python 3.11 projekt nepodporuje (`requires-python >= 3.13`);
+  bezi jen ve venv.
 - Dalsi balicek: `uv pip install --python ~/venvs/eis/bin/python <balicek>`.
 
 ## Pozor
@@ -58,6 +60,9 @@ python3 -m pytest tests/ -m stress               # smoke proti baseline
   Na amd64 baseline neprepisovat (`--update-baseline`), overovat na ARM.
 
 ## Navrat
+
+Jen pro verze do 0.62.0: novejsi vyzaduji Python 3.13 a systemovy 3.11
+je nespusti.
 
 ```bash
 rm ~/.local/bin/eis && mv ~/.local/bin/eis.system-python ~/.local/bin/eis

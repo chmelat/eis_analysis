@@ -131,7 +131,8 @@ class Ws(CircuitElement):
                   params: List[float]) -> NDArray[np.complexfloating]:
         R_W_val, tau_W_val = params[0], params[1]
         omega = 2 * np.pi * freq
-        arg = np.sqrt(1j * omega * tau_W_val)
+        # Annotated: numpy 2.5 stubs type the sqrt of a complex array as dtype[Any]
+        arg: NDArray[np.complex128] = np.sqrt(1j * omega * tau_W_val)
         return R_W_val * np.tanh(arg) / arg
 
     def get_param_labels(self) -> List[str]:
@@ -159,7 +160,7 @@ class Wo(Ws):
                   params: List[float]) -> NDArray[np.complexfloating]:
         R_W_val, tau_W_val = params[0], params[1]
         omega = 2 * np.pi * freq
-        arg = np.sqrt(1j * omega * tau_W_val)
+        arg: NDArray[np.complex128] = np.sqrt(1j * omega * tau_W_val)
         # coth(u)/u as 1/(u*tanh(u)): numpy has no coth, and tanh saturates
         # to 1 at large |u| instead of overflowing
         return R_W_val / (arg * np.tanh(arg))

@@ -181,7 +181,9 @@ class GE(CircuitElement):
                   params: List[float]) -> NDArray[np.complexfloating]:
         sigma_val, tau_val = params[0], params[1]
         omega = 2 * np.pi * freq
-        return sigma_val / np.sqrt(1 + 1j * omega * tau_val)
+        # Annotated: numpy 2.5 stubs type the sqrt of a complex array as dtype[Any]
+        sqrt_term: NDArray[np.complex128] = np.sqrt(1 + 1j * omega * tau_val)
+        return sigma_val / sqrt_term
 
     def get_param_labels(self) -> List[str]:
         return ['σ_GE', 'τ_GE']

@@ -334,8 +334,7 @@ def estimate_R_linear(
             try:
                 ATA = A_real.T @ A_real + A_imag.T @ A_imag
                 ATb = A_real.T @ b_real + A_imag.T @ b_imag
-                # numpy stubs type solve() as floating[Any]; it is float64 for float64 input
-                elements = np.linalg.solve(ATA, ATb)  # type: ignore[assignment]
+                elements = np.linalg.solve(ATA, ATb)
             except np.linalg.LinAlgError:
                 # Fallback to pseudoinverse if singular
                 A_combined = np.vstack([A_real, A_imag])

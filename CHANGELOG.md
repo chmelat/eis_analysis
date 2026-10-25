@@ -6,8 +6,27 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **Python 3.13 or newer is required** (was 3.11). The scientific Python
+  ecosystem supports a Python version for about three years (SPEC 0):
+  3.11 is past that and numpy 2.5 already requires 3.12, so a 3.11 user
+  got older numpy and scipy than the ones the project is developed and
+  tested with. The CI test matrix runs 3.13 and 3.14, lint and mypy 3.13.
+  No code depends on the change; it removes the gap between the declared
+  floor and the environment in use.
+
 ### Changed
 
+- **mypy blocks CI.** With `python_version = "3.13"` mypy checks against
+  the numpy 2.5 stubs the project runs with and reports no issues, so
+  `continue-on-error` is removed. Under the 3.11 target, numpy 2.5's
+  stubs (which need 3.12) gave 42 errors. The square roots of complex
+  arrays in the Warburg, Gerischer and Jacobian code are annotated
+  `complex128` (the stubs give `dtype[Any]`, which arithmetic turned into
+  `float64`); the `type: ignore` on `np.linalg.solve` in the Voigt chain
+  fit is gone (unused with numpy 2.5); two counts of invalid values in
+  the validators are `int`. No change in output.
 - **R_inf: the top-decade fit wins when it is clearly better determined.**
   `estimate_rinf` already refits R-L-(R|Q) over the top decade of its
   window to measure the model error; its R_s is now used when its stderr
