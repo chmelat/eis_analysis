@@ -45,11 +45,14 @@ Public API (eis_analysis.fitting.voigt_chain: calc_mu, find_optimal_M_mu,
 MuOptimization): any caller, nothing guaranteed beyond the rules below.
 
 calc_mu(R_i) -> float.
-  The metric above over a 1-D float array (R_s and L not included). A
+  The metric above over a 1-D float64 array (R_s and L not included;
+  the fit returns float64: float32 sums overflow sooner, an int64 abs
+  wraps at its minimum, and nothing is promised for them). A
   NaN or infinite R_k gives NaN: an unfitted or overflowed element is no
   resistance to count, and a mu that left it out or let it swamp the
   sums would pass for a judgement. An empty array has no resistance: 1.
-  Invariant under permuting R_i and scaling it by c > 0. No
+  Invariant under permuting R_i and scaling it by c > 0 (while the R_k
+  stay normal floats: scaled to ~1e-320 they underflow). No
   RuntimeWarning while the sums N and P stay finite (|R_k| summing below
   ~1e308; the fit of |Z| within 1e-150..1e150 keeps them far below).
 
@@ -69,7 +72,8 @@ weighting, min_M=3) -> MuOptimization.
   progress of the search); iteration counts from 1 at min_M, residual is
   estimate_R_linear's. warnings: also two lines when allow_negative is
   False (mu is then 1 by construction, so the search runs to max_M).
-  mu_threshold >= 1 stops at min_M (mu <= 1 always); inf as well;
+  mu_threshold >= 1 stops at min_M where mu there is a number (mu <= 1
+  always); inf as well;
   -inf stops only at an M whose R_k are all negative (mu -inf), else at
   max_M. ValueError for NaN mu_threshold, for
   min_M < 1 or min_M > max_M, and where estimate_R_linear raises
@@ -81,9 +85,11 @@ weighting, min_M=3) -> MuOptimization.
   [C] above N for 'real', above 2N for 'complex') the R_k are not
   unique and mu means nothing; the caller keeps max_M below that
   (lin_kk_native does, fit_voigt_chain_linear does not).
-  The caller passes integer min_M and max_M, extend_decades finite and
-  >= 0, and f with at least two distinct values; nothing is promised
-  otherwise: max_M 7.5 ends at M = 8, a float min_M is a TypeError,
+  The caller passes integer min_M and max_M, a float mu_threshold,
+  extend_decades finite and >= 0, and f with at least two distinct
+  values; nothing is promised otherwise: max_M 7.5 ends at M = 8 (in
+  the iterations, with the warning naming 7.5), a float min_M and a
+  mu_threshold of None are a TypeError,
   max_M = inf with a threshold never met does not end; a negative or NaN
   extend_decades fits the grid of 0, inf is the fit's ValueError after
   a RuntimeWarning; equal f collapse the tau grid to one value (mu 1,
@@ -91,8 +97,8 @@ weighting, min_M=3) -> MuOptimization.
 
 What must hold:
   - The inputs are not changed. The result is deterministic.
-  - Raises only ValueError and LinAlgError, only where stated; no
-    RuntimeWarning on validated data.
+  - On what the caller guarantees, raises only ValueError and
+    LinAlgError, only where stated; no RuntimeWarning on validated data.
   - Units: Z scaled by c > 0 leaves M, mu, reached_max_M, n_negative and
     the iterations' mu unchanged (to rounding) and scales the R in
     elements and L_value by c, C_value by 1/c, while |Z| stays within
@@ -370,7 +376,7 @@ def find_optimal_M_mu(
 
         # Sample the search every 5 steps, plus the first and the last one
         # (the last is either the stop or max_M)
-        if M % 5 == 0 or mu <= mu_threshold or M == min_M or M == max_M:
+        if M % 5 == 0 or mu <= mu_threshold or M == min_M or M >= max_M:
             iterations.append(MuIteration(
                 iteration=iteration, M=M, mu=mu, residual=residual,
                 n_negative=int(np.sum(R_i < 0)), n_R=len(R_i)))
@@ -379,7 +385,9 @@ def find_optimal_M_mu(
 
     reached_max_M = not mu <= mu_threshold
     if reached_max_M:
-        warnings.append(f"Reached max_M = {max_M}, mu = {mu:.4f} > {mu_threshold}; "
+        # A NaN mu ends here too, and NaN > threshold is False
+        mu_text = f"{mu:.4f} > {mu_threshold}" if mu > mu_threshold else "nan (not a number)"
+        warnings.append(f"Reached max_M = {max_M}, mu = {mu_text}; "
                         f"mu criterion never triggered, M is the cap, not a mu choice")
 
     return MuOptimization(

@@ -831,3 +831,52 @@ docstringy F10; test v `tests/test_kramers_kronig.py`):
   a P zustanou konecne (kontrakt); CR6 - stop mu -inf pusti v Lin-KK
   kazde rozsireni (CHANGELOG). Bez akce: CR3 (hlaska "mu = nan > 0.85"
   pri NaN na `max_M`, jen simulovane).
+
+### Kolo 10, druhy beh (2026-10-26)
+
+Cerstvy reviewer (Opus, 7 min, 108k tokenu, 21 volani nastroju) v cistem
+piskovisti `~/coldreview/mu_optimization_r2/` s kodem po opravach
+(03f5158), stejne zadani. Debrief: precten jen modul a `_setup.py`;
+19 skriptu v `review/`. Nalezy z prvniho behu se neopakuji (overeno:
+-inf, NaN, prazdne pole, krok na `max_M`, prah -inf). F1-F3
+reprodukovany nezavisle (skript v scratchpadu sezeni), F4-F8 z vystupu
+reviewera (balik v piskovisti shodny s repozitarem).
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | f x c skaluje C_value 1/c pro 'real' i 'complex' | fit 'real' s C urcuje L a 1/C z imaginarniho residua pseudoinverzi (`estimate_R_linear`, cerna skrinka); pri f_max 1e8 a C <= 1e-8 F: C_fit/C 3e33 az 6e34, sum 61-69 %, M 5, mu -4.3, bez varovani; f_max <= 1e7 a C 1e-6 az 1e-12 spravne; 'complex' spravne | `kramers_kronig_validation` pres automaticky rerun s C: 10 Hz..100 MHz, C 10 nF -> `with_series_c` sum 52 %, neplatne; priklady v `example/` maji f_max do 1 MHz |
+| F2 | A | Z x c invariantni pro \|Z\| v 1e-150..1e150 | podlaha 1e-15 ve vahach (`compute_weights`): Z x 1e-18 (\|Z\| ~1e-17) M 27 -> 27, mu 0.8159 -> 0.8255, chi^2 1.5e-4 -> 1.8e-4; u reviewera M 10 -> 12 (complex) | jen pod \|Z\| 1e-15 Ohm; znama mez v docstringu `validate_eis_data`, kontrakt ji neuvadi (ani kontrakt `kk_grid`) |
+| F3 | B | prah >= 1 a inf zastavi na `min_M` (mu <= 1 vzdy) vs. NaN neni stop | kontrakt si odporuje: NaN mu na `min_M` s prahem 1 nebo inf nezastavi; f x 1e150 (validator prijme) -> preteceni, mu NaN, M = `max_M` 8 | jen extremni f |
+| F4 | C | f x c bez rozsahu; zadne RuntimeWarning na validovanych datech | f x 1e150: 23 RuntimeWarning (matmul overflow), mu NaN vsude; f x 1e-200 mu 0.8438 -> 0.8472 | jen extremni f |
+| F5 | C | - | varovani "mu = nan > 0.85" (i "> inf"), NaN > x je False | jen s NaN mu (F3, F4) |
+| F6 | C | `iterations` vzdy se stop M | `max_M` 7.5: `M == max_M` nikdy, stop M 8 chybi, varovani "Reached max_M = 7.5" | mimo zaruku (cele `max_M`) |
+| F7 | C | "1-D float array"; bez varovani dokud soucty konecne | float32 [3e38, 3e38, -3e38, -3e38] RuntimeWarning a NaN; int64 [1, int64min] mu 9.2e18; skala 1e-330 podteceni (1.0 misto 0.5) | jen API |
+| F8 | C | jen ValueError a LinAlgError | `mu_threshold` None TypeError (`np.isnan`) | jen API |
+
+Overeno, ze plati (reviewer): rozlozeni prvku pro vsechny kombinace typu
+fitu x R_s x L x C; 61 prahu da neklesajici M, rovnost prahu zastavi,
+o ulp niz ne; prah >= 1 a inf na `min_M`, -inf na M se vsemi R_k
+zapornymi; argumenty volajicich (Lin-KK `max_M` N - 2, s 'imag' a C
+N - 4; Voigt `max_M` 50 neomezeny, N = 6 do M = 50 bez varovani);
+2000 nahodnych `calc_mu` bez poruseni invariance a monotonie;
+determinismus, nezmenene vstupy, permutace.
+
+Provedeno 2026-10-26 (rozhodnuti uzivatele: opravit F5-F8, F1-F4 jako
+okrajove bez akce):
+
+- Kod: F5 - varovani "mu = ... not <= prah"; F6 - krok se uklada i pro
+  `M >= max_M` (necele `max_M` 7.5: iterace 3, 5, 8).
+- Kontrakt: F7 - `calc_mu` bere float64, float32 a int64 mimo zaruku,
+  invariance vuci skale jen pro normalni floaty; F8 - volajici predava
+  float `mu_threshold`, None je TypeError; F6 - necele `max_M` v seznamu
+  mimo zaruku.
+- Bez akce: F1 (fit 'real' s C nad ~10 MHz, priciny v `estimate_R_linear`:
+  sloupce L a 1/C s pomerem norem ~1e15, `pinv` orizne smer C; reseni by
+  byla normalizace sloupcu), F2 (podlaha vah 1e-15), F3 a F4 (extremni
+  f). Kontrakt je nepopisuje.
+- /code-review (6 nalezu), provedeno: kontrakt - prah >= 1 zastavi na
+  `min_M`, jen kdyz je tam mu cislo (F3 jinak bez akce); "raises only"
+  plati na tom, co volajici zarucuje (TypeError mimo zaruky);
+  varovani na `max_M` zase "mu = ... > prah", pro NaN "nan (not a
+  number)"; zalomeni CHANGELOGu. Bez akce: odmitnout necele `max_M`
+  (mimo zaruky, popsano), test (rozpocet testu).

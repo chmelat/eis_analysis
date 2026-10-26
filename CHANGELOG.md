@@ -37,9 +37,10 @@ Complete change history for all project versions.
   the `--voigt-auto-M` search missed it). In Lin-KK a stop mu of -inf
   (all R_i negative) lets every tau-grid extension pass the mu check
   (none can be worse; with -1 those below -1 were rejected), and a NaN
-  stop mu lets none pass (before, all). Not reached through
-  Lin-KK or the Voigt chain fit on measured data (stop mu >= 0.05 in 135
-  test runs); the module has a contract (contract review round 10).
+  stop mu lets none pass (before, all). The max_M warning names a NaN
+  mu as such (it said "mu = nan > 0.85"). Not reached through Lin-KK or
+  the Voigt chain fit on measured data (stop mu >= 0.05 in 135 test
+  runs); the module has a contract (contract review round 10).
 
 ## Version 0.63.0 (2026-10-25)
 
