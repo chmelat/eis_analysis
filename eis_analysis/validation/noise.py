@@ -38,8 +38,9 @@ Callers. All pass ndarrays.
   point selected. It holds for |Z| within 1e-150..1e150 (below, |Z|^2 here
   underflows, |Z| there not): both divide by |Z|, and Lin-KK rejects Z = 0.
   noise_estimate_median passes the stored residuals.
-  validation.outliers compares noise_estimate_median with
-  NOISE_FLOOR_PERCENT; lin_kk_native warns when noise_estimate exceeds
+  validation.outliers compares the same sigma with NOISE_FLOOR_PERCENT,
+  but takes it from its own residuals with nanmedian (NaN left out, unlike
+  here); lin_kk_native warns when noise_estimate exceeds
   NOISE_DOMINATED_RATIO x the median (a few points dominate).
 - drt.significance: compute_pseudo_chisqr(Z, DRT reconstruction) for the
   full and the constrained solution; Delta chi^2 is scaled by default by

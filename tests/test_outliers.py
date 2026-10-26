@@ -342,6 +342,28 @@ def test_single_infinite_residual_does_not_disable_the_method():
     assert find_outliers(freq, fake_result(r), None, 5.0).skipped == ["KK"]
 
 
+def test_nan_residual_does_not_switch_off_the_relative_criterion():
+    """A 4 % point at 0.3 % noise is under the 5 % threshold and flagged by
+    the relative criterion alone; one NaN elsewhere used to switch it off
+    (KKResult.noise_estimate_median takes np.median and turns NaN)."""
+    rng = np.random.default_rng(0)
+    freq = np.logspace(-1, 5, 22)
+    res_real = rng.normal(0, 0.003, 22)
+    res_imag = rng.normal(0, 0.003, 22)
+    res_real[10] = 0.04
+
+    def kk(res_real):
+        return KKResult(M=5, mu=0.5, Z_fit=np.zeros(22, complex),
+                        residuals_real=res_real, residuals_imag=res_imag)
+
+    clean = find_outliers(freq, kk(res_real), None, max_residual=5.0)
+    assert [p.frequency for p in clean.points] == [freq[10]]
+
+    with_nan = res_real.copy()
+    with_nan[3] = np.nan
+    assert [p.frequency for p in find_outliers(freq, kk(with_nan), None, 5.0).points] == [freq[10]]
+
+
 # =============================================================================
 # Figure marking
 # =============================================================================

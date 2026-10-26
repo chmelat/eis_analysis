@@ -8,6 +8,94 @@ The detection is purely diagnostic - nothing is removed or down-weighted.
 That is deliberate: in EIS most low-frequency deviations are sample drift
 (a real property of the measurement), not bad points, and discarding them
 would hide a non-stationary experiment rather than fix it.
+
+CONTRACT
+
+Metric. r_i = residual_percent(res_real, res_imag)_i = 100 * hypot(
+res_real_i, res_imag_i): the deviation |Z - Z_fit| / |Z| of point i in
+percent, from the residuals (fractions of |Z|) the validation stored. For
+Z-HIT it equals |residuals_mag|, which is already in percent (the
+reconstruction keeps the measured phase).
+
+Callers.
+- eis.py via cli.handlers.validation.report_outliers: find_outliers(
+  data.frequencies, kk_result, zhit_result, max_residual=args.max_residual)
+  on the full loaded spectrum, the grid both validations ran on, in the
+  file's order (not sorted). kk_result: KKResult of
+  kramers_kronig_validation, or None with --no-kk; it may carry error
+  (residuals None) or capacitive_end with or without with_series_c.
+  zhit_result: ZHITResult of zhit_validation (empty arrays on failure),
+  or None with --no-zhit. Residual i of both belongs to frequencies[i]
+  (Z-HIT sorts internally and returns the user's order). max_residual is
+  --max-residual as typed (float, default 5.0, not range-checked). The
+  CLI prints `skipped` and `points`, and select_excluded takes
+  frequencies_flagged_by(mode) to leave points out of the analysis.
+- Public API (eis_analysis.validation.find_outliers; residual_percent
+  only as eis_analysis.validation.outliers.residual_percent, it is not
+  exported): any caller. A result is read only through the attributes
+  named here; a stand-in without the others (SimpleNamespace with
+  residuals_real/imag only) is allowed and gets the absolute criterion
+  only.
+
+find_outliers(frequencies, kk_result=None, zhit_result=None,
+max_residual=5.0) -> OutlierReport.
+  Usable residuals of one method. None (the method did not run), no
+  residuals_real or residuals_imag, a length other than
+  len(frequencies), or no finite r_i: the method does not contribute and
+  is NOT in `skipped`. A result with capacitive_end True is replaced by
+  its with_series_c; with_series_c None: the method does not contribute
+  and IS in `skipped`. Global guard: m = nanmedian of its r_i >
+  max_residual (strict): the method does not contribute and is in
+  `skipped`. Otherwise it contributes r.
+  Flags. A contributing method flags point i when r_i > max_residual AND
+  r_i > _METHOD_BASELINE_FACTOR * m, m = nanmedian of its r_i, the m of
+  the guard (both strict). Lin-KK flags i also when r_i > _ISOLATED_POINT_FACTOR *
+  m (the relative criterion), but only where it applies: the run whose
+  residuals are used (with_series_c on a capacitive end) has sparse_fit
+  False and noise sigma m / RAYLEIGH_MEDIAN >= NOISE_FLOOR_PERCENT (the
+  KKResult.noise_estimate_median with NaN residuals left out); a stand-in
+  without sparse_fit gets the absolute criterion only. Never for Z-HIT.
+  A NaN r_i is ignored: it flags nothing and enters neither m nor the
+  guard nor the noise-floor check. An inf r_i is a deviation without
+  bound: it enters m, flags its point while m is finite, and a majority
+  of inf puts the method in `skipped` (a global failure, reported as
+  one). Neither comes from the callers' validations, which reject
+  non-finite and zero Z.
+  Report. One OutlierPoint per point flagged by at least one method:
+  frequency = float(frequencies[i]); residual_kk = r_kk_i when Lin-KK
+  contributes (also where it did not flag i), else None; likewise
+  residual_zhit; methods "KK", "Z-HIT" or "KK+Z-HIT", the methods that
+  flagged i; worst = the largest r_i of the methods in `methods` (> 0;
+  inf for an infinite residual). points ordered by worst descending, ties in the order of
+  frequencies. skipped: "KK" before "Z-HIT", each at most once.
+  Empty frequencies: an empty report (no points, nothing skipped)
+  whatever the results. The caller passes max_residual finite and > 0
+  and frequencies 1-D; nothing is promised otherwise.
+
+OutlierReport.frequencies_flagged_by(mode='kk') -> list of float.
+  The frequencies of the points whose methods are in: 'kk' {"KK",
+  "KK+Z-HIT"}, 'both' {"KK+Z-HIT"}, 'any' all three; ascending; a
+  frequency that occurs twice in the input and is flagged twice is
+  listed twice. ValueError for any other mode.
+
+What must hold:
+  - The inputs are not changed. The result is deterministic.
+  - Raises only the ValueError of frequencies_flagged_by; find_outliers
+    raises nothing for what the callers pass, and logs at debug level
+    only (no warning, no RuntimeWarning, also with NaN residuals).
+  - Permuting the points (frequencies and the residuals of every method
+    together) permutes the report and changes nothing else (ties
+    excepted).
+  - For a fixed set of contributing methods, a higher max_residual never
+    adds a point and never removes a Lin-KK point flagged by the
+    relative criterion. The guard is a separate switch: raising
+    max_residual can bring a skipped method back and so add points.
+  - With every r_i of a method equal (one point included) it flags
+    nothing: no point stands out from its own baseline.
+  - For each method in `methods` the point's r_i exceeds max_residual,
+    except Lin-KK through the relative criterion, where it exceeds
+    _ISOLATED_POINT_FACTOR * m instead.
+  - Diagnostic only: nothing in the inputs is removed or reweighted.
 """
 
 import logging
@@ -16,6 +104,8 @@ from typing import List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+
+from .noise import RAYLEIGH_MEDIAN
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +185,7 @@ class OutlierPoint:
         Relative deviation from the Z-HIT reconstruction [%]. None if Z-HIT
         did not contribute.
     worst : float
-        Larger of the contributing residuals [%]
+        Larger of the residuals of the methods that flagged the point [%]
     methods : str
         Which methods flagged the point: "KK", "Z-HIT" or "KK+Z-HIT"
     """
@@ -116,7 +206,7 @@ class OutlierReport:
     points : list of OutlierPoint
         Flagged points, ordered by descending `worst`.
     skipped : list of str
-        Methods excluded by the global guard (their own mean residual already
+        Methods excluded by the global guard (their own median residual already
         exceeds the threshold, so per-point flagging is not meaningful), and
         Lin-KK on a capacitive low-frequency end without the series C
         (KKResult.capacitive_end: its residuals describe the model) when the
@@ -237,7 +327,8 @@ def _flagged(
     the method's own baseline (see _METHOD_BASELINE_FACTOR). With `relative`,
     also over _ISOLATED_POINT_FACTOR x the median alone.
 
-    Non-finite residuals never flag a point (NaN comparisons are False).
+    A NaN residual never flags a point (NaN comparisons are False); an
+    infinite one does while the median is finite.
     """
     if r is None:
         return np.zeros(n_points, dtype=bool)
@@ -248,21 +339,27 @@ def _flagged(
     return flagged
 
 
-def _relative_applies(kk_result) -> bool:
+def _relative_applies(kk_result, r: Optional[NDArray[np.float64]]) -> bool:
     """
     Does the relative criterion apply to this Lin-KK run? Not when its
-    median residual is below the noise floor (noise-free synthetic data) or
+    noise sigma is below the noise floor (noise-free synthetic data) or
     the chain has more elements than half the points (KKResult.sparse_fit):
     then the median says nothing about the noise. The run is the one whose
-    residuals are used: with_series_c on a capacitive end. A stand-in without
-    sparse_fit (not a KKResult) gets the absolute criterion only.
+    residuals `r` [%] are used: with_series_c on a capacitive end. A stand-in
+    without sparse_fit (not a KKResult) gets the absolute criterion only.
+
+    The sigma is KKResult.noise_estimate_median, but taken from `r` with
+    nanmedian: the property's np.median turns NaN on one NaN residual, and
+    the criterion would switch off silently.
     """
     from ..fitting.config import NOISE_FLOOR_PERCENT
+    if r is None:
+        return False
     if getattr(kk_result, 'capacitive_end', False):
         kk_result = kk_result.with_series_c
-    if kk_result is None or getattr(kk_result, 'sparse_fit', True):
+    if getattr(kk_result, 'sparse_fit', True):
         return False
-    return bool(kk_result.noise_estimate_median >= NOISE_FLOOR_PERCENT)
+    return bool(np.nanmedian(r) / RAYLEIGH_MEDIAN >= NOISE_FLOOR_PERCENT)
 
 
 def find_outliers(
@@ -309,15 +406,18 @@ def find_outliers(
     A Lin-KK point is also flagged below the threshold when its residual is
     over _ISOLATED_POINT_FACTOR (8) x the median Lin-KK residual: on a
     low-noise spectrum a point a few percent off is many sigma away and pulls
-    a fit. Not when the median is below the noise floor
-    (NOISE_FLOOR_PERCENT, noise-free synthetic data), not on a sparse fit
+    a fit. Not when the noise sigma from that median (median /
+    sqrt(2 ln 2)) is below the noise floor (NOISE_FLOOR_PERCENT,
+    noise-free synthetic data), not on a sparse fit
     (KKResult.sparse_fit), not for Z-HIT.
 
     A method whose MEDIAN residual is already over the threshold is dropped
     into `skipped` instead: over half its points would be flagged, which is a
     global failure rather than a list of local ones.
 
-    Non-finite residuals never flag a point (NaN comparisons are False).
+    A NaN residual never flags a point (NaN comparisons are False); an
+    infinite one does while the median is finite, and a majority of them
+    drops the method into `skipped`.
     """
     report = OutlierReport()
     n = len(frequencies)
@@ -329,7 +429,7 @@ def find_outliers(
     if r_kk is None and r_zhit is None:
         return report
 
-    bad_kk = _flagged(r_kk, max_residual, n, relative=_relative_applies(kk_result))
+    bad_kk = _flagged(r_kk, max_residual, n, relative=_relative_applies(kk_result, r_kk))
     bad_zhit = _flagged(r_zhit, max_residual, n)
 
     # `worst` counts only the methods that actually flagged the point.

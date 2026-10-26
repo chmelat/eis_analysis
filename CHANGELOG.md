@@ -8,6 +8,16 @@ Complete change history for all project versions.
 
 ### Fixed
 
+- **Per-point outlier check: one NaN Lin-KK residual no longer switches
+  off the relative criterion.** `find_outliers` decided whether the
+  8x-median criterion applies from `KKResult.noise_estimate_median`,
+  whose `np.median` turns NaN on a single NaN residual; the criterion
+  then went off silently and a point a few percent off on a low-noise
+  spectrum was no longer flagged. The noise sigma is now taken from the
+  residuals with NaN left out (the same number on finite residuals).
+  API only: the validations never return NaN residuals. The module has
+  a contract (`validation/outliers.py`, contract review round 11 in
+  `doc/CONTRACT_REVIEW.md`).
 - **Lin-KK tau-grid extension: a candidate without a finite chi^2 no
   longer competes.** In `find_optimal_extend_decades` a NaN chi^2 at
   the first candidate turned the minimum into NaN and failed with

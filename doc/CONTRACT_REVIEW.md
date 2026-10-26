@@ -925,3 +925,44 @@ Netestovano (reviewer): merene soubory; with_series_c s `error`
 (autor: nenastane, vyjimka reruns -> with_series_c None,
 `kramers_kronig.py`); realny KKResult se `sparse_fit` True; preteceni
 v hypot.
+
+Provedeno 2026-10-26 (rozhodnuti uzivatele: F1, F2, F4, F5, F7; F3, F6
+bez akce; test v `tests/test_outliers.py`):
+
+- Kod: F2 - `_relative_applies` bere sigma sumu z reziduii pres
+  `nanmedian` (m / RAYLEIGH_MEDIAN, na konecnych cislech totez co
+  `noise_estimate_median`). Vedlejsi ucinek: zmizel i F3 (atribut
+  `noise_estimate_median` se necte, `with_series_c` jen kdyz KK
+  prispiva).
+- Kontrakt: F1 - opraven podle kodu, ne naopak: test
+  `test_single_infinite_residual_does_not_disable_the_method` drzi
+  zamer (inf = oznaceny bod, vetsina inf = globalni selhani ve
+  `skipped`); kontrakt ted ignoruje jen NaN, inf vstupuje do m
+  a worst muze byt inf. Chyba byla v kontraktu, rozhodnuti uzivatele.
+  F4 - Z-HIT r = |residuals_mag| (uz v procentech).
+- Docstring: F7 - `skipped` median misto prumeru.
+- Kontrakt: F5 - `residual_percent` jen z `validation.outliers`, ne
+  z `eis_analysis.validation` (neexportovano; rozhodnuti uzivatele).
+- Bez akce: F6 (`--max-residual` bez kontroly rozsahu, kontrakt to
+  u volajiciho uvadi).
+- Test (relativni kriterium s jednim NaN) bez opravy pada; 905 passed,
+  ruff ok, mypy beze zmeny (jedna znama chyba numpy stubu v
+  `voigt_chain/fitting.py`).
+- /code-review (10 nalezu), provedeno: CR1, CR2 - docstringy
+  `find_outliers` a `_flagged` uz netvrdi, ze nekonecne reziduum bod
+  neoznaci (po F1: NaN ne, inf ano); CR3 - kontrakt `noise.py` u volajicich:
+  `outliers` bere tutez sigma z vlastnich reziduii pres nanmedian; CR5 -
+  test s vadnym bodem 4 % misto 3 % (rezerva proti 8 x median 35 % misto
+  1.6 %); CR7 - mrtva vetev `kk_result is None` v `_relative_applies`;
+  CR9 - Notes `find_outliers`: hranice sumu se porovnava se sigma =
+  median / sqrt(2 ln 2), ne s medianem; CR10 - `OutlierPoint.worst` jen
+  z metod, ktere bod oznacily. Bez akce: CR4 (sourozenec v
+  `kramers_kronig.py` cte `noise_estimate_median`; NaN -> nan je zamer
+  kontraktu `noise.py` z kola 8, validace NaN rezidua nevraceji), CR6
+  (vzorec sigma na dvou mistech, semantika NaN se lisi zamerne), CR8
+  (nanmedian trikrat, n ~ 100).
+- Druhy /code-review (6 nalezu): bez akce (rozhodnuti uzivatele). Novy
+  jen #1: same inf rezidua (nebo inf a NaN bez konecneho cisla) metodu
+  tise vyradi misto `skipped`, 3 konecne a 32 inf ji do `skipped` daji
+  (jen API); #5 `sparse_fit` pocita do N i body s NaN (jen API);
+  ostatni opakuji CR4, CR6, CR8 a F3.
