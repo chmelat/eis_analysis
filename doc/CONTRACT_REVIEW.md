@@ -670,3 +670,94 @@ zpet pojistku NaN a f <= 0. Znama mez (docstring `validate_eis_data`):
 mimo |Z| ~1e-150..1e150 vypocty nejsou invariantni vuci meritku (soucty
 1/|Z|^2, podlaha 1e-15 v `compute_weights`, complex64); oprava by byla
 prepis vzorcu na relativni residua, samostatny ukol.
+
+## Kolo 9: validation/kk_grid.py (2026-10-26)
+
+Kontrakt: docstring `eis_analysis/validation/kk_grid.py`. Reviewer: Opus,
+jeden beh (10 min, 129k tokenu, 47 volani nastroju), piskoviste
+`~/coldreview/kk_grid/` = cely balik; cist smel jen modul, zbytek jako
+cernou skrinku. Debrief: precten jen `kk_grid.py` (jeden grep pres balik
+ukazal jednotlive radky jinych modulu, zdroj jinde jen z varovani);
+volajici overeni pres `lin_kk_native`, `kramers_kronig_validation`
+a volani KK grafu (120 nahodnych spekter); 20 skriptu v `review/`.
+Pozor: z piskoviste `~/venvs/eis/bin/python` importuje editovatelnou
+instalaci z repozitare, reviewer to obesel `review/_setup.py` (sys.path).
+F1-F3 a F5-F10 reprodukovany nezavisle (skript v scratchpadu sezeni)
+proti modulu v repozitari, F7 jen na `find_optimal_extend_decades`, F4
+skriptem reviewera (balik v piskovisti shodny s repozitarem, `diff -r`).
+
+Kontrakt puvodne u `_chi2_lower_M` sliboval plny beh CHI2_PLATEAU_RUN
+pred `max_M` a jinak M = 3; mereni pred review (15 KK bodu, 0.1 %: plny
+beh start 3, sum 12.8 %, neplatne; kod start 13, 0.8 %, platne) -> kontrakt
+prepsan podle kodu (beh zkraceny u `max_M`), rozhodnuti uzivatele.
+
+Autor kontraktu predem cekal F1 (prazdne `elements` IndexError), F3
+(NaN kandidat nevypadne, `min()` nad prazdnym seznamem) a ze vetev None
+v `lin_kk_native` je pri rozsahu od 0 nedosazitelna (potvrzeno: 120
+nahodnych spekter, i rozsahy (0.5, 1) a (1, 2)). Necekal F2, F4-F10.
+Cekany rozpor docstringu (min_chi2 = chi^2 viteze, ne minimum) reviewer
+nehlasil; `n_evaluations` = 0 (None bez min_mu) nezkousel.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | C | ValueError, kdyz `elements` nema 1 + len(tau) + [include_L] polozek, i prazdne | `elements[0]` pred kontrolou: prazdne `elements` IndexError | jen API; Lin-KK a graf predavaji vysledek fitu |
+| F2 | C | totez | s `include_L` a jednou polozkou je `elements[1:-1]` prazdne a sedi na tau = []: [5] misto dvou polozek projde; cisla jako pri spravnem volani (slot L se nepouziva) | jen API |
+| F3 | B | kandidat s nekonecnym chi^2 nebo mu nesoutezi; None, kdyz zadny nezbude | konecnost se nekontroluje, NaN < min_mu je False: NaN u prvniho kandidata -> `min()` vrati NaN, mnozina shody prazdna, ValueError "min() arg is an empty sequence"; NaN jinde se tise preskoci (zavisi na poradi); same inf -> (0.0, inf) misto None | Z x 1e200 (mimo znamou mez 1e-150..1e150): `kramers_kronig_validation` `error` s touto hlaskou a ~430 RuntimeWarning; NaN/inf ve fyzikalnim rozsahu jen simulovane |
+| F4 | A | kontrakt mlci | okno hleda minimum jen dopredu: na chi^2 stoupajicim s M (fit 'imag' na vysokem M) je kazde M "na plateau". 40 bodu, 1 RC, 0.1 %: l(M) minimum -4.0 u M = 19, u M = 37 +1.1; start 33, `lin_kk_native` imag M 33, mu 0.000, sum 0.75 % (real 0.11 %, complex 0.10 %) | jen `lin_kk_native(fit_type='imag')` pres API; CLI a `kramers_kronig_validation` fituji 'real', tam start vzdy pod minimem chi^2; vlastni 1-RC spektrum 0 z 20 seminek |
+| F5 | B | f x c necha extenzi, chi^2 a mu, tau, L, C / c; pro kazdou vahu | 'imag' s C: f x 1e3 extenze 0.0 -> 0.2, chi^2 1.8e-4 -> 7.7e-5, C x c -0.51 -> 94 (podminenost fitu v `estimate_R_linear`); 'real' s C plati do 1e3, rozpadne se az u 1e6 | jen API ('imag'); CLI 'real' v realnem rozsahu f invariantni |
+| F6 | B | Z x c bez rozsahu | nad ~1e150 pretece |Z|^2 v `noise.py`: 1e152 extenze 0.4 -> 0.5, start M 20 -> 27, 1e153 ValueError (F3) | mimo znamou mez (docstring `validate_eis_data`); kontrakt ji nejmenuje |
+| F7 | B | permutace a skala meni vysledek jen o zaokrouhleni | presna data (cisty R, R-L) maji chi^2 1e-31 az 1e-28: relativni shoda a log10 rozhoduji zaokrouhleni, extenze pres poradi bodu 0.0 / 0.1 / 0.2 / 0.6; `kramers_kronig_validation` cisty R podle reviewera M 6 / 16 / 6 | jen presna syntetika; sum ~1e-14 %, verdikt beze zmeny |
+| F8 | C | zadne RuntimeWarning na tom, co volajici predavaji; f <= 0 je ValueError | mrizka tau se stavi pred validaci v `estimate_R_linear`: f = 0 da "divide by zero" a "invalid value" pred ValueError, f < 0 "invalid value in log10" | jen API: loadery (Gamry, CSV) body s f <= 0 zahodi; `kramers_kronig_validation` s f = 0 varovani a `error` |
+| F9 | B | n_evaluations hodnot pres rozsah vcetne obou koncu, n_evaluations >= 1 | `np.linspace(lo, hi, 1)` = [lo]: n = 1 fituje jen dolni mez | jen API; Lin-KK predava 11 |
+| F10 | C | kontrakt mlci | degenerovane frekvence projdou: vsechny f stejne (mrizka tau v jednom bode) vrati (0.0, 10.3), M = 40 > N = 20 vrati vysledek | jen API; `lin_kk_native` omezuje `max_M` na N - 2 |
+
+Overeno, ze plati (reviewer): `reconstruct_impedance` (slot L se
+nepouziva, linearita v (elements, L, 1/C) na 2e-16, shoda s modelem, tvar
+0-D i 2-D, complex128, vstupy nezmenene); mrizka tau (konce, zaporna
+extenze = 0); vraceny tuple reprodukuje sve chi^2; pravidlo shody
+a nejmensi extenze; determinismus a nezmenene vstupy i pres
+`kramers_kronig_validation`; permutace na 30 spektrech se sumem; Z x c
+1e-6 az 1e6 pro vsechny vahy a typy fitu; `M_lower` = vysledek
+`_chi2_lower_M`; kandidat s extenzi 0 v 120 behach vzdy ponechan (mu
+presne shodne); volani KK grafu reprodukuje Z_fit bitove pro vsechny
+kombinace L / C / typu fitu; ValueError pro neplatnou vahu, typ fitu
+a data.
+
+Provedeno 2026-10-26 (rozhodnuti uzivatele: oprava jen F3, F5-F10
+kontraktem; F1, F2 a F4 bez akce; test v `tests/test_kramers_kronig.py`):
+
+- Kod: F3 - kandidat bez konecneho chi^2 nebo mu vypadne; zadny
+  nezbyde -> None, varovani `lin_kk_native` jmenuje oba duvody. Z x 1e200
+  (nad znamou mezi) dava misto `error` sum NaN a `is_valid` False.
+  Cisla na merenych datech beze zmeny.
+- Kontrakt: F5 - invariance vuci f x c slibena pro 'real' a 'complex'
+  (s C 'real' do 1e3), pro 'imag' ne; F6 - Z x c jen v mezi
+  1e-150..1e150; F7 - "na zaokrouhleni" plati pro cisla, ne pro volby na
+  chi^2 v urovni zaokrouhleni; F8 - f <= 0 da RuntimeWarning pred
+  ValueError; F9 - n_evaluations = 1 jen dolni mez; F10 - stejne f
+  a M > N se nekontroluji.
+- Bez akce a kontrakt je nepopisuje: F4 (stoupajici chi^2 u 'imag').
+  F1, F2 nakonec opraveny po /code-review (CR4, nize).
+- Test bez opravy pada.
+- /code-review (9 nalezu), provedeno: CR1 - nad mezi |Z| chi^2 nejdriv
+  pretece na 0 (vaha 1/inf; Z x 1e154 a 1e155 na 2-RC: test projde se
+  sumem 0 %, tak i pred opravou), NaN az od ~1e160: CHANGELOG a kontrakt
+  opraveny; CR3 - None pri rozsahu od 0 i pri stop fitu bez konecneho
+  chi^2 (kontrakt); CR4 - F1, F2 opraveny v kodu (pocet prvku pred
+  indexaci, ValueError), test rozsiren; CR5, CR6 - docstring `min_mu`
+  a navratovych hodnot (chi^2 viteze shody, ne minimum); CR8 - kontrola
+  konecnosti mu zbytecna (`calc_mu` je NaN jen pri nekonecnem R_k, pak je
+  nekonecne i chi^2), vracena na `mu < min_mu`. Bez akce: CR2 (pricina je
+  vzorec v `noise.py`, prepis na relativni residua uz zapsan jako
+  samostatny ukol u kola 8), CR7 (varovani spojuje dve priciny, rozliseni
+  by menilo navratovy typ kvuli pripadu mimo rozsah), CR9 (pokryti testu,
+  rozpocet testu).
+- Druhy /code-review (7 nalezu), provedeno: prahy preteceni v CHANGELOGu
+  a kontraktu platily jen pro jedno spektrum (2-RC se sumem 0.1 %: x 1e153
+  sum 0.051 % misto 0.093 %, x 1e154 0 % platne, od x 1e155 NaN; presne
+  totez spektrum 0 % az do x 1e156) -> popsano obecne: nad ~1.3e154 ve
+  slozce Z pretece ctverec, chi^2 klesne (az 0 %, test projde) nebo je
+  NaN podle dat; text "konecne mu" po CR8 opraven; zalomeni kontraktu.
+  Bez akce: pricina v `noise.py` a slouceni pricin ve varovani (jako
+  v prvnim review), NaN u pozdejsiho kandidata v testu (volitelne,
+  nevybrano).
