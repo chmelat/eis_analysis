@@ -880,3 +880,48 @@ okrajove bez akce):
   varovani na `max_M` zase "mu = ... > prah", pro NaN "nan (not a
   number)"; zalomeni CHANGELOGu. Bez akce: odmitnout necele `max_M`
   (mimo zaruky, popsano), test (rozpocet testu).
+
+## Kolo 11: validation/outliers.py (2026-10-26)
+
+Kontrakt: docstring `eis_analysis/validation/outliers.py`. Reviewer: Opus,
+jeden beh (4 min, 76k tokenu, 21 volani nastroju), piskoviste
+`~/coldreview/outliers/` = cely balik s `review/_setup.py`. Debrief: precten
+cely modul, z `kk_result.py` jen radky 118-133 (def a return `sparse_fit`,
+`noise_estimate_median`), jednotlive radky `cli/parser.py` a
+`cli/handlers/validation.py` z grepu; 11 skriptu v `review/`, mezi nimi
+nahodne vlastnosti (3000 pripadu s KKResult, capacitive_end s i bez
+with_series_c, NaN, duplicitni f; varovani jako chyby) a dosah pres
+`report_outliers` s realnymi KK a Z-HIT vysledky. F1-F7 reprodukovany
+nezavisle (skript v scratchpadu sezeni) proti modulu v repozitari.
+
+Autor kontraktu predem cekal F1 (inf oznaci bod a vstoupi do medianu),
+F2 (`noise_estimate_median` pres `np.median`, jedno NaN vypne relativni
+kriterium) a F6 (`--max-residual` bez kontroly rozsahu). Necekal F3-F5
+a F7. Cekany rozpor docstringu (median pod hranici sumu vs. odhad sumu
+sigma) reviewer nehlasil.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | nekonecne r_i se ignoruje: neoznaci bod, nevstoupi do m ani do pojistky; worst konecne | `np.nanmedian` vynecha NaN, ne inf; inf > prah: bod oznacen s worst = inf; hypot(NaN, inf) = inf; 5 z 9 inf -> median inf, metoda ve `skipped`, ackoli median konecnych 1.4 % | jen API: KK i Z-HIT odmitnou Z = 0, NaN a |Z| < 1.5e-154 (KK `error`, Z-HIT prazdna pole) |
+| F2 | A | NaN nevstoupi do kontroly hranice sumu | `_relative_applies` cte `noise_estimate_median` (`np.median`): jedno NaN -> NaN >= prah False, relativni kriterium tise vypnuto; 22 bodu ~0.3 % s jednim 3 %: bez NaN oznacen, s NaN jinde nic | jen API (realne validace NaN rezidua nevraceji) |
+| F3 | C | zastupce jen s rezidui povolen, find_outliers nevyhazuje | `kk_result.with_series_c` a `noise_estimate_median` bez getattr: capacitive_end bez with_series_c (se Z-HIT) AttributeError, sparse_fit False bez noise_estimate_median AttributeError, None TypeError | jen API; realny KKResult atributy ma |
+| F4 | B | pro Z-HIT r = 100 * |residuals_mag| | `residuals_mag` je uz v procentech: r = |residuals_mag| | jen text kontraktu |
+| F5 | B | verejne API `eis_analysis.validation.residual_percent` | neexportovano, jen `eis_analysis.validation.outliers.residual_percent` | API |
+| F6 | B | volajici preda max_residual konecne > 0; CLI ho preda bez kontroly | kontrakt jmenuje volajiciho, ktery podminku porusuje: `--max-residual` 0 a -1 preskoci obe metody s hlaskou "over half the points exceed 0.0%", nan a inf vypnou absolutni kriterium i pojistku bez hlasky; `_positive_float` v `parser.py` existuje, nepouzit | CLI |
+| F7 | C | kontrakt mlci | docstring `OutlierReport.skipped` rika "mean residual", kod i kontrakt median | jen docstring |
+
+Overeno, ze plati (reviewer): vstupy nezmenene, determinismus; zadne
+varovani s NaN rezidui; invariance vuci permutaci (i s realnymi KK
+a Z-HIT na zamichanych f); vyssi `max_residual` pri stejnem `skipped`
+bod neprida; worst konecne > 0 a razeni sestupne (bez inf); Z-HIT bod
+vzdy nad prahem; pojistka ostra (median = prah prispiva); nahrada
+with_series_c, None -> `skipped`; KK s `error` neprispiva a neni ve
+`skipped`; stejna r_i (n = 1 i 7) nic neoznaci; prazdne f -> prazdny
+report; `frequencies_flagged_by` vzestupne, duplicity zachova,
+ValueError pro jiny mode; na kapacitnim konci relativni kriterium cte
+`sparse_fit` a sum with_series_c.
+
+Netestovano (reviewer): merene soubory; with_series_c s `error`
+(autor: nenastane, vyjimka reruns -> with_series_c None,
+`kramers_kronig.py`); realny KKResult se `sparse_fit` True; preteceni
+v hypot.
