@@ -761,3 +761,73 @@ kontraktem; F1, F2 a F4 bez akce; test v `tests/test_kramers_kronig.py`):
   Bez akce: pricina v `noise.py` a slouceni pricin ve varovani (jako
   v prvnim review), NaN u pozdejsiho kandidata v testu (volitelne,
   nevybrano).
+
+## Kolo 10: fitting/voigt_chain/mu_optimization.py (2026-10-26)
+
+Kontrakt: docstring `eis_analysis/fitting/voigt_chain/mu_optimization.py`.
+Reviewer: Opus, jeden beh (5 min, 76k tokenu, 11 volani nastroju),
+piskoviste `~/coldreview/mu_optimization/` = cely balik a `review/_setup.py`
+(jen presmerovani importu na piskoviste, poucka z kola 9); cist smel jen
+modul, zbytek jako cernou skrinku. Debrief: precten jen modul a `_setup.py`
+(radky jinde jen z varovani a hlasek); volajici overeni spionem na
+`find_optimal_M_mu` pres `lin_kk_native` a `fit_voigt_chain_linear`;
+9 skriptu v `review/`. F1-F10 reprodukovany nezavisle (skript v scratchpadu
+sezeni) proti modulu v repozitari, F4 a F6 jako reviewer s podvrzenym
+`calc_mu`.
+
+Autor kontraktu predem cekal F1, F2 (P = 0 vraci -1), F3 (NaN R_k
+vynechane), F4 (NaN mu zastavi hledani), F5 (stop na `max_M` chybi
+v `iterations`) a F10 (docstringy "<"). Necekal F6 (kontrakt si
+odporuje), F7-F9. Cekane hledani za hranici urceneho fitu u
+`fit_voigt_chain_linear` reviewer potvrdil (N = 1: M do 50, 102
+parametru), kontrakt ho priznava, neni to nalez.
+
+| Id | Zav. | Klauzule | Co kod dela | Dosah v knihovne |
+|---|---|---|---|---|
+| F1 | A | mu neroste s ubytkem P; vse zaporne (P = 0, N > 0) je nejnizsi hodnota, -inf | `pos_sum == 0` vrati -1: [1, -100] -99, [0.01, -2] -199, [-1, -2] -1; odebrani posledni kladne hmoty mu zvedne | jen API `calc_mu`; 135 behu pres volajici (Lin-KK real/imag, Voigt auto-M; N 15/41/71, sum 0.01-1 %): stop mu nejmene 0.055, nikdy <= -1 |
+| F2 | A | zadny odpor (N = P = 0) a prazdne pole: 1 | totez misto: prazdne pole, [0, 0], [-0.0] -> -1 | jen API; v hledani M >= 1 a presne nuly nenastavaji |
+| F3 | A | NaN R_k da NaN | NaN neprojde `< 0` ani `>= 0`, vypadne z obou souctu: [nan, 1, 2] 1.0, [nan, 1, -0.5] 0.5, [nan, nan] -1 | jen simulovane (NaN v `estimate_R_linear`); na validovanych datech fit konecny |
+| F4 | A (latentni) | NaN mu nezastavi; `reached_max_M` True prave kdyz zadne M nesplnilo prah | `mu > mu_threshold` je pro NaN False: podvrzene NaN u M = 5 -> stop M 5, `reached_max_M` False, bez varovani | dnes nedosazitelne (F3 brani NaN); ozije s opravou F3 |
+| F5 | C | `iterations` vzdy obsahuje stop M | vzorkuje jen `mu <= prah`, ne `M == max_M`: konec na 12 -> iterace 3, 5, 10 | CLI `--voigt-auto-M` a Lin-KK pri dosazeni `max_M` (vypis prubehu bez posledniho kroku); stop M a mu se hlasi zvlast |
+| F6 | B | vse zaporne = -inf; prah -inf nezastavi pred `max_M` | kontrakt si odporuje: s -inf z F1 plati -inf <= -inf a hledani stoji (podvrzeno: M 5, `reached_max_M` False) | jen kontrakt; dnes drzi diky F1 |
+| F7 | C | kontrakt mlci o typech | `max_M` 7.5 -> M 8 nad `max_M`; `min_M` 3.0 TypeError; `max_M` inf s nesplnitelnym prahem nekonecna smycka | jen API; volajici predavaji cela cisla |
+| F8 | C | kontrakt mlci | `extend_decades` -1 a NaN = 0 (mrizka), inf RuntimeWarning a ValueError "tau contains NaN/Inf" | jen API; CLI `--voigt-extend-decades` je float od uzivatele |
+| F9 | C | kontrakt mlci | vsechny f stejne: mrizka tau v jednom bode, mu 1, hledani do `max_M` | jen API |
+| F10 | C | stop pri mu <= prah | docstring "until mu < mu_threshold", `MuOptimization.mu` "below mu_threshold"; kod <= (prah 1: stop M 3, mu 1.0) | jen text |
+
+Overeno, ze plati (reviewer): vstupy nezmenene, determinismus; Z x 1e+-6
+a f x 1e+-3 drzi M a mu (dmu <= 3e-9), elements, L, C a tau se skaluji
+podle kontraktu pro complex, real i imag, s C i bez; permutace bodu;
+rozlozeni prvku pro vsechny kombinace R_s / L / C, C nikdy v elements;
+prah >= 1, inf a 1e300 zastavi na `min_M`; vsechny uvedene ValueError;
+argumenty volajicich podle kontraktu (Lin-KK `min_M` z plateau, `max_M`
+N - 2, NaN odmitnut; Voigt `max_M` 50 neomezeny).
+Mimo modul: `lin_kk_native` s 6 body a `max_M` 2 hlasi "needs at least
+5 points, got 6" (hlaska volajiciho pocita s vychozim `max_M`).
+
+Provedeno 2026-10-26 (rozhodnuti uzivatele: opravy F1-F5, kontrakt F6-F9,
+docstringy F10; test v `tests/test_kramers_kronig.py`):
+
+- Kod: F1, F2 - `calc_mu` pri P = 0 vraci -inf (N > 0) nebo 1 (zadny
+  odpor); F3 - NaN R_k da NaN; F4 - hledani i `reached_max_M` pres
+  `not mu <= prah`, NaN mu neni stop; F5 - krok na `max_M` vzdy
+  v `iterations`. Cisla pres volajici beze zmeny.
+- Kontrakt: F6 - prah -inf zastavi jen na M se vsemi R_k zapornymi,
+  jinak na `max_M`; F7-F9 - cela `min_M` a `max_M`, konecne
+  `extend_decades` >= 0 a aspon dve ruzne f jsou zaruka volajiciho,
+  co se deje mimo ne. Kontrakt `kk_grid.py`: mu NaN jen s NaN nebo
+  nekonecnym R_k, -inf (vse zaporne) pod kazdym konecnym `min_mu`.
+- Docstringy: F10 - zastaveni pri mu <= prah (`find_optimal_M_mu`,
+  `MuOptimization.mu`, `calc_mu`), `calc_mu` Returns doplnen o -inf,
+  1 a NaN.
+- Test bez opravy pada.
+- /code-review (7 nalezu), provedeno: CR1 - NaN stop mu (dosazitelne po
+  F4) vypnul v `kk_grid` filtr mu (`< NaN` je False) -> `not >=
+  min_mu`, s NaN neprojde zadny kandidat (jak kontrakt `kk_grid` slibuje);
+  CR2 - test s `max_M` 6 rozlisi i samotnou podminku smycky; CR4, CR7 -
+  nekonecne R_k se scitala ([inf, 1, -0.5] 1.0, [-inf, 1, 2] -inf,
+  [inf, -inf] NaN) -> NaN i inf v R_i daji NaN, -inf jen pro vsechna
+  konecna R_k zaporna; CR5 - "zadne RuntimeWarning" jen dokud soucty N
+  a P zustanou konecne (kontrakt); CR6 - stop mu -inf pusti v Lin-KK
+  kazde rozsireni (CHANGELOG). Bez akce: CR3 (hlaska "mu = nan > 0.85"
+  pri NaN na `max_M`, jen simulovane).
