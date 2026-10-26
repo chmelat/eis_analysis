@@ -4,6 +4,29 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Lin-KK tau-grid extension: a candidate without a finite chi^2 no
+  longer competes.** In `find_optimal_extend_decades` a NaN chi^2 at
+  the first candidate turned the minimum into NaN and failed with
+  "min() arg is an empty sequence" (`kramers_kronig_validation`: `error`),
+  a NaN further on was skipped silently, and inf everywhere returned
+  (0.0, inf) instead of None. Such candidates are now dropped; with none
+  left the result is None and `lin_kk_native` keeps the unextended grid,
+  its warning naming both reasons. Reached only above the known |Z|
+  limit of ~1e150: once a component of Z exceeds ~1.3e154 its square
+  overflows in the pseudo chi^2, which then turns NaN (now noise NaN
+  and `is_valid` False instead of an `error`) or, depending on the data,
+  drops toward 0 (noise underestimated down to 0 %, test passing, as
+  before). No change on measured data. The module has a contract
+  (`validation/kk_grid.py`, contract review round 9 in
+  `doc/CONTRACT_REVIEW.md`).
+- **`reconstruct_impedance` counts the elements before reading them.**
+  An empty array raised IndexError instead of ValueError, and with
+  `include_L` a single entry passed for an empty tau grid.
+
 ## Version 0.63.0 (2026-10-25)
 
 ### Changed (breaking)

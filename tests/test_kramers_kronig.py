@@ -126,6 +126,10 @@ def test_reconstruct_l_value_none_has_no_inductive_term():
     Z = reconstruct_impedance(f, elements, tau, L_value=None, include_L=True)
     Z_no_L = reconstruct_impedance(f, elements, tau, L_value=0.0, include_L=True)
     np.testing.assert_allclose(Z, Z_no_L, rtol=1e-12, atol=1e-12)
+    # Counted before indexing: [] was an IndexError, [R_s] with include_L passed
+    for short in (np.array([]), np.array([5.0])):
+        with pytest.raises(ValueError, match="elements for 0 time constants"):
+            reconstruct_impedance(f, short, np.array([]), L_value=None, include_L=True)
 
 
 def test_reconstruct_include_L_false_treats_all_as_resistors():
@@ -253,6 +257,22 @@ def test_find_optimal_extend_within_range():
     assert chi2 >= 0.0
     assert tau.shape[0] == 7
     assert np.isfinite(elements).all()
+
+
+def test_find_optimal_extend_drops_nonfinite_candidates(monkeypatch):
+    # A NaN chi^2 at the first candidate made min() NaN and the tie empty
+    # (ValueError); all inf returned (0.0, inf) instead of None
+    from eis_analysis.validation import kk_grid
+    f = np.logspace(-1, 5, 50)
+    Z = voigt_impedance(f, 10.0, [(50.0, 1e-3), (30.0, 1e-1)])
+    real_chi2 = kk_grid.compute_pseudo_chisqr
+    calls = iter(range(100))
+    monkeypatch.setattr(kk_grid, "compute_pseudo_chisqr",
+                        lambda a, b: np.nan if next(calls) == 0 else real_chi2(a, b))
+    ext, chi2, *_ = find_optimal_extend_decades(f, Z, M=7, n_evaluations=6)
+    assert ext > 0.0 and np.isfinite(chi2)
+    monkeypatch.setattr(kk_grid, "compute_pseudo_chisqr", lambda a, b: np.inf)
+    assert find_optimal_extend_decades(f, Z, M=7, n_evaluations=6) is None
 
 
 # =============================================================================

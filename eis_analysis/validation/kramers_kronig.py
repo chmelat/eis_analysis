@@ -187,8 +187,8 @@ def lin_kk_native(
         )
         if best is None:
             warnings.append(f"Every extend_decades in {extend_decades_range} "
-                            f"lowers mu below the stop value {mu:.4f}; "
-                            f"kept the unextended tau grid")
+                            f"lowers mu below the stop value {mu:.4f} or gives "
+                            f"no finite chi^2; kept the unextended tau grid")
         else:
             extend_decades, _, tau, elements, L_value, C_value = best
 
