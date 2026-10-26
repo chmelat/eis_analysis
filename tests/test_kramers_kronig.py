@@ -659,3 +659,24 @@ def test_mu_threshold_at_or_above_one_stops_at_the_first_M(threshold):
     r = find_optimal_M_mu(f, Z, mu_threshold=threshold, min_M=3)
     assert r.M == 3 and r.tau is not None and r.elements is not None
     assert kramers_kronig_validation(f, Z, mu_threshold=threshold).success
+
+
+def test_mu_nonfinite_cases_and_search_end(monkeypatch):
+    # P = 0 gave -1 (above -99 of [1, -100]) and -1 for no resistance; a NaN
+    # R_k dropped out; a NaN mu then stopped the search as converged; the
+    # max_M step was missing from the iterations
+    from eis_analysis.fitting.voigt_chain import calc_mu, find_optimal_M_mu
+    import eis_analysis.fitting.voigt_chain.mu_optimization as mo
+
+    assert calc_mu(np.array([-1.0, -2.0])) == -np.inf < calc_mu(np.array([1.0, -100.0]))
+    assert calc_mu(np.array([])) == calc_mu(np.array([0.0, 0.0])) == 1.0
+    assert np.isnan(calc_mu(np.array([np.nan, 1.0, 2.0])))
+    assert np.isnan(calc_mu(np.array([np.inf, 1.0, -0.5])))
+    f = np.logspace(5, -1, 30)
+    Z = voigt_impedance(f, 10.0, [(100.0, 1e-3)])
+    r = find_optimal_M_mu(f, Z, mu_threshold=-1e9, max_M=12)
+    assert r.reached_max_M and r.iterations[-1].M == 12
+    real_mu = mo.calc_mu
+    monkeypatch.setattr(mo, "calc_mu", lambda R: np.nan if len(R) == 5 else real_mu(R))
+    r = find_optimal_M_mu(f, Z, mu_threshold=0.85, max_M=6)
+    assert r.M == 6 and r.reached_max_M and r.warnings

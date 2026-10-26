@@ -62,7 +62,9 @@ L_value, C_value).
   ends included (n_evaluations = 1: search_range[0] only). Each is
   fitted on its own grid; a candidate is kept when its mu >= min_mu and
   its chi^2 is finite (a fit that gave no number does not compete; mu is
-  not finite only with an infinite R_k, whose chi^2 is not either).
+  NaN only with a NaN or infinite R_k, whose chi^2 is not finite
+  either; -inf, all R_k negative, falls below any finite min_mu; a NaN
+  min_mu keeps no candidate).
   Among the kept ones, those with chi^2 <= chi2_min (1 +
   EXTEND_CHI2_TIE) tie, chi2_min the lowest, and the smallest extension
   of the tie wins. The tuple is that candidate's: its
@@ -312,7 +314,8 @@ def find_optimal_extend_decades(
         )
 
         # R_1..R_M sit right after R_s whether or not L follows them
-        if calc_mu(elements[1:1 + len(tau)]) < min_mu:
+        # `not >=`: a NaN stop mu keeps no candidate (`< NaN` kept all)
+        if not calc_mu(elements[1:1 + len(tau)]) >= min_mu:
             continue
 
         Z_fit = reconstruct_impedance(frequencies, elements, tau, L_value, include_L, C_value=C_value)

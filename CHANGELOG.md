@@ -26,6 +26,20 @@ Complete change history for all project versions.
 - **`reconstruct_impedance` counts the elements before reading them.**
   An empty array raised IndexError instead of ValueError, and with
   `include_L` a single entry passed for an empty tau grid.
+- **mu metric: no positive R_i is -inf, a NaN or infinite R_i is NaN.**
+  `calc_mu` returned -1 whenever no R_i was positive, so an all-negative
+  fit ranked above one with a little positive mass ([1, -100] gives -99),
+  and an empty or all-zero array (no overfit) got -1 too, now 1. A NaN
+  R_i dropped out of both sums and gave a finite mu, an infinite one
+  swamped them ([inf, 1, -0.5] gave 1.0). In `find_optimal_M_mu` a NaN mu
+  no longer stops the search as converged (`reached_max_M` was False),
+  and the step at max_M is always in `iterations` (the CLI listing of
+  the `--voigt-auto-M` search missed it). In Lin-KK a stop mu of -inf
+  (all R_i negative) lets every tau-grid extension pass the mu check
+  (none can be worse; with -1 those below -1 were rejected), and a NaN
+  stop mu lets none pass (before, all). Not reached through
+  Lin-KK or the Voigt chain fit on measured data (stop mu >= 0.05 in 135
+  test runs); the module has a contract (contract review round 10).
 
 ## Version 0.63.0 (2026-10-25)
 

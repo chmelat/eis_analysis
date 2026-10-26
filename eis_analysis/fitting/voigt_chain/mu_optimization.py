@@ -3,6 +3,107 @@ Mu metric optimization for Voigt chain fitting (Lin-KK style).
 
 This module provides the mu metric calculation and automatic optimization
 of the number of Voigt elements.
+
+CONTRACT
+
+Metric. For the resistances R_1..R_M of a Voigt chain fitted with
+negative values allowed, N = sum |R_k| over R_k < 0 (the negative mass)
+and P = sum R_k over R_k >= 0. mu = 1 - N / P (Schoenleber 2014): 1 with
+no negative R_k, falling as the negative mass grows, below 0 when it
+exceeds the positive one. More negative mass never raises mu: mu is
+non-increasing in N at fixed P and non-decreasing in P at fixed N, so the
+all-negative case (P = 0, N > 0) is the lowest value, -inf. With no
+resistance at all (N = P = 0) there is no overfit: 1. Lin-KK stops adding
+elements once negative R_k appear in quantity, the sign of fitting noise.
+
+Search. find_optimal_M_mu fits M = min_M, min_M + 1, ... on
+generate_tau_grid_fixed_M(frequencies, M, extend_decades) with
+estimate_R_linear(allow_negative as passed) and stops at the first M
+whose mu <= mu_threshold, or at max_M. At least one M is fitted (min_M),
+whatever the threshold.
+
+Callers.
+- validation.kramers_kronig.lin_kk_native: min_M from
+  kk_grid._chi2_lower_M (3 <= min_M <= max_M), max_M <= N - 2 (- [L] -
+  [C] for 'imag'), extend_decades 0, include_Rs and allow_negative True,
+  mu_threshold from the user (CLI --mu-threshold, default 0.85; only NaN
+  is rejected here), fit_type and weighting as passed ('real' and
+  'modulus' through kramers_kronig_validation). It reads M, mu, tau,
+  elements, L_value, C_value and warnings; mu becomes min_mu of
+  kk_grid.find_optimal_extend_decades, KKResult.mu and the CLI's stop
+  line. f and Z are validated before (validate_eis_data).
+- fitting.voigt_chain.fitting.fit_voigt_chain_linear (CLI --voigt-chain
+  --voigt-auto-M): min_M 3, max_M from --voigt-max-M (default 50, not
+  capped by the number of points), mu_threshold from
+  --voigt-mu-threshold, extend_decades from --voigt-extend-decades,
+  include_C False, allow_negative True, fit_type default 'complex'. It
+  keeps only tau and refits it with NNLS; the CLI prints iterations,
+  reached_max_M, warnings, n_negative / n_R and the stop M and mu.
+- kk_grid.find_optimal_extend_decades calls calc_mu(R_1..R_M) per
+  extension candidate and compares it with min_mu.
+Public API (eis_analysis.fitting.voigt_chain: calc_mu, find_optimal_M_mu,
+MuOptimization): any caller, nothing guaranteed beyond the rules below.
+
+calc_mu(R_i) -> float.
+  The metric above over a 1-D float array (R_s and L not included). A
+  NaN or infinite R_k gives NaN: an unfitted or overflowed element is no
+  resistance to count, and a mu that left it out or let it swamp the
+  sums would pass for a judgement. An empty array has no resistance: 1.
+  Invariant under permuting R_i and scaling it by c > 0. No
+  RuntimeWarning while the sums N and P stay finite (|R_k| summing below
+  ~1e308; the fit of |Z| within 1e-150..1e150 keeps them far below).
+
+find_optimal_M_mu(frequencies, Z, mu_threshold=0.85, max_M=50,
+extend_decades=0, include_Rs, include_L, include_C, fit_type, allow_negative,
+weighting, min_M=3) -> MuOptimization.
+  M: the stop M, min_M <= M <= max_M. mu: calc_mu of its R_1..R_M (after
+  R_s where include_Rs, before L where include_L; C is never in
+  elements). tau, elements, L_value, C_value: the fit at M, as
+  estimate_R_linear returned it, so that the caller can rebuild Z_fit
+  from them. reached_max_M: True exactly when no fitted M had mu <=
+  mu_threshold, i.e. the search ended at max_M for want of M (with it,
+  a warning saying M is the cap, not a mu choice); False when the stop
+  M meets the threshold. n_negative, n_R: R_k < 0 and all R_k at M.
+  iterations: one MuIteration per sampled step - min_M, every M
+  divisible by 5, and the stop M always (the CLI prints them as the
+  progress of the search); iteration counts from 1 at min_M, residual is
+  estimate_R_linear's. warnings: also two lines when allow_negative is
+  False (mu is then 1 by construction, so the search runs to max_M).
+  mu_threshold >= 1 stops at min_M (mu <= 1 always); inf as well;
+  -inf stops only at an M whose R_k are all negative (mu -inf), else at
+  max_M. ValueError for NaN mu_threshold, for
+  min_M < 1 or min_M > max_M, and where estimate_R_linear raises
+  (validate_eis_data: NaN, inf, f <= 0, Z = 0, unequal lengths; unknown
+  fit_type or weighting); LinAlgError where its SVD does not converge.
+  A mu that is not a number (NaN) is not a stop: it does not meet the
+  threshold.
+  Beyond a determined fit (more unknowns than equations: 1 + M + [L] +
+  [C] above N for 'real', above 2N for 'complex') the R_k are not
+  unique and mu means nothing; the caller keeps max_M below that
+  (lin_kk_native does, fit_voigt_chain_linear does not).
+  The caller passes integer min_M and max_M, extend_decades finite and
+  >= 0, and f with at least two distinct values; nothing is promised
+  otherwise: max_M 7.5 ends at M = 8, a float min_M is a TypeError,
+  max_M = inf with a threshold never met does not end; a negative or NaN
+  extend_decades fits the grid of 0, inf is the fit's ValueError after
+  a RuntimeWarning; equal f collapse the tau grid to one value (mu 1,
+  the search runs to max_M).
+
+What must hold:
+  - The inputs are not changed. The result is deterministic.
+  - Raises only ValueError and LinAlgError, only where stated; no
+    RuntimeWarning on validated data.
+  - Units: Z scaled by c > 0 leaves M, mu, reached_max_M, n_negative and
+    the iterations' mu unchanged (to rounding) and scales the R in
+    elements and L_value by c, C_value by 1/c, while |Z| stays within
+    1e-150..1e150 (validate_eis_data); frequencies scaled by c leave M
+    and mu unchanged and scale tau, L_value and C_value by 1/c for
+    fit_type 'real' and 'complex' (for 'imag' the conditioning of the fit
+    decides, see validation/kk_grid.py).
+  - Permuting the points (f and Z together) changes no result (to
+    rounding).
+  - mu_threshold: a lower threshold never stops at a smaller M (the
+    search is the first M at or below it).
 """
 
 import numpy as np
@@ -43,8 +144,8 @@ class MuOptimization:
     M : int
         Number of Voigt elements the search stopped at
     mu : float
-        Mu value at that M (below mu_threshold on normal termination,
-        above it only when max_M was reached)
+        Mu value at that M (at or below mu_threshold on normal
+        termination, above it or NaN only when max_M was reached)
     tau : ndarray of float
         Time-constant grid for M
     elements : ndarray of float
@@ -94,11 +195,15 @@ def calc_mu(R_i: NDArray[np.float64]) -> float:
         - mu -> 1.0: all R_i positive (good fit, no overfit)
         - mu -> 0.0: large negative mass (overfit)
         - mu < 0.0: dominance of negative R_i (very bad)
+        - -inf: no positive R_i, only negative ones; 1.0 with no
+          resistance at all (empty or all zero); NaN where an R_i is NaN
+          or infinite
 
     Notes
     -----
     In Lin-KK test, used as stop condition for iterative determination
-    of optimal number of RC elements. Typical threshold: mu < 0.85.
+    of optimal number of RC elements. Typical threshold: stop at
+    mu <= 0.85.
 
     If all R_i >= 0 (from NNLS), then mu = 1.0 (ideal).
 
@@ -112,15 +217,22 @@ def calc_mu(R_i: NDArray[np.float64]) -> float:
     >>> calc_mu(R_i)
     0.9545  # Small negative mass
     """
+    # An unfitted or overflowed element is no resistance to count: NaN fails
+    # both tests below and would drop out of both sums, inf would swamp
+    # them ([inf, 1, -0.5] gave 1.0, [-inf, 1, 2] -inf)
+    if not np.isfinite(R_i).all():
+        return float('nan')
+
     neg_sum = float(np.sum(np.abs(R_i[R_i < 0])))
     pos_sum = float(np.sum(np.abs(R_i[R_i >= 0])))
 
     if pos_sum == 0:
-        # All negative (very bad). Debug only: the -1 is the report - it
-        # stops the M search (and shows as MuOptimization.mu) or rejects an
-        # extend_decades candidate, which is often a discarded overfit fit.
-        logger.debug("calc_mu: all R_i are negative!")
-        return -1.0
+        # The limit of 1 - N/P: -1 here ranked an all-negative fit above
+        # one with a little positive mass (-99 for [1, -100]). -inf still
+        # stops the M search or rejects an extend_decades candidate. No
+        # resistance at all is no overfit.
+        logger.debug("calc_mu: no positive R_i")
+        return 1.0 if neg_sum == 0 else -np.inf
 
     mu = 1.0 - neg_sum / pos_sum
     return mu
@@ -143,7 +255,7 @@ def find_optimal_M_mu(
     """
     Find optimal number of Voigt elements using mu metric (Lin-KK style).
 
-    Iteratively increases M from min_M until mu < mu_threshold or M >= max_M.
+    Iteratively increases M from min_M until mu <= mu_threshold or M >= max_M.
 
     Parameters
     ----------
@@ -229,7 +341,8 @@ def find_optimal_M_mu(
     elements = None
     R_i = np.array([])
 
-    while M < min_M or (mu > mu_threshold and M < max_M):
+    # `not mu <= threshold`: a NaN mu is no stop (mu > threshold is False)
+    while M < min_M or (not mu <= mu_threshold and M < max_M):
         M += 1
         iteration += 1
 
@@ -256,14 +369,15 @@ def find_optimal_M_mu(
         mu = calc_mu(R_i)
 
         # Sample the search every 5 steps, plus the first and the last one
-        if M % 5 == 0 or mu <= mu_threshold or M == min_M:
+        # (the last is either the stop or max_M)
+        if M % 5 == 0 or mu <= mu_threshold or M == min_M or M == max_M:
             iterations.append(MuIteration(
                 iteration=iteration, M=M, mu=mu, residual=residual,
                 n_negative=int(np.sum(R_i < 0)), n_R=len(R_i)))
 
     assert tau is not None and elements is not None  # the loop ran at least once
 
-    reached_max_M = mu > mu_threshold
+    reached_max_M = not mu <= mu_threshold
     if reached_max_M:
         warnings.append(f"Reached max_M = {max_M}, mu = {mu:.4f} > {mu_threshold}; "
                         f"mu criterion never triggered, M is the cap, not a mu choice")
