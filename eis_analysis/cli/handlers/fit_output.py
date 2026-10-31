@@ -103,6 +103,7 @@ def _save_fit_data(
             'input': args.input,
             'optimizer': 'linear' if args.voigt_chain else args.optimizer,
             'fit_on': getattr(args, 'fit_on', 'original'),
+            'drift_corrected': getattr(args, 'drift_corrected', None),
             'f_min': getattr(args, 'f_min', None),
             'f_max': getattr(args, 'f_max', None),
             'exclude_flagged': getattr(args, 'exclude_flagged', None),

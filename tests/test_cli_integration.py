@@ -51,6 +51,7 @@ def create_test_args(**kwargs) -> argparse.Namespace:
     defaults = {
         # Input/Output
         'input': None,
+        'raw_impedance': False,
         'f_min': None,
         'f_max': None,
         'save': None,
@@ -881,6 +882,20 @@ def test_oxide_invalid_metadata_area_is_ignored(caplog, bad_area):
     assert 'Ignoring invalid DTA metadata area' in caplog.text
     assert 'Using area from DTA metadata' not in caplog.text
 
+
+
+def test_raw_impedance_reaches_the_loader(tmp_path, monkeypatch):
+    """--raw-impedance is parsed and switches load_eis_data to the measured Z."""
+    from eis_analysis.cli import load_eis_data
+    from eis_analysis.cli.parser import parse_arguments
+    from tests.test_io_data_loading import _drift_dta
+    monkeypatch.setattr("sys.argv", ["eis", "data.DTA", "--raw-impedance"])
+    assert parse_arguments().raw_impedance
+    path = _drift_dta(tmp_path)   # corrected = measured + 1000
+    for raw, re0 in ((False, 1100.0), (True, 100.0)):
+        data = load_eis_data(create_test_args(input=str(path), raw_impedance=raw))
+        assert np.isclose(data.Z[np.argmax(data.frequencies)].real, re0)
+        assert data.drift_corrected is (not raw)
 
 
 # =============================================================================

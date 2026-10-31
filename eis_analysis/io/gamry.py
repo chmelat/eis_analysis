@@ -6,7 +6,7 @@ and the header metadata. Native parser - no external dependencies.
 import logging
 import math
 import unicodedata
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -47,7 +47,7 @@ def _read_dta_lines(filename: str) -> List[str]:
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii').splitlines()
 
 
-def read_gamry_native(filename: str) -> LoadResult:
+def read_gamry_native(filename: str, drift_corrected: bool = True) -> LoadResult:
     """
     Native parser for Gamry .DTA files.
 
@@ -58,6 +58,11 @@ def read_gamry_native(filename: str) -> LoadResult:
     ----------
     filename : str
         Path to .DTA file
+    drift_corrected : bool, optional
+        For a file recorded with drift correction (ZrealDrCor/ZimagDrCor
+        columns): read the corrected impedance (default) or, with False,
+        the measured Zreal/Zimag. Files without these columns read the same
+        either way. LoadResult.drift_corrected says which was read.
 
     Returns
     -------
@@ -76,7 +81,8 @@ def read_gamry_native(filename: str) -> LoadResult:
     - Tab-separated values, rows open with a tab
     - European decimal format (comma as separator)
     - ZCURVE section contains EIS data
-    - Columns: Pt, Time, Freq, Zreal, Zimag, ...
+    - Columns: Pt, Time, Freq, Zreal, Zimag, ...; with drift correction
+      (DRIFTCOR 1) also ZrealDrCor, ZimagDrCor, ZmodDrCor, ZphzDrCor
     - EXPERIMENTABORTED marks interrupted experiments
     """
     frequencies: List[float] = []
@@ -116,50 +122,54 @@ def read_gamry_native(filename: str) -> LoadResult:
     # cells as fields; rows open with a tab, so standard order starts at 3.
     warnings: List[str] = []
     header = lines[start_line + 1].split('\t') if start_line + 1 < len(lines) else []
+    # Names matched without case and surrounding whitespace, for every column
+    names = [name.strip().lower() for name in header]
     try:
-        col_freq, col_zreal, col_zimag = (header.index(n) for n in ('Freq', 'Zreal', 'Zimag'))
+        col_freq, col_zreal, col_zimag = (names.index(n) for n in ('freq', 'zreal', 'zimag'))
     except ValueError:
         warnings.append(f"ZCURVE header in {filename} does not name Freq/Zreal/Zimag "
                         f"({header or 'header row missing'}); assuming standard order")
         col_freq, col_zreal, col_zimag = 3, 4, 5
 
-    # A row must be long enough to hold the rightmost column we actually read.
     # THD is optional per row: a short or empty cell gives NaN, not a lost point.
-    min_columns = max(col_freq, col_zreal, col_zimag) + 1
-    col_thd = {name: header.index(name) for name in thd if name in header}
+    col_thd = {name: names.index(name.lower()) for name in thd if name.lower() in names}
 
-    # Extract data lines (skip ZCURVE header + column names + units = 3 lines)
-    if end_line is not None:
-        raw_data = lines[start_line + 3:end_line]
-    else:
-        raw_data = lines[start_line + 3:]
+    # Extract data lines (skip ZCURVE header + column names + units = 3 lines);
+    # European decimal format, a comma is never a separator here
+    data_lines = lines[start_line + 3:end_line] if end_line is not None else lines[start_line + 3:]
+    rows = [line.replace(',', '.').split('\t') for line in data_lines if line.strip()]
 
-    # Parse data lines
-    for line in raw_data:
-        if not line.strip():
+    # With drift correction on (DRIFTCOR 1) Gamry writes the corrected
+    # impedance beside the measured one as ZrealDrCor/ZimagDrCor; the columns
+    # decide, not the DRIFTCOR selector. The points are the rows with a valid
+    # measured impedance in either mode; where one of them has no valid
+    # correction the measured impedance is read for all, never a mix.
+    points = [_point(r, col_freq, col_zreal, col_zimag) for r in rows]
+    drift: Optional[bool] = None
+    if 'zrealdrcor' in names and 'zimagdrcor' in names:
+        drift = drift_corrected
+        if drift:
+            cols = (col_freq, names.index('zrealdrcor'), names.index('zimagdrcor'))
+            corrected = [_point(r, *cols) if p else None for r, p in zip(rows, points)]
+            missing = sum(p is not None and c is None for p, c in zip(points, corrected))
+            if missing:
+                drift = False
+                warnings.append(f"Drift correction in {filename} is incomplete: {missing} of "
+                                f"{len(points) - points.count(None)} points have no valid "
+                                f"ZrealDrCor/ZimagDrCor; the measured Zreal/Zimag are read "
+                                f"for all points")
+            else:
+                points = corrected
+
+    # A row cut short, malformed, non-finite or with f <= 0 is skipped
+    for parts, point in zip(rows, points):
+        if point is None:
             continue
-
-        # Convert European decimal format; a comma is never a separator here
-        parts = line.replace(',', '.').split('\t')
-
-        if len(parts) < min_columns:
-            continue
-
-        try:
-            freq = float(parts[col_freq])
-            zr = float(parts[col_zreal])
-            zi = float(parts[col_zimag])
-
-            # Validate values
-            if freq > 0 and np.isfinite(freq) and np.isfinite(zr) and np.isfinite(zi):
-                frequencies.append(freq)
-                z_real.append(zr)
-                z_imag.append(zi)
-                for name, col in col_thd.items():
-                    thd[name].append(_float_or_nan(parts, col))
-        except (ValueError, IndexError):
-            # Skip malformed lines
-            continue
+        frequencies.append(point[0])
+        z_real.append(point[1])
+        z_imag.append(point[2])
+        for name, col in col_thd.items():
+            thd[name].append(_float_or_nan(parts, col))
 
     if len(frequencies) == 0:
         raise ValueError(f"No valid EIS data found in {filename}. "
@@ -174,7 +184,20 @@ def read_gamry_native(filename: str) -> LoadResult:
     current_thd, voltage_thd = (np.array(thd[name], dtype=np.float64) if name in col_thd else None
                                 for name in ('Ithd', 'Vthd'))
     return LoadResult(freq_array, Z, filename, warnings=warnings,
-                      current_thd=current_thd, voltage_thd=voltage_thd)
+                      current_thd=current_thd, voltage_thd=voltage_thd, drift_corrected=drift)
+
+
+def _point(parts: List[str], col_freq: int, col_zreal: int,
+           col_zimag: int) -> Optional[Tuple[float, float, float]]:
+    """(f, Z', Z'') of a data row, None if a cell is missing, not a number,
+    not finite, or f <= 0."""
+    try:
+        freq, zr, zi = (float(parts[c]) for c in (col_freq, col_zreal, col_zimag))
+    except (ValueError, IndexError):
+        return None
+    if freq > 0 and all(math.isfinite(v) for v in (freq, zr, zi)):
+        return freq, zr, zi
+    return None
 
 
 def _float_or_nan(parts: List[str], col: int) -> float:
@@ -432,7 +455,7 @@ def expected_points(metadata: Dict[str, Any]) -> Optional[int]:
     return round(math.log10(f_init / f_final) * per_decade) + 1
 
 
-def load_data(filename: str) -> LoadResult:
+def load_data(filename: str, drift_corrected: bool = True) -> LoadResult:
     """
     Load data from Gamry .DTA file.
 
@@ -443,6 +466,9 @@ def load_data(filename: str) -> LoadResult:
     ----------
     filename : str
         Path to .DTA file
+    drift_corrected : bool, optional
+        For a file recorded with drift correction: the corrected impedance
+        (default) or, with False, the measured one (see read_gamry_native).
 
     Returns
     -------
@@ -456,7 +482,7 @@ def load_data(filename: str) -> LoadResult:
         read_gamry_native, which keeps only finite points with f > 0),
         has fewer than MIN_DATA_POINTS points, or Re(Z) < 0 everywhere
     """
-    result = read_gamry_native(filename)
+    result = read_gamry_native(filename, drift_corrected=drift_corrected)
     frequencies, Z = result.frequencies, result.Z
 
     n_measured = len(frequencies)

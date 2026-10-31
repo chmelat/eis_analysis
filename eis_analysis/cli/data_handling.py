@@ -128,6 +128,12 @@ def _print_load_summary(result: LoadResult) -> None:
         logger.warning(warning)
     f = result.frequencies
     logger.info(f"Loaded {len(f)} points from {result.filename}")
+    if result.drift_corrected:
+        logger.info("Drift-corrected impedance (Gamry ZrealDrCor/ZimagDrCor); "
+                    "--raw-impedance reads the measured Zreal/Zimag")
+    elif result.drift_corrected is not None:
+        logger.info("Measured Zreal/Zimag; the file also holds Gamry's "
+                    "drift-corrected impedance")
     logger.info(f"Frequency range: {f.min():.2e} - {f.max():.2e} Hz")
 
 
@@ -140,6 +146,8 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
     args : argparse.Namespace
         Parsed command line arguments. Uses:
         - args.input: Input file path (None for synthetic)
+        - args.raw_impedance (optional, default False): for a Gamry file
+          with drift correction, the measured instead of the corrected Z
 
     Returns
     -------
@@ -154,25 +162,36 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
     metadata = None
     ocv_data = None
     current_thd = voltage_thd = None
+    drift_corrected = None
+    raw_impedance = getattr(args, 'raw_impedance', False)
+    ignored_raw = "--raw-impedance applies to Gamry .DTA files only; ignored"
 
     if args.input is None:
         # Synthetic data
         _log_synthetic_params()
         frequencies, Z = generate_synthetic_data(**SYNTHETIC_DATA_PARAMS)
         title = "Synthetic data"
+        if raw_impedance:
+            logger.warning(ignored_raw)
     else:
         # File input
         if not os.path.exists(args.input):
             raise EISAnalysisError(f"File '{args.input}' does not exist!")
 
         ext = os.path.splitext(args.input)[1].lower()
+        if raw_impedance and ext != '.dta':
+            logger.warning(ignored_raw)
         try:
             if ext == '.dta':
-                loaded = load_data(args.input)
+                loaded = load_data(args.input, drift_corrected=not raw_impedance)
                 frequencies, Z = loaded.frequencies, loaded.Z
                 metadata = loaded.metadata
                 current_thd, voltage_thd = loaded.current_thd, loaded.voltage_thd
+                drift_corrected = loaded.drift_corrected
                 _print_load_summary(loaded)
+                if raw_impedance and drift_corrected is None:
+                    logger.info("The file has no drift-corrected impedance "
+                                "(ZrealDrCor/ZimagDrCor): --raw-impedance has no effect")
                 if metadata is not None:
                     print_metadata(metadata)
                 # Load OCV data if available
@@ -208,7 +227,8 @@ def load_eis_data(args: argparse.Namespace) -> LoadedData:
         metadata=metadata,
         ocv_data=ocv_data,
         current_thd=current_thd,
-        voltage_thd=voltage_thd
+        voltage_thd=voltage_thd,
+        drift_corrected=drift_corrected
     )
 
 
@@ -321,5 +341,6 @@ def filter_by_frequency(
         ocv_data=data.ocv_data,
         Z_zhit=Z_zhit,
         current_thd=current_thd,
-        voltage_thd=voltage_thd
+        voltage_thd=voltage_thd,
+        drift_corrected=data.drift_corrected
     )

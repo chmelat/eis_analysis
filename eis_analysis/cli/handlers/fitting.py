@@ -65,7 +65,7 @@ def run_circuit_fitting(
                        optional: f_min, f_max, exclude_flagged, and
                        excluded_frequencies - the points select_excluded
                        chose, set on args by the pipeline (eis.py) for the
-                       fit JSON - and flagged_in_fit, the KK-flagged points a
+                       fit JSON, as is drift_corrected - and flagged_in_fit, the KK-flagged points a
                        fit without --exclude-flagged keeps, for its note)
     noise_percent : float, optional
         Lin-KK noise of these points [%] (kk_noise_for_fit). Without it the

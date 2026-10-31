@@ -6,6 +6,30 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **Gamry files recorded with drift correction give the drift-corrected
+  impedance.** With drift correction on (`DRIFTCOR 1`) Gamry writes
+  `ZrealDrCor`/`ZimagDrCor` beside the measured `Zreal`/`Zimag`; the loader
+  read only the measured columns and said nothing. It now reads the
+  corrected impedance, so results on such files change (on one file the two
+  differ on the low-frequency points only: 17 of 55 points, up to 0.11 %).
+  `load_data(..., drift_corrected=False)` and the new CLI option
+  `--raw-impedance` read the measured one. `LoadResult.drift_corrected` (and
+  `LoadedData.drift_corrected`, the fit JSON's `context.drift_corrected`)
+  says which (None without such columns); the CLI prints it as an info
+  line. If any point has a valid measured but no valid corrected
+  impedance, the measured impedance is read for every point, with a
+  warning: no point is lost and the two are never mixed. Columns are now
+  found by name without regard to case or surrounding whitespace (the
+  ZCURVE columns; OCVCURVE unchanged).
+  `--raw-impedance` on CSV or synthetic data warns that it is ignored, on
+  a .DTA without these columns says that it has no effect.
+  Files without these columns, `example/*.DTA` among them, read exactly as
+  before. Lin-KK barely sees the drift of a single arc
+  (`eis_analysis/validation/kk_result.py`), so the instrument's correction
+  should not be dropped silently.
+
 ### Fixed
 
 - **Per-point outlier check: one NaN Lin-KK residual no longer switches

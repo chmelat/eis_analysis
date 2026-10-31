@@ -241,6 +241,53 @@ def test_columns_located_by_header_name(tmp_path):
     assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
 
 
+def _drift_dta(tmp_path, blank_drcor_at=()):
+    """12 points whose drift-corrected impedance is the measured one + 1000;
+    the corrected cells of the rows in `blank_drcor_at` are empty."""
+    rows = [f"\t{i}\t{i}\t{1000 - i}\t{100 + i}\t{-(10 + i)}\t1\t"
+            + ("\t" if i in blank_drcor_at else f"{1100 + i}\t{-(1010 + i)}")
+            for i in range(12)]
+    text = "\n".join([
+        "TAG\tEISPOT",
+        "DRIFTCOR\tSELECTOR\t1\t&Drift Correction",
+        "ZCURVE\tTABLE",
+        "\tPt\tTime\tFreq\tZreal\tZimag\tZsig\tZrealDrCor\tZimagDrCor",
+        "\t#\ts\tHz\tohm\tohm\tV\tohm\tohm",
+    ] + rows) + "\n"
+    return _write(tmp_path, "drift.DTA", text)
+
+
+def test_drift_corrected_columns_read_by_default(tmp_path):
+    """With Gamry drift correction the corrected impedance is the result."""
+    result = load_data(_drift_dta(tmp_path))
+    _, Z = _fz(result)
+    assert np.isclose(Z[0].real, 1100.0) and np.isclose(Z[0].imag, -1010.0)
+    assert result.drift_corrected is True and not any("drift" in w for w in result.warnings)
+
+
+def test_measured_columns_on_request(tmp_path):
+    result = load_data(_drift_dta(tmp_path), drift_corrected=False)
+    _, Z = _fz(result)
+    assert np.isclose(Z[0].real, 100.0) and np.isclose(Z[0].imag, -10.0)
+    assert result.drift_corrected is False
+
+
+def test_file_without_drift_columns_has_none(tmp_path):
+    assert load_data(_write(tmp_path, "plain.DTA", _make_dta(_rows(12)))).drift_corrected is None
+
+
+@pytest.mark.parametrize("blank", [(4, 7), tuple(range(12))])
+def test_incomplete_drift_correction_reads_measured(tmp_path, blank):
+    """A point without a valid correction switches the whole spectrum to the
+    measured impedance: no point lost, none mixed, and the reason named."""
+    result = load_data(_drift_dta(tmp_path, blank_drcor_at=blank))
+    f, Z = _fz(result)
+    assert len(f) == 12 and np.all(Z.real < 1000)
+    assert result.drift_corrected is False
+    assert any(f"{len(blank)} of 12 points" in w for w in result.warnings)
+    assert not any("truncated" in w for w in result.warnings)
+
+
 def test_unnamed_columns_fall_back_to_standard_order(tmp_path):
     """An unrecognizable header keeps the old positional behaviour, loudly."""
     text = "\n".join([

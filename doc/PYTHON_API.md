@@ -136,6 +136,12 @@ frequencies, Z = result.frequencies, result.Z
 for w in result.warnings:
     print(w)
 
+# A Gamry file recorded with drift correction (ZrealDrCor/ZimagDrCor
+# columns) gives the corrected impedance; drift_corrected=False gives the
+# measured one. result.drift_corrected says which was read (None: the file
+# has no such columns).
+result = load_data('data.DTA', drift_corrected=False)
+
 # Gamry files recorded with the THD option also carry per-point THD
 # (fraction, aligned with frequencies; None when the columns are absent,
 # always None for CSV)

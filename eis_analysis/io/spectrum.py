@@ -48,6 +48,11 @@ class LoadResult:
         sqrt(sum_{n=2..10} |H_n|^2) / |H_1| of the harmonic columns exactly
         (checked on example/EISPOT-test1.DTA), although the header gives
         only '#' as the unit.
+    drift_corrected : bool or None
+        Gamry files recorded with drift correction carry ZrealDrCor/ZimagDrCor
+        beside Zreal/Zimag: True when `Z` is the drift-corrected impedance,
+        False when the measured one was read although the corrected one is
+        there, None when the file does not have both columns (and for CSV).
     """
     frequencies: NDArray[np.float64]
     Z: NDArray[np.complexfloating]
@@ -56,6 +61,7 @@ class LoadResult:
     warnings: List[str] = field(default_factory=list)
     current_thd: Optional[NDArray[np.float64]] = None
     voltage_thd: Optional[NDArray[np.float64]] = None
+    drift_corrected: Optional[bool] = None
 
     def keep_points(self, mask: NDArray[np.bool_]) -> None:
         """Keep only the points where `mask` is True, in every per-point field.

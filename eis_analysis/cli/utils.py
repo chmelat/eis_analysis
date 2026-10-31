@@ -55,6 +55,8 @@ class LoadedData:
         `apply_zhit_reconstruction` under `--fit-on zhit`. None otherwise.
     current_thd, voltage_thd : ndarray or None
         Per-point THD (fraction) aligned with `Z`, see `LoadResult`.
+    drift_corrected : bool or None
+        Whether `Z` is Gamry's drift-corrected impedance, see `LoadResult`.
     """
     frequencies: NDArray[np.float64]
     Z: NDArray[np.complexfloating]
@@ -64,6 +66,7 @@ class LoadedData:
     Z_zhit: Optional[NDArray[np.complexfloating]] = None
     current_thd: Optional[NDArray[np.float64]] = None
     voltage_thd: Optional[NDArray[np.float64]] = None
+    drift_corrected: Optional[bool] = None
 
     @property
     def Z_for_fit(self) -> NDArray[np.complexfloating]:

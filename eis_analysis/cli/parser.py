@@ -73,6 +73,9 @@ Examples:
     io_group.add_argument('input', nargs='?', default=None,
                           help='Input file (.DTA for Gamry, .csv for CSV). '
                                'Without argument, synthetic data is used.')
+    io_group.add_argument('--raw-impedance', action='store_true',
+                          help='For a Gamry file recorded with drift correction, read the '
+                               'measured Zreal/Zimag instead of ZrealDrCor/ZimagDrCor')
 
     io_group.add_argument('--f-min', type=float, default=None,
                           help='Minimum frequency [Hz] - data below will be cut off')

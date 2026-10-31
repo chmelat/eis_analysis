@@ -86,6 +86,8 @@ def _run_analysis(args) -> None:
 
     # Load the full measured spectrum
     data = load_eis_data(args)
+    # For the fit JSON: which impedance of a drift-corrected Gamry file was read
+    args.drift_corrected = data.drift_corrected
 
     # Validation runs on the FULL spectrum, before any frequency filtering.
     # KK is an integral relation over all frequencies, so truncating the range
