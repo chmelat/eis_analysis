@@ -32,8 +32,8 @@ python3 example/generate_warburg_data.py output.csv --format csv --plot
 python3 example/generate_warburg_data.py warburg_data.csv --format csv --noise 1.5 --ppd 12 --verbose
 
 # 2. Analyzuj pomocí eis.py
-# POZNÁMKA: Pro Warburg data vždy zadej --lambda (viz sekce DRT Analýza níže)
-python3 eis.py warburg_data.csv --lambda 3e-5 --peak-method gmm -v
+# λ se vybírá automaticky; ruční --lambda jen jako volba (viz sekce DRT analýza níže)
+python3 eis.py warburg_data.csv -v
 ```
 
 Hodnoty λ v tomto dokumentu jsou v bezrozměrné škále od v0.47 (viz
@@ -210,7 +210,7 @@ done
 
 # Analyzuj všechny
 for f in noise_*.csv; do
-    python3 eis.py "$f" --lambda 3e-5 --save "${f%.csv}" --no-show -v
+    python3 eis.py "$f" --save "${f%.csv}" --no-show -v
 done
 ```
 
@@ -227,7 +227,7 @@ python3 example/generate_warburg_data.py validation.csv \
     --plot
 
 # Analyzuj s GMM
-python3 eis.py validation.csv --lambda 3e-5 \
+python3 eis.py validation.csv \
     --peak-method gmm \
     -v
 ```
@@ -266,81 +266,73 @@ Statistiky dat (--verbose):
 2. Warburg dává -45°
 3. Výsledek je jejich kombinace
 
-## ⚠️ DRT Analýza Warburg Dat - Důležité Upozornění
+## ⚠️ DRT analýza Warburg dat
 
-### Problém s automatickým výběrem λ
+### Automatický výběr λ
 
-**Pro Warburg data vždy zadej `--lambda`!** Bez něj `eis.py` vybírá λ
-automaticky (GCV a L-křivka) a GCV (Generalized Cross Validation) má zásadní problém s difúzními systémy.
+Bez `--lambda` vybírá `eis.py` λ automaticky (větší z GCV a rohu
+L-křivky) a pro Warburg data je to doporučené nastavení. Změřeno
+2026-10-31 na spektrech z tohoto generátoru (výchozí obvody, 0.01 Hz až
+100 kHz, 12 bodů/dekádu, šum 0 až 3 %, 5 seedů); „RC píky“ = pík do 0.3
+dekády od skutečného τ = R·C:
 
-### Proč GCV selhává?
+| Obvod | λ (auto) | RC píky auto / ruční 3e-5 | Chyba rekonstrukce auto / ruční |
+|-------|----------|---------------------------|---------------------------------|
+| Randles, semi-infinite | ~1.3e-9 | 1/1 / 1/1 | 1.1-4.1 % / 2.8-4.9 % |
+| Randles, finite | 2e-11 až 7e-6 | 1/1 / 1/1 | 0.05-3.9 % / 1.7-4.1 % |
+| Complex, scipy | 1.6e-9 až 2e-8 | 2/2 / 2/2 | 0.6-3.8 % / 2.1-4.4 % |
+| Complex, GMM | totéž | 1.6-2/2 / 1.0-1.2/2 | totéž |
+
+- Na semi-infinite Warburgu je automatická λ malá (~1e-9), RC píky se
+  přesto najdou. Ruční λ = 3e-5 je nenajde lépe: má vyšší chybu
+  rekonstrukce, víc odporu v nejpomalejší dekádě τ (0.62 proti 0.48
+  R_pol) a s GMM u dvou oblouků jeden z nich ztratí.
+- S GMM dává automatická λ zhruba o jeden pík navíc, který neodpovídá
+  žádnému RC (3 až 4.6 píků proti 2 až 3). Posoudit je pomůže
+  `--lambda-probe` (pík stabilní / hraniční / artefakt).
+- Starší verze tohoto dokumentu doporučovala ruční λ s tím, že GCV volí
+  λ, při kterém RC píky mizí; s dnešním hybridním výběrem λ se to na
+  těchto datech nepotvrdilo.
+
+### Proč Warburg v DRT vypadá jako ocas
 
 ```
-Warburg:  Z_W(ω) = σ(1-j)/√ω  →  γ(τ) ∝ 1/√τ  (diverguje k ∞)
+Warburg:  Z_W(ω) = σ(1-j)/√ω  →  γ(τ) ∝ 1/√τ  (roste k dlouhým τ)
 RC pík:   Z_RC ~ R/(1+jωτ)    →  γ(τ) = ostrý pík
 ```
 
-**Co se stane:**
-1. Warburg vytváří **širokou distribuci** až do nekonečna
-2. Difúzní komponenta **dominuje reziduální chybě** v celém rozsahu frekvencí
-3. GCV optimalizuje celkovou chybu → volí **příliš malé λ**
-4. Warburg ocas zahlcuje spektrum, **RC píky mizí**
+DRT předpokládá Z(ω) jako součet RC relaxací; Warburg je spojitá
+distribuce (difúze), kterou DRT aproximuje širokou distribucí až k
+okraji mřížky τ. To není chyba metody, ale její omezení: odpor ve
+Warburgově ocasu není proces. Pro čistě difúzní systémy se hodí DFRT
+(Distribution of Diffusion Times), ne DRT.
 
-### Typické příznaky
+### Ruční λ (volitelně)
 
-Když na Warburg data `--lambda` nezadáš:
-```
-✗ DRT spektrum dominuje divergující ocas při dlouhých τ
-✗ RC píky jsou potlačené nebo pod detekčním prahem
-✗ Nalezené λ je velmi malé (< 3e-9)
-✗ Peak detection nachází jen 0-1 píky (nebo artefakty)
-✗ První (správný) RC pík je jen mírně větší než druhý (artefakt)
-```
-
-### ✅ Správný postup pro Warburg data
+Pro citlivostní analýzu nebo srovnání s literaturou:
 
 ```bash
-# 1. MÍSTO automatického výběru použij manuální λ = 3e-5 až 6e-5
-python3 eis.py warburg_data.DTA --lambda 3e-5 --peak-method gmm -v
-
-# 2. Zkus rozsah hodnot a vyber nejlepší vizuálně
-for lambda in 1.5e-5 3e-5 4.5e-5 6e-5; do
+# Rozsah hodnot, porovnat výsledky
+for lambda in 1e-7 1e-6 1e-5 3e-5; do
     python3 eis.py warburg_data.DTA --lambda $lambda --save "lambda_$lambda" --no-show
 done
 
-# 3. S GMM peak detection pro robustní detekci RC píků
-python3 eis.py warburg_data.DTA --lambda 4.5e-5 --peak-method gmm -v
+# Stabilita píků vůči λ (λ·10^±0.5 a λ·10^±1)
+python3 eis.py warburg_data.DTA --lambda-probe -v
 
-# 4. Případně omeź frekvenční rozsah při generování
+# Případně omez frekvenční rozsah při generování
 python3 example/generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
 ```
 
-### Doporučené hodnoty λ
-
-| Typ systému | Doporučené λ | GCV použitelnost |
-|-------------|--------------|------------------|
-| Čisté RC (Voigt) | 3e-7 - 3e-6 | ✅ GCV funguje dobře |
-| RC + Q | 3e-6 - 1.5e-5 | ✅ GCV použitelné |
-| **RC + Warburg (Randles)** | **1.5e-5 - 6e-5** | ⚠️ **Manuální λ doporučeno** |
-| Complex + Warburg | 3e-5 - 9e-5 | ⚠️ Manuální λ doporučeno |
-| Pouze Warburg | > 3e-5 | ❌ GCV nepoužívat |
-
-### Proč je to tak?
-
-**Toto není bug**, ale fundamentální omezení DRT metody:
-
-- **DRT předpokládá:** Z(ω) = suma diskrétních RC relaxací
-- **Warburg je:** spojitá distribuce (difúze), ne diskrétní relaxace
-- **Výsledek:** DRT se snaží aproximovat Warburg jako nekonečně širokou distribuci
-
-→ Pro čisté difúzní systémy použij DFRT (Distribution of Diffusion Times), ne DRT.
-
 ### Další tipy
 
-1. **R+L fit pro R_inf:** `--rl-fit` dává robustnější odhad
-2. **Vyšší ppd:** 12-15 bodů/dekáda zlepší rozlišení RC píků
-3. **Nižší šum:** < 2% pro čistší spektra
-4. **GMM peak detection:** Robustnější než scipy.find_peaks
+1. **R_inf:** výchozí odhad je fit R-L-(R|Q) horní dekády spektra;
+   `--rinf-plot` ho vykreslí.
+2. **Vyšší ppd:** 12-15 bodů/dekáda zlepší rozlišení RC píků.
+3. **Nižší šum:** < 2 % pro čistší spektra.
+4. **Metoda píků:** na těchto datech scipy (výchozí) našel všechny RC
+   píky, GMM s automatickou λ ve 2 obloucích 1.6 až 2 ze 2 a s falešným
+   píkem navíc; GMM není automaticky lepší volba.
 
 ## 🎯 Použití v rešerši
 
@@ -356,8 +348,8 @@ python3 example/generate_warburg_data.py reference.csv \
     --seed 100
 
 # Test různých metod detekce píků
-python3 eis.py reference.csv --lambda 3e-5 --peak-method scipy --no-show -v
-python3 eis.py reference.csv --lambda 3e-5 --peak-method gmm --no-show -v
+python3 eis.py reference.csv --peak-method scipy --no-show -v
+python3 eis.py reference.csv --peak-method gmm --no-show -v
 ```
 
 ### 2. Benchmarking šumu
@@ -371,7 +363,7 @@ for noise in 0.1 0.5 1.0 2.0 5.0 10.0; do
         --seed 42 \
         --ppd 15
 
-    python3 eis.py "benchmark_${noise}.csv" --lambda 3e-5 \
+    python3 eis.py "benchmark_${noise}.csv" \
         --peak-method gmm \
         --save "results_${noise}" \
         --no-show
@@ -390,7 +382,7 @@ python3 example/generate_warburg_data.py demo.csv \
     --plot
 
 # Následná analýza
-python3 eis.py demo.csv --lambda 3e-5 -v
+python3 eis.py demo.csv -v
 ```
 
 ## 🔧 Řešení problémů
@@ -412,7 +404,7 @@ pip install matplotlib --break-system-packages
 python3 example/generate_warburg_data.py data.csv --format csv
 
 # Načti
-python3 eis.py data.csv --lambda 3e-5 -v
+python3 eis.py data.csv -v
 ```
 
 ### Problém: Warburg charakteristika není vidět
@@ -435,9 +427,13 @@ python3 example/generate_warburg_data.py data.csv \
 
 ### Problém: Píky v DRT nejsou správně detekovány
 
-**Řešení:** Použij GMM metodu:
+**Řešení:** Nejdřív posuď stabilitu píků vůči λ, pak porovnej obě metody
+detekce (scipy je výchozí, GMM není automaticky lepší, viz sekce DRT
+analýza Warburg dat). Odpor na pomalém okraji mřížky τ je u Warburg dat
+ocas difúze, ne proces.
 ```bash
-python3 eis.py data.csv --lambda 3e-5 --peak-method gmm -v
+python3 eis.py data.csv --lambda-probe -v
+python3 eis.py data.csv --peak-method gmm -v
 ```
 
 ## 📚 Teorie
