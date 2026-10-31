@@ -1,6 +1,6 @@
 # Generování syntetických dat s Warburgovým chováním
 
-Dokumentace pro `generate_warburg_data.py` - nástroj pro simulaci EIS dat vykazujících difúzní impedanci.
+Dokumentace pro `example/generate_warburg_data.py` - nástroj pro simulaci EIS dat vykazujících difúzní impedanci.
 
 ## 📋 Přehled
 
@@ -11,7 +11,7 @@ Script umožňuje generování realistických EIS dat pro systémy s:
 - **Dvěma typy obvodů** (jednoduchý Randles, složitý)
 - **Dvěma typy Warburgu** (semi-infinite, finite)
 
-Export do **Gamry DTA** a/nebo **CSV** formátu kompatibilního s `eis_v2.py`.
+Export do **Gamry DTA** a/nebo **CSV** formátu kompatibilního s `eis.py`.
 
 ## 🚀 Rychlý start
 
@@ -19,21 +19,21 @@ Export do **Gamry DTA** a/nebo **CSV** formátu kompatibilního s `eis_v2.py`.
 
 ```bash
 # Jednoduchý Randles obvod, 1% šum, 10 bodů/dekáda
-python3 generate_warburg_data.py output.csv --format csv
+python3 example/generate_warburg_data.py output.csv --format csv
 
 # S vizualizací
-python3 generate_warburg_data.py output.csv --format csv --plot
+python3 example/generate_warburg_data.py output.csv --format csv --plot
 ```
 
 ### Doporučený workflow
 
 ```bash
 # 1. Generuj data
-python3 generate_warburg_data.py warburg_data.csv --format csv --noise 1.5 --ppd 12 --verbose
+python3 example/generate_warburg_data.py warburg_data.csv --format csv --noise 1.5 --ppd 12 --verbose
 
-# 2. Analyzuj pomocí eis_v2.py
-# POZNÁMKA: Pro Warburg data NEPOUŽÍVEJ --auto-lambda (viz sekce DRT Analýza níže)
-python3 eis_v2.py warburg_data.csv --lambda 3e-5 --peak-method gmm -v
+# 2. Analyzuj pomocí eis.py
+# POZNÁMKA: Pro Warburg data vždy zadej --lambda (viz sekce DRT Analýza níže)
+python3 eis.py warburg_data.csv --lambda 3e-5 --peak-method gmm -v
 ```
 
 Hodnoty λ v tomto dokumentu jsou v bezrozměrné škále od v0.47 (viz
@@ -82,7 +82,7 @@ Typický pro elektrochemické systémy s jedním elektrodovým procesem a difúz
 
 **Použití:**
 ```bash
-python3 generate_warburg_data.py randles_data.csv --format csv --circuit randles
+python3 example/generate_warburg_data.py randles_data.csv --format csv --circuit randles
 ```
 
 **Charakteristika:**
@@ -106,7 +106,7 @@ Systém s více elektrodovými procesy (různé časové konstanty) a difúzí.
 
 **Použití:**
 ```bash
-python3 generate_warburg_data.py complex_data.csv --format csv --circuit complex
+python3 example/generate_warburg_data.py complex_data.csv --format csv --circuit complex
 ```
 
 **Charakteristika:**
@@ -132,7 +132,7 @@ Z_W = σ/√ω - jσ/√ω = σ(1-j)/√ω
 
 **Použití:**
 ```bash
-python3 generate_warburg_data.py data.csv --format csv --warburg-type semi-infinite
+python3 example/generate_warburg_data.py data.csv --format csv --warburg-type semi-infinite
 ```
 
 ### Finite (`--warburg-type finite`)
@@ -151,7 +151,7 @@ Z_W = R_W · tanh(√(jωτ_W)) / √(jωτ_W)
 
 **Použití:**
 ```bash
-python3 generate_warburg_data.py data.csv --format csv --warburg-type finite
+python3 example/generate_warburg_data.py data.csv --format csv --warburg-type finite
 ```
 
 ## 📊 Příklady použití
@@ -160,17 +160,17 @@ python3 generate_warburg_data.py data.csv --format csv --warburg-type finite
 
 ```bash
 # Čistá data bez šumu
-python3 generate_warburg_data.py clean_data.csv --format csv --noise 0 --plot
+python3 example/generate_warburg_data.py clean_data.csv --format csv --noise 0 --plot
 
 # S realistickým šumem
-python3 generate_warburg_data.py noisy_data.csv --format csv --noise 2.0 --plot
+python3 example/generate_warburg_data.py noisy_data.csv --format csv --noise 2.0 --plot
 ```
 
 ### 2. Vysoké rozlišení pro publikace
 
 ```bash
 # 15 bodů/dekáda, široký frekvenční rozsah
-python3 generate_warburg_data.py high_res.csv \
+python3 example/generate_warburg_data.py high_res.csv \
     --format csv \
     --ppd 15 \
     --f-min 0.001 \
@@ -183,7 +183,7 @@ python3 generate_warburg_data.py high_res.csv \
 
 ```bash
 # Použití seed pro identické výsledky
-python3 generate_warburg_data.py reproducible.csv \
+python3 example/generate_warburg_data.py reproducible.csv \
     --format csv \
     --noise 1.5 \
     --seed 42
@@ -193,7 +193,7 @@ python3 generate_warburg_data.py reproducible.csv \
 
 ```bash
 # Vytvoří data.DTA i data.csv
-python3 generate_warburg_data.py data --format both --circuit complex --ppd 12
+python3 example/generate_warburg_data.py data --format both --circuit complex --ppd 12
 ```
 
 ### 5. Testování různých úrovní šumu
@@ -201,7 +201,7 @@ python3 generate_warburg_data.py data --format both --circuit complex --ppd 12
 ```bash
 # Generuj sérii s různým šumem
 for noise in 0 0.5 1.0 2.0 5.0; do
-    python3 generate_warburg_data.py "noise_${noise}.csv" \
+    python3 example/generate_warburg_data.py "noise_${noise}.csv" \
         --format csv \
         --noise $noise \
         --seed 123 \
@@ -210,7 +210,7 @@ done
 
 # Analyzuj všechny
 for f in noise_*.csv; do
-    python3 eis_v2.py "$f" --auto-lambda --save "${f%.csv}" --no-show -v
+    python3 eis.py "$f" --lambda 3e-5 --save "${f%.csv}" --no-show -v
 done
 ```
 
@@ -218,7 +218,7 @@ done
 
 ```bash
 # Generuj známý systém
-python3 generate_warburg_data.py validation.csv \
+python3 example/generate_warburg_data.py validation.csv \
     --format csv \
     --circuit randles \
     --noise 1.0 \
@@ -227,10 +227,8 @@ python3 generate_warburg_data.py validation.csv \
     --plot
 
 # Analyzuj s GMM
-python3 eis_v2.py validation.csv \
-    --auto-lambda \
+python3 eis.py validation.csv --lambda 3e-5 \
     --peak-method gmm \
-    --auto-circuit \
     -v
 ```
 
@@ -270,9 +268,10 @@ Statistiky dat (--verbose):
 
 ## ⚠️ DRT Analýza Warburg Dat - Důležité Upozornění
 
-### Problém s --auto-lambda
+### Problém s automatickým výběrem λ
 
-**NEPOUŽÍVEJ `--auto-lambda` pro Warburg data!** GCV (Generalized Cross Validation) má zásadní problém s difúzními systémy.
+**Pro Warburg data vždy zadej `--lambda`!** Bez něj `eis.py` vybírá λ
+automaticky (GCV a L-křivka) a GCV (Generalized Cross Validation) má zásadní problém s difúzními systémy.
 
 ### Proč GCV selhává?
 
@@ -289,7 +288,7 @@ RC pík:   Z_RC ~ R/(1+jωτ)    →  γ(τ) = ostrý pík
 
 ### Typické příznaky
 
-Když použiješ `--auto-lambda` na Warburg data:
+Když na Warburg data `--lambda` nezadáš:
 ```
 ✗ DRT spektrum dominuje divergující ocas při dlouhých τ
 ✗ RC píky jsou potlačené nebo pod detekčním prahem
@@ -301,19 +300,19 @@ Když použiješ `--auto-lambda` na Warburg data:
 ### ✅ Správný postup pro Warburg data
 
 ```bash
-# 1. MÍSTO auto-lambda použij manuální λ = 3e-5 až 6e-5
-python3 eis_v2.py warburg_data.DTA --lambda 3e-5 --peak-method gmm -v
+# 1. MÍSTO automatického výběru použij manuální λ = 3e-5 až 6e-5
+python3 eis.py warburg_data.DTA --lambda 3e-5 --peak-method gmm -v
 
 # 2. Zkus rozsah hodnot a vyber nejlepší vizuálně
 for lambda in 1.5e-5 3e-5 4.5e-5 6e-5; do
-    python3 eis_v2.py warburg_data.DTA --lambda $lambda --save "lambda_$lambda" --no-show
+    python3 eis.py warburg_data.DTA --lambda $lambda --save "lambda_$lambda" --no-show
 done
 
 # 3. S GMM peak detection pro robustní detekci RC píků
-python3 eis_v2.py warburg_data.DTA --lambda 4.5e-5 --peak-method gmm -v --plot
+python3 eis.py warburg_data.DTA --lambda 4.5e-5 --peak-method gmm -v
 
 # 4. Případně omeź frekvenční rozsah při generování
-python3 generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
+python3 example/generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
 ```
 
 ### Doporučené hodnoty λ
@@ -349,7 +348,7 @@ python3 generate_warburg_data.py data.DTA --f-min 0.1 --f-max 1e5 --ppd 15
 
 ```bash
 # Generuj referenční data
-python3 generate_warburg_data.py reference.csv \
+python3 example/generate_warburg_data.py reference.csv \
     --format csv \
     --circuit complex \
     --noise 0 \
@@ -357,8 +356,8 @@ python3 generate_warburg_data.py reference.csv \
     --seed 100
 
 # Test různých metod detekce píků
-python3 eis_v2.py reference.csv --peak-method scipy --no-show -v
-python3 eis_v2.py reference.csv --peak-method gmm --no-show -v
+python3 eis.py reference.csv --lambda 3e-5 --peak-method scipy --no-show -v
+python3 eis.py reference.csv --lambda 3e-5 --peak-method gmm --no-show -v
 ```
 
 ### 2. Benchmarking šumu
@@ -366,14 +365,13 @@ python3 eis_v2.py reference.csv --peak-method gmm --no-show -v
 ```bash
 # Test robustnosti vůči šumu
 for noise in 0.1 0.5 1.0 2.0 5.0 10.0; do
-    python3 generate_warburg_data.py "benchmark_${noise}.csv" \
+    python3 example/generate_warburg_data.py "benchmark_${noise}.csv" \
         --format csv \
         --noise $noise \
         --seed 42 \
         --ppd 15
 
-    python3 eis_v2.py "benchmark_${noise}.csv" \
-        --auto-lambda \
+    python3 eis.py "benchmark_${noise}.csv" --lambda 3e-5 \
         --peak-method gmm \
         --save "results_${noise}" \
         --no-show
@@ -384,7 +382,7 @@ done
 
 ```bash
 # Interaktivní demo s vizualizací
-python3 generate_warburg_data.py demo.csv \
+python3 example/generate_warburg_data.py demo.csv \
     --format both \
     --circuit randles \
     --noise 1.0 \
@@ -392,7 +390,7 @@ python3 generate_warburg_data.py demo.csv \
     --plot
 
 # Následná analýza
-python3 eis_v2.py demo.csv --auto-lambda --auto-circuit -v
+python3 eis.py demo.csv --lambda 3e-5 -v
 ```
 
 ## 🔧 Řešení problémů
@@ -406,15 +404,15 @@ sudo apt install python3-matplotlib
 pip install matplotlib --break-system-packages
 ```
 
-### Problém: Data nelze načíst v eis_v2.py
+### Problém: Data nelze načíst v eis.py
 
 **Řešení:** Použij CSV formát místo DTA:
 ```bash
 # Generuj jako CSV
-python3 generate_warburg_data.py data.csv --format csv
+python3 example/generate_warburg_data.py data.csv --format csv
 
 # Načti
-python3 eis_v2.py data.csv --auto-lambda -v
+python3 eis.py data.csv --lambda 3e-5 -v
 ```
 
 ### Problém: Warburg charakteristika není vidět
@@ -426,7 +424,7 @@ python3 eis_v2.py data.csv --auto-lambda -v
 
 **Řešení:**
 ```bash
-python3 generate_warburg_data.py data.csv \
+python3 example/generate_warburg_data.py data.csv \
     --format csv \
     --f-min 0.001 \
     --f-max 1e6 \
@@ -439,7 +437,7 @@ python3 generate_warburg_data.py data.csv \
 
 **Řešení:** Použij GMM metodu:
 ```bash
-python3 eis_v2.py data.csv --peak-method gmm --auto-lambda -v
+python3 eis.py data.csv --lambda 3e-5 --peak-method gmm -v
 ```
 
 ## 📚 Teorie
@@ -498,7 +496,7 @@ Nejjednodušší model elektrochemické buňky:
 
 ## 🔗 Související nástroje
 
-- **eis_v2.py** - Analýza EIS dat (DRT, KK, fitting)
+- **eis.py** - Analýza EIS dat (DRT, KK, fitting)
 - **eis_analysis/io/synthetic.py** - Generování Voigtových dat (bez Warburgu)
 
 ---

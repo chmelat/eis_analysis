@@ -118,7 +118,7 @@ contracts are written and checked by a cold review: `doc/CONTRACT_REVIEW.md`.
 ```bash
 python3 -m pytest tests/                 # Default run (skips the slow benchmark)
 python3 -m pytest tests/ -m ""           # Everything, benchmark included
-python3 -m pytest tests/ -m slow         # Only the ZScope benchmark
+python3 -m pytest tests/ -m slow         # Only the DE benchmarks (ZScope, driftlet)
 python3 -m pytest tests/ -m stress       # Only the stress smoke run
 python3 -m pytest tests/ -v              # Verbose output
 python3 -m pytest tests/test_K_element.py  # Specific file
@@ -127,7 +127,9 @@ python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
 
 `tests/test_zscope_benchmark.py` is marked `slow` and excluded by default: it
 fits four reference circuits at three noise levels with DE, which is slow.
-Run it before a release.
+So are the DE fits of `tests/test_driftlet_randles.py` (six spectra simulated
+from physics by driftlet, regenerated with `tests/driftlet_randles.mjs`).
+Run both before a release.
 
 The stress test (`tests/stress.py`, design `doc/STRESS_TEST_PLAN.md`, results
 and known limits `doc/STRESS_TEST.md`) checks random spectra against
@@ -138,6 +140,19 @@ python3 -m pytest tests/ -m stress       # first 3 cases per family vs. the base
 python3 tests/stress.py --check          # full run (~40 min) vs. tests/stress_baseline.json
 python3 tests/stress.py --update-baseline  # after a triaged change: record the new baseline
 ```
+
+A refactor meant to change no result is checked by a fingerprint of the
+analyses' values (`tests/fingerprint.py`, stress cases and DE on every 5th):
+
+```bash
+python3 tests/fingerprint.py record before.pkl   # before the change (file outside the repo)
+python3 tests/fingerprint.py record after.pkl    # after it
+python3 tests/fingerprint.py compare before.pkl after.pkl   # exit 0 = all values identical
+```
+
+For a committed refactor, `--root` takes the library of each side from a
+`git worktree`; the case generator and the signatures stay this checkout's
+code (usage and limits in the script's docstring).
 
 ---
 
@@ -169,7 +184,7 @@ mypy eis_analysis/                       # Type checking
 |----------|---------|
 | README.md | User guide, theory, CLI reference, examples |
 | CHANGELOG.md | Version history, migration guides |
-| PYTHON_API.md | Python API reference for library usage |
+| doc/PYTHON_API.md | Python API reference for library usage |
 | doc/*.md | Specialized guides (algorithms, math) |
 | CLAUDE.md | Development guide (this file) |
 
@@ -199,7 +214,7 @@ mypy eis_analysis/                       # Type checking
 2. Update CHANGELOG.md
 3. Update documentation if needed
 
-Details: See `VERSION_MANAGEMENT.md`
+Details: See `doc/VERSION_MANAGEMENT.md`
 
 ---
 
@@ -296,4 +311,4 @@ Details: See `VERSION_MANAGEMENT.md`
 
 ---
 
-**For implementation details see README.md. For API reference see docstrings and PYTHON_API.md.**
+**For implementation details see README.md. For API reference see docstrings and doc/PYTHON_API.md.**

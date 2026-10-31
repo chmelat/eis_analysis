@@ -52,6 +52,39 @@ Complete change history for all project versions.
   the Voigt chain fit on measured data (stop mu >= 0.05 in 135 test
   runs); the module has a contract (contract review round 10).
 
+### Tests
+
+- **Reference spectra with known physics** (`tests/test_driftlet_randles.py`).
+  Six spectra of a Pt electrode in Fe3+/Fe2+ with KCl simulated by driftlet
+  1.6.1 (drift-diffusion-Poisson, `tests/driftlet_randles.mjs` regenerates
+  `tests/driftlet_randles.json`), each with the Randles elements computed
+  from the physics, not from a circuit. A DE fit of R-(C|(R-Ws)) recovers
+  R_s, C_dl, R_ct and R_W within 0.72 % (tolerance 1.5 %), the circuit's
+  own error against the simulation; where R_W is 0.1 % of R_ct only their
+  sum is identifiable (within 0.001 %). Our Ws with the physics' values is
+  the page's circuit to 1e-12, and every spectrum passes Lin-KK. The fits
+  are marked `slow`.
+- **Fingerprint for refactors** (`tests/fingerprint.py`). `record` stores
+  every value of the stress test's analyses (DRT, Lin-KK, Z-HIT, R_inf, LM
+  fit, n(f)) on its first 50 cases per family, and of a DE fit on every 5th
+  (start and seed of invariant G, now shared as `run_de`, with its 95 %
+  CI), plus the flag and text fields of each result (`is_valid`, warnings).
+  `--root` takes `eis_analysis` from another checkout, such as a
+  `git worktree` of an older commit, while the case generator and the
+  signatures stay this checkout's code; a hash of each case's input
+  (spectrum, fit starts, Lin-KK's series C) reports a case the library
+  built differently as `input`. `compare`
+  sorts each case and analysis into identical (NaN = NaN, -0.0 = 0.0),
+  within the stress test's tolerances (with the largest relative change)
+  or beyond them, and exits 0 only when all are identical. Its logic is
+  checked by `tests/test_fingerprint.py`.
+- **One OpenBLAS kernel in the stress test on aarch64**
+  (`OPENBLAS_CORETYPE=CORTEXA57`, with the one BLAS thread). On big.LITTLE
+  (RK3588) OpenBLAS picked its kernel by the core a worker started on, and
+  the A55 and A76 kernels round differently, so two runs of the same code
+  could differ at the rounding level (`doc/STRESS_TEST.md`, known limit
+  10).
+
 ## Version 0.63.0 (2026-10-25)
 
 ### Changed (breaking)

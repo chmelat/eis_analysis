@@ -14,15 +14,23 @@ doc/STRESS_TEST_PLAN.md.
 """
 
 import os
+import platform
 
-# One BLAS thread per process, before numpy is imported: 4 processes x a
+# Set before numpy is imported. One BLAS thread per process: 4 processes x a
 # multithreaded OpenBLAS oversubscribe the cores, and threaded reductions are
-# not bit-identical, which would break invariant K and --index replay. Only
-# when run as a script (the workers inherit the environment): a test that
-# imports check_baseline must not pin the whole pytest session.
+# not bit-identical, which would break invariant K and --index replay. One
+# OpenBLAS kernel on aarch64: on big.LITTLE (RK3588: Cortex-A55 + A76) it
+# picks its kernel by the core a process starts on, and the two round
+# differently (doc/STRESS_TEST.md, known limit 10); CORTEXA57 is the one it
+# picks on the A76 and runs on any ARMv8, and a kernel already set in the
+# environment is kept (another ARM may want its own). Only when run as a
+# script (the workers inherit the environment): a test that imports
+# check_baseline must not pin the whole pytest session.
+BLAS_ENV = {'OMP_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1'}
+if platform.machine() == 'aarch64':
+    BLAS_ENV['OPENBLAS_CORETYPE'] = os.environ.get('OPENBLAS_CORETYPE', 'CORTEXA57')
 if __name__ == '__main__':
-    for _var in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
-        os.environ[_var] = '1'
+    os.environ.update(BLAS_ENV)
 
 import argparse  # noqa: E402
 import json  # noqa: E402

@@ -168,6 +168,11 @@ def _fit(case: Case, f, Z, k: float, absolute_bounds: bool = False) -> Signature
     scale = 1.0 if absolute_bounds else k ** powers
     r, _ = fit_equivalent_circuit(f, Z, case.circuit(fit_start(case) * k ** powers),
                                   bounds=(lower * scale, upper * scale))
+    return fit_signature(r, powers)
+
+
+def fit_signature(r, powers) -> Signature:
+    """Signature of a circuit fit result (LM here, DE in tests/fingerprint.py)."""
     stderr = np.where(np.isfinite(r.params_stderr), r.params_stderr, 0.0)
     resolution = stderr * RES_ATOL / max(r.fit_error_rel / 100, 1e-300)
     return {

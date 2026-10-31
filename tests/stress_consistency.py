@@ -26,7 +26,7 @@ import numpy as np
 
 from eis_analysis.analysis.local_exponent import local_exponent
 from eis_analysis.fitting import fit_circuit_multistart, fit_equivalent_circuit
-from eis_analysis.fitting.diffevo import fit_circuit_diffevo
+from eis_analysis.fitting.diffevo import DiffEvoResult, fit_circuit_diffevo
 from eis_analysis.fitting.bounds import generate_simple_bounds
 from eis_analysis.fitting.diagnostics import compute_weights
 
@@ -214,6 +214,13 @@ def check_F(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
 
 # --- G: circuit fit with DE ----------------------------------------------------
 
+def run_de(case: Case) -> Tuple[DiffEvoResult, np.ndarray]:
+    """The DE fit of invariant G (also recorded by tests/fingerprint.py): from
+    de_start, with a seed of the case's own."""
+    seed = int(case.rng(DE).integers(2 ** 31))
+    return fit_circuit_diffevo(case.frequencies, case.Z, case.circuit(de_start(case)), seed=seed)
+
+
 def check_G(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     """DE, the global optimizer and the one the oxide analyses use, ends no
     worse than the truth from a start up to two decades off (de_start).
@@ -221,9 +228,7 @@ def check_G(case: Case, raw: Dict[str, Any], rows: List[Row]) -> None:
     minimum is DE's job."""
     if case.index % DE_EVERY:
         return
-    seed = int(case.rng(DE).integers(2 ** 31))
-    de, Z_fit = fit_circuit_diffevo(case.frequencies, case.Z,
-                                    case.circuit(de_start(case)), seed=seed)
+    de, Z_fit = run_de(case)
     rows.append(_cost_row(case, 'G', Z_fit, G_RTOL, de.best_result.fit_error_rel))
 
 

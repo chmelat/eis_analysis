@@ -21,7 +21,7 @@ purpose, one BLAS thread per process), so every number below names its seed.
 | B-, B+ | Z -> k*Z with k = 0.001, 1000 scales every result by its power of k |
 | Babs-, Babs+ | Same for the fit with the library's absolute bounds; a difference is the known limit, counted as "meze" |
 | Crev, Cmix | Reversed and shuffled points give the same result |
-| K | A second run is bit-identical |
+| K | A second run in the same process is bit-identical (across processes: known limit 10) |
 
 Consistency invariants (step 3, `tests/stress_consistency.py`) compare a
 result with the truth the case was generated from. A threshold check reports
@@ -561,3 +561,23 @@ identifiability (lost arcs, equal-cost solutions) and slightly narrow
 intervals. DE from a start
 up to two decades off (G) failed once in 300: anomalous/50 (Q in parallel
 with R-Wa, 30 points, 1 % noise) ends at 1.096x the truth's cost.
+
+### 10. Determinism across processes: one OpenBLAS kernel on big.LITTLE
+
+Invariant K repeats an analysis in the process that ran it first, so it
+cannot see a result that depends on the process. On this machine one does:
+the RK3588 has Cortex-A55 and A76 cores, and OpenBLAS (DYNAMIC_ARCH) picks
+its kernel by the core a process starts on (`cortexa53` on an A55,
+`cortexa57` on an A76), and the two round differently. cpe/5 pinned to each
+core type (`taskset`) differs in the DRT, R_inf, the LM and DE fits and
+Lin-KK (whose noise-free residuals moved beyond the tolerance); on the same
+core type it is identical. Which core a worker lands on is chance, so two
+runs of the same code differed (found by `tests/fingerprint.py`, first read
+as a refactor's effect). `tests/stress.py` therefore sets
+`OPENBLAS_CORETYPE=CORTEXA57` on aarch64 unless the environment sets a
+kernel (`BLAS_ENV`, with one BLAS thread), which gives the A76 result on
+every core; the fingerprint takes the same settings. The A57 kernel runs on
+any ARMv8 but bypasses faster ones of newer cores (SVE); without OpenBLAS
+or without DYNAMIC_ARCH the variable has no effect. No reported number moved by more than rounding; only a
+check already at its tolerance (limits 1 and 3) could flip, and the
+baseline recorded before 2026-10-31 ran with both kernels.
