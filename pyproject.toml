@@ -20,6 +20,9 @@ dev = [
     "ruff",
     "mypy",
     "pytest",
+    "import-linter",
+    "coverage",
+    "vulture",
 ]
 
 [project.scripts]
@@ -63,3 +66,57 @@ select = ["E4", "E7", "E9", "F"]
 python_version = "3.13"
 ignore_missing_imports = true
 warn_unused_ignores = true
+
+# Layering rules of CLAUDE.md ("Code Organization"), checked by `lint-imports`
+# (CI job typecheck). All held when added (2026-10-31); io.export may import
+# the oxide result type it writes.
+[tool.importlinter]
+root_package = "eis_analysis"
+
+[[tool.importlinter.contracts]]
+name = "Only the CLI imports the CLI (CLI separated from core logic)"
+type = "forbidden"
+source_modules = [
+    "eis_analysis.analysis", "eis_analysis.drt", "eis_analysis.fitting", "eis_analysis.io",
+    "eis_analysis.rinf_estimation", "eis_analysis.utils", "eis_analysis.validation",
+    "eis_analysis.visualization",
+]
+forbidden_modules = ["eis_analysis.cli"]
+
+[[tool.importlinter.contracts]]
+name = "Algorithms and I/O do not import visualization (headless use)"
+type = "forbidden"
+source_modules = [
+    "eis_analysis.analysis", "eis_analysis.drt", "eis_analysis.fitting", "eis_analysis.io",
+    "eis_analysis.rinf_estimation", "eis_analysis.utils", "eis_analysis.validation",
+]
+forbidden_modules = ["eis_analysis.visualization"]
+
+[[tool.importlinter.contracts]]
+name = "Computations do not import I/O (testing without files)"
+type = "forbidden"
+source_modules = [
+    "eis_analysis.analysis", "eis_analysis.drt", "eis_analysis.fitting",
+    "eis_analysis.rinf_estimation", "eis_analysis.utils", "eis_analysis.validation",
+    "eis_analysis.visualization",
+]
+forbidden_modules = ["eis_analysis.io"]
+
+[[tool.importlinter.contracts]]
+name = "Core methods do not import the domain analysis (domain logic isolated)"
+type = "forbidden"
+source_modules = [
+    "eis_analysis.drt", "eis_analysis.fitting", "eis_analysis.rinf_estimation",
+    "eis_analysis.utils", "eis_analysis.validation", "eis_analysis.visualization",
+]
+forbidden_modules = ["eis_analysis.analysis"]
+
+[[tool.importlinter.contracts]]
+name = "utils imports no other subpackage (base layer)"
+type = "forbidden"
+source_modules = ["eis_analysis.utils"]
+forbidden_modules = [
+    "eis_analysis.analysis", "eis_analysis.cli", "eis_analysis.drt", "eis_analysis.fitting",
+    "eis_analysis.io", "eis_analysis.rinf_estimation", "eis_analysis.validation",
+    "eis_analysis.visualization",
+]

@@ -164,6 +164,7 @@ code (usage and limits in the script's docstring).
 ruff check eis_analysis/ tests/          # Static analysis
 ruff check eis_analysis/ tests/ --fix    # Auto-fix issues
 mypy eis_analysis/                       # Type checking
+lint-imports                             # Layering rules ([tool.importlinter] in pyproject.toml)
 ```
 
 ### Code Style

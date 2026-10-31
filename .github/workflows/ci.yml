@@ -40,3 +40,5 @@ jobs:
           python-version: "3.13"
       - run: pip install -e ".[dev]"
       - run: mypy eis_analysis/
+      # Layering rules in [tool.importlinter] (pyproject.toml)
+      - run: lint-imports

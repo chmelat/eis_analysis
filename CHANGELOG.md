@@ -4,6 +4,21 @@ Complete change history for all project versions.
 
 ---
 
+## Unreleased
+
+### Internal
+
+- **Import layering checked in CI** (`lint-imports`, import-linter, now a
+  dev dependency). Five rules in `[tool.importlinter]` of `pyproject.toml`
+  write down the separation of `CLAUDE.md`: only the CLI imports the CLI;
+  algorithms and I/O do not import visualization; computations do not
+  import I/O; the core methods do not import the domain analysis; `utils`
+  imports no other subpackage. All held when added.
+- **coverage and vulture are dev dependencies** too, for manual use (not
+  in CI): `coverage run --branch --source=eis_analysis -m pytest tests/`
+  then `coverage report`; `vulture eis_analysis/ --min-confidence 80`.
+  First run 2026-10-31: 87 % with branches; vulture nothing at 80 %.
+
 ## Version 0.64.0 (2026-10-31)
 
 ### Changed (breaking)
