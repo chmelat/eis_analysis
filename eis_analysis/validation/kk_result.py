@@ -18,10 +18,21 @@ from .noise import estimate_noise_percent, estimate_noise_percent_median
 # example/real_gamry_example.DTA violates KK over 0.03-4 Hz (residual hump
 # to 20 % with every fit_type) and passed with a 3.8 % mean, 19 of 72 points
 # above 5 % (doc/KRAMERS_KRONIG_REVIEW.md 1.4).
-# Both values are empirical, a loose "clearly broken" bound, not a noise-level
-# test. The allowance tolerates a few edge points, where Lin-KK residuals grow.
-# Any threshold between ~3 and ~15 % separates the example spectra, so
-# neither value is a measured optimum.
+# Both values are empirical, a loose "clearly broken" bound. The allowance
+# tolerates a few edge points, where Lin-KK residuals grow. Any threshold
+# between ~3 and ~15 % separates the example spectra, so neither value is a
+# measured optimum.
+# Above ~2 % noise the bound is a noise-level test: with a relative noise
+# sigma on each component a point exceeds 5 % with probability
+# 1 - (1 - 2 Phi(-5 / sigma))^2, 18 % at 3 %, so a valid spectrum fails.
+# Measured on 4053 spectra from tests/stress_cases.py (2026-10-31): 0 % of
+# valid ones rejected at proportional noise up to 1 %, 97-98 % at 3 %; with
+# constant noise (large relative noise where |Z| is small) 27-32 % already at
+# 0.1 %. Below that it does not see drift of one arc (5 % over the sweep:
+# 0 % detected even without noise), which the Lin-KK fit absorbs. Measured
+# spectra here have 0.25-0.8 %, so the absolute bound is kept; a bound
+# relative to the median noise, max(5 %, 3 sigma_median), was measured as
+# an alternative (3 % noise: 5 % rejected) and not adopted.
 KK_RESIDUAL_THRESHOLD = 5.0
 KK_MAX_FRACTION_ABOVE = 0.05
 
