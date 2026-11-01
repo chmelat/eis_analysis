@@ -473,3 +473,33 @@ def test_top_decade_replaces_the_bound_when_two_decades_do_not_determine_r_s():
     assert abs(est.R_inf - Rs) < 0.005 * Rs
     assert est.R_inf_range == (0.0, max(est.R_inf_upper, est.R_inf))
     assert 'not determined' in est.warnings[-1] and 'top 1 decade gives' in est.warnings[-1]
+
+
+def test_series_resistance_split_is_not_consulted():
+    """Flat end with 1 % noise: the fit's series check widens the CI of R_s
+    (merging the (R|Q) into R_s costs dchi2 < 3.84), yet R_inf stays the
+    fitted R_s, accepted by its stderr (contract: measured, no gain)."""
+    Rs, (f, Z) = CASES['flat']
+    est = estimate_rinf(f, _noisy(Z, 0))
+    split = est.fit.series_split
+    assert est.method == 'rlq_fit'
+    assert split is not None and split.widens(0.95)
+    assert est.R_inf == float(est.fit.params_opt[0])
+    assert est.R_inf != pytest.approx(float(split.merged.params_opt[split.merged_index]), rel=1e-4)
+
+
+@pytest.mark.parametrize('k', [3, 10, 30])
+def test_arc_above_f_max_gives_the_plateau(k):
+    """An arc of R_h = R_s = 10 Ohm peaking k x f_max acts as a resistance
+    in the window: the fit lands on the plateau R_s + R_h (what the DRT,
+    whose grid ends at f_max, needs), and the series check does not fire."""
+    f = np.logspace(5, -1, 61)
+    jw = 2j * np.pi * f
+    Z = 10 + _zarc(f, 10, _f_arc(k * f.max())) + 1000 / (1 + (jw / (2 * np.pi * 10))**0.9)
+    est = estimate_rinf(f, Z)
+    assert est.method == 'rlq_fit'
+    assert est.R_inf == pytest.approx(20, rel=0.03)
+    lo, hi = est.R_inf_range
+    assert lo <= 20 <= hi
+    split = est.fit.series_split
+    assert split is None or not split.widens(0.95)

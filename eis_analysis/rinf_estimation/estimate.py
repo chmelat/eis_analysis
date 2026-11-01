@@ -78,8 +78,13 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   of the full window's. fit is the fit used, also when it was rejected
   (then the full window's). fit_window: 'full', 'top', 'top_only' (above)
   or 'none' (the bound).
-  fit.series_split is not consulted: R_s is accepted by its stderr alone
-  (whether to use it is an open decision, it would change the DRT's R_inf).
+  fit.series_split is not consulted: R_s is accepted by its stderr alone.
+  Measured (2026-11-01): on the stress spectra the check widens only on
+  noise (93 of 997 accepted fits, the merged R_s within the noise of the
+  fitted one, the true R_s inside R_inf_range in all). With an arc peaking
+  3-30x above f_max it never widened: the fit lands on the plateau
+  R_s + R_h, which is the R_inf the DRT needs (its grid is not extended on
+  the fast side; the true R_s puts ~R_h into its fastest bin).
   R_inf_upper: with a fit, R_inf_hf + RINF_BOUND_NOISE_SIGMAS x the noise
   at f_hf, clipped at 0. The noise variance per component is the mean
   square of the fit's residual components within RINF_NOISE_LOCAL_DECADES
