@@ -462,4 +462,10 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
     logger.info("  ~1 decade merge into one, and the elements are ideal C. Fit this "
                 "circuit, one with")
     logger.info("  an element more and one with Q, and compare by BIC and Fit vs. noise.")
+    # Cold agent T15b: the Ws of a Randles cell fitted as an extra arc. A
+    # finite-length Warburg puts 8/pi^2 = 81 % of R_W into one peak at
+    # 4 tau_W / pi^2 (its series expansion), so a peak may be diffusion.
+    logger.info("  A peak may also be diffusion, which (R|C) only approximates: a Ws peaks at")
+    logger.info("  0.41 tau_W; in a Randles cell fit Q | (R - Ws) too, e.g. "
+                "R - (Q | (R - Ws)).")
     log_separator()

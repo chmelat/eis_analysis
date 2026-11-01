@@ -559,6 +559,108 @@ Bez akce (chyba agenta): "vzorec tau z (R, Q, n) neni v dokumentaci" - je
 procesu" - README (Voigt chain) i MODEL_SELECTION: piky DRT jako dolni mez
 a porovnani fitovanych obvodu.
 
+## Kolo 7 (2026-11-01): T15, Randles z driftletu, Sonnet
+
+Prvni uloha s pravdou z fyziky, ne z obvodu. Piskoviste z edb9a23
+(v0.64.0), postavene znovu: `~/coldbox-private/setup.sh` puvodniho
+piskoviste uz neexistoval, novy stavi venv pres uv (systemovy Python 3.11
+je pod pozadovanymi 3.13) a dokumentaci kopiruje mechanicky vcetne
+`CHANGELOG.md` a `ROBUST_LOSS_SOFT_L1.md` (U1 odpada; 33 souboru).
+Agent spusten `claude -p` s `--setting-sources user --strict-mcp-config`,
+nastroje Bash/Read/Write/Edit/Glob/Grep, bez Agent a webu, rozpocet 2 USD;
+prubeh ulozen jako stream-json (poprve je k dispozici prepis sezeni).
+
+**Uloha.** Pt, 0.5 cm^2, 1 mM Fe3+ + 1 mM Fe2+ v 0.3 M KCl, rovnovazny
+potencial, 1 MHz - 10 mHz (81 bodu). Urcit odpor elektrolytu, kapacitu
+dvojvrstvy, odpor prenosu naboje a parametry difuze s nejistotou, a ktery
+model difuze odpovida datum. Metoda ani rozhrani nepredepsany.
+
+**Data.** driftlet 1.6.1, Randlesova stranka (`atRest`/`randles` jako
+`tests/driftlet_randles.mjs`), nova sada k0 = 3e-3 cm/s, KCl 300 mol/m^3,
+L = 30 um (zadna z sesti sad v `tests/`). Obvod proti simulaci do 1.2e-4
+|Z|. Sum 0.5 % proporcionalni, seed 15. Generator a pravda
+v `~/coldbox-private/r7/`. Overeni pred behem: DE fit `R-(C|(R-Ws))`
+z CLI v piskovisti trefil vse do 0.2 %.
+
+| | Agent (Sonnet) | Pravda (fyzika) |
+|---|---|---|
+| R_s [Ohm] | 0.120 +- 2e-4 | 0.1203 |
+| C_dl [uF] | 8.66 +- 0.007 | 8.657 |
+| R_ct [Ohm] | 1771 +- 3.2 | 1775 (-0.24 %, 1.3 stderr) |
+| R_W [Ohm] | 487 +- 4.3 | 486.7 (soucet Fe3+ 264.5 a Fe2+ 222.2) |
+| tau_W [s] | 1.31 +- 0.03 | 1.25 (Fe2+) a 1.49 (Fe3+) |
+| model difuze | Ws (transmisivni) | konecna vrstva s objemovou koncentraci na kraji = Ws |
+| cena | 0.19 USD, 72 s, 6 volani | |
+
+Uspech, vse v toleranci (2 %, tau mezi ionty). Postup: README (radky
+1-600), CIRCUIT_PARSER (1-80), grep PYTHON_API; jedno volani CLI se tremi
+kandidaty W / Ws / Wo a `--save`, porovnani rozhodlo BIC (dBIC 636) a
+fit/KK (0.9 proti 6.8 a 6.7), pak kontrolni beh Ws. Wo odmitl i fyzikalne
+(kapacitni DC, tau 67 s mimo okno). Bod 0 "ne", cetl jen z `~/coldbox/`;
+CHANGELOG (zminuje Fe3+/Fe2+ z driftletu a fit R-(C|(R-Ws))) necetl, takze
+napoveda nepusobila. Python API nepouzil.
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| V1 | C | README, tabulka prvku: Ws/Wo popsany okrajovou podminkou (konstantni koncentrace / nulovy tok), ale ne tim, cemu odpovidaji v cele (Nernstova difuzni vrstva v michanem roztoku nebo rotujici elektroda vs. tenka vrstva/film s blokujici zadni stranou). Agent "intuitivne cekal W nebo Wo pro nemichanou celu", rozhodla az data | T15 |
+
+Bez akce (chyba agenta): "tau_W = L^2/D neni v README" - je
+v `doc/CIRCUIT_PARSER.md` (tabulka parametru Ws, "Diffusion time constant
+L^2/D"), agent cetl jen radky 1-80; "plny Randles C | (R - Ws) jen
+zminen" - README ma `R(10) - (R(100) - Ws(50, 1) | C(1e-6))`; nizke `S`
+R_W a tau_W cetl jako znamku podhodnocene nejistoty - README rika, ze S
+nemeri nejistotu a pod 0.01 znamena nepotrebny prvek.
+
+## Kolo 7, krok 2 (2026-11-01): T15b, totez bez zminky o difuzi, Sonnet
+
+T15 ukazala, ze rodinu W agent vybral podle zadani ("parametry difuze"),
+ne z dat: Warburga hledal grepem drive, nez data videl, grafy nikdy
+neotevrel. T15b: stejna data a pravda, ukol jen "Urci nahradni obvod
+elektrody a jeho parametry, kazdy s nejistotou. Uved, proc jsi zvolil
+prave tento obvod." Popis mereni (Pt, Fe3+/Fe2+, KCl) zustal.
+
+| | Agent (Sonnet) | Pravda |
+|---|---|---|
+| obvod | R - (R\|C) - (R\|C) - (R\|C), BIC; jako "vysledek" uvadi i 2 oblouky | R - (C_dl \| (R_ct - Ws)) |
+| R_s [Ohm] | 0.120 | 0.1203 |
+| C_dl [uF] | 10.5 (CI 8.3-13.2); 2 oblouky: 8.7 | 8.657 |
+| R_ct [Ohm] | 1360 (CI 1000-1840) + 470; 2 oblouky: 1801 +- 4 | 1775 |
+| difuze | oblouk 430 Ohm, 1.22 mF, tau 0.52 s ("C3 prilis velka na dvojvrstvu") | Ws: R_W 486.7, tau_W 1.25-1.49 s |
+| soucet R | 2258 +- 3 | 2262 |
+| cena | 0.24 USD, 145 s, 6 volani | |
+
+Neuspech: obvod spatny, difuzi nenasel. Postup: README (radky 1-835),
+vychozi beh (DRT 2 piky 16 ms a 0.53 s, `Suggested circuit` se dvema
+(R|C)), pak kandidati podle poznamky pod navrhem (navrh, s Q, s prvkem
+navic) a Warburg ve dvou topologiich: `R-(R|Q)-Wo` (serie) a
+`R-(R|Q-Ws)`, `R-(R|C-Wo)` - podle precedence `R | (Q - Ws)`, tedy Ws
+v serii s kapacitou. Spravnou topologii `C | (R - Ws)` nezkusil (v T15 ji
+napsal sam spravne). Grafy opet neotevrel, CIRCUIT_PARSER necetl. Bod 0
+"ne", jen `~/coldbox/`. Fyzikalni pochybnost ("R_ct ~2 kOhm neodpovida
+rychlemu paru, cekal bych jednotky Ohm") uvedl, ale neprovedl.
+
+**Overeni (princip 6): data byla hranicni.** Ve stejnem behu se spravnou
+topologii (seed DE 1) vybere BIC na techto datech (sum seed 15) stale tri
+oblouky: err 0.62 % (k 7) proti 0.64 % (k 5), dBIC 4.1 pro oblouky, oba
+fit/KK 0.9. Na 14 dalsich realizacich sumu (0.2 %: 3, 0.5 %: 8, 1 %: 3)
+vyhraje Ws o dBIC 5.6 az 16, bez sumu o 671. Ani spravny kandidat by tedy
+zde nevyhral jednoznacne; selhani je ale hlavne v topologii (Ws se
+nedostal do porovnani). Pro dalsi kola: seed sumu overit proti
+alternativam (tady 1 z 15 realizaci obrati poradi).
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| W1 | C | README, priklady syntaxe: `# Randles circuit with CPE` je `R(10) - (R(100) \| Q(1e-4, 0.8))`, zjednoduseny Randles bez difuze. Plny Randles `(R - Ws) \| C` je jen v odstavci o jmenech parametru. Agentovi kandidati s Ws vypadaji jako tento priklad s Ws pripsanym do zavorky, `(R \| Q - Ws)` = `R \| (Q - Ws)`. Navrh: priklad prejmenovat (Voigt s CPE / zjednoduseny Randles) a pridat plny Randles `R - (Q \| (R - Ws))` s poznamkou, ze Warburg je v serii s R_ct uvnitr paralely | T15b |
+| W2 | C | Poznamka pod `Suggested circuit` vede k variantam (R\|C) a Q; ze pik DRT muze byt difuze (konecny Warburg dava hlavni pik u 4 tau_W / pi^2 a mensi rychlejsi), kterou (R\|C) jen aproximuje, nerika. Agent pik 0.53 s (= 4 x 1.31 / pi^2) fitoval jako oblouk a za vysledek vzal "kapacitu" 1.2 mF | T15b |
+
+Bez akce (chyba agenta): "README nerika, kdy brat vitez BIC a kdy
+fyzikalni vyklad" - README odkazuje na MODEL_SELECTION_AIC_BIC.md ("what
+they cannot tell you"), necetl ho.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -603,7 +705,9 @@ a porovnani fitovanych obvodu.
 | T1 (kolo 6, krok 7) | opraveno: help `--ri-fit` rika fit R_s-L-(R\|Q) na horni dve dekady, vychozi median a zalohu Re(Z) na f_max |
 | T2-T3 (kolo 6, krok 7) | otevrene |
 | Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal (735b1c7); Sonnet v kroku 8 na ni presel na `--exclude-flagged` |
-| U1 (kolo 6, krok 8) | otevrene (oprava v `setup.sh`, mimo repozitar) |
+| U1 (kolo 6, krok 8) | uzavreno: novy `setup.sh` (kolo 7) kopiruje dokumentaci mechanicky vcetne `CHANGELOG.md` a `ROBUST_LOSS_SOFT_L1.md` |
+| V1 (kolo 7) | opraveno v README: tabulka prvku rika, cemu W, Ws a Wo odpovidaji v cele (nemichana cela; difuzni vrstva s objemovou koncentraci na kraji - michani, RDE; film s blokujici zadni stranou) |
+| W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overit novym T15b s overenym seedem sumu |
 
 ### F5: studie pravidla platnosti Z-HIT
 

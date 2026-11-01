@@ -6,6 +6,27 @@ Complete change history for all project versions.
 
 ## Unreleased
 
+### Changed
+
+- **The note under `Suggested circuit` names diffusion** (cold-agent task
+  T15b: a Randles cell's finite Warburg fitted as a third arc, its peak
+  "capacitance" 1.2 mF taken for a result). A DRT peak may be diffusion,
+  which (R|C) only approximates; a `Ws` peaks at 0.41 tau_W, and the note
+  suggests `R - (Q | (R - Ws))` in a Randles cell.
+
+### Documentation
+
+- **README: the full Randles circuit among the syntax examples** (T15b).
+  The example called "Randles circuit with CPE" was `R - (R|Q)`, the
+  simplified form without diffusion; adding a `Ws` inside its parentheses
+  gives `R | (Q - Ws)`. It is now named as simplified, beside
+  `R - (Q | (R - Ws))` and that warning. The DRT section says where a `Ws`
+  puts its peaks (81 % of R_W at 4 tau_W / pi^2).
+- **README: what W, Ws and Wo stand for in a cell** (T15): semi-infinite
+  for an unstirred cell, transmissive for a diffusion layer with the bulk
+  at its edge (stirring, rotating disk), reflective for a film with a
+  blocking back side.
+
 ### Internal
 
 - **Import layering checked in CI** (`lint-imports`, import-linter, now a

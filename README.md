@@ -443,8 +443,12 @@ bookkeeping, not the fit: `POOR` when sum(R_i) and R_pol differ by more than
 (none, 1-2, more). A `GOOD` suggestion can still fail as a circuit - one
 element standing in for two close processes adds up to R_pol just as well -
 so fit it and read `Fit vs. noise`. The CLI says so under the suggested
-circuit, and names the candidates worth comparing: one element more, and Q
-in place of the ideal C.
+circuit, and names the candidates worth comparing: one element more, Q in
+place of the ideal C, and a Warburg where a peak may be diffusion. A
+finite-length Warburg `Ws` gives a DRT peak at 4 tau_W / pi^2 = 0.41 tau_W
+holding 81 % of R_W and smaller ones 9x and 25x faster; an (R|C) chain only
+approximates it, and in a Randles cell the peak's "capacitance" is no double
+layer (cold-agent task T15b: 1.2 mF at 0.5 cm^2).
 
 **Detailed documentation:** [doc/GCV_IMPLEMENTATION.md](doc/GCV_IMPLEMENTATION.md), [doc/GMM_PEAK_DETECTION.md](doc/GMM_PEAK_DETECTION.md), [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md)
 
@@ -461,9 +465,9 @@ Elegant operator overloading syntax for circuit definition.
 | `C(value)` | Capacitor | `C(1e-6)` |
 | `L(value)` | Inductor | `L(1e-6)` |
 | `Q(Q, n)` | Constant Phase Element (CPE) | `Q(1e-4, 0.8)` |
-| `W(sigma)` | Warburg (semi-infinite) | `W(50)` |
-| `Ws(R_W, tau)` | Warburg finite-length, transmissive boundary (constant concentration, tanh; Z -> R_W at DC) | `Ws(100, 1.0)` |
-| `Wo(R_W, tau)` | Warburg finite-space, reflective boundary (zero flux, coth; capacitive at DC) | `Wo(100, 1.0)` |
+| `W(sigma)` | Warburg (semi-infinite: the diffusion length stays inside the solution at every measured frequency, e.g. an unstirred cell) | `W(50)` |
+| `Ws(R_W, tau)` | Warburg finite-length, transmissive boundary (constant concentration, tanh; Z -> R_W at DC): a diffusion layer of finite thickness with the bulk concentration at its edge, e.g. a stirred solution, a rotating disk | `Ws(100, 1.0)` |
+| `Wo(R_W, tau)` | Warburg finite-space, reflective boundary (zero flux, coth; capacitive at DC): a thin layer or film with a blocking back side, e.g. an intercalation electrode, a coating | `Wo(100, 1.0)` |
 | `Wa(R_W, tau, gamma)` | Anomalous finite-space Warburg (Wo with free exponent; CPE with n = gamma at DC, gamma = 1 is Wo) | `Wa(1e7, 30, 0.7)` |
 | `Wat(R_W, tau, gamma)` | Anomalous finite-length Warburg (Ws with free exponent; Z -> R_W at DC, gamma = 1 is Ws) | `Wat(1e8, 300, 0.7)` |
 | `K(R, tau)` | Voigt with tau parametrization | `K(1000, 1e-4)` |
@@ -512,8 +516,13 @@ Always use parentheses around parallel combinations: `(R|C)`.
 # Voigt element
 eis data.DTA --circuit "R(100) - (R(5000) | C(1e-6))"
 
-# Randles circuit with CPE
+# Simplified Randles (no diffusion): charge transfer R beside a CPE
 eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
+
+# Randles: the Warburg in series with the charge transfer R, both beside
+# the double layer. Not "(R(100) | Q(1e-4, 0.9) - Ws(50, 1))", which is
+# R | (Q - Ws) by the precedence above
+eis data.DTA --circuit "R(10) - (Q(1e-4, 0.9) | (R(100) - Ws(50, 1)))"
 
 # With fixed parameter
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
