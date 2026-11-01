@@ -466,8 +466,8 @@ Elegant operator overloading syntax for circuit definition.
 | `L(value)` | Inductor | `L(1e-6)` |
 | `Q(Q, n)` | Constant Phase Element (CPE) | `Q(1e-4, 0.8)` |
 | `W(sigma)` | Warburg (semi-infinite: the diffusion length stays inside the solution at every measured frequency, e.g. an unstirred cell) | `W(50)` |
-| `Ws(R_W, tau)` | Warburg finite-length, transmissive boundary (constant concentration, tanh; Z -> R_W at DC): a diffusion layer of finite thickness with the bulk concentration at its edge, e.g. a stirred solution, a rotating disk | `Ws(100, 1.0)` |
-| `Wo(R_W, tau)` | Warburg finite-space, reflective boundary (zero flux, coth; capacitive at DC): a thin layer or film with a blocking back side, e.g. an intercalation electrode, a coating | `Wo(100, 1.0)` |
+| `Ws(R_W, tau)` | Warburg finite-length, transmissive boundary (constant concentration, tanh; Z -> R_W at DC; tau = L^2/D, L the layer thickness): a diffusion layer of finite thickness with the bulk concentration at its edge, e.g. a stirred solution, a rotating disk | `Ws(100, 1.0)` |
+| `Wo(R_W, tau)` | Warburg finite-space, reflective boundary (zero flux, coth; capacitive at DC; tau = L^2/D, L the layer thickness): a thin layer or film with a blocking back side, e.g. an intercalation electrode, a coating | `Wo(100, 1.0)` |
 | `Wa(R_W, tau, gamma)` | Anomalous finite-space Warburg (Wo with free exponent; CPE with n = gamma at DC, gamma = 1 is Wo) | `Wa(1e7, 30, 0.7)` |
 | `Wat(R_W, tau, gamma)` | Anomalous finite-length Warburg (Ws with free exponent; Z -> R_W at DC, gamma = 1 is Ws) | `Wat(1e8, 300, 0.7)` |
 | `K(R, tau)` | Voigt with tau parametrization | `K(1000, 1e-4)` |

@@ -661,6 +661,45 @@ Bez akce (chyba agenta): "README nerika, kdy brat vitez BIC a kdy
 fyzikalni vyklad" - README odkazuje na MODEL_SELECTION_AIC_BIC.md ("what
 they cannot tell you"), necetl ho.
 
+## Kolo 7, krok 3 (2026-11-01): T15b znovu po opravach V1, W1, W2, Sonnet
+
+Zadani T15b, piskoviste z cf84692. Data: stejna fyzika, sum 0.1 % (misto
+0.5 %), seed 16, predem provereny: Randles s C vyhrava BIC, s Q +4.8,
+4 oblouky +18, 3 oblouky +52, obe chybne topologie z kroku 2 +1229 (seedy
+17-23 stejne).
+
+| | Agent (Sonnet) | Pravda |
+|---|---|---|
+| obvod | R - (C \| (R - Ws)) | R - (C_dl \| (R_ct - Ws)) |
+| R_s [Ohm] | 0.1203 +- 4e-5 | 0.1203 |
+| C_dl [uF] | 8.655 +- 0.0014 | 8.657 |
+| R_ct [Ohm] | 1774 +- 0.6 | 1775 |
+| R_W [Ohm] | 487.6 +- 0.9 | 486.7 |
+| tau_W [s] | 1.36 +- 0.006 | 1.25 (Fe2+) a 1.49 (Fe3+) |
+| cena | 0.22 USD, 94 s, 5 volani | |
+
+Uspech. Postup: README (1-830), vychozi beh (DRT 2 piky), pak v jednom
+behu 2x(R|C) a Randles s Ws, W, Wo (s Q i C), vsechny ve spravne topologii;
+Ws s n = 1 na mezi -> C. Volbu zduvodnil novou vetou README (pik DRT muze
+byt difuze, 1.1 mF neni dvojvrstva, "task T15b") a poznamkou pod navrhem
+obvodu. Bod 0 "ne", jen `~/coldbox/`.
+
+Dva vlivy najednou: opravy W1/W2 (agent je cituje) a 5x mensi sum, pri
+kterem uz 2x(R|C) neprojde (fit/KK 2.7 proti 1.2 v kroku 2). Ktery
+rozhodl, z jednoho behu nelze rict; README navic popisuje presne tento
+pripad (T15b, 1.2 mF), takze krok overuje opravu, ne obecnou schopnost
+najit difuzi.
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| X1 | C | `tau_W = L^2/D` neni v README (tabulka prvku), jen v CIRCUIT_PARSER. Hlasily to oba agenti, kteri Ws pouzili (T15, T15b krok 3): podle planu uz ne chyba agenta. Navrh: do radku Ws a Wo v tabulce README `tau = L^2/D` | T15, T15b |
+
+Bez akce: "R_s 0.12 Ohm je na 0.3 M KCl malo" (fyzikalni pochybnost
+o simulaci, ne o knihovne); "Q|(R-Wo) jsem s ostatnimi do jedne tabulky
+neporovnal" - porovnani pet kandidatu vypsal, oriznul ho `head -220`.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -707,7 +746,8 @@ they cannot tell you"), necetl ho.
 | Regrese kroku 7 (S4?) | A/B: S4 nevinne (A 3/6, B 2/6); slabe misto je volba vysledku - poznamka pod fitem, ktery oznacene body ponechal (735b1c7); Sonnet v kroku 8 na ni presel na `--exclude-flagged` |
 | U1 (kolo 6, krok 8) | uzavreno: novy `setup.sh` (kolo 7) kopiruje dokumentaci mechanicky vcetne `CHANGELOG.md` a `ROBUST_LOSS_SOFT_L1.md` |
 | V1 (kolo 7) | opraveno v README: tabulka prvku rika, cemu W, Ws a Wo odpovidaji v cele (nemichana cela; difuzni vrstva s objemovou koncentraci na kraji - michani, RDE; film s blokujici zadni stranou) |
-| W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overit novym T15b s overenym seedem sumu |
+| W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overeno v kroku 3: T15b s sumem 0.1 % uspech (agent obe opravy cituje) |
+| X1 (kolo 7, krok 3) | opraveno v README: radky Ws a Wo tabulky prvku uvadeji `tau = L^2/D` (L tloustka vrstvy) |
 
 ### F5: studie pravidla platnosti Z-HIT
 

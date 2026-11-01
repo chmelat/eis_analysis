@@ -26,6 +26,8 @@ Complete change history for all project versions.
   for an unstirred cell, transmissive for a diffusion layer with the bulk
   at its edge (stirring, rotating disk), reflective for a film with a
   blocking back side.
+- **README: tau of Ws and Wo is L^2/D** in the element table (T15, T15b:
+  both agents that used Ws missed it; it was only in CIRCUIT_PARSER).
 
 ### Internal
 
