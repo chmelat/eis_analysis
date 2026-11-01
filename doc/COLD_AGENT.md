@@ -700,6 +700,36 @@ Bez akce: "R_s 0.12 Ohm je na 0.3 M KCl malo" (fyzikalni pochybnost
 o simulaci, ne o knihovne); "Q|(R-Wo) jsem s ostatnimi do jedne tabulky
 neporovnal" - porovnani pet kandidatu vypsal, oriznul ho `head -220`.
 
+## Kolo 7, krok 4 (2026-11-01): T15b znovu, Haiku
+
+Data a zadani kroku 3 (sum 0.1 %, seed 16), cisty adresar, piskoviste
+z d50385f (navic X1).
+
+| | Haiku | Sonnet (krok 3) | Pravda |
+|---|---|---|---|
+| obvod | R - (C \| (R - Ws)) | totez | totez |
+| R_s / C_dl | 0.12030 Ohm / 8.655 uF | stejne | 0.1203 / 8.657 |
+| R_ct / R_W | 1774.0 / 487.6 Ohm | stejne | 1775 / 486.7 |
+| tau_W [s] | 1.360 +- 0.006 | stejne | 1.25-1.49 |
+| cena | 0.07 USD, 6.2 min, 22 volani | 0.22 USD, 94 s, 5 volani | |
+
+Uspech, stejna cisla jako Sonnet. Haiku tapal dele: nejdriv dva oblouky
+s Q/C a L, Voigt chain, Ws v serii za obloukem, az pak Randles se Ws, Q
+a Wo; nakonec seedy 7 a 2024 a `--multistart 20`. Volbu opira o fit/KK
+a nahodna rezidua, pik DRT u 0.41 tau_W (W2) overil (0.54 proti 0.56 s).
+Bod 0 "ne", jen `~/coldbox/`; README cetl po castech (1-230, 455-1013).
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| Y1 | C | Porovnani obvodu: `R-(R\|C)-(R\|Q)` a `R-(R\|Q)-(R\|C)` jsou tyz obvod (bloky v serii lze prohodit), tabulka je ukaze jako dva kandidaty s dBIC 0 a `Selected by BIC` vybere prvniho bez poznamky. Agent to cetl jako nerozhodnuty vysledek bez pravidla | T15b |
+| Y2 | C | `--voigt-chain --voigt-auto-M` na spektru, ktere Lin-KK popise na 0.14 %: M = 10 (5 zapornych R_i), po NNLS a orezu 3 K, fit 7.2 % "poor". Agent z toho vyvodil, ze "hladky popis bez difuze spektrum nepopise". Voigt chain je okrajova funkce (mozne odstraneni), oprava nenavrzena | T15b |
+
+Bez akce: `--seed` u `--voigt-chain` - dokumentace "Not allowed", CLI
+"has no effect" a exit 2 (obe odmitaji, agent sam); `Suggestion quality:
+GOOD` u navrhu, ktery fit odmitne - dokumentovano (P2, R2).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -748,6 +778,7 @@ neporovnal" - porovnani pet kandidatu vypsal, oriznul ho `head -220`.
 | V1 (kolo 7) | opraveno v README: tabulka prvku rika, cemu W, Ws a Wo odpovidaji v cele (nemichana cela; difuzni vrstva s objemovou koncentraci na kraji - michani, RDE; film s blokujici zadni stranou) |
 | W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overeno v kroku 3: T15b s sumem 0.1 % uspech (agent obe opravy cituje) |
 | X1 (kolo 7, krok 3) | opraveno v README: radky Ws a Wo tabulky prvku uvadeji `tau = L^2/D` (L tloustka vrstvy) |
+| Y1, Y2 (kolo 7, krok 4) | otevreno: Y1 - porovnani obvodu by mohlo oznacit kandidaty, ktere jsou tyz obvod az na poradi bloku; Y2 - Voigt chain (okrajova funkce), bez navrhu |
 
 ### F5: studie pravidla platnosti Z-HIT
 
