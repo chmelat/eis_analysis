@@ -730,6 +730,41 @@ Bez akce: `--seed` u `--voigt-chain` - dokumentace "Not allowed", CLI
 "has no effect" a exit 2 (obe odmitaji, agent sam); `Suggestion quality:
 GOOD` u navrhu, ktery fit odmitne - dokumentovano (P2, R2).
 
+### Proc agenti voli CLI (poznatky kola 7)
+
+Ani jeden ze ctyr agentu kola 7 (T15, T15b, T15b krok 3 Sonnet, krok 4
+Haiku) nevolal Python API, jako v kole 1. Haiku spustil Python jen na cteni
+ulozenych vystupu CLI (`*_fit.csv`, `*_fit.json`: nejistota R_ct + R_W
+z kovariance) a na `eis_analysis.__file__`. `PYTHON_API.md` nikdo necetl,
+dva ho jen prosli grepem nadpisu. Zadani nabizelo obe rozhrani. Pricin je
+nekolik a posiluji se (prvni tri jsou videt v prepisech, dalsi dve jsou
+odhad):
+
+- **README vede k CLI.** Vsichni zacali README a cetli ho odshora (radky
+  1-830). Uvod a "Common workflows" jsou prikazy `eis data.DTA ...`; API je
+  v samostatnem `doc/PYTHON_API.md`.
+- **Jeden prikaz dela cely postup.** Vychozi beh dela KK, Z-HIT, R_inf, DRT,
+  piky a navrh obvodu; porovnani obvodu je opakovane `--circuit`. Pres API
+  by agent skladal volani, BIC a pomer k sumu sam.
+- **CLI vyklada a radi dalsi krok, API ne.** Varovani, legenda tabulky
+  porovnani, fit/KK, testy rezidui a poznamka pod navrhem obvodu vedly
+  rozhodnuti: T15b krok 3 i Haiku cituji opravu W2, Haiku podle ni overil
+  pik DRT. API vraci tataz cisla v dataclassech, vyklad ale vznika az
+  v `cli/handlers/` (pravidlo "tiskne jen CLI"); kdo vola Python, musi vedet,
+  ktere pole cist.
+- **Nejlevnejsi akce pro agenta.** Zakladni nastroj je Bash: jeden prikaz
+  je jeden krok, skript s neznamym API znamena psani, chyby v importech
+  a signaturach a dalsi kola (Sonnet vyresil T15 na 6 volani).
+- **Snadne zkoumani.** `eis --help` je jeden levny dotaz; `help()`
+  a docstringy jsou pomalejsi a mene prehledne.
+
+Dusledek: pro uzivatele i agenty je CLI fakticky hlavni rozhrani. Opravy,
+ktere maji zmenit analyzu, pusobi nejvic ve vystupu CLI a v README (W2 to
+ukazala primo). Ma-li agent sahnout po API, musel by se Python objevit
+v README hned na zacatku a vyklad, ktery dnes dava jen CLI, by musel byt
+dostupny i z vysledkovych objektu. Pasti API overi jen zadani "jen Python
+API" (kolo 3).
+
 ## Stav nalezu
 
 | Nalez | Stav |
