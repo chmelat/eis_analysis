@@ -118,7 +118,7 @@ contracts are written and checked by a cold review: `doc/CONTRACT_REVIEW.md`.
 ```bash
 python3 -m pytest tests/                 # Default run (skips the slow benchmark)
 python3 -m pytest tests/ -m ""           # Everything, benchmark included
-python3 -m pytest tests/ -m slow         # Only the DE benchmarks (ZScope, driftlet)
+python3 -m pytest tests/ -m slow         # Only the slow ones (ZScope, driftlet, NMC811)
 python3 -m pytest tests/ -m stress       # Only the stress smoke run
 python3 -m pytest tests/ -v              # Verbose output
 python3 -m pytest tests/test_K_element.py  # Specific file
@@ -128,8 +128,10 @@ python3 -m pytest tests/ -k "voigt"      # Tests matching pattern
 `tests/test_zscope_benchmark.py` is marked `slow` and excluded by default: it
 fits four reference circuits at three noise levels with DE, which is slow.
 So are the DE fits of `tests/test_driftlet_randles.py` (six spectra simulated
-from physics by driftlet, regenerated with `tests/driftlet_randles.mjs`).
-Run both before a release.
+from physics by driftlet, regenerated with `tests/driftlet_randles.mjs`), and
+`tests/test_real_nmc811.py` (54 measured Li-ion cells, batch invariants; data
+CC BY 4.0, see `tests/data/nmc811_zenodo_15422339/README.md`). Run all three
+before a release.
 
 The stress test (`tests/stress.py`, design `doc/STRESS_TEST_PLAN.md`, results
 and known limits `doc/STRESS_TEST.md`) checks random spectra against

@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.64.2 (2026-11-02)
+
+### Tests
+
+- **Measured spectra of 54 nominally identical Li-ion cells**
+  (`tests/test_real_nmc811.py`, marked `slow`, ~15 s). Zenodo 15422339
+  (Keysight/SINTEF, CC BY 4.0, unchanged, attribution in
+  `tests/data/nmc811_zenodo_15422339/README.md`): 21700 NMC811 cells at
+  30 % SoC, 10 kHz..50 mHz, an inductive high-frequency end with Re(Z)
+  rising (skin effect) and a diffusion tail past the window. The truth is
+  unknown, so the checks are batch invariants: every file loads, Lin-KK
+  passes for all, the DRT finds the same number of peaks in every cell,
+  the series L is found in a narrow band (90-96 nH now), and R_inf stays
+  within 2 % of min Re(Z) (the top point lies 4-5 % above it). Found while
+  comparing with KAIRIS, whose DRT gave 1, 2 or 3 peaks on these cells.
+
+---
+
 ## Version 0.64.1 (2026-11-01)
 
 ### Changed
