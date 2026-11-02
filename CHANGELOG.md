@@ -15,9 +15,12 @@ Complete change history for all project versions.
   decade has >= 3 inductive points, `estimate_rinf` also fits
   `R - (R|L) - (R|Q)` to its window; if it beats `R - L - (R|Q)` by
   dBIC >= 10 and its R|L adds >= 1 % to Re(Z) at f_max,
-  `RinfResult.parallel_RL` holds (R_L, L) and a warning gives them with the
-  R_s of that fit. The suggested circuit of the DRT then starts with
-  `(R(R_L) | L(L))` in place of `L`. R_inf itself is unchanged. Measured:
+  `RinfResult.parallel_RL` is a `ParallelRL` (R_L, L, the series R_s of that
+  fit, dBIC, Re share; module `rinf_estimation/parallel_rl.py`) and a
+  warning gives them. The suggested circuit of the DRT then starts with
+  `(R(R_L) | L(L)) - R(R_s)` in place of `L - R(R_inf)`: R_inf of
+  R-L-(R|Q) lies 4-5 % above R_s on the NMC cells. R_inf itself is
+  unchanged. Measured:
   all 54 NMC811 cells of `tests/data` (dBIC 103-135, ~8 % of Re(Z) at
   f_max), none of 285 stress spectra with a series L.
 

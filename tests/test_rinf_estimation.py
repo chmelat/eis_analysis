@@ -531,9 +531,14 @@ def test_parallel_rl_is_reported_when_re_rises():
     r = estimate_rinf(*_with_inductive_end(parallel=True))
     assert r.method == 'rlq_fit'
     assert r.parallel_RL is not None
-    R_L, L_rl = r.parallel_RL
-    assert R_L == pytest.approx(0.038, rel=0.1)
-    assert L_rl == pytest.approx(1e-7, rel=0.1)
+    rl = r.parallel_RL
+    assert rl.R_L == pytest.approx(0.038, rel=0.1)
+    assert rl.L == pytest.approx(1e-7, rel=0.1)
+    # Its own series R is the true 13 mOhm; R_inf of R-L-(R|Q) lies above
+    # it by about the R|L's Re
+    assert rl.R_s == pytest.approx(0.013, rel=0.02)
+    assert r.R_inf > rl.R_s
+    assert rl.dbic >= 10 and rl.re_share >= 0.01
     assert sum('(R|L)' in w for w in r.warnings) == 1
 
 
@@ -549,8 +554,10 @@ def test_parallel_rl_scales_with_the_units(k):
     base = estimate_rinf(*_with_inductive_end(parallel=True))
     scaled = estimate_rinf(*_with_inductive_end(parallel=True, k=k))
     assert scaled.parallel_RL is not None
-    assert scaled.parallel_RL[0] == pytest.approx(k * base.parallel_RL[0], rel=1e-3)
-    assert scaled.parallel_RL[1] == pytest.approx(k * base.parallel_RL[1], rel=1e-3)
+    for name in ('R_L', 'L', 'R_s'):
+        assert getattr(scaled.parallel_RL, name) == pytest.approx(
+            k * getattr(base.parallel_RL, name), rel=1e-3)
+    assert scaled.parallel_RL.dbic == pytest.approx(base.parallel_RL.dbic, rel=1e-3)
 
 
 def test_capacitive_top_is_not_checked():
@@ -558,3 +565,39 @@ def test_capacitive_top_is_not_checked():
     w = 2 * np.pi * _F_RL
     Z = 0.013 + 0.005 / (1 + 0.005 * 0.7 * (1j * w) ** 0.75)
     assert estimate_rinf(_F_RL, Z).parallel_RL is None
+
+
+def test_parallel_rl_does_not_depend_on_the_order_at_f_max():
+    # Two readings at f_max with different Re(Z): the start and the Re share
+    # take the lower one, whichever comes first
+    f, Z = _with_inductive_end(parallel=True)
+    f = np.concatenate([[f[0]], f])
+    Z = np.concatenate([[Z[0] * 1.03], Z])
+    a = estimate_rinf(f, Z).parallel_RL
+    b = estimate_rinf(f[::-1], Z[::-1]).parallel_RL
+    assert a is not None and b is not None
+    assert a.re_share == pytest.approx(b.re_share, rel=1e-3)
+    assert a.R_s == pytest.approx(b.R_s, rel=1e-3)
+
+
+def test_suggested_circuit_carries_the_parallel_rl_and_its_rs(caplog):
+    import argparse
+    import logging
+    import re
+    from eis_analysis.cli.handlers.drt import run_voigt_analysis
+    from eis_analysis.drt import calculate_drt
+
+    f, Z = _with_inductive_end(parallel=True)
+    drt = calculate_drt(f, Z)
+    rl = drt.diagnostics.rinf.estimate.parallel_RL
+    assert rl is not None
+    with caplog.at_level(logging.INFO):
+        run_voigt_analysis(drt, f, Z, argparse.Namespace(no_drt=False, no_voigt_info=False))
+    line = next(m.getMessage() for m in caplog.records
+                if m.getMessage().startswith('Suggested circuit:'))
+    head = re.match(r'Suggested circuit: \(R\(([^)]*)\) \| L\(([^)]*)\)\) - R\(([^)]*)\)', line)
+    assert head, line
+    R_L, L_rl, R_s = (float(v) for v in head.groups())
+    assert R_L == pytest.approx(rl.R_L, rel=1e-3)
+    assert L_rl == pytest.approx(rl.L, rel=1e-3)
+    assert R_s == pytest.approx(rl.R_s, rel=1e-3)

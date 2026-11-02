@@ -11,11 +11,13 @@ Clean design: No logging in core functions, all diagnostics returned as data.
 """
 
 from .estimate import estimate_rinf, hf_median, RinfResult
+from .parallel_rl import ParallelRL
 from ..utils.impedance import hf_r_inf
 
 __all__ = [
     'estimate_rinf',
     'hf_median',
     'hf_r_inf',
+    'ParallelRL',
     'RinfResult',
 ]

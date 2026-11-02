@@ -8,7 +8,7 @@ DRT analysis handlers for the EIS CLI.
 import argparse
 import logging
 from math import isfinite, isinf, isnan
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from numpy.typing import NDArray
 
@@ -17,6 +17,7 @@ from ..utils import draw_figure
 from ...drt import calculate_drt, DRTResult
 from ...fitting import analyze_voigt_elements, VoigtSuggestion
 from ...fitting.config import DRT_PEAK_DCHI2_MIN, GMM_N_COMPONENTS_RANGE
+from ...rinf_estimation import ParallelRL
 from ...visualization import plot_drt, plot_rinf_fit
 
 logger = logging.getLogger(__name__)
@@ -408,7 +409,7 @@ def run_voigt_analysis(
 
 def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
                       L_series: float,
-                      parallel_RL: Optional[Tuple[float, float]] = None) -> None:
+                      parallel_RL: Optional[ParallelRL] = None) -> None:
     """Report the Voigt elements read off the DRT, with how they were chosen."""
     log_separator()
     logger.info("Voigt elements (R||C) from DRT")
@@ -452,16 +453,20 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
     # Values, not symbols, so the line pastes into --circuit as a starting
     # point - with the R_inf and series L of the DRT the elements came from
     # An inductive end with Re(Z) rising (RinfResult.parallel_RL) gets the
-    # R|L of the R_inf check in place of the DRT's series L
+    # R|L of the R_inf check in place of the DRT's series L, with the series
+    # R of that fit: R_inf of R-L-(R|Q) lies above it by about the R|L's Re.
+    # The arcs were read off a DRT that subtracted that R_inf, so at DC
+    # (R|L shorted) the line lies R_inf - R_s below the data (NMC811: ~4 %):
+    # a start for a fit either way - with R_inf it overshot at f_max instead
     values = [v for e in elements for v in (e.R, e.C)]
     if parallel_RL is not None:
-        values += list(parallel_RL)
+        values += [parallel_RL.R_L, parallel_RL.L, parallel_RL.R_s]
     if R_inf is not None and all(isfinite(v) for v in [R_inf, L_series] + values):
         if parallel_RL is not None:
-            inductive = [f"(R({parallel_RL[0]:.4g}) | L({parallel_RL[1]:.4g}))"]
+            parts = [f"(R({parallel_RL.R_L:.4g}) | L({parallel_RL.L:.4g}))",
+                     f"R({parallel_RL.R_s:.4g})"]
         else:
-            inductive = [f"L({L_series:.4g})"] if L_series > 0 else []
-        parts = inductive + [f"R({R_inf:.4g})"]
+            parts = ([f"L({L_series:.4g})"] if L_series > 0 else []) + [f"R({R_inf:.4g})"]
         parts += [f"(R({e.R:.4g}) | C({e.C:.4g}))" for e in elements]
         logger.info(f"Suggested circuit: {' - '.join(parts)}")
     else:
@@ -480,6 +485,6 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
     logger.info("  0.41 tau_W; in a Randles cell fit Q | (R - Ws) too, e.g. "
                 "R - (Q | (R - Ws)).")
     if parallel_RL is not None:
-        logger.info("  (R|L) in place of L: Re(Z) rises toward f_max at the inductive end "
-                    "(see the warning).")
+        logger.info("  (R|L) in place of L, with its R_s: Re(Z) rises toward f_max at the "
+                    "inductive end (see the warning).")
     log_separator()

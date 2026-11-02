@@ -413,9 +413,12 @@ With a circuit fit, R_s is a fit parameter and depends on neither. See
 [doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md). When the top decade has
 three or more inductive points, `R - (R|L) - (R|Q)` is fitted as well; if it
 wins (dBIC >= 10, its R|L adding >= 1 % to Re(Z) at f_max) a warning gives
-its R_L, L and R_s and the suggested circuit uses `(R|L)` in place of `L`
-(see Circuit fitting, Inductive end). R_inf itself stays the `R - L - (R|Q)`
-value; with `(R|L)` R_s came out 4-5 % lower on the NMC811 cells.
+its R_L, L and R_s, and the suggested circuit starts with `(R|L) - R(R_s)`
+in place of `L - R(R_inf)` (see Circuit fitting, Inductive end). R_inf itself
+stays the `R - L - (R|Q)` value. R_s of the `(R|L)` fit lies below it by
+about what the R|L adds to Re(Z) (4-5 % on the measured cells in
+`tests/data`), so the suggested circuit lies that much below the data at DC
+- a start for a fit, not a result.
 `R_pol (from data)` (circuit suggestion) is the median Re(Z) of the (up to 5)
 lowest-frequency points minus the DRT's R_inf: a lower bound when an arc is still open at f_min
 (cold-agent task T12: 180 Ohm, true 950), as is `R_pol (from DRT integral)`;
@@ -530,9 +533,8 @@ eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 eis data.DTA --circuit "R(10) - (Q(1e-4, 0.9) | (R(100) - Ws(50, 1)))"
 
 # Inductive end where Re(Z) rises toward f_max (skin effect, eddy currents
-# in a wound cell or the leads): (R|L) instead of a series L, here a
-# Li-ion 21700 cell with a diffusion tail
-eis cell.csv --circuit "R(0.013) - (R(0.04) | L(1e-7)) - (R(0.005) | Q(0.7, 0.75)) - W(0.001)"
+# in a wound cell or the leads): (R|L) instead of a series L
+eis data.DTA --circuit "R(1) - (R(5) | L(1e-6)) - (R(10) | Q(1e-3, 0.8))"
 
 # With fixed parameter
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
@@ -545,9 +547,9 @@ battery cells and long leads - fit `(R|L)` in place of `L`: below
 f = R_L / (2 pi L) it is an inductor, above it adds up to R_L to Re(Z). The
 R_inf check of the DRT (below) fits both to the top two decades and warns
 when `(R|L)` wins by dBIC >= 10 and adds >= 1 % to Re(Z) at f_max; the
-suggested circuit then carries it. On 54 NMC811 cells (cold-agent task T16)
-Re(Z) rose 4-5 % over the top decade, and `(R|L)` beat `L` by dBIC 167-185
-in the full circuit fit.
+suggested circuit then carries it. Measured on cells where Re(Z) rose
+4-5 % over the top decade: `(R|L)` beat `L` by dBIC 167-185 in the full
+circuit fit (`doc/COLD_AGENT.md`, round 8).
 
 **Does every element earn its place?** With `--circuit` (any `--optimizer`), each
 parameter line carries an `S`, its significance - the largest relative change
@@ -703,8 +705,8 @@ f_min) and Lin-KK passes all the same. Lin-KK fits the real part and predicts
 the imaginary one; a process continuing below f_min (diffusion in a battery,
 a blocking interface) shows in the window almost only in Z'', so the Lin-KK
 noise contains it, while a circuit with the right element does not. The
-reference is then inflated and a ratio below 2 proves nothing. On 54
-NMC811 Li-ion cells (Warburg tail below 50 mHz, cold-agent task T16) Lin-KK
+reference is then inflated and a ratio below 2 proves nothing. On measured
+cells with a Warburg tail below f_min (`doc/COLD_AGENT.md`, round 8) Lin-KK
 passed with 0.8-1.1 % noise, 0.12-0.23 % with the series C; a circuit missing
 an element read 0.6-0.9 against 4.3-5.3 with the series C, and BIC rejected it by
 167-185. The residual tests caught it (runs test p ~ 1e-6). The CLI does not

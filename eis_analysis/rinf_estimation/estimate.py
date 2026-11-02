@@ -33,7 +33,11 @@ RuntimeError when the fit fails; params_opt and params_stderr in circuit
 order R_s, L, R_k, Q, n; stderr inf or NaN when the covariance cannot be
 had), PARAMETER_BOUNDS['n'] and hf_bound (Re(Z) at the highest frequency
 with Im(Z) <= 0, f_max when there is none; of points at the same frequency
-the lowest Re(Z)).
+the lowest Re(Z)). Through check_parallel_rl (parallel_rl.py) also
+fitting.circuit._fit_local (fit_equivalent_circuit without the series
+resistance check, same exceptions) and compute_information_criteria (BIC
+of a modulus-weighted fit); window.py holds the relative parameter range
+both window fits share.
 
 estimate_rinf(frequencies, Z) -> RinfResult.
   Input: array_like of the same shape; ValueError otherwise, and when no
@@ -69,7 +73,7 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   or above f_max (an arc entirely above it) also passes, as no data-only
   method can tell it from a flat end.
   Fit (method 'rlq_fit'): R_inf = the fitted R_s, L = the fitted L. Range
-  of every parameter relative to the window's |Z| (_window_range), R and
+  of every parameter relative to the window's |Z| (window.py), R and
   L bounded below by 0, so the result does not depend on the unit of Z.
   The same fit over the window's top RINF_SPREAD_DECADES (when that subset
   has at least RINF_FIT_MIN_POINTS points and is not the whole window, its
@@ -102,17 +106,11 @@ estimate_rinf(frequencies, Z) -> RinfResult.
   R_inf_window_spread; 'top': the same without the spread term; the lower
   end clipped at 0, the upper at max(R_inf_upper, R_inf).
   R_inf_fit, R_inf_stderr: the fit's R_s and its stderr, None without a fit.
-  parallel_RL: only after an accepted fit ('full' or 'top'), and only when
-  the full window's top decade has at least RINF_RL_MIN_INDUCTIVE points
-  with Im(Z) > 0 and more residuals than R - (R|L) - (R|Q) has parameters:
-  that circuit is fitted to the full window (started from its R-L-(R|Q)
-  fit, R_L at |Z(f_max)| and at 10x max|Z|, the same relative range; a
-  start whose fit raises RuntimeError is skipped) and (R_L, L) of the
-  better start is set, with a warning naming dBIC, R_L, L, the share and
-  R_s of that fit, when its BIC (2N modulus-weighted residuals) beats the
-  full window's R-L-(R|Q) by at least RINF_RL_DBIC_MIN and its R|L adds at
-  least RINF_RL_MIN_RE_SHARE of Re(Z) at f_max. Otherwise None. R_inf, L,
-  method, fit and the range do not change with it.
+  parallel_RL: check_parallel_rl (parallel_rl.py; its docstring states the
+  rule) after an accepted fit ('full' or 'top'), on the full window and its
+  R-L-(R|Q) fit - also for 'top', so that both fits see the same points.
+  With a ParallelRL a warning names it. R_inf, L, method, fit and the range
+  do not change with it.
 
 What must hold:
   - The inputs are not changed.
@@ -125,14 +123,15 @@ What must hold:
     requires); for the fallback R_inf <= R_inf_upper.
   - L >= 0 and finite; 0 unless method is 'rlq_fit'.
   - parallel_RL is None unless method is 'rlq_fit' and fit_window is
-    'full' or 'top'; when set, both values are finite and >= 0 and one
+    'full' or 'top'; when set, R_L, L and R_s are finite and >= 0,
+    dbic >= RINF_RL_DBIC_MIN, re_share >= RINF_RL_MIN_RE_SHARE, and one
     warning names it.
   - method 'rlq_fit' exactly when R_inf comes from an accepted fit, and
     then stderr <= RINF_REL_STDERR_MAX x R_inf.
   - notes only explain: whether the closed-end reason is a note or a
     warning changes no other field.
   - Unit invariance: Z scaled by c > 0 scales R_inf, R_inf_hf,
-    R_inf_upper, R_inf_range, R_inf_window_spread, L and both values of
+    R_inf_upper, R_inf_range, R_inf_window_spread, L and R_L, L, R_s of
     parallel_RL by c, with the same method and parallel_RL set or not (up
     to the optimizer's tolerance), while |Z| stays within
     ~1e-15 .. 1e100 Ohm (outside, absolute tolerances of the fit).
@@ -148,8 +147,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..fitting import FitResult, L, Q, R, fit_equivalent_circuit
-from ..fitting.bounds import PARAMETER_BOUNDS
-from ..utils.impedance import hf_bound, hf_median  # noqa: F401 (hf_median: public here)
+from ..utils.impedance import _top_down, hf_bound, hf_median  # noqa: F401 (hf_median: public here)
+from .parallel_rl import ParallelRL, check_parallel_rl
+from .window import RINF_BOUND_RANGE, clip_to, window_bounds, window_range  # noqa: F401 (RINF_BOUND_RANGE: public here)
 
 # Fit window: f >= f_max / 10**RINF_FIT_DECADES. Two decades is the compromise
 # measured in doc/archive/AUDIT_ri_fit_2026-09-25.md: one decade resolves an arc just
@@ -167,21 +167,6 @@ RINF_FIT_MIN_POINTS = 5
 # 0.2-3.6 %, non-determinable ones (arc above f_max, strongly open CPE arc,
 # model mismatch) start at 14 %: 5 % leaves a ~2x margin on both sides.
 RINF_REL_STDERR_MAX = 0.05
-
-# Range of the window fit, relative to the window's impedance: every term from
-# min|Z|/RINF_BOUND_RANGE to max|Z|*RINF_BOUND_RANGE over the window. Above
-# 1e6 times the largest |Z| an arc resistance is an open arc, and Q the same
-# for a short, to better than 1e-6 - under any instrument's resolution (~1e-4
-# of |Z|) - so these are the upper bounds. R and L are bounded below by their
-# physical limit 0 instead: a relative floor cut off what the data still
-# determine (noise-free 0.05 Ohm R_s in front of a GOhm film, |Z| 3e3..2.5e5
-# Ohm: an L floor at 1e-6 |Z| biased R_s to 0.064 Ohm, and R_inf fell back
-# to 243 Ohm). The lower end of the range only places the starts, so that
-# none is 0. Absolute PARAMETER_BOUNDS made R_inf
-# depend on the units: the open arc's R_k ran into R <= 1e10 Ohm (or Q into
-# 0.1, L into 1e-4 H), and Z -> 1000 Z shifted R_inf on 51 % of the stress
-# test's random spectra, by over 10 % on 7 % of them.
-RINF_BOUND_RANGE = 1e6
 
 # R_inf_upper: the HF bound widened by this many standard deviations of the
 # noise at f_hf, so that a point shifted by noise still bounds R_s. The
@@ -224,21 +209,6 @@ RINF_SPREAD_DECADES = 1
 # (rc/143, cpe/85); 10 kept cpe/85.
 RINF_NARROW_STDERR_RATIO = 3.0
 RINF_WINDOW_SPREAD_FACTOR = 3.0
-
-# Parallel R|L at the inductive end (skin effect, eddy currents in a wound
-# cell or the leads): Re(Z) rises toward f_max, which no series L does. Checked
-# when the top decade of the window has at least RINF_RL_MIN_INDUCTIVE points
-# with Im(Z) > 0: R - (R|L) - (R|Q) is fitted to the window and reported when
-# it beats R - L - (R|Q) by RINF_RL_DBIC_MIN in BIC (decisive) and its R|L
-# adds at least RINF_RL_MIN_RE_SHARE of Re(Z) at f_max. Measured 2026-11-02:
-# 54 NMC811 Li-ion cells (Zenodo 15422339) dBIC 103-135, Re share ~8 %;
-# 285 stress spectra with an inductive top decade (series L only) dBIC < 6
-# except one noise-free case (rc/83, 549), where a poorly converged R-L-(R|Q)
-# lost to an R|L with R_L = 18 MOhm, i.e. a series L adding 0.15 % - the
-# share keeps such a fit out.
-RINF_RL_MIN_INDUCTIVE = 3
-RINF_RL_DBIC_MIN = 10.0
-RINF_RL_MIN_RE_SHARE = 0.01
 
 # Initial n of the CPE: midway in the typical 0.6-1.0 range of real arcs.
 _N_GUESS = 0.8
@@ -285,10 +255,10 @@ class RinfResult:
     # Why the HF bound is used on a closed end, where it needs no fit: an
     # explanation, not a warning
     notes: List[str] = field(default_factory=list)
-    # (R_L, L) [Ohm, H] of an R|L that fits the inductive end decisively
-    # better than a series L (see RINF_RL_DBIC_MIN), with a warning; None
-    # when not checked or not better. R_inf and L stay the R-L-(R|Q) fit's
-    parallel_RL: Optional[Tuple[float, float]] = None
+    # R - (R|L) - (R|Q) where it fits the inductive end decisively better
+    # than a series L (parallel_rl.py), with a warning; None when not checked
+    # or not better. R_inf and L stay those of the R-L-(R|Q) fit
+    parallel_RL: Optional[ParallelRL] = None
 
     @property
     def R_inf_fit(self) -> Optional[float]:
@@ -342,27 +312,6 @@ class RinfResult:
         return 0.0
 
 
-def _window_range(f: NDArray, Z: NDArray) -> Dict[str, Tuple[float, float]]:
-    """Range per parameter type, each term's impedance within
-    min|Z|/RANGE..max|Z|*RANGE.
-
-    R: the value itself. L: its reactance omega*L across the window. Q: its
-    impedance 1/(Q omega^n) across the window and the whole n range. All scale
-    with Z, so R_inf does not depend on the units.
-    """
-    Z_abs = np.abs(Z)
-    lo, hi = float(Z_abs.min()) / RINF_BOUND_RANGE, float(Z_abs.max()) * RINF_BOUND_RANGE
-    w_lo, w_hi = 2 * np.pi * float(f.min()), 2 * np.pi * float(f.max())
-    n_lo, n_hi = PARAMETER_BOUNDS['n']
-    w_n = [w**n for w in (w_lo, w_hi) for n in (n_lo, n_hi)]
-    return {
-        'R': (lo, hi),
-        'L': (lo / w_hi, hi / w_lo),
-        'Q': (1 / (hi * max(w_n)), 1 / (lo * min(w_n))),
-        'n': (n_lo, n_hi),
-    }
-
-
 def _initial_circuit(f: NDArray, Z: NDArray, bounds: Dict[str, Tuple[float, float]]):
     """R - L - (R|Q) with a data-driven start, clipped into the range `bounds`.
 
@@ -371,10 +320,12 @@ def _initial_circuit(f: NDArray, Z: NDArray, bounds: Dict[str, Tuple[float, floa
     (R|Q) arc peaks at. L: Im/omega at f_max if the top point is inductive.
     """
     def clip(value: float, label: str) -> float:
-        return float(np.clip(value, *bounds[label]))
+        return clip_to(value, label, bounds)
 
     omega = 2 * np.pi * f
-    i_top = int(np.argmax(f))
+    # Of several points at f_max the lowest Re(Z), as hf_bound: the start
+    # must not depend on the order of the points
+    i_top = int(_top_down(f, Z)[0])
     R_s = clip(Z.real.min(), 'R')
     R_k = clip(np.ptp(Z.real), 'R')
     tau = 1.0 / omega[int(np.argmax(-Z.imag))]
@@ -389,12 +340,10 @@ def _initial_circuit(f: NDArray, Z: NDArray, bounds: Dict[str, Tuple[float, floa
 def _fit_window(f_win: NDArray, Z_win: NDArray) -> Tuple[FitResult, NDArray]:
     """R-L-(R|Q) fit of one window with bounds relative to its |Z|; raises
     RuntimeError when the fit fails."""
-    window_range = _window_range(f_win, Z_win)
-    circuit = _initial_circuit(f_win, Z_win, window_range)
-    labels = circuit.get_param_labels()
-    lower = [0.0 if label in ('R', 'L') else window_range[label][0] for label in labels]
-    upper = [window_range[label][1] for label in labels]
-    return fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
+    ranges = window_range(f_win, Z_win)
+    circuit = _initial_circuit(f_win, Z_win, ranges)
+    return fit_equivalent_circuit(f_win, Z_win, circuit,
+                                  bounds=window_bounds(circuit.get_param_labels(), ranges))
 
 
 def _top_fit(f_win: NDArray, Z_win: NDArray) -> Optional[Tuple[FitResult, NDArray]]:
@@ -415,54 +364,6 @@ def _top_fit(f_win: NDArray, Z_win: NDArray) -> Optional[Tuple[FitResult, NDArra
     if not (R_s > 0 and stderr <= RINF_REL_STDERR_MAX * R_s):
         return None
     return fit, top
-
-
-def _parallel_rl(f_win: NDArray, Z_win: NDArray, fit: FitResult,
-                 Z_fit: NDArray) -> Optional[Tuple[float, float, float, float, float]]:
-    """(R_L, L, R_s, dBIC, Re share at f_max) of R - (R|L) - (R|Q) when it
-    fits the window decisively better than the R-L-(R|Q) `fit`, else None.
-
-    Started from `fit` with R_L at |Z(f_max)| and at 10x max|Z| (near a
-    series L), within the same relative range; the better of the two counts.
-    """
-    top = f_win >= f_win.max() / 10
-    n_points = len(f_win)
-    if (Z_win.imag[top] > 0).sum() < RINF_RL_MIN_INDUCTIVE or 2 * n_points <= len(fit.params_opt) + 1:
-        return None
-    R_s, L_val, R_k, Q_val, n_val = (float(v) for v in fit.params_opt)
-    window_range = _window_range(f_win, Z_win)
-    i_top = int(np.argmax(f_win))
-    best = None
-    for R_L in (abs(Z_win[i_top]), 10 * float(np.max(np.abs(Z_win)))):
-        circuit = (R(R_s) - (R(float(np.clip(R_L, *window_range['R'])))
-                             | L(float(np.clip(L_val, *window_range['L']))))
-                   - (R(R_k) | Q(Q_val, n_val)))
-        labels = circuit.get_param_labels()
-        lower = [0.0 if label in ('R', 'L') else window_range[label][0] for label in labels]
-        upper = [window_range[label][1] for label in labels]
-        try:
-            fit_rl, Z_rl = fit_equivalent_circuit(f_win, Z_win, circuit, bounds=(lower, upper))
-        except RuntimeError:
-            continue
-        ssr = float(np.sum(np.abs(Z_win - Z_rl) ** 2 / np.abs(Z_win) ** 2))
-        if best is None or ssr < best[0]:
-            best = (ssr, fit_rl)
-    if best is None:
-        return None
-    ssr_rl, fit_rl = best
-    ssr = float(np.sum(np.abs(Z_win - Z_fit) ** 2 / np.abs(Z_win) ** 2))
-    # BIC of the modulus-weighted fits: 2N residuals, one parameter more
-    n_res = 2 * n_points
-    dbic = n_res * np.log(ssr / max(ssr_rl, np.finfo(float).tiny)) - np.log(n_res)
-    R_s_rl, R_L, L_rl = (float(v) for v in fit_rl.params_opt[:3])
-    # Re of R_L | j omega L at f_max: R_L (omega L)^2 / (R_L^2 + (omega L)^2)
-    x = 2 * np.pi * float(f_win[i_top]) * L_rl
-    re_rl = R_L * x**2 / (R_L**2 + x**2) if R_L > 0 else 0.0
-    re_top = float(Z_win.real[i_top])
-    share = re_rl / re_top if re_top > 0 else 0.0
-    if not (dbic >= RINF_RL_DBIC_MIN and share >= RINF_RL_MIN_RE_SHARE):
-        return None
-    return R_L, L_rl, R_s_rl, float(dbic), float(share)
 
 
 def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
@@ -619,16 +520,18 @@ def estimate_rinf(frequencies: NDArray, Z: NDArray) -> RinfResult:
         if RINF_NARROW_STDERR_RATIO * stderr_top < stderr:
             result.R_inf, result.fit, result.fit_window = R_top, fit_top, 'top'
             result.f_window, result.Z_window = f_win[mask], Z_win[mask]
-    rl = _parallel_rl(f_win, Z_win, fit, Z_fit)
+    # Compared on the full window, where both fits see the same points (R_inf
+    # may come from the top-decade fit)
+    rl = check_parallel_rl(f_win, Z_win, fit, Z_fit)
     if rl is not None:
-        R_L, L_rl, R_s_rl, dbic, share = rl
-        result.parallel_RL = (R_L, L_rl)
+        result.parallel_RL = rl
         result.warnings.append(
             f"Re(Z) rises toward f_max at the inductive end, which a series L cannot "
             f"do (skin effect, eddy currents in a wound cell or the leads): "
             f"R - (R|L) - (R|Q) fits the top {RINF_FIT_DECADES} decades better than "
-            f"R - L - (R|Q) (dBIC {dbic:.0f}), R_L = {R_L:.4g} Ohm, L = {L_rl:.3g} H, "
-            f"adding {100 * share:.2g} % to Re(Z) at f_max. In a circuit fit use "
-            f"(R|L) instead of L. R_inf stays the R-L-(R|Q) value; with (R|L) "
-            f"R_s = {R_s_rl:.4g} Ohm")
+            f"R - L - (R|Q) (dBIC {rl.dbic:.0f}), R_L = {rl.R_L:.4g} Ohm, "
+            f"L = {rl.L:.3g} H, R_s = {rl.R_s:.4g} Ohm, its R|L adding "
+            f"{100 * rl.re_share:.2g} % to Re(Z) at f_max. In a circuit fit use (R|L) "
+            f"instead of L. R_inf stays {result.R_inf:.4g} Ohm, from R-L-(R|Q) "
+            f"{'over the top decade' if result.fit_window == 'top' else 'on the same window'}")
     return result

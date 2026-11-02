@@ -86,5 +86,5 @@ def test_parallel_rl_found_in_every_cell(batch):
     # check reports an R|L, with R_L and L alike across the batch
     found = [drt.diagnostics.rinf.estimate.parallel_RL for _, _, drt, _ in batch]
     assert all(rl is not None for rl in found)
-    R_L = np.array([rl[0] for rl in found])
+    R_L = np.array([rl.R_L for rl in found])
     assert R_L.max() / R_L.min() < 1.5

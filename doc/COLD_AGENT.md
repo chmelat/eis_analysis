@@ -895,6 +895,56 @@ README (Fit vs. noise): pomer < 2 na kapacitnim konci, ktery Lin-KK
 projde, nic nedokazuje; kdo vi, ze jde o skutecny ohon, pusti
 `--kk-series-c` (ID11: pomer 4.5).
 
+## Kolo 8, krok 2 (2026-11-02): T16b, totez po opravach Z2 a Z3, Sonnet
+
+Zadani a data T16 beze zmeny (ID11, ID45, ID48), cisty adresar. Piskoviste
+z pracovniho stromu nad cc58c36 (v0.65.0 vcetne oprav z druheho review;
+`~/coldbox-private/setup_worktree.sh`, diff v `~/coldbox-private/r8/`):
+varovani R|L z kontroly R_inf, navrzeny obvod `(R|L) - R(R_s)`, formaty
+odporu (Z3), README "Inductive end" a omezeni Fit vs. noise (Z1). README
+mel tehdy jeste bateriovy priklad s hodnotami blizkymi vysledku a zminky
+o NMC811/T16 (pak zobecneno); agent je nevidel, viz nize.
+
+| | T16 (krok 1) | T16b (Sonnet) | overeni (DE) |
+|---|---|---|---|
+| obvod | R - L - (R\|Q) - W | **R - (R\|L) - (R\|Q) - Ws** | R - (R\|L) - (R\|Q) - W |
+| R0 [mOhm] | 13.53-13.67 | 13.07-13.24 | 13.08-13.25 |
+| R\|\|L | - (L 95-96 nH) | 37.8-39.2 mOhm / 99.5-101 nH | 37.9-39.4 mOhm / 99-101 nH |
+| R oblouku [mOhm] | 4.99 / 3.76 / 3.68 | 5.47 / 4.26 / 4.15 | 5.44 / 4.25 / 4.13 |
+| n | 0.81-0.86 | 0.75-0.79 | 0.75-0.79 |
+| difuze | W | Ws, tau_W 17-22 s (Wo +13/14 dBIC) | W |
+| fit error | 0.65-0.68 % | 0.31-0.34 % | 0.32-0.36 % |
+| cena | 0.21 USD, 3 min | 0.23 USD, 15 min (10 min ve vlastni smycce) | |
+
+Uspech: R|L nasel a zduvodnil varovanim CLI ("Knihovna to sama hlasi ...
+dBIC 107 a doporucuje (R|L)"). Rozdil proti kroku 1: prvni beh bez
+`--no-drt`, takze videl sekci DRT s varovanim i navrzeny obvod. Ws proti
+Wo rozhodl BIC; polonekonecny W nezkusil; tau_W mimo okno sam oznacil za
+extrapolaci (DRT: 37 % R_pol na pomalem okraji). Odlisnost clanku 1
+(R oblouku ~30 % vys) videl jako v kroku 1. Grafy neotevrel, Python API
+nepouzil, bod 0 "ne", jen `~/coldbox/`.
+
+**Kontaminace se neprojevila.** `cat README.md` i `sed -n 30,400p` vratily
+"output too large" s nahledem; v jeho vystupech neni priklad bateriove
+obvodu (r. ~536), odstavec "Inductive end" ani NMC811; CHANGELOG necetl.
+Krok tedy overuje opravu v CLI, ne v README. README pak zobecneno (priklad
+s obecnymi hodnotami, bez NMC811/T16); kontrolni beh s upravenou
+dokumentaci (T16c) se nespoustel.
+
+Bez akce (chyba agenta): `| head -230` za smyckou fitu tri clanku ji
+utnul (SIGPIPE, exit 0) a clanek 3 chybel; nasledna `until ls
+out3_fit_4.json` cekala na soubor, ktery opakovany beh (3 kandidati)
+nevytvoril - timeout ji presunul na pozadi a `claude -p` skoncil az po
+jejim zabiti; u clanku 2 chybi srovnavaci tabulka. Fity pustil
+s `--no-kk`, radek Fit vs. noise tedy nevidel a 0.3 % porovnal s sumem
+Lin-KK 0.86 % sam ("na urovni sumu"). "Parametry Ws nejsou popsany" -
+CIRCUIT_PARSER ma tabulku, cetl jen grep nadpisu.
+
+Z3 (C, nalezeno pri kontrole vystupu kroku 1): odpory v sekci DRT a
+absolutni chyba fitu tiskly 1-2 desetinna mista, u mOhm clanku `0.01 Ohm`
+nebo `0.0` (`R_pol`, `R ~` piku, tabulka Voigt, `Sum R_i`, `Fit error
+(abs)`); agent kroku 1 to mel ve vystupu.
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -944,7 +994,9 @@ projde, nic nedokazuje; kdo vi, ze jde o skutecny ohon, pusti
 | W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overeno v kroku 3: T15b s sumem 0.1 % uspech (agent obe opravy cituje) |
 | X1 (kolo 7, krok 3) | opraveno v README: radky Ws a Wo tabulky prvku uvadeji `tau = L^2/D` (L tloustka vrstvy) |
 | Y1, Y2 (kolo 7, krok 4) | otevreno: Y1 - porovnani obvodu by mohlo oznacit kandidaty, ktere jsou tyz obvod az na poradi bloku; Y2 - Voigt chain (okrajova funkce), bez navrhu |
-| Z1 (kolo 8) | zdokumentovano: README (Fit vs. noise) - omezeni na kapacitnim NF konci, ktery Lin-KK projde, a `--kk-series-c`; automaticke series C (varianta B) zmereno a zamitnuto (`doc/archive/FIT_NOISE_SERIES_C_PLAN.md`). Z2 otevreny |
+| Z1 (kolo 8) | zdokumentovano: README (Fit vs. noise) - omezeni na kapacitnim NF konci, ktery Lin-KK projde, a `--kk-series-c`; automaticke series C (varianta B) zmereno a zamitnuto (`doc/archive/FIT_NOISE_SERIES_C_PLAN.md`). Z2 viz nize |
+| Z2 (kolo 8) | opraveno (v0.65.0): kontrola R_inf fituje pri >= 3 indukcnich bodech v horni dekade i `R - (R\|L) - (R\|Q)`; pri dBIC >= 10 a podilu na Re(Z) >= 1 % varovani a `RinfResult.parallel_RL`, navrzeny obvod zacina `(R\|L) - R(R_s)`; README "Inductive end". Overeno krokem 2 (T16b: agent R\|L prevzal z varovani) |
+| Z3 (kolo 8) | opraveno (v0.65.0): odpory v sekci DRT a absolutni chyba fitu na platne cislice |
 
 ### F5: studie pravidla platnosti Z-HIT
 
