@@ -231,7 +231,11 @@ def lin_kk_native(
     # not of the residuals: a Warburg fails on a few edge points with a 1.5 %
     # mean, and on a closing end the series C would only absorb drift
     # (doc/KK_INTUITION.md). Only a failed test: one that passes has a few
-    # edge points at most, and its noise stays near the data's.
+    # edge points at most. Its noise need not stay near the data's: a tail
+    # well past f_min passes with an inflated noise (NMC811 cells: 0.8-1.1 %,
+    # 0.12-0.23 % with include_C), but a phase drift at the low end looks the
+    # same and the series C absorbs it, so no rerun here either
+    # (doc/archive/FIT_NOISE_SERIES_C_PLAN.md; README, Fit vs. noise).
     # The slope alone also fires on drift (a phase drifting below 1 Hz bends
     # -Z'' upward on a closing arc), so the test is rerun with the series C
     # and kept: drift of |Z| or phase still fails it (14-16 % residuals at

@@ -503,3 +503,58 @@ def test_arc_above_f_max_gives_the_plateau(k):
     assert lo <= 20 <= hi
     split = est.fit.series_split
     assert split is None or not split.widens(0.95)
+
+
+# =============================================================================
+# Parallel R|L at the inductive end (Re(Z) rising toward f_max)
+# =============================================================================
+
+_F_RL = np.logspace(4, -1, 41)
+
+
+def _with_inductive_end(parallel: bool, noise=1e-3, k=1.0, seed=1):
+    """13 mOhm + 5 mOhm (R|Q) at ~250 Hz, 100 nH as R|L (38 mOhm) or in series.
+
+    The NMC811 cells' end (Zenodo 15422339, R_L 34-39 mOhm, L ~100 nH):
+    with R|L Re(Z) rises ~8 % toward 10 kHz, in series it stays flat.
+    """
+    w = 2 * np.pi * _F_RL
+    jwl = 1j * w * 1e-7
+    ind = 0.038 * jwl / (0.038 + jwl) if parallel else jwl
+    Z = 0.013 + ind + 0.005 / (1 + 0.005 * 0.7 * (1j * w) ** 0.75)
+    rng = np.random.default_rng(seed)
+    Z = Z + noise * np.abs(Z) * (rng.standard_normal(len(Z)) + 1j * rng.standard_normal(len(Z)))
+    return _F_RL, k * Z
+
+
+def test_parallel_rl_is_reported_when_re_rises():
+    r = estimate_rinf(*_with_inductive_end(parallel=True))
+    assert r.method == 'rlq_fit'
+    assert r.parallel_RL is not None
+    R_L, L_rl = r.parallel_RL
+    assert R_L == pytest.approx(0.038, rel=0.1)
+    assert L_rl == pytest.approx(1e-7, rel=0.1)
+    assert sum('(R|L)' in w for w in r.warnings) == 1
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+def test_series_inductance_is_not_reported(seed):
+    r = estimate_rinf(*_with_inductive_end(parallel=False, noise=1e-2, seed=seed))
+    assert r.parallel_RL is None
+    assert not any('(R|L)' in w for w in r.warnings)
+
+
+@pytest.mark.parametrize('k', [1e-3, 1e3])
+def test_parallel_rl_scales_with_the_units(k):
+    base = estimate_rinf(*_with_inductive_end(parallel=True))
+    scaled = estimate_rinf(*_with_inductive_end(parallel=True, k=k))
+    assert scaled.parallel_RL is not None
+    assert scaled.parallel_RL[0] == pytest.approx(k * base.parallel_RL[0], rel=1e-3)
+    assert scaled.parallel_RL[1] == pytest.approx(k * base.parallel_RL[1], rel=1e-3)
+
+
+def test_capacitive_top_is_not_checked():
+    # No point with Im(Z) > 0 in the top decade: nothing to compare
+    w = 2 * np.pi * _F_RL
+    Z = 0.013 + 0.005 / (1 + 0.005 * 0.7 * (1j * w) ** 0.75)
+    assert estimate_rinf(_F_RL, Z).parallel_RL is None

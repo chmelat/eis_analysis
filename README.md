@@ -410,7 +410,12 @@ draws the fit. Until v0.61 the default was that HF median (Re(Z) over the up
 to 5 highest-frequency points, capped by the bound), which runs into an arc
 still open at f_max; the error of R_inf goes into the DRT's R_pol about 1:1.
 With a circuit fit, R_s is a fit parameter and depends on neither. See
-[doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md).
+[doc/RINF_ESTIMATION.md](doc/RINF_ESTIMATION.md). When the top decade has
+three or more inductive points, `R - (R|L) - (R|Q)` is fitted as well; if it
+wins (dBIC >= 10, its R|L adding >= 1 % to Re(Z) at f_max) a warning gives
+its R_L, L and R_s and the suggested circuit uses `(R|L)` in place of `L`
+(see Circuit fitting, Inductive end). R_inf itself stays the `R - L - (R|Q)`
+value; with `(R|L)` R_s came out 4-5 % lower on the NMC811 cells.
 `R_pol (from data)` (circuit suggestion) is the median Re(Z) of the (up to 5)
 lowest-frequency points minus the DRT's R_inf: a lower bound when an arc is still open at f_min
 (cold-agent task T12: 180 Ohm, true 950), as is `R_pol (from DRT integral)`;
@@ -524,9 +529,25 @@ eis data.DTA --circuit "R(10) - (R(100) | Q(1e-4, 0.8))"
 # R | (Q - Ws) by the precedence above
 eis data.DTA --circuit "R(10) - (Q(1e-4, 0.9) | (R(100) - Ws(50, 1)))"
 
+# Inductive end where Re(Z) rises toward f_max (skin effect, eddy currents
+# in a wound cell or the leads): (R|L) instead of a series L, here a
+# Li-ion 21700 cell with a diffusion tail
+eis cell.csv --circuit "R(0.013) - (R(0.04) | L(1e-7)) - (R(0.005) | Q(0.7, 0.75)) - W(0.001)"
+
 # With fixed parameter
 eis data.DTA --circuit 'R("0.86") - (R(2.4e9) | Q(1e-10, 0.823))'
 ```
+
+**Inductive end.** A series `L` adds only Im(Z), and every RC element's
+Re(Z) falls with frequency, so `R - L - ...` keeps Re(Z) flat or falling
+toward f_max. When the measured Re(Z) rises there instead - common in wound
+battery cells and long leads - fit `(R|L)` in place of `L`: below
+f = R_L / (2 pi L) it is an inductor, above it adds up to R_L to Re(Z). The
+R_inf check of the DRT (below) fits both to the top two decades and warns
+when `(R|L)` wins by dBIC >= 10 and adds >= 1 % to Re(Z) at f_max; the
+suggested circuit then carries it. On 54 NMC811 cells (cold-agent task T16)
+Re(Z) rose 4-5 % over the top decade, and `(R|L)` beat `L` by dBIC 167-185
+in the full circuit fit.
 
 **Does every element earn its place?** With `--circuit` (any `--optimizer`), each
 parameter line carries an `S`, its significance - the largest relative change

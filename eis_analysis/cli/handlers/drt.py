@@ -8,7 +8,7 @@ DRT analysis handlers for the EIS CLI.
 import argparse
 import logging
 from math import isfinite, isinf, isnan
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from numpy.typing import NDArray
 
@@ -185,8 +185,8 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
         logger.info(f"Matrix A has high condition number ({diag.condition_number:.2e})")
 
     # R_pol
-    logger.info(f"R_pol (from data) = {diag.R_pol_from_data:.2f} Ohm")
-    logger.info(f"R_pol (from DRT integral) = {diag.R_pol_from_gamma:.2f} Ohm")
+    logger.info(f"R_pol (from data) = {diag.R_pol_from_data:.4g} Ohm")
+    logger.info(f"R_pol (from DRT integral) = {diag.R_pol_from_gamma:.4g} Ohm")
     if diag.R_pol_extrapolated_fraction > 0:
         logger.info(f"  of which past the measured window: "
                     f"{diag.R_pol_extrapolated_fraction*100:.1f}%")
@@ -229,14 +229,14 @@ def _log_drt_diagnostics(result: DRTResult) -> None:
     if diag.peak_method == 'gmm' and result.peaks:
         for i, peak in enumerate(result.peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau_center']:.2e} s "
-                        f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm, "
+                        f"(f = {peak['f_center']:.2e} Hz), R ~ {peak['R_estimate']:.4g} Ohm, "
                         f"width = {peak['log_tau_std']:.2f} dec, "
                         f"weight = {peak['weight']:.3f}"
                         f"{_edge_marker(peak)}")
     elif diag.scipy_peaks:
         for i, peak in enumerate(diag.scipy_peaks):
             logger.info(f"  Peak {i+1}: tau = {peak['tau']:.2e} s "
-                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.2f} Ohm, "
+                        f"(f = {peak['frequency']:.2e} Hz), R ~ {peak['R_estimate']:.4g} Ohm, "
                         f"{_delta_chi2_str(peak['delta_chi2'])}"
                         f"{_edge_marker(peak)}")
         if diag.rejected_peaks:
@@ -397,7 +397,9 @@ def run_voigt_analysis(
             peaks_gmm=drt_result.peaks,
             peak_indices=[p['index'] for p in (drt_result.diagnostics.scipy_peaks or [])]
         )
-        _log_voigt_report(suggestion, drt_result.R_inf, drt_result.L_series)
+        est = drt_result.diagnostics.rinf.estimate
+        _log_voigt_report(suggestion, drt_result.R_inf, drt_result.L_series,
+                          est.parallel_RL if est is not None else None)
 
     except Exception as e:
         logger.warning(f"Voigt element analysis failed: {e}")
@@ -405,7 +407,8 @@ def run_voigt_analysis(
 
 
 def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
-                      L_series: float) -> None:
+                      L_series: float,
+                      parallel_RL: Optional[Tuple[float, float]] = None) -> None:
     """Report the Voigt elements read off the DRT, with how they were chosen."""
     log_separator()
     logger.info("Voigt elements (R||C) from DRT")
@@ -427,15 +430,15 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
         logger.info(f"  {elem.id:2d} | "
                     f"{elem.tau:10.2e} | "
                     f"{elem.freq:10.2e} | "
-                    f"{elem.R:9.1f} | "
+                    f"{elem.R:9.4g} | "
                     f"{elem.C:10.2e} | "
                     f"{warnings_str}")
     logger.info("")
 
     # A ratio outside 0.5-2 is already one of suggestion.warnings
     logger.info("Consistency validation:")
-    logger.info(f"  Sum R_i (from peaks): {suggestion.total_R:9.1f} Ohm")
-    logger.info(f"  R_pol (from data):    {suggestion.R_pol:9.1f} Ohm")
+    logger.info(f"  Sum R_i (from peaks): {suggestion.total_R:9.4g} Ohm")
+    logger.info(f"  R_pol (from data):    {suggestion.R_pol:9.4g} Ohm")
     if suggestion.ratio == float('inf'):
         logger.info("  Ratio:                INF (R_pol = 0)")
     else:
@@ -448,9 +451,17 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
         logger.warning(warning)
     # Values, not symbols, so the line pastes into --circuit as a starting
     # point - with the R_inf and series L of the DRT the elements came from
+    # An inductive end with Re(Z) rising (RinfResult.parallel_RL) gets the
+    # R|L of the R_inf check in place of the DRT's series L
     values = [v for e in elements for v in (e.R, e.C)]
+    if parallel_RL is not None:
+        values += list(parallel_RL)
     if R_inf is not None and all(isfinite(v) for v in [R_inf, L_series] + values):
-        parts = ([f"L({L_series:.4g})"] if L_series > 0 else []) + [f"R({R_inf:.4g})"]
+        if parallel_RL is not None:
+            inductive = [f"(R({parallel_RL[0]:.4g}) | L({parallel_RL[1]:.4g}))"]
+        else:
+            inductive = [f"L({L_series:.4g})"] if L_series > 0 else []
+        parts = inductive + [f"R({R_inf:.4g})"]
         parts += [f"(R({e.R:.4g}) | C({e.C:.4g}))" for e in elements]
         logger.info(f"Suggested circuit: {' - '.join(parts)}")
     else:
@@ -468,4 +479,7 @@ def _log_voigt_report(suggestion: VoigtSuggestion, R_inf: Optional[float],
     logger.info("  A peak may also be diffusion, which (R|C) only approximates: a Ws peaks at")
     logger.info("  0.41 tau_W; in a Randles cell fit Q | (R - Ws) too, e.g. "
                 "R - (Q | (R - Ws)).")
+    if parallel_RL is not None:
+        logger.info("  (R|L) in place of L: Re(Z) rises toward f_max at the inductive end "
+                    "(see the warning).")
     log_separator()

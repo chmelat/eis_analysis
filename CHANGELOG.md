@@ -4,6 +4,41 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.65.0 (2026-11-02)
+
+### Added
+
+- **R_inf check for an inductive end with Re(Z) rising toward f_max**
+  (cold-agent task T16, finding Z2: Li-ion 21700 cells fitted with a series
+  L, while (R|L) won by dBIC 167-185). A series L cannot raise Re(Z), which
+  skin effect and eddy currents in wound cells or leads do. When the top
+  decade has >= 3 inductive points, `estimate_rinf` also fits
+  `R - (R|L) - (R|Q)` to its window; if it beats `R - L - (R|Q)` by
+  dBIC >= 10 and its R|L adds >= 1 % to Re(Z) at f_max,
+  `RinfResult.parallel_RL` holds (R_L, L) and a warning gives them with the
+  R_s of that fit. The suggested circuit of the DRT then starts with
+  `(R(R_L) | L(L))` in place of `L`. R_inf itself is unchanged. Measured:
+  all 54 NMC811 cells of `tests/data` (dBIC 103-135, ~8 % of Re(Z) at
+  f_max), none of 285 stress spectra with a series L.
+
+### Fixed
+
+- **Resistances in the DRT section and the fit error kept their digits
+  for small impedances** (T16): `R_pol`, the peak `R ~`, the Voigt table,
+  `Sum R_i` and `Fit error (abs)` were printed with 1-2 decimals, so a
+  battery in mOhm read `0.01 Ohm` or `0.0`. Now 4 significant digits
+  (3 for the absolute fit error).
+
+### Documentation
+
+- **README, Circuit fitting:** the inductive end - when to fit `(R|L)`
+  instead of `L`, with an example; R_inf section: the new check.
+- **Comment at the series-C rerun of Lin-KK** (`kramers_kronig_validation`):
+  a test that passes need not have a noise near the data's (a tail past
+  f_min); why it still gets no rerun (`doc/archive/FIT_NOISE_SERIES_C_PLAN.md`).
+
+---
+
 ## Version 0.64.2 (2026-11-02)
 
 ### Tests

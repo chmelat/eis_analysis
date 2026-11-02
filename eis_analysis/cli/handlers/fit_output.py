@@ -409,7 +409,7 @@ def _log_fit_result(result: FitResult,
         logger.info(f"    {s.elements:11s} R = {s.R:.4e} Ohm +/- {s.stderr:.2e}{note}")
 
     # Fit quality
-    logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.2f} Ohm (abs)")
+    logger.info(f"  Fit error: {result.fit_error_rel:.2f}% (rel), {result.fit_error_abs:.3g} Ohm (abs)")
     # Threshold bounds match the tiers in compute_fit_metrics.
     quality_thresholds = {
         'excellent': f"<{FIT_QUALITY_EXCELLENT_ERROR:.1f}%",
