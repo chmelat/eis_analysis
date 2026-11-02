@@ -15,8 +15,14 @@ Z-HIT, R_inf, LM fit, n(f)) once on the base spectrum of its first --n cases
 per family, and the DE fit of invariant G (with its 95 % CI) on every
 DE_EVERY-th case. It stores the values of their signatures, which carry the
 stress test's tolerances, and the flag and text fields of each result
-(is_valid, warnings, methods). Not covered: the LM fit's warnings and CI,
-and whatever the CLI adds.
+(is_valid, warnings, methods), and of R_inf's parallel R|L check. Besides
+the synthetic cases, MEASURED_CELLS of the NMC811 batteries in tests/data
+(family `nmc811`; DRT, Lin-KK, Z-HIT and R_inf only - no truth to fit
+from): an inductive end with Re(Z) rising and a diffusion tail past f_min,
+which the stress families do not have. Lin-KK runs there with the series C,
+as on every capacitive end (stress_cases.capacitive_end, read off the
+measured data). Not covered: the LM fit's warnings and CI, and whatever the
+CLI adds.
 
 `--root` takes only `eis_analysis` from another checkout; the case generator
 and the signatures are this checkout's code (as driftlet's
@@ -70,6 +76,12 @@ LIB_VAR = 'EIS_FINGERPRINT_LIB'
 # Cases per family of a default record: 300 cases and 60 DE fits, under
 # 3 min on 4 processes (RK3588); --n 250 is the stress test's full set
 DEFAULT_N = 50
+# Measured spectra recorded with every --n: six cells spread over the batch
+# (tests/data/nmc811_zenodo_15422339), a few seconds
+MEASURED_FAMILY = 'nmc811'
+MEASURED_DATA = REPO / 'tests' / 'data' / 'nmc811_zenodo_15422339'
+MEASURED_CELLS = (1, 11, 22, 33, 45, 54)
+MEASURED_ANALYSES = ('drt', 'linkk', 'zhit', 'rinf')
 # Differences listed by compare after the table
 SHOW = 20
 # Hex digits kept of an input's SHA-1: 64 bits, so a chance collision among a
@@ -135,6 +147,36 @@ def _plain(sig, result=None):
     return out
 
 
+def _parallel_rl(signature):
+    """Entries of R_inf's ParallelRL (None or its fields), added to its
+    plain signature: _flags keeps only flags and texts."""
+    raw = signature['raw'].value if isinstance(signature, dict) and 'raw' in signature else None
+    rl = getattr(raw, 'parallel_RL', None)
+    if rl is None:
+        return {'parallel_RL': _entry(None)}
+    return {f'parallel_RL.{name}': _entry(float(getattr(rl, name)), 'rel')
+            for name in ('R_L', 'L', 'R_s', 'dbic', 're_share')}
+
+
+def _record_measured(index):
+    """{analysis: plain signature} of measured cell `index`."""
+    from types import SimpleNamespace
+    from eis_analysis import load_csv_data
+    from tests.stress_invariants import run_analysis
+    path = MEASURED_DATA / f'ID{index:02d}.csv'
+    data = load_csv_data(str(path))
+    # What the analyses read of a case: no truth, the measurement is the
+    # "clean" spectrum capacitive_end looks at
+    case = SimpleNamespace(frequencies=data.frequencies, Z=data.Z, Z_clean=data.Z)
+    out = {'_input': hashlib.sha1(path.read_bytes()).hexdigest()[:HASH_DIGITS]}
+    for name in MEASURED_ANALYSES:
+        sig = run_analysis(name, case, data.frequencies, data.Z)
+        out[name] = _plain(sig)
+        if name == 'rinf' and isinstance(out[name], dict):
+            out[name].update(_parallel_rl(sig))
+    return out
+
+
 def record_case(job):
     """(job, {analysis: plain signature}, the package that ran it)."""
     _setup_path()
@@ -145,6 +187,11 @@ def record_case(job):
     from tests.stress_consistency import DE_EVERY, run_de
     from tests.stress_invariants import ANALYSES, fit_signature, run_analysis
     package = str(Path(eis_analysis.__file__).resolve().parent)
+    if job[0] == MEASURED_FAMILY:
+        try:
+            return job, _record_measured(job[1]), package
+        except Exception as e:
+            return job, {'case': _plain(e)}, package
     try:
         case = generate_case(*job)
         # What the analyses are given, the library-built parts included
@@ -154,8 +201,11 @@ def record_case(job):
     except Exception as e:   # the rest of the record is kept
         return job, {'case': _plain(e)}, package
     out = {'_input': h.hexdigest()[:HASH_DIGITS]}
-    out.update({name: _plain(run_analysis(name, case, case.frequencies, case.Z))
-                for name in ANALYSES})
+    for name in ANALYSES:
+        sig = run_analysis(name, case, case.frequencies, case.Z)
+        out[name] = _plain(sig)
+        if name == 'rinf' and isinstance(out[name], dict):
+            out[name].update(_parallel_rl(sig))
     if job[1] % DE_EVERY == 0:
         try:
             r = run_de(case)[0].best_result
@@ -217,7 +267,9 @@ def record(out: Path, n: int, root: Path) -> int:
         start = time.perf_counter()
         with ProcessPoolExecutor(max_workers=MAX_WORKERS,
                                  mp_context=multiprocessing.get_context('spawn')) as pool:
-            done = list(pool.map(record_case, [(f, i) for f in FAMILIES for i in range(n)]))
+            jobs = [(f, i) for f in FAMILIES for i in range(n)]
+            jobs += [(MEASURED_FAMILY, i) for i in MEASURED_CELLS]
+            done = list(pool.map(record_case, jobs))
     if {pkg for _, _, pkg in done} != {str(package)}:
         print(f'record: workers ran {sorted({pkg for _, _, pkg in done})}, not {package}; '
               'nothing written')

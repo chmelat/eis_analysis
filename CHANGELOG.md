@@ -4,6 +4,24 @@ Complete change history for all project versions.
 
 ---
 
+## Version 0.65.1 (2026-11-02)
+
+### Tests
+
+- **Validations raise no false alarm on the measured NMC811 cells**
+  (`tests/test_real_nmc811.py`, slow): Z-HIT valid on all 54 (mean
+  |res_mag| 0.17-0.48 %), and the per-point outlier check flags no point
+  and skips no method in any cell. Clean measured data, which synthetic
+  white noise does not stand in for.
+- **Fingerprint covers measured spectra and the R|L check**
+  (`tests/fingerprint.py`): six NMC811 cells (family `nmc811`; DRT, Lin-KK,
+  Z-HIT, R_inf) with an inductive end where Re(Z) rises and a diffusion
+  tail past f_min, regimes the stress families lack; and for every case the
+  fields of `RinfResult.parallel_RL`. A record made before this change lacks
+  them, so compare lists them as missing.
+
+---
+
 ## Version 0.65.0 (2026-11-02)
 
 ### Added

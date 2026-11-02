@@ -23,6 +23,8 @@ import numpy as np
 import pytest
 
 from eis_analysis import calculate_drt, kramers_kronig_validation, load_csv_data
+from eis_analysis.validation.outliers import find_outliers
+from eis_analysis.validation.zhit import zhit_validation
 
 pytestmark = pytest.mark.slow
 
@@ -48,6 +50,11 @@ def batch():
                     calculate_drt(data.frequencies, data.Z),
                     kramers_kronig_validation(data.frequencies, data.Z)))
     return out
+
+
+@pytest.fixture(scope='module')
+def zhit(batch):
+    return [zhit_validation(data.frequencies, data.Z) for _, data, _, _ in batch]
 
 
 def test_all_cells_load(batch):
@@ -88,3 +95,18 @@ def test_parallel_rl_found_in_every_cell(batch):
     assert all(rl is not None for rl in found)
     R_L = np.array([rl.R_L for rl in found])
     assert R_L.max() / R_L.min() < 1.5
+
+
+# The spectra pass KK; on clean measured data the validations must not raise
+# false alarms. Measured 2026-11-02: Z-HIT mean |res_mag| 0.17-0.48 %, max
+# 0.84-2.3 %; Lin-KK max point residual 1.7-2.7 %; no point flagged.
+
+def test_zhit_valid_for_all_cells(zhit):
+    assert all(z.is_valid for z in zhit)
+
+
+def test_no_point_flagged_as_outlier(batch, zhit):
+    for (name, data, _, kk), z in zip(batch, zhit):
+        report = find_outliers(data.frequencies, kk, z)
+        assert not report.points, (name, [p.frequency for p in report.points])
+        assert not report.skipped, (name, report.skipped)

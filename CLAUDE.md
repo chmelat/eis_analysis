@@ -144,7 +144,8 @@ python3 tests/stress.py --update-baseline  # after a triaged change: record the 
 ```
 
 A refactor meant to change no result is checked by a fingerprint of the
-analyses' values (`tests/fingerprint.py`, stress cases and DE on every 5th):
+analyses' values (`tests/fingerprint.py`, stress cases, DE on every 5th and
+six measured NMC811 cells from `tests/data`):
 
 ```bash
 python3 tests/fingerprint.py record before.pkl   # before the change (file outside the repo)
