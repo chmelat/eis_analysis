@@ -825,6 +825,76 @@ W, `Ohm*s^(-1/2)`) a `Q` (`F * s^(n-1)`) jsou v casti, kterou necetl
 je volba agenta (README: "Useful if you only want circuit fitting"); bez
 nej by videl DRT a navrh obvodu.
 
+### Z1 podrobne: proc je tu Z-HIT tesnejsi nez Lin-KK
+
+Obvykle je to naopak. Z-HIT pocita |Z| z faze priblizne (druhy rad): pro
+konstantni fazi presne, pri rychle zmene faze s chybou. Lin-KK sedi skoro
+presne, kdyz se procesy uzavrou v okne. Nas Lin-KK ale fituje jen realnou
+cast (`fit_type='real'`) a Im predpovida; cast procesu za f_min se v okne
+projevi temer jen v Im (jako kondenzator) a z Re ji nevidi. Odhad sumu
+(horni mez), 71 bodu 100 kHz - 10 mHz:
+
+| spektrum | sum | Lin-KK | Z-HIT |
+|---|---|---|---|
+| 2x RC (n = 1), uzavrou se v okne | 0 / 0.1 % | 0.000 / 0.13 % | 1.04 / 1.03 % |
+| 2x ZARC n = 0.8, uzavrou se | 0.1 % | 0.14 % | 0.46 % |
+| RC + polonekonecny W | 0 / 0.1 % | 2.73 / 1.64 % | 0.71 / 0.73 % |
+
+Bezsumovy RC + W test **neprojde** (Im rezidua az -17 % na 10 mHz, CLI
+navrhne series C; s nim projde, sum 0.02 %).
+
+Rozklad na ID11: synteticka spektra z fitovaneho `R-(R|L)-(R|Q)-W`
+(sum 0.05 %), meneny jen okraje:
+
+| varianta | Lin-KK | Z-HIT |
+|---|---|---|
+| model (R\|\|L nahore, W dole) | 0.57 % | 0.36 % |
+| seriove L misto R\|\|L | 0.67 % (NF Im 1.9 %) | 0.15 % |
+| uzavrena difuze Ws misto W | 0.16 % | 0.37 % |
+| oba okraje uvnitr okna | 0.04 % | 0.16 % |
+| *namerene ID11* | *0.86 %* | *0.29 %* |
+
+Lin-KK zhorsuji oba okraje, vic ten NF; Z-HIT jen R\|\|L (rostouci Re
+a skok faze do indukcni oblasti), Warburg mu nevadi.
+
+**Series C to resi.** Lin-KK se seriovym C (pohlti cast ohonu za oknem):
+
+| clanek | Lin-KK | Lin-KK + C | C | Z-HIT |
+|---|---|---|---|---|
+| ID11 | 0.855 % | 0.154 % | 3.4e3 F | 0.288 % |
+| ID45 | 0.867 % | 0.181 % | 3.0e3 F | 0.376 % |
+| ID48 | 0.823 % | 0.140 % | 3.0e3 F | 0.280 % |
+
+C ~ 3000 F je fyzikalni: baterie je pro f -> 0 kondenzator (dQ/dU clanku
+s kapacitou nekolika Ah). Zbylych ~0.15 % je R\|\|L nahore (synteticka
+varianta s uzavrenou difuzi 0.13-0.16 %; L/R ~ 2.5 us lezi nad f_max, kam
+sit Lin-KK nesaha).
+
+**Proc to CLI nevyuzilo.** Beh se series C se pousti jen pri **neuspesnem**
+testu s kapacitnim koncem (`kramers_kronig_validation`, komentar "one that
+passes has a few edge points at most, and its noise stays near the
+data's"). Tady test projde (rezidua pod 5 %), sum 0.86 % ale u dat neni.
+Se sumem behu se series C by fit/KK vysel:
+
+| clanek | agent `R-L-(R\|Q)-W` | `R-(R\|L)-(R\|Q)-W` | + druhy oblouk |
+|---|---|---|---|
+| ID11 | 0.8 -> **4.5** | 0.3 -> 1.7 | 0.8 |
+| ID45 | 0.8 -> **4.0** | 0.3 -> 1.4 | 0.8 |
+| ID48 | 0.9 -> **5.1** | 0.3 -> 1.7 | 1.7 (neidentifikovatelny) |
+
+Agentuv obvod by byl oznacen (> 2), obvody s R\|\|L ne; shoda s BIC
+(dBIC 167-185).
+
+**Mereni a rozhodnuti** (`doc/archive/FIT_NOISE_SERIES_C_PLAN.md`): brat
+series C pro fit/KK vzdy pri zapornem NF sklonu (varianta B) zamitnuto.
+Na stress pripadech nic nezhorsi ani nezlepsi (rezim NMC tam skoro neni),
+ale NF fazovy drift 2-5 deg na uzavrenem oblouku vypada uvnitr okna
+stejne jako ohon za f_min, series C ho pohlti a spravny obvod by mel
+pomer 2.6-4.4, aniz by drift cokoli jineho hlasilo. Omezeni zapsano do
+README (Fit vs. noise): pomer < 2 na kapacitnim konci, ktery Lin-KK
+projde, nic nedokazuje; kdo vi, ze jde o skutecny ohon, pusti
+`--kk-series-c` (ID11: pomer 4.5).
+
 ## Stav nalezu
 
 | Nalez | Stav |
@@ -874,6 +944,7 @@ nej by videl DRT a navrh obvodu.
 | W1, W2 (kolo 7, krok 2) | opraveno: W1 README - priklad "Randles circuit with CPE" prejmenovan na zjednoduseny, pridan plny Randles `R - (Q \| (R - Ws))` s varovanim pred `(R \| Q - Ws)`; W2 CLI - poznamka pod `Suggested circuit` zminuje difuzi (Ws pik u 0.41 tau_W, navrh `R - (Q \| (R - Ws))`), README sekce DRT s ni. Overeno v kroku 3: T15b s sumem 0.1 % uspech (agent obe opravy cituje) |
 | X1 (kolo 7, krok 3) | opraveno v README: radky Ws a Wo tabulky prvku uvadeji `tau = L^2/D` (L tloustka vrstvy) |
 | Y1, Y2 (kolo 7, krok 4) | otevreno: Y1 - porovnani obvodu by mohlo oznacit kandidaty, ktere jsou tyz obvod az na poradi bloku; Y2 - Voigt chain (okrajova funkce), bez navrhu |
+| Z1 (kolo 8) | zdokumentovano: README (Fit vs. noise) - omezeni na kapacitnim NF konci, ktery Lin-KK projde, a `--kk-series-c`; automaticke series C (varianta B) zmereno a zamitnuto (`doc/archive/FIT_NOISE_SERIES_C_PLAN.md`). Z2 otevreny |
 
 ### F5: studie pravidla platnosti Z-HIT
 

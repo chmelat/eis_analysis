@@ -677,6 +677,24 @@ residual, when the two differ by more than a factor 2, and the per-point check l
 that stand out individually (a smooth misfit at one end raises the warning
 without single points).
 
+It also fails when the low-frequency end is capacitive (-Z'' still rising at
+f_min) and Lin-KK passes all the same. Lin-KK fits the real part and predicts
+the imaginary one; a process continuing below f_min (diffusion in a battery,
+a blocking interface) shows in the window almost only in Z'', so the Lin-KK
+noise contains it, while a circuit with the right element does not. The
+reference is then inflated and a ratio below 2 proves nothing. On 54
+NMC811 Li-ion cells (Warburg tail below 50 mHz, cold-agent task T16) Lin-KK
+passed with 0.8-1.1 % noise, 0.12-0.23 % with the series C; a circuit missing
+an element read 0.6-0.9 against 4.3-5.3 with the series C, and BIC rejected it by
+167-185. The residual tests caught it (runs test p ~ 1e-6). The CLI does not
+switch to the series C on its own here: inside the window a low-frequency
+phase drift looks the same (-Z'' bent upward on a closing arc), the series C
+absorbs it too, and a correct circuit on 2-5 deg of phase drift then reads
+2.6-4.4 with nothing else reporting the drift. If you know the end is a real
+tail (diffusion, a blocking cell) and not drift, rerun with `--kk-series-c`:
+the ratio then uses that noise. Otherwise trust the residual tests over a
+low ratio. Measurement: `doc/archive/FIT_NOISE_SERIES_C_PLAN.md`.
+
 The shape is reported as two measurements rather than as one verdict, because
 residuals commonly carry both at once and each asks for a different repair:
 
