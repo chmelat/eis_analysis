@@ -765,6 +765,66 @@ v README hned na zacatku a vyklad, ktery dnes dava jen CLI, by musel byt
 dostupny i z vysledkovych objektu. Pasti API overi jen zadani "jen Python
 API" (kolo 3).
 
+## Kolo 8 (2026-11-02): T16, realne baterie, Sonnet
+
+Prvni uloha s merenymi daty a bez pravdy (odchylka od planu, "Neni cilem:
+hledat model k experimentalnim datum"). Nahradou pravdy je konzistence:
+tri clanky z jedne davky, overeni vlastnim fitem DE. Piskoviste z 5103266
+(v0.64.2), stare behy presunuty do `~/coldbox-private/r7/runs_archive/`.
+Spusteni jako v kole 7 (`--tools` Bash/Read/Write/Edit/Glob/Grep,
+rozpocet 2 USD).
+
+**Uloha.** Li-ion clanky 21700, katoda NMC811, 30 % SoC, tri nahodne
+z davky 54 nominalne stejnych; galvanostaticka EIS (Keysight SL1007A),
+10 kHz - 50 mHz, 44 bodu, amplituda a teplota neuvedeny. Urcit vhodny
+nahradni obvod a parametry kazdeho clanku s nejistotou, zduvodnit volbu
+a zda plati pro vsechny tri. Nase vyklady (skin efekt, SEI, difuze)
+v zadani nebyly.
+
+**Data.** Zenodo 15422339 (CC BY 4.0, `tests/data/nmc811_zenodo_15422339`),
+vylosovany ID11, ID45, ID48 (`clanek_1..3.csv`, beze zmen). Kontaminace:
+`CHANGELOG.md` v0.64.2 tato data popisuje (L 90-96 nH, skin efekt);
+ponechan jako driftlet v kole 7, agent ho necetl.
+
+| | Agent (Sonnet) | Overeni (DE, nase CLI) |
+|---|---|---|
+| obvod | R - L - (R\|Q) - W, vsechny tri | R - (R\|L) - (R\|Q) - W: dBIC -167 / -173 / -185 proti agentovi |
+| fit error | 0.65-0.68 %, fit/KK 0.8 | 0.32-0.36 %, fit/KK 0.3 |
+| R0 [mOhm] | 13.53-13.67 | 13.08-13.25 |
+| L | 95-96 nH | R\|\|L: 38-39 mOhm, 99-101 nH |
+| R oblouku [mOhm] | 4.99 / 3.76 / 3.68 | 5.44 / 4.25 / 4.13 |
+| n | 0.81-0.86 | 0.75-0.79 |
+| sigma_W [Ohm s^-1/2] | 1.02-1.06e-3 | 1.00-1.04e-3 |
+| druhy oblouk | clanek 1: BIC -20, odmitl usudkem (konzistence) | s R\|\|L: ID11, ID45 err 0.17-0.18 % (BIC ano), ID48 neidentifikovatelny |
+| cena | 0.21 USD, 183 s, 9 volani | |
+
+Castecny uspech: obvod pouzitelny a jednotny, rezidua nenahodna sam
+priznal, odlisnost clanku 1 odhadl spravne (je i v overeni). R\|\|L na
+VF konci, kde Re(Z) s frekvenci roste, nenasel; nenahodna rezidua zustavaji
+i u nejlepsiho overeneho obvodu. Postup: README (1-400), prvni beh rovnou
+`--no-drt` (DRT ani navrh obvodu nevidel), vypis dat awk, CIRCUIT_PARSER
+(1-120), porovnani 4 kandidatu na clanku 1 a 3 na clancich 2, 3,
+`help(W)`. Grafy neotevrel. Bod 0 "ne", jen `~/coldbox/`.
+
+**Overeni (princip 6).** Lin-KK fituje jen realnou cast a jeho pseudo
+chi^2 je od M = 7 do 20 ploche (ID11 0.74-0.76 %): mez predpovedi Im z Re
+v useknutem okne (difuze pod 50 mHz, R\|\|L nad 10 kHz). Komplexni fit
+stejnou bazi klesa: 0.83 % (M 6), 0.22 % (M 8), 0.10 % (M 15). Z-HIT dava
+horni mez 0.28-0.38 %. Data KK splnuji (54/54 clanku).
+
+### Nove nalezy
+
+| # | Kat. | Nalez | Uloha |
+|---|---|---|---|
+| Z1 | C | `Fit vs. noise` / fit/KK na spektru useknutem na obou koncich: sum Lin-KK (0.82-0.87 %) obsahuje mez realneho fitu, kterou obvod s R\|\|L a W nema, takze se nevykrati. Obvod bez R\|\|L dava 0.8 (agent: "na urovni sumu"), lepsi obvod 0.3. README ("a correct circuit lands at about 1 (0.6-1.0)", "the ratio cancels it") tu neplati; varoval jen runs test. Mozny smer: brat mensi z hornich mezi Lin-KK a Z-HIT (agentuv obvod by mel ~2.3, *); pred zmenou zmerit na stress testu (sdileny vypocet, vic konzumentu) | T16 |
+| Z2 | C | Indukcni VF konec s Re(Z) rostoucim k f_max (skin efekt, virive proudy ve svinute elektrode) neni v dokumentaci ani v CLI: R_inf i DRT pocitaji jen se seriovym L, `(R\|L)` dokumentace nezminuje. Agent rust Re(Z) v datech nevidel; s R\|\|L dBIC 167-185 u vsech tri clanku | T16 |
+
+Bez akce (chyba agenta): jednotky `W` (CIRCUIT_PARSER, tabulka parametru
+W, `Ohm*s^(-1/2)`) a `Q` (`F * s^(n-1)`) jsou v casti, kterou necetl
+(radky 1-120); Ws a Wo nezkusil (sam uvedl). `--no-drt` od prvniho volani
+je volba agenta (README: "Useful if you only want circuit fitting"); bez
+nej by videl DRT a navrh obvodu.
+
 ## Stav nalezu
 
 | Nalez | Stav |
